@@ -1,6 +1,6 @@
 /**
  * V3 设置数据结构
- * 继承 V2 设置，新增控制面板相关配置
+ * 基于 V2 设置，新增控制面板相关配置
  */
 
 import { SubjectType, CollectionType } from '../../../common/api/types';
@@ -39,7 +39,7 @@ export interface PanelFilters {
 }
 
 /**
- * V3 插件设置（继承 V2）
+ * V3 插件设置
  */
 export interface BangumiPluginSettingsV3 {
 	// 认证

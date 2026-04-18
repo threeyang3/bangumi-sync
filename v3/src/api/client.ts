@@ -1,5 +1,5 @@
 /**
- * Bangumi API 客户端 V2
+ * Bangumi API 客户端 V3
  * 处理与 Bangumi API 的所有通信
  */
 
@@ -61,10 +61,10 @@ export class BangumiClientV3 {
 		};
 
 		try {
-			console.log(`[Bangumi Sync V2] ${method} ${url}`);
+			console.log(`[Bangumi Sync V3] ${method} ${url}`);
 			const response = await requestUrl(options);
 
-			console.log(`[Bangumi Sync V2] Response status: ${response.status}`);
+			console.log(`[Bangumi Sync V3] Response status: ${response.status}`);
 
 			if (response.status >= 400) {
 				const error: APIError = response.json || {
@@ -72,13 +72,13 @@ export class BangumiClientV3 {
 					description: `HTTP ${response.status}`,
 				};
 				const errorMsg = error.title + (error.description ? `: ${error.description}` : '');
-				console.error(`[Bangumi Sync V2] API Error:`, errorMsg);
+				console.error(`[Bangumi Sync V3] API Error:`, errorMsg);
 				throw new Error(errorMsg);
 			}
 
 			return response.json as T;
 		} catch (error) {
-			console.error(`[Bangumi Sync V2] Request failed:`, error);
+			console.error(`[Bangumi Sync V3] Request failed:`, error);
 			if (error instanceof Error) {
 				throw error;
 			}
@@ -94,7 +94,7 @@ export class BangumiClientV3 {
 			return { valid: false, error: '未配置 Access Token' };
 		}
 
-		console.log('[Bangumi Sync V2] 验证 Token...');
+		console.log('[Bangumi Sync V3] 验证 Token...');
 
 		try {
 			const headers = this.getHeaders();
@@ -104,11 +104,11 @@ export class BangumiClientV3 {
 				headers: headers,
 			});
 
-			console.log(`[Bangumi Sync V2] /v0/me 响应状态: ${response.status}`);
+			console.log(`[Bangumi Sync V3] /v0/me 响应状态: ${response.status}`);
 
 			if (response.status === 200) {
 				const user = response.json as { username?: string };
-				console.log(`[Bangumi Sync V2] 获取到用户: ${user.username}`);
+				console.log(`[Bangumi Sync V3] 获取到用户: ${user.username}`);
 				return { valid: true, username: user.username };
 			}
 
@@ -117,7 +117,7 @@ export class BangumiClientV3 {
 			return { valid: false, error: `验证失败: ${errorMsg}` };
 
 		} catch (error) {
-			console.error('[Bangumi Sync V2] Token 验证异常:', error);
+			console.error('[Bangumi Sync V3] Token 验证异常:', error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			return { valid: false, error: `请求失败: ${errorMsg}` };
 		}
@@ -174,11 +174,11 @@ export class BangumiClientV3 {
 		}
 
 		const endpoint = `${ENDPOINTS.USER_COLLECTIONS(username)}?${params.toString()}`;
-		console.log(`[Bangumi Sync V2] 获取收藏: ${endpoint}`);
+		console.log(`[Bangumi Sync V3] 获取收藏: ${endpoint}`);
 
 		try {
 			const result = await this.request<PagedResult<UserCollection>>('GET', endpoint);
-			console.log(`[Bangumi Sync V2] 获取到 ${result.data.length}/${result.total} 条收藏`);
+			console.log(`[Bangumi Sync V3] 获取到 ${result.data.length}/${result.total} 条收藏`);
 			return result;
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('404')) {

@@ -1,5 +1,5 @@
 /**
- * V2 设置面板 UI
+ * V3 设置面板 UI
  */
 
 import { App, PluginSettingTab, Setting, Notice, Modal, TextAreaComponent, TFile, FuzzySuggestModal, Plugin } from 'obsidian';
@@ -40,7 +40,7 @@ const TEMPLATE_TYPES: TemplateTypeOption[] = [
 ];
 
 /**
- * V2 设置面板
+ * V3 设置面板
  * 注意：这是一个独立的设置面板，需要通过插件注册
  */
 export class BangumiSettingTabV3 extends PluginSettingTab {
@@ -58,11 +58,11 @@ export class BangumiSettingTabV3 extends PluginSettingTab {
 		containerEl.empty();
 
 		// 标题
-		containerEl.createEl('h2', { text: 'Bangumi Sync V2 设置' });
+		containerEl.createEl('h2', { text: 'Bangumi Sync V3 设置' });
 
-		// V2 版本说明
+		// V3 版本说明
 		containerEl.createEl('p', {
-			text: 'V2 版本改进：使用用户自己的标签、通过扫描本地文件夹检测已同步条目、智能数量限制。',
+			text: 'V3 新特性：控制面板、批量编辑、撤销支持、打开本地文件。',
 			cls: 'bangumi-v2-info'
 		});
 
@@ -105,10 +105,10 @@ export class BangumiSettingTabV3 extends PluginSettingTab {
 		const previewEl = containerEl.createDiv({ cls: 'bangumi-path-preview' });
 		this.updatePathPreview(previewEl, this.settings.syncPathTemplate);
 
-		// V2 新增：扫描文件夹路径
+		// 扫描文件夹路径
 		new Setting(containerEl)
 			.setName('扫描文件夹路径')
-			.setDesc('V2 新增：用于检测已同步条目的文件夹路径（留空则使用文件路径模板的基础路径）')
+			.setDesc('用于检测已同步条目的文件夹路径（留空则使用文件路径模板的基础路径）')
 			.addText(text => text
 				.setPlaceholder('ACGN')
 				.setValue(this.settings.scanFolderPath)
@@ -144,7 +144,7 @@ export class BangumiSettingTabV3 extends PluginSettingTab {
 
 		// 模板变量帮助
 		const helpDiv = containerEl.createDiv({ cls: 'bangumi-template-help' });
-		helpDiv.createEl('p', { text: 'V2 改进: tags 使用用户自己的标签，如果没有则留空' });
+		helpDiv.createEl('p', { text: 'V3 改进: tags 使用用户自己的标签，如果没有则留空' });
 		const vars = [
 			'{{name}}', '{{name_cn}}', '{{alias}}',
 			'{{rating}}', '{{rank}}', '{{summary}}',
@@ -212,7 +212,7 @@ export class BangumiSettingTabV3 extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('同步数量限制')
-			.setDesc('每次同步的最大条目数量（0 表示不限制，V2 会智能处理：如果未同步数量不够，同步所有未同步的）')
+			.setDesc('每次同步的最大条目数量（0 表示不限制，V3 会智能处理：如果未同步数量不够，同步所有未同步的）')
 			.addText(text => text
 				.setPlaceholder('50')
 				.setValue(String(this.settings.syncLimit))
@@ -352,7 +352,7 @@ export class BangumiSettingTabV3 extends PluginSettingTab {
 	 * 打开文件选择建议
 	 */
 	private openFileSuggest(templateType: TemplateTypeOption): void {
-		const modal = new FileSuggestModalV2(
+		const modal = new FileSuggestModalV3(
 			this.app,
 			async (file: TFile) => {
 				const config = this.settings[templateType.key] as TemplateConfig;
@@ -372,7 +372,7 @@ export class BangumiSettingTabV3 extends PluginSettingTab {
 		const config = this.settings[templateType.key] as TemplateConfig;
 		const initialContent = config.customContent || templateType.defaultTemplate;
 
-		const modal = new TemplateEditorModalV2(
+		const modal = new TemplateEditorModalV3(
 			this.app,
 			initialContent,
 			async (newTemplate: string) => {
@@ -387,7 +387,7 @@ export class BangumiSettingTabV3 extends PluginSettingTab {
 	 * 打开模板预览
 	 */
 	private openTemplatePreview(templateType: TemplateTypeOption): void {
-		const modal = new TemplateEditorModalV2(
+		const modal = new TemplateEditorModalV3(
 			this.app,
 			templateType.defaultTemplate,
 			async () => {
@@ -401,7 +401,7 @@ export class BangumiSettingTabV3 extends PluginSettingTab {
 /**
  * 文件选择建议模态框
  */
-class FileSuggestModalV2 extends FuzzySuggestModal<TFile> {
+class FileSuggestModalV3 extends FuzzySuggestModal<TFile> {
 	private onSelect: (file: TFile) => void;
 
 	constructor(app: App, onSelect: (file: TFile) => void) {
@@ -425,7 +425,7 @@ class FileSuggestModalV2 extends FuzzySuggestModal<TFile> {
 /**
  * 模板编辑器模态框
  */
-class TemplateEditorModalV2 extends Modal {
+class TemplateEditorModalV3 extends Modal {
 	private template: string;
 	private onSave: (template: string) => void;
 
@@ -438,17 +438,17 @@ class TemplateEditorModalV2 extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		contentEl.createEl('h2', { text: '编辑模板 (V2)' });
+		contentEl.createEl('h2', { text: '编辑模板 (V3)' });
 
-		// V2 说明
+		// V3 说明
 		const helpDiv = contentEl.createDiv({ cls: 'bangumi-template-help' });
-		helpDiv.createEl('p', { text: 'V2 改进: {{tags}} 使用用户自己的标签，如果没有则留空' });
+		helpDiv.createEl('p', { text: 'V3 改进: {{tags}} 使用用户自己的标签，如果没有则留空' });
 		const vars = [
 			'{{name}} - 原名', '{{name_cn}} - 中文名', '{{alias}} - 别名',
 			'{{rating}} - 评分', '{{rank}} - 排名', '{{summary}} - 简介',
 			'{{cover}} - 封面', '{{date}} - 日期', '{{year}} - 年份', '{{month}} - 月份',
 			'{{my_rate}} - 我的评分', '{{my_comment}} - 我的短评', '{{my_status}} - 收藏状态',
-			'{{my_tags}} - 我的标签 (V2)', '{{tags}} - 我的标签 (V2)',
+			'{{my_tags}} - 我的标签 (V3)', '{{tags}} - 我的标签 (V3)',
 		];
 		vars.forEach(v => helpDiv.createEl('span', { text: v, cls: 'bangumi-var-tag' }));
 

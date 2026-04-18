@@ -1,5 +1,5 @@
 /**
- * V2 文件管理器
+ * V3 文件管理器
  * 处理 Obsidian 中文件的创建和更新
  */
 
@@ -21,18 +21,18 @@ export class FileManagerV3 {
 		const dirPath = lastSlash > 0 ? normalizedPath.substring(0, lastSlash) : '';
 
 		if (dirPath) {
-			console.log(`[Bangumi Sync V2] 检查目录: ${dirPath}`);
+			console.log(`[Bangumi Sync V3] 检查目录: ${dirPath}`);
 			const exists = await this.app.vault.adapter.exists(dirPath);
 
 			if (!exists) {
-				console.log(`[Bangumi Sync V2] 创建目录: ${dirPath}`);
+				console.log(`[Bangumi Sync V3] 创建目录: ${dirPath}`);
 				// 递归创建父目录
 				await this.ensureDirectory(dirPath);
 				try {
 					await this.app.vault.createFolder(dirPath);
 				} catch (error) {
 					// 目录可能已存在（并发创建）
-					console.log(`[Bangumi Sync V2] 创建目录失败（可能已存在）: ${error}`);
+					console.log(`[Bangumi Sync V3] 创建目录失败（可能已存在）: ${error}`);
 				}
 			}
 		}
@@ -63,7 +63,7 @@ export class FileManagerV3 {
 	 */
 	async createFile(path: string, content: string): Promise<TFile> {
 		const normalizedPath = normalizePath(path);
-		console.log(`[Bangumi Sync V2] 创建文件: ${normalizedPath}`);
+		console.log(`[Bangumi Sync V3] 创建文件: ${normalizedPath}`);
 
 		// 确保目录存在
 		await this.ensureDirectory(normalizedPath);
@@ -71,10 +71,10 @@ export class FileManagerV3 {
 		// 创建文件
 		try {
 			const file = await this.app.vault.create(normalizedPath, content);
-			console.log(`[Bangumi Sync V2] 文件创建成功: ${normalizedPath}`);
+			console.log(`[Bangumi Sync V3] 文件创建成功: ${normalizedPath}`);
 			return file;
 		} catch (error) {
-			console.error(`[Bangumi Sync V2] 创建文件失败: ${normalizedPath}`, error);
+			console.error(`[Bangumi Sync V3] 创建文件失败: ${normalizedPath}`, error);
 			throw error;
 		}
 	}
@@ -108,7 +108,7 @@ export class FileManagerV3 {
 			}
 
 			// 默认不更新已存在的文件
-			console.log(`[Bangumi Sync V2] 文件已存在，跳过: ${normalizedPath}`);
+			console.log(`[Bangumi Sync V3] 文件已存在，跳过: ${normalizedPath}`);
 			return { file: existingFile, created: false };
 		}
 

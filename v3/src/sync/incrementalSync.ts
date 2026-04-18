@@ -1,5 +1,5 @@
 /**
- * V2 增量同步逻辑
+ * V3 增量同步逻辑
  * 通过扫描本地文件夹来检验是否已经同步
  */
 
@@ -15,7 +15,7 @@ interface LocalSubjectInfo {
 }
 
 /**
- * 增量同步 V2
+ * 增量同步 V3
  * 通过扫描本地文件夹检测已同步的条目
  */
 export class IncrementalSyncV3 {
@@ -36,7 +36,7 @@ export class IncrementalSyncV3 {
 		folderPath: string,
 		onProgress?: (current: number, total: number) => void
 	): Promise<number> {
-		console.log(`[Bangumi Sync V2] 扫描本地文件夹: ${folderPath}`);
+		console.log(`[Bangumi Sync V3] 扫描本地文件夹: ${folderPath}`);
 		this.localSubjects.clear();
 		this.lastScanPath = folderPath;
 
@@ -44,7 +44,7 @@ export class IncrementalSyncV3 {
 		const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
 
 		if (!(folder instanceof TFolder)) {
-			console.log(`[Bangumi Sync V2] 文件夹不存在: ${folderPath}`);
+			console.log(`[Bangumi Sync V3] 文件夹不存在: ${folderPath}`);
 			return 0;
 		}
 
@@ -52,7 +52,7 @@ export class IncrementalSyncV3 {
 		const allFiles = this.app.vault.getMarkdownFiles();
 		const targetFiles = allFiles.filter(file => file.path.startsWith(normalizedPath));
 
-		console.log(`[Bangumi Sync V2] 找到 ${targetFiles.length} 个文件`);
+		console.log(`[Bangumi Sync V3] 找到 ${targetFiles.length} 个文件`);
 
 		let processed = 0;
 		for (const file of targetFiles) {
@@ -67,10 +67,10 @@ export class IncrementalSyncV3 {
 						path: file.path,
 						name_cn: name_cn,
 					});
-					console.log(`[Bangumi Sync V2] 发现已同步条目: ${name_cn} (ID: ${subjectId})`);
+					console.log(`[Bangumi Sync V3] 发现已同步条目: ${name_cn} (ID: ${subjectId})`);
 				}
 			} catch (error) {
-				console.error(`[Bangumi Sync V2] 读取文件失败: ${file.path}`, error);
+				console.error(`[Bangumi Sync V3] 读取文件失败: ${file.path}`, error);
 			}
 
 			processed++;
@@ -79,7 +79,7 @@ export class IncrementalSyncV3 {
 			}
 		}
 
-		console.log(`[Bangumi Sync V2] 扫描完成，发现 ${this.localSubjects.size} 个已同步条目`);
+		console.log(`[Bangumi Sync V3] 扫描完成，发现 ${this.localSubjects.size} 个已同步条目`);
 		return this.localSubjects.size;
 	}
 
@@ -165,7 +165,7 @@ export class IncrementalSyncV3 {
 		toAdd: T[];
 		toSkip: T[];
 	} {
-		console.log(`[Bangumi Sync V2] 计算同步差异，远程条目: ${remoteCollections.length}，本地条目: ${this.localSubjects.size}`);
+		console.log(`[Bangumi Sync V3] 计算同步差异，远程条目: ${remoteCollections.length}，本地条目: ${this.localSubjects.size}`);
 
 		// 分离已存在和未存在的条目
 		const existing: T[] = [];
@@ -182,7 +182,7 @@ export class IncrementalSyncV3 {
 			}
 		}
 
-		console.log(`[Bangumi Sync V2] 已存在: ${existing.length}，未同步: ${notExisting.length}`);
+		console.log(`[Bangumi Sync V3] 已存在: ${existing.length}，未同步: ${notExisting.length}`);
 
 		let toAdd: T[];
 		let toSkip: T[];
@@ -198,7 +198,7 @@ export class IncrementalSyncV3 {
 			toSkip = existing;
 		}
 
-		console.log(`[Bangumi Sync V2] 需要新增: ${toAdd.length}，跳过: ${toSkip.length}`);
+		console.log(`[Bangumi Sync V3] 需要新增: ${toAdd.length}，跳过: ${toSkip.length}`);
 
 		return {
 			toAdd,

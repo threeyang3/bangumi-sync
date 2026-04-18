@@ -1,5 +1,5 @@
 /**
- * V2 内容模板处理
+ * V3 内容模板处理
  * 改进：使用用户自己的标签，而非公共标签
  * 支持用户填写的评分明细
  */
@@ -19,7 +19,7 @@ interface ContentTemplateVars {
 
 /**
  * 从条目和收藏信息提取模板变量
- * V2 改进：使用用户自己的标签
+ * V3 改进：使用用户自己的标签
  * 支持用户填写的评分明细
  */
 export function extractTemplateVarsV3(
@@ -37,7 +37,7 @@ export function extractTemplateVarsV3(
 	// 解析日期
 	const { year, month } = parseDate(subject.date);
 
-	// V2 改进：使用用户自己的标签，如果没有则留空
+	// V3 改进：使用用户自己的标签，如果没有则留空
 	// 不再使用公共标签 subject.tags
 	const my_tags = collection?.tags && collection.tags.length > 0
 		? collection.tags.join(', ')
@@ -63,7 +63,7 @@ export function extractTemplateVarsV3(
 		summary: cleanSummary(subject.summary),
 		rating: subject.rating?.score ? String(subject.rating.score) : '',
 		rank: subject.rating?.rank ? String(subject.rating.rank) : '',
-		tags: my_tags,  // V2: 使用用户自己的标签
+		tags: my_tags,  // V3: 使用用户自己的标签
 		cover,
 
 		// 类型信息
@@ -144,7 +144,7 @@ export function renderContentTemplate(template: string, vars: ContentTemplateVar
 /**
  * 生成 Markdown 内容
  */
-export function generateContentV2(
+export function generateContentV3(
 	template: string,
 	subject: Subject,
 	collection?: UserCollection,
@@ -212,5 +212,5 @@ export function generateContentByTypeV3(
 		template = getDefaultTemplate(subject.type, category);
 	}
 
-	return generateContentV2(template, subject, collection, characters, ratingDetails);
+	return generateContentV3(template, subject, collection, characters, ratingDetails);
 }

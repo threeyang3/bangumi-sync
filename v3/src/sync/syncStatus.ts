@@ -1,5 +1,5 @@
 /**
- * V2 同步状态跟踪
+ * V3 同步状态跟踪
  */
 
 import { SubjectType, CollectionType } from '../../../common/api/types';

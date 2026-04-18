@@ -1,5 +1,5 @@
 /**
- * V2 同步选项弹窗
+ * V3 同步选项弹窗
  * 让用户在同步前选择同步类型和数量
  */
 
@@ -8,7 +8,7 @@ import { SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName 
 import { SyncOptionsV3 } from '../sync/syncStatus';
 
 /**
- * V2 同步选项
+ * V3 同步选项
  */
 export interface SyncOptionsV3Input {
 	subjectTypes: SubjectType[];
@@ -18,7 +18,7 @@ export interface SyncOptionsV3Input {
 }
 
 /**
- * V2 同步选项弹窗
+ * V3 同步选项弹窗
  */
 export class SyncOptionsModalV3 extends Modal {
 	private options: SyncOptionsV3Input;
@@ -48,11 +48,11 @@ export class SyncOptionsModalV3 extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		contentEl.createEl('h2', { text: '同步选项 (V2)' });
+		contentEl.createEl('h2', { text: '同步选项 (V3)' });
 
-		// V2 版本说明
+		// V3 版本说明
 		contentEl.createEl('p', {
-			text: 'V2 改进：扫描本地文件夹检测已同步条目，智能数量限制',
+			text: 'V3 改进：扫描本地文件夹检测已同步条目，智能数量限制',
 			cls: 'bangumi-v2-info'
 		});
 
@@ -143,7 +143,7 @@ export class SyncOptionsModalV3 extends Modal {
 
 		new Setting(contentEl)
 			.setName('同步数量限制')
-			.setDesc('V2 改进：如果未同步数量不够，同步所有未同步的条目')
+			.setDesc('V3 改进：如果未同步数量不够，同步所有未同步的条目')
 			.addText(text => text
 				.setPlaceholder('50')
 				.setValue(String(this.limitValue))

@@ -1,5 +1,5 @@
 /**
- * V2 同步预览弹窗
+ * V3 同步预览弹窗
  * 在导入前让用户确认每个条目并填写评分明细
  */
 
@@ -88,7 +88,7 @@ function getRatingFields(type: SubjectType, category?: string): { key: keyof Rat
 }
 
 /**
- * V2 同步预览弹窗
+ * V3 同步预览弹窗
  */
 export class SyncPreviewModalV3 extends Modal {
 	private items: SyncPreviewItem[];
@@ -108,7 +108,7 @@ export class SyncPreviewModalV3 extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		contentEl.createEl('h2', { text: '同步预览 (V2)' });
+		contentEl.createEl('h2', { text: '同步预览 (V3)' });
 
 		// 统计信息
 		contentEl.createEl('p', {

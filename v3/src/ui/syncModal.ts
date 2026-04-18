@@ -1,5 +1,5 @@
 /**
- * V2 同步进度弹窗
+ * V3 同步进度弹窗
  */
 
 import { App, Modal } from 'obsidian';
@@ -22,11 +22,11 @@ export class SyncModalV3 extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		contentEl.createEl('h2', { text: '同步 Bangumi 收藏 (V2)' });
+		contentEl.createEl('h2', { text: '同步 Bangumi 收藏 (V3)' });
 
-		// V2 版本说明
+		// V3 版本说明
 		contentEl.createEl('p', {
-			text: 'V2: 扫描本地文件夹检测已同步条目',
+			text: 'V3: 扫描本地文件夹检测已同步条目',
 			cls: 'bangumi-v2-info'
 		});
 
