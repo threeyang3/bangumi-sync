@@ -16,7 +16,7 @@
 		"bangumi",
 		"sync"
 	],
-	"author": "Your Name",
+	"author": "threeyang",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^16.11.6",

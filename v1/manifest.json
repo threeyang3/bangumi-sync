@@ -4,7 +4,7 @@
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
 	"description": "Sync your Bangumi collections to Obsidian notes with custom templates.",
-	"author": "Your Name",
-	"authorUrl": "https://github.com/yourusername",
+	"author": "threeyang",
+	"authorUrl": "https://github.com/threeyang3",
 	"isDesktopOnly": false
 }
