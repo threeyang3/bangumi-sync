@@ -4,6 +4,10 @@
 
 这是一个 Obsidian 插件，用于从 Bangumi（番组计划）平台同步用户收藏数据到 Obsidian 笔记中。支持增量同步、自定义模板、自动同步等功能。
 
+**GitHub 仓库**: https://github.com/threeyang3/bangumi-sync
+
+**作者**: threeyang
+
 ## 版本说明
 
 ### V1 版本（默认）
@@ -280,13 +284,22 @@ npm run build:all
 ## 模板变量
 
 ### 路径模板变量
-- `{{type}}` - 条目类型 (anime/game/novel/comic/album)
+- `{{type}}` - 条目类型，根据 category 自动区分 (anime/game/novel/comic/album/music/real)
 - `{{category}}` - 细分类别 (TV/OVA/小说/漫画等)
 - `{{name}}` - 原名
 - `{{name_cn}}` - 中文名
 - `{{year}}` - 年份
 - `{{author}}` - 作者
 - `{{id}}` - 条目 ID
+
+> **注意**: `{{type}}` 会根据条目的 `category` 自动判断：
+> - 轻小说 → `novel`
+> - 漫画 → `comic`
+> - 画集 → `album`
+> - 动画 → `anime`
+> - 游戏 → `game`
+> - 音乐 → `music`
+> - 三次元 → `real`
 
 ### 图片路径模板变量
 - `{{id}}` - 条目 ID
@@ -394,22 +407,42 @@ V2 新增设置项：
 
 ### 使用 V2 版本
 
-1. 构建 V2 版本：`npm run build:v2`
-2. 编译后的文件位于：`v2/main.js`
-3. 将 `v2/main.js` 和 `v2/manifest.json` 复制到插件目录
+**方式一：从 GitHub Release 下载（推荐）**
+1. 访问 https://github.com/threeyang3/bangumi-sync/releases
+2. 下载最新版本的 `bangumi-sync-v2.zip`
+3. 解压到 Obsidian 插件目录
+
+**方式二：自行构建**
+1. 克隆仓库：`git clone https://github.com/threeyang3/bangumi-sync.git`
+2. 安装依赖：`npm install`
+3. 构建 V2 版本：`npm run build:v2`
+4. 将 `v2/main.js` 和 `v2/manifest.json` 复制到插件目录
 
 **V2 插件目录结构**：
 ```
 你的Vault/.obsidian/plugins/bangumi-sync-v2/
-├── main.js          # 从 v2/main.js 复制
-├── manifest.json    # 从 v2/manifest.json 复制
+├── main.js          # 插件主文件
+├── manifest.json    # 插件清单
 └── styles.css       # 样式文件
 ```
 
 ## 扩展参考
 
-参考目录 `参考/` 包含用户之前的脚本和模板：
+参考目录 `参考/` 包含用户之前的脚本和模板（仅本地开发参考，不上传到 GitHub）：
 - `ACGbangumi.js` - 动画/漫画/游戏搜索脚本
 - `bangumi_novel.js` - 小说搜索脚本
 - `bangumi_album.js` - 画集搜索脚本
 - `ACGN/T-*.md` - 各类型模板文件
+
+## 发布说明
+
+### 发布流程
+
+1. 构建插件：`npm run build:all`
+2. 打包发布文件到 `release/` 目录
+3. 使用 GitHub CLI 创建 Release 并上传 zip 文件
+
+### 已发布版本
+
+- **v1.0.0**: V1 基础版本，基于缓存的增量同步
+- **v2.0.0**: V2 改进版本，扫描本地文件夹检测已同步条目，支持预览弹窗
