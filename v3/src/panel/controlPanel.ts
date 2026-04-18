@@ -381,7 +381,6 @@ export class ControlPanel extends Modal {
 			});
 		});
 
-		headerRow.createEl('th', { text: '封面' });
 		headerRow.createEl('th', { text: '名称' });
 		headerRow.createEl('th', { text: '类型' });
 		headerRow.createEl('th', { text: '状态' });
@@ -409,15 +408,6 @@ export class ControlPanel extends Modal {
 					this.renderActionBar();
 				});
 			});
-
-			// 封面
-			const coverCell = row.createEl('td');
-			if (collection.subject.images?.small) {
-				coverCell.createEl('img', {
-					cls: 'bangumi-cover-thumb',
-					attr: { src: collection.subject.images.small }
-				});
-			}
 
 			// 名称
 			const nameCell = row.createEl('td', { cls: 'bangumi-name-cell' });
@@ -516,25 +506,72 @@ export class ControlPanel extends Modal {
 	/**
 	 * 同步选中条目
 	 */
-	private syncSelected(): void {
+	private async syncSelected(): Promise<void> {
 		if (this.state.selectedIds.size === 0) {
 			new Notice('请先选择要同步的条目');
 			return;
 		}
 
 		// 获取选中的未同步条目
-		const unsyncedCollections = this.state.collections.filter(c =>
-			this.state.selectedIds.has(c.subject_id) && !this.state.localSubjects.has(c.subject_id)
+		const unsyncedIds = Array.from(this.state.selectedIds).filter(
+			id => !this.state.localSubjects.has(id)
 		);
 
-		if (unsyncedCollections.length === 0) {
+		if (unsyncedIds.length === 0) {
 			new Notice('选中的条目都已同步');
 			return;
 		}
 
-		// TODO: 调用同步管理器同步选中的条目
-		// 这需要扩展 SyncManagerV3 来支持指定条目 ID 列表同步
-		new Notice(`将同步 ${unsyncedCollections.length} 个未同步条目（功能开发中）`);
+		// 显示同步进度
+		this.state.loading = true;
+		this.renderStatus(`正在同步 ${unsyncedIds.length} 个条目...`);
+
+		try {
+			const result = await this.syncManager.syncByIds(
+				unsyncedIds,
+				(current, total, message) => {
+					this.renderStatus(message);
+				}
+			);
+
+			this.state.loading = false;
+
+			if (result.success) {
+				new Notice(`同步完成！成功: ${result.added}, 失败: ${result.errors}`);
+
+				// 重新扫描本地文件夹以更新同步状态
+				const scanPath = this.settings.scanFolderPath || 'ACGN';
+				await this.incrementalSync.scanLocalFolder(scanPath);
+
+				// 更新本地条目映射
+				this.state.localSubjects = new Map();
+				const syncedIds = this.incrementalSync.getSyncedIds();
+				for (const id of syncedIds) {
+					const info = this.incrementalSync.getLocalSubject(id);
+					if (info) {
+						this.state.localSubjects.set(id, info);
+					}
+				}
+
+				// 清空选中状态
+				this.state.selectedIds.clear();
+
+				// 刷新表格
+				this.renderStatus(`同步完成，共 ${this.state.collections.length} 条收藏，${syncedIds.size} 条已同步`);
+				this.renderTable();
+				this.renderActionBar();
+				this.renderPagination();
+			} else {
+				new Notice('同步失败');
+				this.renderStatus('同步失败');
+			}
+
+		} catch (error) {
+			this.state.loading = false;
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			new Notice(`同步出错: ${errorMsg}`);
+			this.renderStatus(`同步出错: ${errorMsg}`);
+		}
 	}
 
 	/**

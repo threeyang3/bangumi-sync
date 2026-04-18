@@ -77,15 +77,15 @@ export class BangumiPluginV3 extends Plugin {
 
 		// 添加命令：同步收藏
 		this.addCommand({
-			id: 'sync-collections-v3',
-			name: '同步 Bangumi 收藏 (V3)',
+			id: 'sync-collections',
+			name: '同步 Bangumi 收藏',
 			callback: () => this.openSyncOptions(),
 		});
 
 		// 添加命令：快速同步
 		this.addCommand({
-			id: 'quick-sync-collections-v3',
-			name: '快速同步 V3（使用默认设置）',
+			id: 'quick-sync-collections',
+			name: '快速同步（使用默认设置）',
 			callback: () => this.syncCollections(),
 		});
 

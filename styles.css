@@ -278,9 +278,8 @@
 
 /* V3 控制面板样式 */
 .bangumi-control-panel {
-	width: 90vw;
-	max-width: 1200px;
-	height: 85vh;
+	width: 95vw;
+	height: 90vh;
 	display: flex;
 	flex-direction: column;
 }

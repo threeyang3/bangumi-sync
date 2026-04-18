@@ -296,6 +296,120 @@ export class SyncManagerV3 {
 	}
 
 	/**
+	 * 按 ID 列表同步条目
+	 * 用于控制面板选中同步功能
+	 */
+	async syncByIds(
+		subjectIds: number[],
+		onProgress?: (current: number, total: number, message: string) => void
+	): Promise<SyncResultV3> {
+		const startTime = Date.now();
+		const result: SyncResultV3 = {
+			success: false,
+			total: subjectIds.length,
+			added: 0,
+			skipped: 0,
+			errors: 0,
+			duration: 0,
+		};
+
+		try {
+			console.log(`[Bangumi Sync V3] 开始按 ID 同步 ${subjectIds.length} 个条目`);
+
+			for (let i = 0; i < subjectIds.length; i++) {
+				const subjectId = subjectIds[i];
+
+				if (onProgress) {
+					onProgress(i + 1, subjectIds.length, `正在同步条目 ${i + 1}/${subjectIds.length}`);
+				}
+
+				this.reportProgress({
+					status: 'processing',
+					current: i + 1,
+					total: subjectIds.length,
+					message: `同步条目... (${i + 1}/${subjectIds.length})`,
+				});
+
+				try {
+					// 获取条目完整信息
+					const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(subjectId);
+
+					// 构造一个简化的 UserCollection 对象
+					const collection: UserCollection = {
+						subject_id: subjectId,
+						subject: subject as any, // 使用完整的 subject 对象
+						type: 0, // 默认收藏类型
+						subject_type: subject.type,
+						rate: 0,
+						tags: [],
+						ep_status: 0,
+						vol_status: 0,
+						updated_at: '',
+						private: false,
+					};
+
+					// 解析角色信息
+					const characters = parseCharacters(relatedCharacters, 9);
+
+					// 获取类型标签
+					const typeLabel = getTypeLabel(subject.type);
+
+					// 下载封面图片
+					let coverUrl = subject.images?.large || subject.images?.common || '';
+					if (this.config.downloadImages && coverUrl) {
+						const localPath = await this.imageHandler.downloadCover(
+							coverUrl,
+							subject.id,
+							this.config.imagePathTemplate,
+							{
+								name_cn: subject.name_cn,
+								name: subject.name,
+								typeLabel,
+							}
+						);
+						if (localPath && !localPath.startsWith('http')) {
+							coverUrl = localPath;
+						}
+					}
+
+					// 生成文件路径
+					const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
+
+					// 生成文件内容
+					const content = generateContentByTypeV3(
+						subject,
+						collection,
+						characters,
+						this.config.customTemplates
+					);
+
+					// 创建文件
+					await this.fileManager.createOrUpdateFile(filePath, content, {
+						overwrite: false,
+					});
+
+					result.added++;
+					console.log(`[Bangumi Sync V3] 同步完成: ${subject.name_cn || subject.name}`);
+
+				} catch (error) {
+					console.error(`[Bangumi Sync V3] 同步条目失败 (ID: ${subjectId}):`, error);
+					result.errors++;
+				}
+			}
+
+			result.success = true;
+			this.reportProgress({ status: 'completed', message: '同步完成' });
+
+		} catch (error) {
+			console.error('[Bangumi Sync V3] 按 ID 同步失败:', error);
+			this.reportProgress({ status: 'error', message: String(error) });
+		}
+
+		result.duration = Date.now() - startTime;
+		return result;
+	}
+
+	/**
 	 * 重置同步状态
 	 */
 	resetSyncState(): void {
