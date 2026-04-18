@@ -88,10 +88,11 @@ export class IncrementalSyncV2 {
 	 * 通过查找 frontmatter 中的 Bangumi ID 或从封面图片路径提取
 	 */
 	private extractSubjectId(content: string): number | null {
-		// 方法1: 从 frontmatter 中查找 id 字段
-		const idMatch = content.match(/^---\n[\s\S]*?\nid:\s*"?(\d+)"?/);
+		// 方法1: 从 frontmatter 中查找 id 字段（可能是第一个字段或后续字段）
+		// 匹配 --- 后紧跟的 id: 或换行后的 id:
+		const idMatch = content.match(/^---\n(?:id:\s*"?(\d+)"?|[\s\S]*?\nid:\s*"?(\d+)"?)/);
 		if (idMatch) {
-			return parseInt(idMatch[1], 10);
+			return parseInt(idMatch[1] || idMatch[2], 10);
 		}
 
 		// 方法2: 从 frontmatter 中查找 BangumiID 字段
