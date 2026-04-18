@@ -10,7 +10,7 @@ import { SyncManagerV3 } from '../sync/syncManager';
 import { IncrementalSyncV3 } from '../sync/incrementalSync';
 import { BangumiClientV3 } from '../api/client';
 import { getTypeLabel } from '../../../common/template/defaultTemplates';
-import { BatchEditorModal, BatchEditOperation } from './batchEditorModal';
+import { BatchEditorModal, BatchEditOperation, FrontmatterEditor } from './batchEditorModal';
 
 /**
  * 本地条目信息
@@ -41,6 +41,7 @@ export class ControlPanel extends Modal {
 	private syncManager: SyncManagerV3;
 	private client: BangumiClientV3;
 	private incrementalSync: IncrementalSyncV3;
+	private frontmatterEditor: FrontmatterEditor;
 	private onFiltersChange: (filters: PanelFilters) => void;
 
 	private state: PanelState;
@@ -70,6 +71,7 @@ export class ControlPanel extends Modal {
 
 		this.client = new BangumiClientV3(settings.accessToken);
 		this.incrementalSync = new IncrementalSyncV3(app);
+		this.frontmatterEditor = new FrontmatterEditor(app);
 
 		this.filters = { ...settings.panelFilters };
 		this.state = {
@@ -208,6 +210,12 @@ export class ControlPanel extends Modal {
 		this.actionBarEl.createEl('button', { text: '批量编辑', cls: 'bangumi-action-btn' }, btn => {
 			btn.addEventListener('click', () => this.openBatchEditor());
 		});
+
+		// 撤销按钮
+		const undoBtn = this.actionBarEl.createEl('button', { text: '撤销', cls: 'bangumi-action-btn' }, btn => {
+			btn.addEventListener('click', () => this.undoLastEdit());
+		});
+		undoBtn.disabled = !this.frontmatterEditor.canUndo();
 
 		// 已选数量
 		const selectedCount = this.actionBarEl.createSpan({ cls: 'bangumi-selected-count' });
@@ -514,8 +522,19 @@ export class ControlPanel extends Modal {
 			return;
 		}
 
-		// TODO: 实现同步选中条目的逻辑
-		new Notice(`将同步 ${this.state.selectedIds.size} 个条目`);
+		// 获取选中的未同步条目
+		const unsyncedCollections = this.state.collections.filter(c =>
+			this.state.selectedIds.has(c.subject_id) && !this.state.localSubjects.has(c.subject_id)
+		);
+
+		if (unsyncedCollections.length === 0) {
+			new Notice('选中的条目都已同步');
+			return;
+		}
+
+		// TODO: 调用同步管理器同步选中的条目
+		// 这需要扩展 SyncManagerV3 来支持指定条目 ID 列表同步
+		new Notice(`将同步 ${unsyncedCollections.length} 个未同步条目（功能开发中）`);
 	}
 
 	/**
@@ -539,10 +558,29 @@ export class ControlPanel extends Modal {
 			this.app,
 			filePaths,
 			async (operations: BatchEditOperation[]) => {
-				// TODO: 实现批量编辑逻辑
-				new Notice(`批量编辑 ${filePaths.length} 个文件`);
+				const result = await this.frontmatterEditor.batchModify(filePaths, operations);
+				new Notice(`批量编辑完成：成功 ${result.success} 个，失败 ${result.failed} 个`);
+				this.renderActionBar(); // 更新撤销按钮状态
 			}
 		);
 		modal.open();
+	}
+
+	/**
+	 * 撤销上一次编辑
+	 */
+	private async undoLastEdit(): Promise<void> {
+		if (!this.frontmatterEditor.canUndo()) {
+			new Notice('没有可撤销的操作');
+			return;
+		}
+
+		const success = await this.frontmatterEditor.undo();
+		if (success) {
+			new Notice('撤销成功');
+			this.renderActionBar();
+		} else {
+			new Notice('撤销失败');
+		}
 	}
 }
