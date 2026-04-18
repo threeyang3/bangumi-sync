@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:bangumi.github.io)",
+      "WebFetch(domain:docs.obsidian.md)",
+      "WebFetch(domain:api.bgm.tv)",
+      "Bash(curl -sL \"https://bangumi.github.io/api/\")",
+      "Bash(curl -sL \"https://docs.obsidian.md/Plugins/Getting+started/Build+a+plugin\")",
+      "Bash(curl -sL \"https://bangumi.github.io/api/dist.json\")",
+      "Bash(curl:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(mv main.ts v1/)",
+      "Bash(mv main-v2.ts v2/main.ts)",
+      "Bash(mv src/api v1/src/)",
+      "Bash(mv src/sync v1/src/)",
+      "Bash(mv src/template v1/src/)",
+      "Bash(mv src/v2/api v2/src/)",
+      "Bash(mv src/v2/sync v2/src/)",
+      "Bash(mv src/v2/template v2/src/)",
+      "Bash(mv src/v2/file v2/src/)",
+      "Bash(mv src/v2/settings v2/src/)",
+      "Bash(rm -rf src/v2/parser)",
+      "Bash(rmdir src/v2)",
+      "Bash(rmdir src:*)",
+      "Bash(cp -r v1/src/api common/)",
+      "Bash(cp -r v1/src/parser common/)",
+      "Bash(cp v1/src/template/defaultTemplates.ts common/)",
+      "Bash(cp v1/src/template/pathTemplate.ts common/)",
+      "Bash(cp v1/src/file/imageHandler.ts common/)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}

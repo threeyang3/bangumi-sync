@@ -1,0 +1,277 @@
+/* Bangumi Sync Plugin Styles */
+
+/* 同步状态 */
+.bangumi-sync-status {
+	padding: 10px;
+	margin-top: 10px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	font-size: 14px;
+}
+
+/* 模板帮助 */
+.bangumi-template-help {
+	padding: 10px;
+	margin-bottom: 10px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+}
+
+.bangumi-template-help p {
+	margin: 0 0 8px 0;
+	font-weight: bold;
+}
+
+.bangumi-var-tag {
+	display: inline-block;
+	margin: 2px;
+	padding: 2px 6px;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-radius: 3px;
+	font-size: 12px;
+}
+
+/* 模态框按钮 */
+.bangumi-modal-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	margin-top: 20px;
+}
+
+.bangumi-modal-buttons button {
+	padding: 6px 14px;
+}
+
+/* 多选设置 */
+.bangumi-multiselect .setting-item-control {
+	flex-wrap: wrap;
+}
+
+/* 进度条容器 */
+.setting-item-control .progress-bar {
+	width: 100%;
+}
+
+/* 当前设置显示 */
+.bangumi-current-setting {
+	padding: 8px 12px;
+	margin-bottom: 10px;
+	background: var(--background-secondary-alt);
+	border-radius: 4px;
+	font-size: 13px;
+	color: var(--text-muted);
+}
+
+/* 复选框组 */
+.bangumi-checkbox-group {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	padding: 10px;
+	background: var(--background-secondary);
+	border-radius: 6px;
+	margin-bottom: 10px;
+}
+
+.bangumi-checkbox-label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 12px;
+	background: var(--background-primary);
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+
+.bangumi-checkbox-label:hover {
+	background: var(--background-primary-alt);
+}
+
+.bangumi-checkbox-label input[type="checkbox"] {
+	margin: 0;
+	cursor: pointer;
+}
+
+.bangumi-checkbox-label span {
+	font-size: 14px;
+	user-select: none;
+}
+
+/* 快捷选择按钮 */
+.bangumi-quick-select {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 15px;
+}
+
+.bangumi-quick-btn {
+	padding: 4px 12px;
+	font-size: 12px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.bangumi-quick-btn:hover {
+	background: var(--background-secondary-alt);
+	border-color: var(--interactive-accent);
+}
+
+/* 进度条样式 */
+.bangumi-progress-bar {
+	width: 100%;
+	height: 8px;
+	background: var(--background-secondary-alt);
+	border-radius: 4px;
+	overflow: hidden;
+	margin: 10px 0;
+}
+
+.bangumi-progress-fill {
+	height: 100%;
+	background: var(--interactive-accent);
+	border-radius: 4px;
+	transition: width 0.3s ease;
+	width: 0%;
+}
+
+/* 路径模板设置 */
+.bangumi-path-template-setting {
+	padding: 0 10px;
+}
+
+.bangumi-path-preview {
+	padding: 8px 12px;
+	margin: 0 0 15px 0;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	font-size: 13px;
+}
+
+.bangumi-preview-label {
+	color: var(--text-muted);
+	margin-right: 8px;
+}
+
+/* 文件路径提示 */
+.bangumi-file-path {
+	color: var(--text-muted);
+	font-size: 11px;
+}
+
+/* V2 版本信息 */
+.bangumi-v2-info {
+	padding: 8px 12px;
+	margin: 10px 0;
+	background: var(--background-secondary-alt);
+	border-left: 3px solid var(--interactive-accent);
+	border-radius: 4px;
+	font-size: 13px;
+	color: var(--text-muted);
+}
+
+/* V2 预览弹窗 */
+.bangumi-preview-info {
+	padding: 8px 12px;
+	margin-bottom: 15px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	font-size: 13px;
+}
+
+.bangumi-preview-list {
+	max-height: 400px;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	margin-bottom: 15px;
+}
+
+.bangumi-preview-item {
+	padding: 10px 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.bangumi-preview-item:last-child {
+	border-bottom: none;
+}
+
+.bangumi-preview-item:hover {
+	background: var(--background-secondary);
+}
+
+.bangumi-preview-item-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 6px;
+	flex-wrap: wrap;
+}
+
+.bangumi-preview-checkbox {
+	margin-right: 4px;
+}
+
+.bangumi-preview-name {
+	font-weight: 500;
+}
+
+.bangumi-preview-type {
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
+.bangumi-preview-rating {
+	color: var(--text-accent);
+	font-size: 12px;
+}
+
+.bangumi-preview-my-rate {
+	color: var(--text-success);
+	font-size: 11px;
+}
+
+.bangumi-preview-details {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin-left: 20px;
+}
+
+.bangumi-preview-details-label {
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
+.bangumi-preview-detail-field {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 12px;
+}
+
+.bangumi-preview-detail-input {
+	width: 40px;
+	padding: 2px 4px;
+	font-size: 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 3px;
+	background: var(--background-primary);
+}
+
+.bangumi-preview-detail-input:focus {
+	border-color: var(--interactive-accent);
+	outline: none;
+}
+
+.bangumi-preview-quick {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 15px;
+}
