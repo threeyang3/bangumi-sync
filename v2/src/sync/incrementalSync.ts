@@ -58,7 +58,6 @@ export class IncrementalSyncV2 {
 		for (const file of targetFiles) {
 			try {
 				const content = await this.app.vault.read(file);
-				console.log(`[Bangumi Sync V2] 读取文件: ${file.path}, 内容前100字符:`, content.substring(0, 100));
 				const subjectId = this.extractSubjectId(content);
 
 				if (subjectId) {
@@ -69,8 +68,6 @@ export class IncrementalSyncV2 {
 						name_cn: name_cn,
 					});
 					console.log(`[Bangumi Sync V2] 发现已同步条目: ${name_cn} (ID: ${subjectId})`);
-				} else {
-					console.log(`[Bangumi Sync V2] 未能在文件中提取ID: ${file.path}`);
 				}
 			} catch (error) {
 				console.error(`[Bangumi Sync V2] 读取文件失败: ${file.path}`, error);
