@@ -10,11 +10,25 @@ if you want to view the source, please visit the github repository of this plugi
 `;
 
 const prod = (process.argv[2] === 'production');
-const version = process.argv[3] || 'v1'; // v1 or v2
+const version = process.argv[3] || 'v1'; // v1, v2, or v3
 
 // 根据版本选择入口文件和输出路径
-const entryPoint = version === 'v2' ? 'v2/main.ts' : 'v1/main.ts';
-const outfile = version === 'v2' ? 'v2/main.js' : 'v1/main.js';
+let entryPoint;
+let outfile;
+
+switch (version) {
+	case 'v2':
+		entryPoint = 'v2/main.ts';
+		outfile = 'v2/main.js';
+		break;
+	case 'v3':
+		entryPoint = 'v3/main.ts';
+		outfile = 'v3/main.js';
+		break;
+	default:
+		entryPoint = 'v1/main.ts';
+		outfile = 'v1/main.js';
+}
 
 console.log(`Building ${version}: ${entryPoint} -> ${outfile}`);
 

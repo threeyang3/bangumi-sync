@@ -1,0 +1,536 @@
+/**
+ * V2 同步管理器
+ * 核心同步逻辑
+ *
+ * 改进：
+ * 1. 使用用户自己的标签
+ * 2. 通过扫描本地文件夹检测已同步条目
+ * 3. 智能数量限制：如果未同步数量不够，同步所有未同步的
+ * 4. 支持预览确认（手动同步）和直接同步（自动同步）
+ */
+
+import { Notice, App } from 'obsidian';
+import { BangumiClientV3 } from '../api/client';
+import { Subject, UserCollection, SubjectType, CollectionType } from '../../../common/api/types';
+import { FileManagerV3 } from '../file/fileManager';
+import { ImageHandler } from '../../../common/file/imageHandler';
+import { IncrementalSyncV3 } from './incrementalSync';
+import { SyncOptionsV3, SyncResultV3, SyncProgressV3 } from './syncStatus';
+import { parseCharacters, CharacterInfo } from '../../../common/parser/characterParser';
+import { generateFilePath } from '../../../common/template/pathTemplate';
+import { generateContentByTypeV3 } from '../template/contentTemplate';
+import { getTypeLabel } from '../../../common/template/defaultTemplates';
+import { SyncPreviewItem, RatingDetails } from '../ui/syncPreviewModal';
+
+/**
+ * 同步管理器配置
+ */
+export interface SyncManagerConfigV3 {
+	accessToken: string;
+	pathTemplate: string;
+	imagePathTemplate: string;
+	downloadImages: boolean;
+	scanFolderPath: string;  // V2: 扫描本地文件夹的路径
+	customTemplates?: {
+		anime?: string;
+		novel?: string;
+		comic?: string;
+		game?: string;
+		album?: string;
+		music?: string;
+		real?: string;
+	};
+}
+
+/**
+ * 同步管理器 V2
+ */
+export class SyncManagerV3 {
+	private app: App;
+	private client: BangumiClientV3;
+	private fileManager: FileManagerV3;
+	private imageHandler: ImageHandler;
+	private incrementalSync: IncrementalSyncV3;
+	private config: SyncManagerConfigV3;
+	private onProgress?: (progress: SyncProgressV3) => void;
+
+	constructor(app: App, config: SyncManagerConfigV3) {
+		this.app = app;
+		this.config = config;
+		this.client = new BangumiClientV3(config.accessToken);
+		this.fileManager = new FileManagerV3(app);
+		this.imageHandler = new ImageHandler(app, this.fileManager as any);
+		this.imageHandler.setDownloadEnabled(config.downloadImages);
+		this.incrementalSync = new IncrementalSyncV3(app);
+	}
+
+	/**
+	 * 设置进度回调
+	 */
+	setProgressCallback(callback: (progress: SyncProgressV3) => void): void {
+		this.onProgress = callback;
+	}
+
+	/**
+	 * 更新配置
+	 */
+	updateConfig(config: Partial<SyncManagerConfigV3>): void {
+		this.config = { ...this.config, ...config };
+		this.client.setAccessToken(config.accessToken || '');
+		this.imageHandler.setDownloadEnabled(config.downloadImages ?? true);
+	}
+
+	/**
+	 * 执行同步
+	 */
+	async sync(options: SyncOptionsV3): Promise<SyncResultV3> {
+		const startTime = Date.now();
+		const result: SyncResultV3 = {
+			success: false,
+			total: 0,
+			added: 0,
+			skipped: 0,
+			errors: 0,
+			duration: 0,
+		};
+
+		try {
+			// 1. 验证 Access Token
+			if (!this.config.accessToken) {
+				throw new Error('请先配置 Access Token');
+			}
+
+			this.reportProgress({ status: 'preparing', message: '验证 Access Token...' });
+
+			const tokenResult = await this.client.validateToken();
+			if (!tokenResult.valid) {
+				throw new Error(`Access Token 无效: ${tokenResult.error}`);
+			}
+
+			const username = tokenResult.username;
+			if (!username) {
+				throw new Error('无法获取用户名，请检查 Access Token');
+			}
+
+			console.log(`[Bangumi Sync V2] 用户: ${username}`);
+
+			// 2. 获取远程收藏列表
+			this.reportProgress({ status: 'fetching', message: '获取收藏列表...' });
+
+			const collections = await this.client.getAllUserCollections(username, {
+				subjectType: options.subjectTypes.length === 1 ? options.subjectTypes[0] : undefined,
+				collectionType: options.collectionTypes.length === 1 ? options.collectionTypes[0] : undefined,
+				onProgress: (current, total) => {
+					this.reportProgress({
+						status: 'fetching',
+						current,
+						total,
+						message: `获取收藏列表... (${current}/${total})`,
+					});
+				},
+			});
+
+			console.log(`[Bangumi Sync V2] 获取到 ${collections.length} 条收藏`);
+
+			// 3. 扫描本地文件夹
+			this.reportProgress({ status: 'scanning', message: '扫描本地文件夹...' });
+
+			const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
+			console.log(`[Bangumi Sync V2] 扫描路径: ${scanPath}`);
+
+			await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
+				this.reportProgress({
+					status: 'scanning',
+					current,
+					total,
+					message: `扫描本地文件... (${current}/${total})`,
+				});
+			});
+
+			// 4. 计算差异
+			this.reportProgress({ status: 'preparing', message: '计算同步差异...' });
+
+			// 过滤符合条件的收藏（条目类型和收藏类型）
+			const filteredCollections = this.filterCollections(collections, options);
+			console.log(`[Bangumi Sync V2] 符合条件的收藏: ${filteredCollections.length}`);
+
+			const diff = this.incrementalSync.computeDiff(filteredCollections, {
+				limit: options.limit,
+				force: options.force,
+			});
+
+			result.total = diff.toAdd.length;
+			result.skipped = diff.toSkip.length;
+
+			console.log(`[Bangumi Sync V2] 需要同步: ${result.total}，已存在跳过: ${result.skipped}`);
+
+			// 5. 处理每个条目
+			for (let i = 0; i < diff.toAdd.length; i++) {
+				const collection = diff.toAdd[i];
+
+				this.reportProgress({
+					status: 'processing',
+					current: i + 1,
+					total: diff.toAdd.length,
+					currentItem: collection.subject.name_cn || collection.subject.name,
+					message: `处理条目... (${i + 1}/${diff.toAdd.length})`,
+				});
+
+				try {
+					await this.processCollection(collection);
+					result.added++;
+				} catch (error) {
+					console.error(`[Bangumi Sync V2] 处理条目失败: ${collection.subject.name_cn}`, error);
+					result.errors++;
+				}
+			}
+
+			result.success = true;
+			this.reportProgress({ status: 'completed', message: '同步完成' });
+
+		} catch (error) {
+			console.error('[Bangumi Sync V2] 同步失败:', error);
+			this.reportProgress({ status: 'error', message: String(error) });
+			new Notice(`同步失败: ${error}`);
+		}
+
+		result.duration = Date.now() - startTime;
+		return result;
+	}
+
+	/**
+	 * 过滤符合条件的收藏
+	 */
+	private filterCollections(
+		collections: UserCollection[],
+		options: SyncOptionsV3
+	): UserCollection[] {
+		return collections.filter(c => {
+			// 检查条目类型
+			if (options.subjectTypes.length > 0 && !options.subjectTypes.includes(c.subject_type)) {
+				return false;
+			}
+			// 检查收藏类型
+			if (options.collectionTypes.length > 0 && !options.collectionTypes.includes(c.type)) {
+				return false;
+			}
+			return true;
+		});
+	}
+
+	/**
+	 * 从路径模板提取基础路径
+	 * 例如: "ACGN/{{type}}/{{name_cn}}.md" -> "ACGN"
+	 */
+	private extractBasePath(pathTemplate: string): string {
+		const match = pathTemplate.match(/^([^/{}]+)/);
+		return match ? match[1] : '';
+	}
+
+	/**
+	 * 处理单个收藏
+	 */
+	private async processCollection(collection: UserCollection): Promise<void> {
+		console.log(`[Bangumi Sync V2] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+
+		// 获取完整条目信息
+		const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
+		console.log(`[Bangumi Sync V2] 获取到条目信息: ${subject.name_cn}`);
+
+		// 解析角色信息
+		const characters = parseCharacters(relatedCharacters, 9);
+
+		// 获取类型标签（用于图片命名）
+		const typeLabel = getTypeLabel(subject.type);
+
+		// 下载封面图片
+		let coverUrl = subject.images?.large || subject.images?.common || '';
+		if (this.config.downloadImages && coverUrl) {
+			console.log(`[Bangumi Sync V2] 下载封面: ${coverUrl}`);
+			const localPath = await this.imageHandler.downloadCover(
+				coverUrl,
+				subject.id,
+				this.config.imagePathTemplate,
+				{
+					name_cn: subject.name_cn,
+					name: subject.name,
+					typeLabel,
+				}
+			);
+			if (localPath && !localPath.startsWith('http')) {
+				coverUrl = localPath;
+			}
+		}
+
+		// 生成文件路径
+		const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
+		console.log(`[Bangumi Sync V2] 生成文件路径: ${filePath}`);
+
+		// 生成文件内容（使用 V2 版本，包含用户自己的标签）
+		const content = generateContentByTypeV3(
+			subject,
+			collection,
+			characters,
+			this.config.customTemplates
+		);
+
+		// 创建文件
+		await this.fileManager.createOrUpdateFile(filePath, content, {
+			overwrite: false,
+		});
+		console.log(`[Bangumi Sync V2] 文件创建完成: ${filePath}`);
+	}
+
+	/**
+	 * 报告进度
+	 */
+	private reportProgress(progress: Partial<SyncProgressV3>): void {
+		if (this.onProgress) {
+			this.onProgress({
+				current: 0,
+				total: 0,
+				status: 'preparing',
+				...progress,
+			});
+		}
+	}
+
+	/**
+	 * 重置同步状态
+	 */
+	resetSyncState(): void {
+		this.incrementalSync.clear();
+	}
+
+	/**
+	 * 准备同步：获取数据并计算差异，返回预览数据
+	 * 用于手动同步模式，在显示预览弹窗前调用
+	 */
+	async prepareSync(options: SyncOptionsV3): Promise<{
+		success: boolean;
+		previewItems?: SyncPreviewItem[];
+		skipped: number;
+		error?: string;
+	}> {
+		try {
+			// 1. 验证 Access Token
+			if (!this.config.accessToken) {
+				throw new Error('请先配置 Access Token');
+			}
+
+			this.reportProgress({ status: 'preparing', message: '验证 Access Token...' });
+
+			const tokenResult = await this.client.validateToken();
+			if (!tokenResult.valid) {
+				throw new Error(`Access Token 无效: ${tokenResult.error}`);
+			}
+
+			const username = tokenResult.username;
+			if (!username) {
+				throw new Error('无法获取用户名，请检查 Access Token');
+			}
+
+			console.log(`[Bangumi Sync V2] 用户: ${username}`);
+
+			// 2. 获取远程收藏列表
+			this.reportProgress({ status: 'fetching', message: '获取收藏列表...' });
+
+			const collections = await this.client.getAllUserCollections(username, {
+				subjectType: options.subjectTypes.length === 1 ? options.subjectTypes[0] : undefined,
+				collectionType: options.collectionTypes.length === 1 ? options.collectionTypes[0] : undefined,
+				onProgress: (current, total) => {
+					this.reportProgress({
+						status: 'fetching',
+						current,
+						total,
+						message: `获取收藏列表... (${current}/${total})`,
+					});
+				},
+			});
+
+			console.log(`[Bangumi Sync V2] 获取到 ${collections.length} 条收藏`);
+
+			// 3. 扫描本地文件夹
+			this.reportProgress({ status: 'scanning', message: '扫描本地文件夹...' });
+
+			const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
+			console.log(`[Bangumi Sync V2] 扫描路径: ${scanPath}`);
+
+			await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
+				this.reportProgress({
+					status: 'scanning',
+					current,
+					total,
+					message: `扫描本地文件... (${current}/${total})`,
+				});
+			});
+
+			// 4. 计算差异
+			this.reportProgress({ status: 'preparing', message: '计算同步差异...' });
+
+			// 过滤符合条件的收藏（条目类型和收藏类型）
+			const filteredCollections = this.filterCollections(collections, options);
+			console.log(`[Bangumi Sync V2] 符合条件的收藏: ${filteredCollections.length}`);
+
+			const diff = this.incrementalSync.computeDiff(filteredCollections, {
+				limit: options.limit,
+				force: options.force,
+			});
+
+			console.log(`[Bangumi Sync V2] 需要同步: ${diff.toAdd.length}，已存在跳过: ${diff.toSkip.length}`);
+
+			// 5. 创建预览数据
+			const previewItems: SyncPreviewItem[] = diff.toAdd.map(collection => ({
+				id: collection.subject_id,
+				name_cn: collection.subject.name_cn || '',
+				name: collection.subject.name || '',
+				type: collection.subject_type,
+				typeLabel: getTypeLabel(collection.subject_type),
+				rating: collection.subject.score || 0,
+				my_rate: collection.rate,
+				collection,
+				selected: true,
+				ratingDetails: {},
+			}));
+
+			return {
+				success: true,
+				previewItems,
+				skipped: diff.toSkip.length,
+			};
+
+		} catch (error) {
+			console.error('[Bangumi Sync V2] 准备同步失败:', error);
+			this.reportProgress({ status: 'error', message: String(error) });
+			return {
+				success: false,
+				skipped: 0,
+				error: String(error),
+			};
+		}
+	}
+
+	/**
+	 * 执行同步：根据预览数据执行实际导入
+	 * 用于手动同步模式，在用户确认后调用
+	 */
+	async executeSync(
+		previewItems: SyncPreviewItem[],
+		action: 'all' | 'selected' | 'unselected'
+	): Promise<SyncResultV3> {
+		const startTime = Date.now();
+		const result: SyncResultV3 = {
+			success: false,
+			total: 0,
+			added: 0,
+			skipped: 0,
+			errors: 0,
+			duration: 0,
+		};
+
+		try {
+			// 根据用户选择过滤条目
+			let itemsToSync: SyncPreviewItem[];
+			if (action === 'all') {
+				itemsToSync = previewItems;
+			} else if (action === 'selected') {
+				itemsToSync = previewItems.filter(item => item.selected);
+			} else {
+				itemsToSync = previewItems.filter(item => !item.selected);
+			}
+
+			result.total = itemsToSync.length;
+			console.log(`[Bangumi Sync V2] 开始同步 ${itemsToSync.length} 个条目`);
+
+			// 处理每个条目
+			for (let i = 0; i < itemsToSync.length; i++) {
+				const item = itemsToSync[i];
+
+				this.reportProgress({
+					status: 'processing',
+					current: i + 1,
+					total: itemsToSync.length,
+					currentItem: item.name_cn || item.name,
+					message: `处理条目... (${i + 1}/${itemsToSync.length})`,
+				});
+
+				try {
+					await this.processCollectionWithRatingDetails(item.collection, item.ratingDetails);
+					result.added++;
+				} catch (error) {
+					console.error(`[Bangumi Sync V2] 处理条目失败: ${item.name_cn}`, error);
+					result.errors++;
+				}
+			}
+
+			result.success = true;
+			this.reportProgress({ status: 'completed', message: '同步完成' });
+
+		} catch (error) {
+			console.error('[Bangumi Sync V2] 执行同步失败:', error);
+			this.reportProgress({ status: 'error', message: String(error) });
+			new Notice(`同步失败: ${error}`);
+		}
+
+		result.duration = Date.now() - startTime;
+		return result;
+	}
+
+	/**
+	 * 处理单个收藏（带评分明细）
+	 */
+	private async processCollectionWithRatingDetails(
+		collection: UserCollection,
+		ratingDetails: RatingDetails
+	): Promise<void> {
+		console.log(`[Bangumi Sync V2] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+
+		// 获取完整条目信息
+		const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
+		console.log(`[Bangumi Sync V2] 获取到条目信息: ${subject.name_cn}`);
+
+		// 解析角色信息
+		const characters = parseCharacters(relatedCharacters, 9);
+
+		// 获取类型标签（用于图片命名）
+		const typeLabel = getTypeLabel(subject.type);
+
+		// 下载封面图片
+		let coverUrl = subject.images?.large || subject.images?.common || '';
+		if (this.config.downloadImages && coverUrl) {
+			console.log(`[Bangumi Sync V2] 下载封面: ${coverUrl}`);
+			const localPath = await this.imageHandler.downloadCover(
+				coverUrl,
+				subject.id,
+				this.config.imagePathTemplate,
+				{
+					name_cn: subject.name_cn,
+					name: subject.name,
+					typeLabel,
+				}
+			);
+			if (localPath && !localPath.startsWith('http')) {
+				coverUrl = localPath;
+			}
+		}
+
+		// 生成文件路径
+		const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
+		console.log(`[Bangumi Sync V2] 生成文件路径: ${filePath}`);
+
+		// 生成文件内容（使用 V2 版本，包含用户自己的标签和评分明细）
+		const content = generateContentByTypeV3(
+			subject,
+			collection,
+			characters,
+			this.config.customTemplates,
+			ratingDetails
+		);
+
+		// 创建文件
+		await this.fileManager.createOrUpdateFile(filePath, content, {
+			overwrite: false,
+		});
+		console.log(`[Bangumi Sync V2] 文件创建完成: ${filePath}`);
+	}
+}
