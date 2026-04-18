@@ -296,57 +296,46 @@ export class SyncManagerV3 {
 	}
 
 	/**
-	 * 按 ID 列表同步条目
-	 * 用于控制面板选中同步功能
+	 * 按 UserCollection 列表同步条目
+	 * 用于控制面板选中同步功能，保留用户数据（评分、状态、短评等）
 	 */
-	async syncByIds(
-		subjectIds: number[],
+	async syncByCollections(
+		collections: UserCollection[],
+		options?: { overwrite?: boolean },
 		onProgress?: (current: number, total: number, message: string) => void
 	): Promise<SyncResultV3> {
 		const startTime = Date.now();
 		const result: SyncResultV3 = {
 			success: false,
-			total: subjectIds.length,
+			total: collections.length,
 			added: 0,
 			skipped: 0,
 			errors: 0,
 			duration: 0,
 		};
 
-		try {
-			console.log(`[Bangumi Sync V3] 开始按 ID 同步 ${subjectIds.length} 个条目`);
+		const overwrite = options?.overwrite ?? false;
 
-			for (let i = 0; i < subjectIds.length; i++) {
-				const subjectId = subjectIds[i];
+		try {
+			console.log(`[Bangumi Sync V3] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}`);
+
+			for (let i = 0; i < collections.length; i++) {
+				const collection = collections[i];
 
 				if (onProgress) {
-					onProgress(i + 1, subjectIds.length, `正在同步条目 ${i + 1}/${subjectIds.length}`);
+					onProgress(i + 1, collections.length, `正在同步条目 ${i + 1}/${collections.length}`);
 				}
 
 				this.reportProgress({
 					status: 'processing',
 					current: i + 1,
-					total: subjectIds.length,
-					message: `同步条目... (${i + 1}/${subjectIds.length})`,
+					total: collections.length,
+					message: `同步条目... (${i + 1}/${collections.length})`,
 				});
 
 				try {
 					// 获取条目完整信息
-					const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(subjectId);
-
-					// 构造一个简化的 UserCollection 对象
-					const collection: UserCollection = {
-						subject_id: subjectId,
-						subject: subject as any, // 使用完整的 subject 对象
-						type: 0, // 默认收藏类型
-						subject_type: subject.type,
-						rate: 0,
-						tags: [],
-						ep_status: 0,
-						vol_status: 0,
-						updated_at: '',
-						private: false,
-					};
+					const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
 
 					// 解析角色信息
 					const characters = parseCharacters(relatedCharacters, 9);
@@ -375,7 +364,7 @@ export class SyncManagerV3 {
 					// 生成文件路径
 					const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
 
-					// 生成文件内容
+					// 生成文件内容（使用原始 collection 对象，保留用户数据）
 					const content = generateContentByTypeV3(
 						subject,
 						collection,
@@ -385,14 +374,14 @@ export class SyncManagerV3 {
 
 					// 创建文件
 					await this.fileManager.createOrUpdateFile(filePath, content, {
-						overwrite: false,
+						overwrite: overwrite,
 					});
 
 					result.added++;
 					console.log(`[Bangumi Sync V3] 同步完成: ${subject.name_cn || subject.name}`);
 
 				} catch (error) {
-					console.error(`[Bangumi Sync V3] 同步条目失败 (ID: ${subjectId}):`, error);
+					console.error(`[Bangumi Sync V3] 同步条目失败 (ID: ${collection.subject_id}):`, error);
 					result.errors++;
 				}
 			}
@@ -401,7 +390,7 @@ export class SyncManagerV3 {
 			this.reportProgress({ status: 'completed', message: '同步完成' });
 
 		} catch (error) {
-			console.error('[Bangumi Sync V3] 按 ID 同步失败:', error);
+			console.error('[Bangumi Sync V3] 按收藏列表同步失败:', error);
 			this.reportProgress({ status: 'error', message: String(error) });
 		}
 

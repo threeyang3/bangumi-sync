@@ -203,7 +203,17 @@ export class ControlPanel extends Modal {
 
 		// 同步选中按钮
 		this.actionBarEl.createEl('button', { text: '同步选中', cls: 'bangumi-action-btn' }, btn => {
-			btn.addEventListener('click', () => this.syncSelected());
+			btn.addEventListener('click', () => this.syncSelected(false));
+		});
+
+		// 强制同步按钮
+		this.actionBarEl.createEl('button', { text: '强制同步', cls: 'bangumi-action-btn' }, btn => {
+			btn.addEventListener('click', () => this.syncSelected(true));
+		});
+
+		// 删除选中按钮
+		this.actionBarEl.createEl('button', { text: '删除选中', cls: 'bangumi-action-btn' }, btn => {
+			btn.addEventListener('click', () => this.deleteSelected());
 		});
 
 		// 批量编辑按钮
@@ -385,6 +395,7 @@ export class ControlPanel extends Modal {
 		headerRow.createEl('th', { text: '类型' });
 		headerRow.createEl('th', { text: '状态' });
 		headerRow.createEl('th', { text: '评分' });
+		headerRow.createEl('th', { text: '标签' });
 		headerRow.createEl('th', { text: '同步' });
 		headerRow.createEl('th', { text: '操作' });
 
@@ -430,6 +441,16 @@ export class ControlPanel extends Modal {
 			}
 			if (collection.rate) {
 				ratingCell.createSpan({ cls: 'bangumi-my-rate', text: ` [${collection.rate}]` });
+			}
+
+			// 标签
+			const tagsCell = row.createEl('td', { cls: 'bangumi-tags-cell' });
+			if (collection.tags && collection.tags.length > 0) {
+				const displayTags = collection.tags.slice(0, 3).join(', ');
+				tagsCell.setText(displayTags);
+				if (collection.tags.length > 3) {
+					tagsCell.setText(displayTags + '...');
+				}
 			}
 
 			// 同步状态
@@ -505,30 +526,41 @@ export class ControlPanel extends Modal {
 
 	/**
 	 * 同步选中条目
+	 * @param overwrite 是否强制覆盖已存在的文件
 	 */
-	private async syncSelected(): Promise<void> {
+	private async syncSelected(overwrite: boolean = false): Promise<void> {
 		if (this.state.selectedIds.size === 0) {
 			new Notice('请先选择要同步的条目');
 			return;
 		}
 
-		// 获取选中的未同步条目
-		const unsyncedIds = Array.from(this.state.selectedIds).filter(
-			id => !this.state.localSubjects.has(id)
-		);
+		// 获取选中的条目
+		let selectedCollections: UserCollection[];
+		if (overwrite) {
+			// 强制同步：同步所有选中的条目
+			selectedCollections = this.state.collections.filter(c =>
+				this.state.selectedIds.has(c.subject_id)
+			);
+		} else {
+			// 普通同步：只同步未同步的条目
+			selectedCollections = this.state.collections.filter(c =>
+				this.state.selectedIds.has(c.subject_id) && !this.state.localSubjects.has(c.subject_id)
+			);
+		}
 
-		if (unsyncedIds.length === 0) {
-			new Notice('选中的条目都已同步');
+		if (selectedCollections.length === 0) {
+			new Notice(overwrite ? '请选择要同步的条目' : '选中的条目都已同步');
 			return;
 		}
 
 		// 显示同步进度
 		this.state.loading = true;
-		this.renderStatus(`正在同步 ${unsyncedIds.length} 个条目...`);
+		this.renderStatus(`正在同步 ${selectedCollections.length} 个条目...`);
 
 		try {
-			const result = await this.syncManager.syncByIds(
-				unsyncedIds,
+			const result = await this.syncManager.syncByCollections(
+				selectedCollections,
+				{ overwrite },
 				(current, total, message) => {
 					this.renderStatus(message);
 				}
@@ -572,6 +604,62 @@ export class ControlPanel extends Modal {
 			new Notice(`同步出错: ${errorMsg}`);
 			this.renderStatus(`同步出错: ${errorMsg}`);
 		}
+	}
+
+	/**
+	 * 删除选中的本地条目
+	 */
+	private async deleteSelected(): Promise<void> {
+		if (this.state.selectedIds.size === 0) {
+			new Notice('请先选择要删除的条目');
+			return;
+		}
+
+		// 获取选中的已同步条目
+		const syncedCollections = this.state.collections.filter(c =>
+			this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
+		);
+
+		if (syncedCollections.length === 0) {
+			new Notice('选中的条目都未同步，无法删除');
+			return;
+		}
+
+		// 确认删除
+		const confirmed = confirm(`确定要删除 ${syncedCollections.length} 个本地文件吗？\n此操作将移动到系统回收站。`);
+		if (!confirmed) {
+			return;
+		}
+
+		let deleted = 0;
+		let failed = 0;
+
+		for (const collection of syncedCollections) {
+			const localInfo = this.state.localSubjects.get(collection.subject_id);
+			if (localInfo) {
+				try {
+					const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+					if (file instanceof TFile) {
+						await this.app.vault.trash(file, true);
+						this.state.localSubjects.delete(collection.subject_id);
+						deleted++;
+					}
+				} catch (error) {
+					console.error(`删除文件失败: ${localInfo.path}`, error);
+					failed++;
+				}
+			}
+		}
+
+		new Notice(`删除完成：成功 ${deleted} 个，失败 ${failed} 个`);
+
+		// 清空选中状态
+		this.state.selectedIds.clear();
+
+		// 刷新表格
+		this.renderStatus(`共 ${this.state.collections.length} 条收藏，${this.state.localSubjects.size} 条已同步`);
+		this.renderTable();
+		this.renderActionBar();
 	}
 
 	/**
