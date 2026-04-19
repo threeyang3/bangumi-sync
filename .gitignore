@@ -1,10 +1,14 @@
 # Dependencies
 node_modules/
 
-# Build output
-main.js
+# Build output (source directories only)
+/main.js
 v1/main.js
 v2/main.js
+
+# Old versions (local only, not pushed to GitHub)
+v1/
+v2/
 
 # Reference files (local only)
 参考/

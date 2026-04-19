@@ -41,6 +41,8 @@ export const ENDPOINTS = {
 		`/v0/users/${username}/collections/${subjectId}`,
 	MY_COLLECTION_BY_ID: (subjectId: number) =>
 		`/v0/users/-/collections/${subjectId}`,
+	MY_COLLECTION_UPDATE: (subjectId: number) =>
+		`/v0/users/-/collections/${subjectId}`,
 } as const;
 
 /**

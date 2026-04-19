@@ -47,7 +47,7 @@ export class BangumiClientV3 {
 	 * 发送 API 请求
 	 */
 	private async request<T>(
-		method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+		method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
 		endpoint: string,
 		data?: unknown
 	): Promise<T> {
@@ -244,5 +244,25 @@ export class BangumiClientV3 {
 		} while (true);
 
 		return allCollections;
+	}
+
+	/**
+	 * 更新用户收藏（评分、短评、标签等）
+	 * @param subjectId 条目 ID
+	 * @param data 要更新的数据
+	 */
+	async updateCollection(subjectId: number, data: {
+		type?: number;
+		rate?: number;
+		comment?: string;
+		tags?: string[];
+		private?: boolean;
+	}): Promise<void> {
+		const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
+		console.log(`[Bangumi Sync V3] 更新收藏: PATCH ${endpoint}`);
+		console.log(`[Bangumi Sync V3] 更新数据:`, data);
+
+		await this.request('PATCH', endpoint, data);
+		console.log(`[Bangumi Sync V3] 收藏更新成功: ${subjectId}`);
 	}
 }

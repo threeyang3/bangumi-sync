@@ -58,25 +58,45 @@ export interface ParsedInfo {
 }
 
 /**
- * 从 infobox 中获取指定 key 的值
+ * 从 infobox 中获取指定 key 的值（支持多个备选 key）
  */
-function getInfoboxValue(infobox: InfoboxItem[] | undefined, key: string): string | undefined {
+function getInfoboxValue(infobox: InfoboxItem[] | undefined, key: string, alternateKeys?: string[]): string | undefined {
 	if (!infobox) return undefined;
 
+	// 首先尝试主 key
 	const item = infobox.find(i => i.key === key);
-	if (!item) return undefined;
+	if (item) {
+		if (typeof item.value === 'string') {
+			return item.value.trim();
+		}
 
-	if (typeof item.value === 'string') {
-		return item.value.trim();
+		// 处理数组类型的值
+		if (Array.isArray(item.value)) {
+			// 如果是 {k, v} 格式的数组
+			if (item.value.length > 0 && typeof item.value[0] === 'object' && 'v' in item.value[0]) {
+				return item.value.map(v => (v as { k: string; v: string }).v).join('、');
+			}
+			return item.value.join('、');
+		}
 	}
 
-	// 处理数组类型的值
-	if (Array.isArray(item.value)) {
-		// 如果是 {k, v} 格式的数组
-		if (item.value.length > 0 && typeof item.value[0] === 'object' && 'v' in item.value[0]) {
-			return item.value.map(v => (v as { k: string; v: string }).v).join('、');
+	// 尝试备选 key
+	if (alternateKeys) {
+		for (const altKey of alternateKeys) {
+			const altItem = infobox.find(i => i.key === altKey);
+			if (altItem) {
+				if (typeof altItem.value === 'string') {
+					return altItem.value.trim();
+				}
+
+				if (Array.isArray(altItem.value)) {
+					if (altItem.value.length > 0 && typeof altItem.value[0] === 'object' && 'v' in altItem.value[0]) {
+						return altItem.value.map(v => (v as { k: string; v: string }).v).join('、');
+					}
+					return altItem.value.join('、');
+				}
+			}
 		}
-		return item.value.join('、');
 	}
 
 	return undefined;
@@ -99,18 +119,18 @@ function getInfoboxNumber(infobox: InfoboxItem[] | undefined, key: string): numb
  */
 export function parseAnimeInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 	return {
-		category: getInfoboxValue(infobox, '类型') || 'TV',
+		category: getInfoboxValue(infobox, '类型', ['播放日期']) || 'TV',
 		episode: getInfoboxNumber(infobox, '话数'),
-		director: getInfoboxValue(infobox, '导演'),
-		music: getInfoboxValue(infobox, '音乐'),
-		animeMake: getInfoboxValue(infobox, '动画制作'),
-		musicMake: getInfoboxValue(infobox, '音乐制作'),
-		staff: getInfoboxValue(infobox, '脚本'),
-		audioDirector: getInfoboxValue(infobox, '音响监督'),
-		artDirector: getInfoboxValue(infobox, '美术监督'),
-		animeChief: getInfoboxValue(infobox, '总作画监督'),
-		from: getInfoboxValue(infobox, '原作'),
-		website: getInfoboxValue(infobox, '官方网站'),
+		director: getInfoboxValue(infobox, '导演', ['监督', '总导演']),
+		music: getInfoboxValue(infobox, '音乐', ['音乐制作', '音乐人']),
+		animeMake: getInfoboxValue(infobox, '动画制作', ['制作', '动画工房', '工作室']),
+		musicMake: getInfoboxValue(infobox, '音乐制作', ['音乐']),
+		staff: getInfoboxValue(infobox, '脚本', ['系列构成', '剧本']),
+		audioDirector: getInfoboxValue(infobox, '音响监督', ['音响']),
+		artDirector: getInfoboxValue(infobox, '美术监督', ['美术']),
+		animeChief: getInfoboxValue(infobox, '总作画监督', ['作画监督']),
+		from: getInfoboxValue(infobox, '原作', ['原案']),
+		website: getInfoboxValue(infobox, '官方网站', ['官网', '网站']),
 	};
 }
 

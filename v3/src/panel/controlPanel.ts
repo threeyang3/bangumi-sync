@@ -11,6 +11,7 @@ import { IncrementalSyncV3 } from '../sync/incrementalSync';
 import { BangumiClientV3 } from '../api/client';
 import { getTypeLabel } from '../../../common/template/defaultTemplates';
 import { BatchEditorModal, BatchEditOperation, FrontmatterEditor } from './batchEditorModal';
+import { CommentSyncModal, CommentDiff } from './commentSyncModal';
 
 /**
  * 本地条目信息
@@ -221,6 +222,11 @@ export class ControlPanel extends Modal {
 			btn.addEventListener('click', () => this.openBatchEditor());
 		});
 
+		// 同步短评按钮
+		this.actionBarEl.createEl('button', { text: '同步短评', cls: 'bangumi-action-btn' }, btn => {
+			btn.addEventListener('click', () => this.syncComments());
+		});
+
 		// 撤销按钮
 		const undoBtn = this.actionBarEl.createEl('button', { text: '撤销', cls: 'bangumi-action-btn' }, btn => {
 			btn.addEventListener('click', () => this.undoLastEdit());
@@ -395,6 +401,7 @@ export class ControlPanel extends Modal {
 		headerRow.createEl('th', { text: '类型' });
 		headerRow.createEl('th', { text: '状态' });
 		headerRow.createEl('th', { text: '评分' });
+		headerRow.createEl('th', { text: '短评' });
 		headerRow.createEl('th', { text: '标签' });
 		headerRow.createEl('th', { text: '同步' });
 		headerRow.createEl('th', { text: '操作' });
@@ -441,6 +448,17 @@ export class ControlPanel extends Modal {
 			}
 			if (collection.rate) {
 				ratingCell.createSpan({ cls: 'bangumi-my-rate', text: ` [${collection.rate}]` });
+			}
+
+			// 短评
+			const commentCell = row.createEl('td', { cls: 'bangumi-comment-cell' });
+			if (collection.comment) {
+				const maxLen = 20;
+				const displayComment = collection.comment.length > maxLen
+					? collection.comment.substring(0, maxLen) + '...'
+					: collection.comment;
+				commentCell.setText(displayComment);
+				commentCell.setAttribute('title', collection.comment);
 			}
 
 			// 标签
@@ -706,6 +724,86 @@ export class ControlPanel extends Modal {
 			this.renderActionBar();
 		} else {
 			new Notice('撤销失败');
+		}
+	}
+
+	/**
+	 * 同步短评
+	 * 对比本地与云端短评差异
+	 */
+	private async syncComments(): Promise<void> {
+		// 获取已同步的条目
+		const syncedCollections = this.state.collections.filter(c =>
+			this.state.localSubjects.has(c.subject_id)
+		);
+
+		if (syncedCollections.length === 0) {
+			new Notice('没有已同步的条目，无法对比短评');
+			return;
+		}
+
+		this.state.loading = true;
+		this.renderStatus('正在对比短评差异...');
+
+		try {
+			const diffs: CommentDiff[] = [];
+
+			for (const collection of syncedCollections) {
+				const localInfo = this.state.localSubjects.get(collection.subject_id);
+				if (!localInfo) continue;
+
+				// 读取本地文件
+				const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+				if (!(file instanceof TFile)) continue;
+
+				const content = await this.app.vault.read(file);
+				const localComment = this.incrementalSync.extractComment(content);
+				const cloudComment = collection.comment || null;
+
+				// 对比差异（忽略空白差异）
+				const localNormalized = localComment?.trim() || null;
+				const cloudNormalized = cloudComment?.trim() || null;
+
+				if (localNormalized !== cloudNormalized) {
+					diffs.push({
+						subjectId: collection.subject_id,
+						name_cn: collection.subject.name_cn || '',
+						name: collection.subject.name || '',
+						localComment: localNormalized,
+						cloudComment: cloudNormalized,
+						localPath: localInfo.path,
+						collection,
+						decision: 'skip',
+					});
+				}
+			}
+
+			this.state.loading = false;
+
+			if (diffs.length === 0) {
+				new Notice('没有短评差异');
+				this.renderStatus('没有短评差异');
+				return;
+			}
+
+			// 打开短评同步弹窗
+			const modal = new CommentSyncModal(
+				this.app,
+				this.client,
+				this.incrementalSync,
+				diffs,
+				() => {
+					// 同步完成后刷新
+					this.loadData();
+				}
+			);
+			modal.open();
+
+		} catch (error) {
+			this.state.loading = false;
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			new Notice(`对比短评失败: ${errorMsg}`);
+			this.renderStatus(`对比短评失败: ${errorMsg}`);
 		}
 	}
 }

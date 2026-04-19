@@ -213,4 +213,60 @@ export class IncrementalSyncV3 {
 		this.localSubjects.clear();
 		this.lastScanPath = '';
 	}
+
+	/**
+	 * 从正文内容中提取短评
+	 * 短评格式: > [!abstract]+ **短评**\n> {comment}
+	 */
+	extractComment(content: string): string | null {
+		// 匹配短评 callout
+		const commentMatch = content.match(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)/);
+		if (commentMatch) {
+			// 提取 > 后面的内容，合并为一行
+			const lines = commentMatch[1].split('\n');
+			const comment = lines
+				.map(line => line.replace(/^> /, '').trim())
+				.filter(line => line.length > 0)
+				.join(' ');
+			return comment || null;
+		}
+		return null;
+	}
+
+	/**
+	 * 更新正文中的短评
+	 * 如果短评不存在，在简介之前插入
+	 */
+	updateComment(content: string, newComment: string): string {
+		const commentMatch = content.match(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)/);
+
+		// 构建新的短评 callout
+		const newCommentLines = newComment.split('\n').map(line => `> ${line}`).join('\n');
+		const newCommentBlock = `> [!abstract]+ **短评**\n${newCommentLines}`;
+
+		if (commentMatch) {
+			// 替换现有短评
+			return content.replace(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)/, newCommentBlock + '\n');
+		} else {
+			// 在简介之前插入短评
+			const introMatch = content.match(/> \[!abstract\]\+\s*\*\*简介\*\*/);
+			if (introMatch) {
+				return content.replace(/> \[!abstract\]\+\s*\*\*简介\*\*/, newCommentBlock + '\n\n> [!abstract]+ **简介**');
+			}
+			// 如果没有简介，在 frontmatter 之后插入
+			const frontmatterEnd = content.indexOf('---', 3);
+			if (frontmatterEnd !== -1) {
+				const afterFrontmatter = content.substring(frontmatterEnd + 3).trimStart();
+				return content.substring(0, frontmatterEnd + 3) + '\n\n' + newCommentBlock + '\n\n' + afterFrontmatter;
+			}
+		}
+		return content;
+	}
+
+	/**
+	 * 删除正文中的短评 callout
+	 */
+	removeComment(content: string): string {
+		return content.replace(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)\n?/, '');
+	}
 }

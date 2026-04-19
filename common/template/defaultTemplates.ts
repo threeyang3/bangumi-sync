@@ -11,6 +11,7 @@ id: {{id}}
 原名: "{{name}}"
 别名: "{{alias}}"
 Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 观看状态: {{my_status}}
 tags: {{tags}}
 评分: {{my_rate}}
@@ -19,13 +20,12 @@ tags: {{tags}}
   - 人设：{{rating_character}}
   - 剧情：{{rating_story}}
   - 美术：{{rating_art}}
-短评: {{my_comment}}
 标语:
 单评: false
+精彩片段:
 笔记: "[[收集箱/笔记/ACGN/《{{name_cn}}》笔记|《{{name_cn}}》笔记]]"
 存储:
 资源属性:
-改编类别:
 相关:
   -
 作品大类: Anime
@@ -48,7 +48,6 @@ tags: {{tags}}
 | 标签 |\`= this.tags\`|
 | 评分 |\`= this.评分\`|
 | 明细 |音乐: {{rating_music}} 人设: {{rating_character}} 剧情: {{rating_story}} 美术: {{rating_art}}|
-| 短评 | \`= this.短评\`|
 | 笔记 | \`= this.笔记\`|
 | 放送 | {{year}} 年 {{month}} 月 |
 | 集数 | {{category}} 共{{episode}}话 |
@@ -58,6 +57,9 @@ tags: {{tags}}
 | 存储 | \`= this.存储\`·\`=this.资源属性\` |
 | 相关 | \`= this.相关\` |
 
+
+> [!abstract]+ **短评**
+> {{my_comment}}
 
 > [!abstract]+ **简介**
 > {{summary}}
@@ -89,6 +91,7 @@ id: {{id}}
 作者: "[[{{author}}]]"
 插画: "[[{{illustration}}]]"
 Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 连载状态: {{status}}
 阅读状态: {{my_status}}
 tags: {{tags}}
@@ -98,7 +101,6 @@ tags: {{tags}}
   - 插画：{{rating_illustration}}
   - 文笔：{{rating_writing}}
   - 人设：{{rating_character}}
-短评: {{my_comment}}
 标语:
 单评: false
 笔记: "[[收集箱/笔记/ACGN/《{{name_cn}}》笔记|《{{name_cn}}》笔记]]"
@@ -132,7 +134,6 @@ Kindle: false
 | 标签 |\`= this.tags\`|
 | 评分 |\`= this.评分\`|
 | 明细 | 剧情: {{rating_story}} 插画: {{rating_illustration}} 文笔: {{rating_writing}} 人设: {{rating_character}}|
-| 短评 |\`= this.短评\`|
 | 笔记 | \`= this.笔记\`|
 | 进度 |\`= this.连载状态\` - \`= this.进度\` |
 | 书系 |\`= this.书系\`|
@@ -140,6 +141,9 @@ Kindle: false
 | 版本 |\`= this.版本\`|
 | 相关 | \`= this.相关\` |
 
+
+> [!abstract]+ **短评**
+> {{my_comment}}
 
 > [!abstract]+ **简介**
 > {{summary}}
@@ -162,6 +166,7 @@ id: {{id}}
 原名: "{{name}}"
 别名: "{{alias}}"
 Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 连载状态: "{{status}}"
 阅读状态: {{my_status}}
 tags: {{tags}}
@@ -170,7 +175,6 @@ tags: {{tags}}
   - 剧情：{{rating_story}}
   - 画工：{{rating_drawing}}
   - 人设：{{rating_character}}
-短评: {{my_comment}}
 标语:
 单评: false
 笔记: "[[收集箱/笔记/ACGN/《{{name_cn}}》笔记|《{{name_cn}}》笔记]]"
@@ -201,7 +205,6 @@ Kindle: false
 | 标签 |\`= this.tags\`|
 | 评分 |\`= this.评分\`|
 | 明细 | 剧情: {{rating_story}} 画工: {{rating_drawing}} 人设: {{rating_character}}|
-| 短评 |\`= this.短评\`|
 | 笔记 | \`= this.笔记\`|
 | 作者 |\`= this.作者\` |
 | 作画 |\`= this.作画\`|
@@ -211,6 +214,9 @@ Kindle: false
 | 格式 | \`= this.格式\` |
 | 相关 | \`= this.相关\` |
 
+
+> [!abstract]+ **短评**
+> {{my_comment}}
 
 > [!abstract]+ **简介**
 > {{summary}}
@@ -233,6 +239,7 @@ id: {{id}}
 原名: "{{name}}"
 别名: "{{alias}}"
 Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 平台:
 具体类型: "{{category}}"
 游玩状态: {{my_status}}
@@ -243,7 +250,6 @@ tags: {{tags}}
   - 趣味：{{rating_fun}}
   - 音乐：{{rating_music}}
   - 美术：{{rating_art}}
-短评: {{my_comment}}
 标语:
 单评: false
 笔记: "[[收集箱/笔记/ACGN/《{{name_cn}}》笔记|《{{name_cn}}》ACGN笔记]]"
@@ -269,7 +275,6 @@ tags: {{tags}}
 | 标签 |\`= this.tags\`|
 | 评分 |\`= this.评分\`|
 | 明细 |剧情: {{rating_story}} 趣味: {{rating_fun}} 音乐: {{rating_music}} 美术: {{rating_art}} |
-| 短评 | \`= this.短评\`|
 | 笔记 | \`= this.笔记\`|
 | 开发 | \`= this.开发\` |
 | 发行 | \`= this.发行\` |
@@ -277,6 +282,9 @@ tags: {{tags}}
 | 存储 | \`= this.存储\` |
 | 相关 | \`= this.相关\` |
 
+
+> [!abstract]+ **短评**
+> {{my_comment}}
 
 > [!abstract]+ **简介**
 > {{summary}}
@@ -300,10 +308,10 @@ id: {{id}}
 别名: "{{alias}}"
 作者: "[[{{author}}]]"
 Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 阅读状态: {{my_status}}
 tags: {{tags}}
 评分: {{my_rate}}
-短评: {{my_comment}}
 单评: false
 笔记: "[[收集箱/笔记/ACGN/《{{name_cn}}》笔记|《{{name_cn}}》笔记]]"
 版本:
@@ -329,7 +337,6 @@ ISBN: "{{isbn}}"
 | 状态 |\`= this.阅读状态\`|
 | 标签 |\`= this.tags\`|
 | 评分 |\`= this.评分\`|
-| 短评 |\`= this.短评\`|
 | 笔记 | \`= this.笔记\`|
 | 页数 |\`= this.页数\`|
 | ISBN |\`= this.ISBN\`|
@@ -339,6 +346,9 @@ ISBN: "{{isbn}}"
 | 格式 | \`= this.格式\` |
 | 相关 | \`= this.相关\` |
 
+
+> [!abstract]+ **短评**
+> {{my_comment}}
 
 > [!abstract]+ **简介**
 > {{summary}}
@@ -351,10 +361,10 @@ id: {{id}}
 原名: "{{name}}"
 别名: "{{alias}}"
 Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 收藏状态: {{my_status}}
 tags: {{tags}}
 评分: {{my_rate}}
-短评: {{my_comment}}
 作品大类: Music
 具体类型: "{{category}}"
 封面: "![]({{cover}})"
@@ -367,8 +377,10 @@ tags: {{tags}}
 | 标签 |\`= this.tags\`|
 |:------: |:------------------------------------------: |
 | 评分 |\`= this.评分\`|
-| 短评 |\`= this.短评\`|
 | 发行 |{{date}}|
+
+> [!abstract]+ **短评**
+> {{my_comment}}
 
 > [!abstract]+ **简介**
 > {{summary}}
@@ -381,10 +393,10 @@ id: {{id}}
 原名: "{{name}}"
 别名: "{{alias}}"
 Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 观看状态: {{my_status}}
 tags: {{tags}}
 评分: {{my_rate}}
-短评: {{my_comment}}
 作品大类: Real
 具体类型: "{{category}}"
 封面: "![]({{cover}})"
@@ -398,8 +410,10 @@ tags: {{tags}}
 |:------: |:------------------------------------------: |
 | 状态 |\`= this.观看状态\`|
 | 评分 |\`= this.评分\`|
-| 短评 |\`= this.短评\`|
 | 上映 |{{date}}|
+
+> [!abstract]+ **短评**
+> {{my_comment}}
 
 > [!abstract]+ **简介**
 > {{summary}}

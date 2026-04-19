@@ -48,7 +48,8 @@ export function extractTemplateVarsV3(
 
 	// 收藏信息
 	const my_rate = collection?.rate ? String(collection.rate) : '';
-	const my_comment = cleanMultilineText(collection?.comment);
+	// 短评保留原始换行（放在正文 callout 中）
+	const my_comment = collection?.comment || '';
 	const my_status = collection
 		? getCollectionStatusEmoji(collection.type)
 		: '';
@@ -65,6 +66,7 @@ export function extractTemplateVarsV3(
 		rank: subject.rating?.rank ? String(subject.rating.rank) : '',
 		tags: my_tags,  // V3: 使用用户自己的标签
 		cover,
+		bangumi_url: `https://bgm.tv/subject/${subject.id}`,
 
 		// 类型信息
 		type: String(subject.type),
