@@ -27,7 +27,7 @@ export function extractPathVars(
 	collection?: UserCollection
 ): PathTemplateVars {
 	// 解析 infobox 获取详细信息
-	const parsedInfo = parseInfoByType(subject.infobox, subject.type);
+	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
 
 	// 获取类型标签
 	let typeLabel = getSubjectTypeLabel(subject.type);

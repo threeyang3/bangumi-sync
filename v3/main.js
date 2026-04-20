@@ -21,7 +21,7 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// v4/main.ts
+// v3/main.ts
 var main_exports = {};
 __export(main_exports, {
   BangumiPluginV3: () => BangumiPluginV3,
@@ -112,7 +112,7 @@ function getCollectionStatusEmoji(type) {
   }
 }
 
-// v4/src/settings/settings.ts
+// v3/src/settings/settings.ts
 var DEFAULT_TEMPLATE_CONFIG = {
   source: "default"
 };
@@ -147,7 +147,7 @@ var DEFAULT_SETTINGS_V3 = {
   panelFilters: { ...DEFAULT_PANEL_FILTERS }
 };
 
-// v4/src/settings/settingsTab.ts
+// v3/src/settings/settingsTab.ts
 var import_obsidian = require("obsidian");
 
 // common/template/defaultTemplates.ts
@@ -611,7 +611,7 @@ function getTypeLabel(subjectType, category) {
   }
 }
 
-// v4/src/settings/settingsTab.ts
+// v3/src/settings/settingsTab.ts
 var TEMPLATE_TYPES = [
   { key: "animeTemplateConfig", name: "\u52A8\u753B\u6A21\u677F", defaultTemplate: ANIME_TEMPLATE },
   { key: "novelTemplateConfig", name: "\u5C0F\u8BF4\u6A21\u677F", defaultTemplate: NOVEL_TEMPLATE },
@@ -921,10 +921,10 @@ var TemplateEditorModalV3 = class extends import_obsidian.Modal {
   }
 };
 
-// v4/src/sync/syncManager.ts
+// v3/src/sync/syncManager.ts
 var import_obsidian6 = require("obsidian");
 
-// v4/src/api/client.ts
+// v3/src/api/client.ts
 var import_obsidian2 = require("obsidian");
 
 // common/api/endpoints.ts
@@ -968,7 +968,7 @@ var DEFAULT_HEADERS = {
   "User-Agent": "Bangumi-Obsidian-Plugin/1.0.0"
 };
 
-// v4/src/api/client.ts
+// v3/src/api/client.ts
 var BangumiClientV3 = class {
   constructor(accessToken = "", baseUrl = API_BASE_URL) {
     this.accessToken = accessToken;
@@ -1188,7 +1188,7 @@ var BangumiClientV3 = class {
   }
 };
 
-// v4/src/file/fileManager.ts
+// v3/src/file/fileManager.ts
 var import_obsidian3 = require("obsidian");
 var FileManagerV3 = class {
   constructor(app) {
@@ -1390,7 +1390,7 @@ var ImageHandler = class {
   }
 };
 
-// v4/src/sync/incrementalSync.ts
+// v3/src/sync/incrementalSync.ts
 var import_obsidian5 = require("obsidian");
 var IncrementalSyncV3 = class {
   constructor(app) {
@@ -1964,7 +1964,7 @@ function createUserStatusMap(userEpisodes) {
   return map;
 }
 
-// v4/src/template/contentTemplate.ts
+// v3/src/template/contentTemplate.ts
 function extractTemplateVarsV3(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus) {
   var _a, _b, _c, _d, _e, _f;
   const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
@@ -2104,7 +2104,7 @@ function generateContentByTypeV3(subject, collection, characters, customTemplate
   return generateContentV3(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus);
 }
 
-// v4/src/sync/syncManager.ts
+// v3/src/sync/syncManager.ts
 var SyncManagerV3 = class {
   constructor(app, config) {
     this.app = app;
@@ -2590,7 +2590,7 @@ var SyncManagerV3 = class {
   }
 };
 
-// v4/src/ui/syncModal.ts
+// v3/src/ui/syncModal.ts
 var import_obsidian7 = require("obsidian");
 var SyncModalV3 = class extends import_obsidian7.Modal {
   constructor(app) {
@@ -2667,7 +2667,7 @@ var SyncModalV3 = class extends import_obsidian7.Modal {
   }
 };
 
-// v4/src/ui/syncOptionsModal.ts
+// v3/src/ui/syncOptionsModal.ts
 var import_obsidian8 = require("obsidian");
 var SyncOptionsModalV3 = class extends import_obsidian8.Modal {
   constructor(app, defaultOptions, onSave) {
@@ -2796,7 +2796,7 @@ var SyncOptionsModalV3 = class extends import_obsidian8.Modal {
   }
 };
 
-// v4/src/ui/syncPreviewModal.ts
+// v3/src/ui/syncPreviewModal.ts
 var import_obsidian9 = require("obsidian");
 var RATING_DETAIL_FIELDS = {
   [2 /* Anime */]: [
@@ -2958,10 +2958,10 @@ var SyncPreviewModalV3 = class extends import_obsidian9.Modal {
   }
 };
 
-// v4/src/panel/controlPanel.ts
+// v3/src/panel/controlPanel.ts
 var import_obsidian12 = require("obsidian");
 
-// v4/src/panel/batchEditorModal.ts
+// v3/src/panel/batchEditorModal.ts
 var import_obsidian10 = require("obsidian");
 var BatchEditorModal = class extends import_obsidian10.Modal {
   constructor(app, filePaths, onConfirm) {
@@ -3209,7 +3209,7 @@ var FrontmatterEditor = class {
   }
 };
 
-// v4/src/panel/commentSyncModal.ts
+// v3/src/panel/commentSyncModal.ts
 var import_obsidian11 = require("obsidian");
 var CommentSyncModal = class extends import_obsidian11.Modal {
   constructor(app, client, incrementalSync, diffs, onComplete) {
@@ -3372,7 +3372,7 @@ var CommentSyncModal = class extends import_obsidian11.Modal {
   }
 };
 
-// v4/src/panel/controlPanel.ts
+// v3/src/panel/controlPanel.ts
 var ControlPanel = class extends import_obsidian12.Modal {
   constructor(app, settings, syncManager, onFiltersChange) {
     super(app);
@@ -3954,7 +3954,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
   }
 };
 
-// v4/main.ts
+// v3/main.ts
 var TEMPLATE_CONFIG_MAP = {
   animeTemplateConfig: ANIME_TEMPLATE,
   novelTemplateConfig: NOVEL_TEMPLATE,

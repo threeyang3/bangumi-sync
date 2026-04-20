@@ -103,10 +103,66 @@ function getInfoboxValue(infobox: InfoboxItem[] | undefined, key: string, altern
 }
 
 /**
- * 从 infobox 中获取指定 key 的数值
+ * 从 infobox 中获取链接字段的 URL
+ * 链接字段格式如: [{"k":"特设网站","v":"https://..."}]
  */
-function getInfoboxNumber(infobox: InfoboxItem[] | undefined, key: string): number | undefined {
-	const value = getInfoboxValue(infobox, key);
+function getWebsiteValue(infobox: InfoboxItem[] | undefined, keys: string[]): string | undefined {
+	if (!infobox) return undefined;
+
+	for (const key of keys) {
+		const item = infobox.find(i => i.key === key);
+		if (item) {
+			// 字符串类型直接返回
+			if (typeof item.value === 'string') {
+				return item.value.trim();
+			}
+
+			// 数组类型：提取 URL
+			if (Array.isArray(item.value)) {
+				if (item.value.length > 0 && typeof item.value[0] === 'object' && 'v' in item.value[0]) {
+					// 提取所有 URL，用换行分隔
+					return item.value.map(v => (v as { k: string; v: string }).v).join('\n');
+				}
+			}
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * 从版本信息数组中提取指定字段的值
+ * 版本信息格式如: [{"k":"书系","v":"Kadokawa Fantastic Novels"},{"k":"册数","v":"2"}]
+ */
+function getValueFromVersion(infobox: InfoboxItem[] | undefined, versionKey: string, fieldKey: string): string | undefined {
+	if (!infobox) return undefined;
+
+	// 查找版本信息项
+	const versionItem = infobox.find(i => i.key.includes(versionKey) || i.key === '版本');
+	if (!versionItem || !Array.isArray(versionItem.value)) return undefined;
+
+	// 从版本数组中查找指定字段
+	const field = versionItem.value.find((item: { k: string; v: string }) => item.k === fieldKey);
+	return field?.v;
+}
+
+/**
+ * 从版本信息数组中提取指定字段的数值
+ */
+function getNumberFromVersion(infobox: InfoboxItem[] | undefined, versionKey: string, fieldKey: string): number | undefined {
+	const value = getValueFromVersion(infobox, versionKey, fieldKey);
+	if (value) {
+		const num = parseInt(value, 10);
+		return isNaN(num) ? undefined : num;
+	}
+	return undefined;
+}
+
+/**
+ * 从 infobox 中获取指定 key 的数值（支持多个备选 key）
+ */
+function getInfoboxNumber(infobox: InfoboxItem[] | undefined, key: string, alternateKeys?: string[]): number | undefined {
+	const value = getInfoboxValue(infobox, key, alternateKeys);
 	if (value) {
 		const num = parseInt(value, 10);
 		return isNaN(num) ? undefined : num;
@@ -130,7 +186,7 @@ export function parseAnimeInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 		artDirector: getInfoboxValue(infobox, '美术监督', ['美术']),
 		animeChief: getInfoboxValue(infobox, '总作画监督', ['作画监督']),
 		from: getInfoboxValue(infobox, '原作', ['原案']),
-		website: getInfoboxValue(infobox, '官方网站', ['官网', '网站']),
+		website: getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']),
 	};
 }
 
@@ -138,22 +194,38 @@ export function parseAnimeInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
  * 解析小说信息
  */
 export function parseNovelInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
-	const author = getInfoboxValue(infobox, '作者') || getInfoboxValue(infobox, '原作');
-	const start = getInfoboxValue(infobox, '开始');
-	const end = getInfoboxValue(infobox, '结束');
+	const author = getInfoboxValue(infobox, '作者', ['原作']);
+	const start = getInfoboxValue(infobox, '开始', ['连载开始']);
+	const end = getInfoboxValue(infobox, '结束', ['连载结束']);
+
+	const illustration = getInfoboxValue(infobox, '插图', ['插画']);
+	const publish = getInfoboxValue(infobox, '出版社');
+
+	// 书系：优先从版本信息中获取，否则使用顶层字段
+	const seriesFromVersion = getValueFromVersion(infobox, '版本', '书系');
+	const series = seriesFromVersion || getInfoboxValue(infobox, '书系', ['丛书', '系列', '文库', '图书品牌']);
+
+	// 册数：优先从版本信息中获取，否则使用顶层字段
+	const volumesFromVersion = getNumberFromVersion(infobox, '版本', '册数');
+	const volumes = volumesFromVersion || getInfoboxNumber(infobox, '册数', ['卷数']);
+
+	// 官网：使用专门的函数处理链接数组格式
+	const website = getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']);
+	const journal = getInfoboxValue(infobox, '连载杂志');
 
 	return {
 		category: getInfoboxValue(infobox, '类型') || '小说',
 		author,
-		illustration: getInfoboxValue(infobox, '插图'),
-		publish: getInfoboxValue(infobox, '出版社'),
-		series: getInfoboxValue(infobox, '书系'),
-		volumes: getInfoboxNumber(infobox, '册数'),
+		illustration,
+		publish,
+		series,
+		volumes,
 		status: end ? '已完结' : '连载中',
 		progress: start ? `${start} - ${end || '连载中'}` : undefined,
 		start,
 		end,
-		website: getInfoboxValue(infobox, '官方网站'),
+		website,
+		journal,
 	};
 }
 
@@ -161,21 +233,22 @@ export function parseNovelInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
  * 解析漫画信息
  */
 export function parseComicInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
-	const author = getInfoboxValue(infobox, '作者') || getInfoboxValue(infobox, '原作');
-	const start = getInfoboxValue(infobox, '开始');
-	const end = getInfoboxValue(infobox, '结束');
+	const author = getInfoboxValue(infobox, '作者', ['原作']);
+	const start = getInfoboxValue(infobox, '开始', ['连载开始']);
+	const end = getInfoboxValue(infobox, '结束', ['连载结束']);
 
 	return {
 		category: getInfoboxValue(infobox, '类型') || '漫画',
 		author,
 		staff2: getInfoboxValue(infobox, '作画'),
 		publish: getInfoboxValue(infobox, '出版社'),
-		journal: getInfoboxValue(infobox, '连载杂志'),
-		episode: getInfoboxNumber(infobox, '话数'),
+		journal: getInfoboxValue(infobox, '连载杂志', ['连载']),
+		episode: getInfoboxNumber(infobox, '话数', ['册数']),
 		status: end ? '已完结' : '连载中',
 		progress: start ? `${start} - ${end || '连载中'}` : undefined,
 		start,
 		end,
+		website: getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']),
 	};
 }
 
@@ -195,7 +268,7 @@ export function parseGameInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 		director: getInfoboxValue(infobox, '导演'),
 		producer: getInfoboxValue(infobox, '制作人'),
 		price: getInfoboxValue(infobox, '售价'),
-		website: getInfoboxValue(infobox, '官方网站'),
+		website: getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']),
 	};
 }
 
@@ -205,10 +278,11 @@ export function parseGameInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 export function parseAlbumInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 	return {
 		category: getInfoboxValue(infobox, '类型') || '画集',
-		author: getInfoboxValue(infobox, '作者') || getInfoboxValue(infobox, '插图'),
+		author: getInfoboxValue(infobox, '作者', ['原作', '插图', '插画']),
 		publish: getInfoboxValue(infobox, '出版社'),
 		pages: getInfoboxNumber(infobox, '页数'),
 		isbn: getInfoboxValue(infobox, 'ISBN'),
+		website: getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']),
 	};
 }
 
@@ -218,7 +292,7 @@ export function parseAlbumInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 export function parseInfoByType(
 	infobox: InfoboxItem[] | undefined,
 	subjectType: SubjectType,
-	typeLabel?: string
+	platform?: string
 ): ParsedInfo {
 	// 先根据条目类型判断
 	switch (subjectType) {
@@ -229,19 +303,20 @@ export function parseInfoByType(
 			return parseGameInfo(infobox);
 
 		case SubjectType.Book:
-			// 书籍类型需要根据细分类别区分
-			if (typeLabel) {
-				if (typeLabel.includes('小说')) {
+			// 书籍类型需要根据 platform 或 infobox 区分
+			// 首先检查 platform 字段
+			if (platform) {
+				if (platform.includes('小说') || platform.includes('轻小说')) {
 					return parseNovelInfo(infobox);
 				}
-				if (typeLabel.includes('漫画')) {
+				if (platform.includes('漫画')) {
 					return parseComicInfo(infobox);
 				}
-				if (typeLabel.includes('画集') || typeLabel.includes('画本')) {
+				if (platform.includes('画集') || platform.includes('画本') || platform.includes('画册')) {
 					return parseAlbumInfo(infobox);
 				}
 			}
-			// 默认尝试从 infobox 判断
+			// 尝试从 infobox 判断
 			if (infobox) {
 				const type = getInfoboxValue(infobox, '类型');
 				if (type) {
@@ -250,6 +325,20 @@ export function parseInfoByType(
 					}
 					if (type.includes('漫画')) {
 						return parseComicInfo(infobox);
+					}
+					if (type.includes('画集') || type.includes('画本') || type.includes('画册')) {
+						return parseAlbumInfo(infobox);
+					}
+				}
+				// 检查是否有画集特征字段
+				const pages = getInfoboxNumber(infobox, '页数');
+				const isbn = getInfoboxValue(infobox, 'ISBN');
+				if (pages || isbn) {
+					// 有页数或 ISBN，可能是画集
+					// 但需要排除小说（小说通常有作者、出版社等）
+					const author = getInfoboxValue(infobox, '作者', ['原作']);
+					if (!author && (pages || isbn)) {
+						return parseAlbumInfo(infobox);
 					}
 				}
 			}

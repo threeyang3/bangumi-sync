@@ -165,18 +165,49 @@ export interface RelatedPerson {
 
 // ==================== 章节相关类型 ====================
 
+/**
+ * 章节类型
+ * - 0: 本篇
+ * - 1: SP
+ * - 2: OP
+ * - 3: ED
+ */
+export enum EpisodeType {
+	Main = 0,
+	SP = 1,
+	OP = 2,
+	ED = 3
+}
+
+/**
+ * 章节收藏类型
+ * - 1: 想看 (Wish)
+ * - 2: 看过 (Done)
+ * - 3: 抛弃 (Dropped)
+ */
+export enum EpisodeCollectionType {
+	Wish = 1,
+	Done = 2,
+	Dropped = 3
+}
+
+/**
+ * 章节信息
+ */
 export interface Episode {
 	id: number;
 	type: number;
-	type_name: string;
-	sort: number;
 	name: string;
 	name_cn: string;
-	duration: string;
+	sort: number;
+	ep?: number;
 	airdate: string;
-	comment: number;
+	duration: string;
 	desc: string;
-	status: string;
+	comment: number;
+	disc?: number;
+	duration_seconds?: number;
+	subject_id?: number;
 }
 
 export interface PagedEpisodes {
@@ -184,6 +215,15 @@ export interface PagedEpisodes {
 	limit: number;
 	offset: number;
 	data: Episode[];
+}
+
+/**
+ * 用户章节收藏状态
+ */
+export interface UserEpisodeCollection {
+	episode: Episode;
+	type: number;  // 0=未收藏, 1=想看, 2=看过, 3=抛弃
+	updated_at: number;
 }
 
 // ==================== 用户相关类型 ====================

@@ -61,10 +61,10 @@ tags: {{tags}}
 > [!abstract]+ **短评**
 > {{my_comment}}
 
-> [!abstract]+ **简介**
+> [!abstract]- **简介**
 > {{summary}}
 
-> [!tip]+ **主要角色**
+> [!tip]- **主要角色**
 >
 |  {{character1}} | {{character2}}   |   {{character3}}  |
 |:------: |:----------------: | :--------------- : |
@@ -76,6 +76,10 @@ tags: {{tags}}
 | {{character7}}  |  {{character8}}  | {{character9}}  |
 |  {{characterCV7}} | {{characterCV8}}   |   {{characterCV9}}  |
 | {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
+
+## 集数
+
+{{episodes}}
 
 ## 记录
 
@@ -110,7 +114,7 @@ Kindle: false
 相关:
   -
 渠道:
-官网:
+官网: "{{website}}"
 已购: false
 作品大类: Novel
 具体类型: "{{category}}"
@@ -145,10 +149,10 @@ Kindle: false
 > [!abstract]+ **短评**
 > {{my_comment}}
 
-> [!abstract]+ **简介**
+> [!abstract]- **简介**
 > {{summary}}
 
-> [!tip]+ **主要角色**
+> [!tip]- **主要角色**
 >
 |  **{{character1}}**| **{{character2}}**   |   **{{character3}}**  |
 |:------: |:----------------: | :--------------- : |
@@ -218,10 +222,10 @@ Kindle: false
 > [!abstract]+ **短评**
 > {{my_comment}}
 
-> [!abstract]+ **简介**
+> [!abstract]- **简介**
 > {{summary}}
 
-> [!tip]+ **主要角色**
+> [!tip]- **主要角色**
 >
 |  **{{character1}}**| **{{character2}}**   |   **{{character3}}**  |
 |:------: |:----------------: | :--------------- : |
@@ -286,10 +290,10 @@ tags: {{tags}}
 > [!abstract]+ **短评**
 > {{my_comment}}
 
-> [!abstract]+ **简介**
+> [!abstract]- **简介**
 > {{summary}}
 
-> [!tip]+ **主要角色**
+> [!tip]- **主要角色**
 >
 |  **{{character1}}**| **{{character2}}**   |   **{{character3}}**  |
 |:------: |:----------------: | :--------------- : |

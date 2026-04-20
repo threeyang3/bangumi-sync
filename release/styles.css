@@ -614,3 +614,33 @@
 	flex: 1;
 	min-width: 150px;
 }
+
+/* V4 集数框样式 */
+.ep-box {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.2em;
+	height: 2.2em;
+	border: 1px solid var(--text-muted);
+	border-radius: 4px;
+	margin: 2px;
+	font-size: 13px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.ep-box:hover {
+	border-color: var(--interactive-accent);
+	background: var(--background-secondary);
+}
+
+.ep-box.watched {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.ep-box.watched:hover {
+	opacity: 0.9;
+}

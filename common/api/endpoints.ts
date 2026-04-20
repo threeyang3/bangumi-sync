@@ -43,6 +43,12 @@ export const ENDPOINTS = {
 		`/v0/users/-/collections/${subjectId}`,
 	MY_COLLECTION_UPDATE: (subjectId: number) =>
 		`/v0/users/-/collections/${subjectId}`,
+
+	// 章节收藏相关
+	USER_SUBJECT_EPISODES: (subjectId: number) =>
+		`/v0/users/-/collections/${subjectId}/episodes`,
+	UPDATE_EPISODE_STATUS: (episodeId: number) =>
+		`/v0/users/-/collections/-/episodes/${episodeId}`,
 } as const;
 
 /**

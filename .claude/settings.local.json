@@ -72,7 +72,12 @@
       "Bash(cmd.exe *)",
       "Bash(\"C:/Program Files/GitHub CLI/gh.exe\" --version)",
       "Bash(\"/c/Program Files/gh/bin/gh.exe\" --version)",
-      "Bash('/c/Program Files/GitHub CLI/gh.exe' release create v3.1.0 ./release/bangumi-sync-v3.1.0.zip --title v3.1.0 --notes ' *)"
+      "Bash('/c/Program Files/GitHub CLI/gh.exe' release create v3.1.0 ./release/bangumi-sync-v3.1.0.zip --title v3.1.0 --notes ' *)",
+      "Bash(git ls-tree *)",
+      "Bash(git rm *)",
+      "WebFetch(domain:github.com)",
+      "Bash(sed -n '410,430p' \"E:/cctry/bangumi/v3/src/sync/syncManager.ts\")",
+      "Read(//tmp/**)"
     ]
   }
 }

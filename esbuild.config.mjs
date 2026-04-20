@@ -1,6 +1,8 @@
 import esbuild from "esbuild";
 import process from "process";
 import builtins from "builtin-modules";
+import fs from "fs";
+import path from "path";
 
 const banner =
 `/*
@@ -10,7 +12,32 @@ if you want to view the source, please visit the github repository of this plugi
 `;
 
 const prod = (process.argv[2] === 'production');
-const version = process.argv[3] || 'v1'; // v1, v2, or v3
+const version = process.argv[3] || 'v1'; // v1, v2, v3, or v4
+
+/**
+ * 同步插件文件到 release 文件夹
+ * 每次构建后将 main.js, manifest.json, styles.css 复制到 release/
+ */
+function syncToRelease(versionDir) {
+	const releaseDir = 'release';
+
+	// 确保 release 目录存在
+	if (!fs.existsSync(releaseDir)) {
+		fs.mkdirSync(releaseDir, { recursive: true });
+	}
+
+	const files = ['main.js', 'manifest.json', 'styles.css'];
+
+	for (const file of files) {
+		const srcPath = path.join(versionDir, file);
+		const destPath = path.join(releaseDir, file);
+
+		if (fs.existsSync(srcPath)) {
+			fs.copyFileSync(srcPath, destPath);
+			console.log(`Synced: ${srcPath} -> ${destPath}`);
+		}
+	}
+}
 
 // 根据版本选择入口文件和输出路径
 let entryPoint;
@@ -24,6 +51,10 @@ switch (version) {
 	case 'v3':
 		entryPoint = 'v3/main.ts';
 		outfile = 'v3/main.js';
+		break;
+	case 'v4':
+		entryPoint = 'v4/main.ts';
+		outfile = 'v4/main.js';
 		break;
 	default:
 		entryPoint = 'v1/main.ts';
@@ -64,6 +95,8 @@ const context = await esbuild.context({
 
 if (prod) {
 	await context.rebuild();
+	// 同步到 release 文件夹
+	syncToRelease(version);
 	process.exit(0);
 } else {
 	await context.watch();

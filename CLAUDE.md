@@ -21,7 +21,7 @@
 - **手动同步预览**：导入前可预览条目列表，勾选要导入的条目
 - **评分明细输入**：手动同步时可在弹窗中填写评分明细
 
-### V3 版本（推荐）
+### V3 版本
 - **控制面板**：查询并展示用户所有收藏条目
 - **同步状态标记**：对照本地目录，标记条目是否已同步
 - **标签显示**：列表中显示用户标签（最多3个）
@@ -35,6 +35,13 @@
 - **短评双向同步**：对比本地与云端短评差异，选择保留哪个版本
 - **性能优化**：列表不加载封面图片，加快加载速度
 - 继承 V2 所有特性
+
+### V4 版本（推荐）
+- **集数追踪**：自动获取并显示动画集数、小说卷数、漫画话数
+- **紧凑显示**：集数以数字框形式显示，节省空间
+- **悬浮提示**：鼠标悬浮显示集数标题、放送日期、时长
+- **观看状态**：已看集数高亮显示，与 Bangumi 同步
+- 继承 V3 所有特性
 
 ## 技术栈
 
@@ -128,6 +135,34 @@ bangumi/
 │           ├── syncOptionsModal.ts
 │           └── syncPreviewModal.ts
 │
+├── v4/                        # V4 版本
+│   ├── main.ts                # V4 插件入口
+│   ├── main.js                # V4 编译输出
+│   ├── manifest.json          # V4 插件清单
+│   ├── styles.css             # V4 样式文件
+│   └── src/
+│       ├── api/               # V4 API 层
+│       │   └── client.ts      # V4 API 客户端
+│       ├── sync/              # V4 同步层
+│       │   ├── syncManager.ts # V4 同步管理器
+│       │   ├── incrementalSync.ts # V4 增量同步
+│       │   └── syncStatus.ts  # V4 同步状态
+│       ├── template/          # V4 模板层
+│       │   └── contentTemplate.ts # V4 内容模板
+│       ├── file/              # V4 文件层
+│       │   └── fileManager.ts
+│       ├── panel/             # V4 控制面板层
+│       │   ├── controlPanel.ts    # 控制面板主类
+│       │   ├── batchEditorModal.ts # 批量编辑器
+│       │   └── commentSyncModal.ts # 短评同步弹窗
+│       ├── settings/          # V4 设置层
+│       │   ├── settings.ts
+│       │   └── settingsTab.ts
+│       └── ui/                # V4 UI 层
+│           ├── syncModal.ts
+│           ├── syncOptionsModal.ts
+│           └── syncPreviewModal.ts
+│
 └── common/                    # 共享模块
     ├── api/                   # 共享 API 模块
     │   ├── types.ts           # 类型定义
@@ -216,6 +251,14 @@ V2/V3 版本在手动同步时会显示**预览确认弹窗**：
 | 快速同步（使用默认设置） | 自动同步模式 |
 | 打开控制面板 | 打开收藏管理控制面板 |
 
+#### V4 命令
+
+| 命令 | 说明 |
+|------|------|
+| 同步 Bangumi 收藏 | 打开同步选项弹窗 |
+| 快速同步（使用默认设置） | 自动同步模式 |
+| 打开控制面板 | 打开收藏管理控制面板 |
+
 ### 6. 控制面板（V3）
 
 V3 版本新增**控制面板**功能：
@@ -278,6 +321,8 @@ V3 版本新增**控制面板**功能：
   - `CollectionType` - 收藏类型枚举
   - `Subject` - 条目数据结构
   - `UserCollection` - 用户收藏数据结构
+  - `Episode` - 章节数据结构（V4）
+  - `UserEpisodeCollection` - 用户章节收藏状态（V4）
 - **endpoints.ts**: API 端点常量
 - **client.ts**: 基础 API 客户端
 
@@ -289,6 +334,10 @@ V3 版本新增**控制面板**功能：
   - `cleanSummary()` - 清理简介文本
   - `cleanMultilineText()` - 清理多行文本（用于短评等字段）
 - **characterParser.ts**: 解析角色信息（最多9个角色）
+- **episodeParser.ts**: 解析章节信息（V4 新增）
+  - `parseEpisodes()` - 生成集数显示内容
+  - `generateEpisodeBox()` - 生成单个集数框 HTML
+  - `createUserStatusMap()` - 创建用户章节状态映射
 
 ### 共享模板层 (`common/template/`)
 
@@ -370,6 +419,9 @@ npm run dev:v2
 # 开发模式 - V3
 npm run dev:v3
 
+# 开发模式 - V4
+npm run dev:v4
+
 # 生产构建 - V1
 npm run build
 
@@ -378,6 +430,9 @@ npm run build:v2
 
 # 生产构建 - V3
 npm run build:v3
+
+# 生产构建 - V4
+npm run build:v4
 
 # 构建所有版本
 npm run build:all
@@ -425,6 +480,7 @@ npm run build:all
 - 条目特定: `{{episode}}`, `{{director}}`, `{{author}}`, `{{develop}}` 等
 - 角色: `{{character1-9}}`, `{{characterCV1-9}}`, `{{characterPhoto1-9}}`
 - 评分明细: `{{rating_music}}`, `{{rating_character}}`, `{{rating_story}}`, `{{rating_art}}`, `{{rating_illustration}}`, `{{rating_writing}}`, `{{rating_drawing}}`, `{{rating_fun}}`
+- 章节 (V4): `{{episodes}}`, `{{volumes}}`
 
 ### 评分明细字段说明
 
@@ -452,6 +508,9 @@ npm run build:all
 - `GET /v0/subjects/{subject_id}` - 获取条目详情
 - `GET /v0/subjects/{subject_id}/characters` - 获取条目角色
 - `POST /v0/search/subjects` - 搜索条目
+- `GET /v0/episodes?subject_id={id}` - 获取条目章节（V4）
+- `GET /v0/users/-/collections/{subject_id}/episodes` - 获取用户章节状态（V4）
+- `PUT /v0/users/-/collections/-/episodes/{episode_id}` - 更新章节状态（V4）
 
 ## 调试技巧
 
@@ -612,3 +671,59 @@ V3 新增短评双向同步功能：
 - **v3.1.0**: 新增标签列显示、强制同步、删除本地文件功能
 - **v3.2.0**: 短评优化，短评移至正文 callout，新增短评双向同步功能
 - **v3.3.0**: 修复元数据获取问题，新增 Bangumi 链接属性，短评保留换行
+- **v4.0.0**: V4 集数追踪版本
+  - 新增集数显示、观看状态、悬浮提示
+  - 修复漫画模板选择问题
+  - 修复小说书系、册数、官网字段解析问题
+  - 支持从版本信息中提取书系和册数
+  - 支持链接数组格式的官网字段
+
+## V4 版本特有功能
+
+### 集数追踪
+
+V4 新增集数追踪功能，自动获取并显示条目的章节信息：
+
+- **动画**：显示所有集数，以数字框形式展示
+- **小说**：显示卷数信息
+- **漫画**：显示话数信息
+
+### 集数显示格式
+
+集数以紧凑的数字框形式显示：
+
+```html
+<span class="ep-box" title="第1话：魔王的苏醒之日&#10;放送：2008-04-06&#10;时长：24m" data-ep="1" data-id="522">1</span>
+```
+
+- **数字框**：每个集数显示为一个可点击的数字框
+- **悬浮提示**：鼠标悬浮显示集数标题、放送日期、时长
+- **已看标记**：已看过的集数会高亮显示（背景色不同）
+
+### 观看状态同步
+
+- 同步条目时自动获取用户在 Bangumi 上的章节观看状态
+- 已看集数在本地文件中会以不同样式显示
+- 支持通过 API 更新章节状态到 Bangumi
+
+### 使用 V4 版本
+
+**方式一：从 GitHub Release 下载（推荐）**
+1. 访问 https://github.com/threeyang3/bangumi-sync/releases
+2. 下载 V4 版本的 `main.js`、`manifest.json` 和 `styles.css`
+3. 放入 Obsidian 插件目录
+
+**方式二：自行构建**
+1. 克隆仓库：`git clone https://github.com/threeyang3/bangumi-sync.git`
+2. 安装依赖：`npm install`
+3. 构建 V4 版本：`npm run build:v4`
+4. 将 `v4/` 目录下的文件复制到插件目录
+
+**V4 插件目录结构**：
+```
+你的Vault/.obsidian/plugins/bangumi-sync-v4/
+├── main.js          # 插件主文件
+├── manifest.json    # 插件清单
+└── styles.css       # 样式文件
+```
+

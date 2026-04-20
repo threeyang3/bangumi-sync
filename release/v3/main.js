@@ -21,14 +21,14 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// v4/main.ts
+// v3/main.ts
 var main_exports = {};
 __export(main_exports, {
   BangumiPluginV3: () => BangumiPluginV3,
   default: () => main_default
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian13 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
 // common/api/types.ts
 var SubjectType = /* @__PURE__ */ ((SubjectType2) => {
@@ -112,7 +112,7 @@ function getCollectionStatusEmoji(type) {
   }
 }
 
-// v4/src/settings/settings.ts
+// v3/src/settings/settings.ts
 var DEFAULT_TEMPLATE_CONFIG = {
   source: "default"
 };
@@ -147,7 +147,7 @@ var DEFAULT_SETTINGS_V3 = {
   panelFilters: { ...DEFAULT_PANEL_FILTERS }
 };
 
-// v4/src/settings/settingsTab.ts
+// v3/src/settings/settingsTab.ts
 var import_obsidian = require("obsidian");
 
 // common/template/defaultTemplates.ts
@@ -157,7 +157,6 @@ id: {{id}}
 \u539F\u540D: "{{name}}"
 \u522B\u540D: "{{alias}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
-Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u89C2\u770B\u72B6\u6001: {{my_status}}
 tags: {{tags}}
 \u8BC4\u5206: {{my_rate}}
@@ -166,12 +165,13 @@ tags: {{tags}}
   - \u4EBA\u8BBE\uFF1A{{rating_character}}
   - \u5267\u60C5\uFF1A{{rating_story}}
   - \u7F8E\u672F\uFF1A{{rating_art}}
+\u77ED\u8BC4: {{my_comment}}
 \u6807\u8BED:
 \u5355\u8BC4: false
-\u7CBE\u5F69\u7247\u6BB5:
 \u7B14\u8BB0: "[[\u6536\u96C6\u7BB1/\u7B14\u8BB0/ACGN/\u300A{{name_cn}}\u300B\u7B14\u8BB0|\u300A{{name_cn}}\u300B\u7B14\u8BB0]]"
 \u5B58\u50A8:
 \u8D44\u6E90\u5C5E\u6027:
+\u6539\u7F16\u7C7B\u522B:
 \u76F8\u5173:
   -
 \u4F5C\u54C1\u5927\u7C7B: Anime
@@ -194,6 +194,7 @@ tags: {{tags}}
 | \u6807\u7B7E |\`= this.tags\`|
 | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
 | \u660E\u7EC6 |\u97F3\u4E50: {{rating_music}} \u4EBA\u8BBE: {{rating_character}} \u5267\u60C5: {{rating_story}} \u7F8E\u672F: {{rating_art}}|
+| \u77ED\u8BC4 | \`= this.\u77ED\u8BC4\`|
 | \u7B14\u8BB0 | \`= this.\u7B14\u8BB0\`|
 | \u653E\u9001 | {{year}} \u5E74 {{month}} \u6708 |
 | \u96C6\u6570 | {{category}} \u5171{{episode}}\u8BDD |
@@ -204,13 +205,10 @@ tags: {{tags}}
 | \u76F8\u5173 | \`= this.\u76F8\u5173\` |
 
 
-> [!abstract]+ **\u77ED\u8BC4**
-> {{my_comment}}
-
-> [!abstract]- **\u7B80\u4ECB**
+> [!abstract]+ **\u7B80\u4ECB**
 > {{summary}}
 
-> [!tip]- **\u4E3B\u8981\u89D2\u8272**
+> [!tip]+ **\u4E3B\u8981\u89D2\u8272**
 >
 |  {{character1}} | {{character2}}   |   {{character3}}  |
 |:------: |:----------------: | :--------------- : |
@@ -222,10 +220,6 @@ tags: {{tags}}
 | {{character7}}  |  {{character8}}  | {{character9}}  |
 |  {{characterCV7}} | {{characterCV8}}   |   {{characterCV9}}  |
 | {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
-
-## \u96C6\u6570
-
-{{episodes}}
 
 ## \u8BB0\u5F55
 
@@ -239,7 +233,6 @@ id: {{id}}
 \u4F5C\u8005: "[[{{author}}]]"
 \u63D2\u753B: "[[{{illustration}}]]"
 Bangumi\u8BC4\u5206: "{{rating}}"
-Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u8FDE\u8F7D\u72B6\u6001: {{status}}
 \u9605\u8BFB\u72B6\u6001: {{my_status}}
 tags: {{tags}}
@@ -249,6 +242,7 @@ tags: {{tags}}
   - \u63D2\u753B\uFF1A{{rating_illustration}}
   - \u6587\u7B14\uFF1A{{rating_writing}}
   - \u4EBA\u8BBE\uFF1A{{rating_character}}
+\u77ED\u8BC4: {{my_comment}}
 \u6807\u8BED:
 \u5355\u8BC4: false
 \u7B14\u8BB0: "[[\u6536\u96C6\u7BB1/\u7B14\u8BB0/ACGN/\u300A{{name_cn}}\u300B\u7B14\u8BB0|\u300A{{name_cn}}\u300B\u7B14\u8BB0]]"
@@ -258,7 +252,7 @@ Kindle: false
 \u76F8\u5173:
   -
 \u6E20\u9053:
-\u5B98\u7F51: "{{website}}"
+\u5B98\u7F51:
 \u5DF2\u8D2D: false
 \u4F5C\u54C1\u5927\u7C7B: Novel
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
@@ -282,6 +276,7 @@ Kindle: false
 | \u6807\u7B7E |\`= this.tags\`|
 | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
 | \u660E\u7EC6 | \u5267\u60C5: {{rating_story}} \u63D2\u753B: {{rating_illustration}} \u6587\u7B14: {{rating_writing}} \u4EBA\u8BBE: {{rating_character}}|
+| \u77ED\u8BC4 |\`= this.\u77ED\u8BC4\`|
 | \u7B14\u8BB0 | \`= this.\u7B14\u8BB0\`|
 | \u8FDB\u5EA6 |\`= this.\u8FDE\u8F7D\u72B6\u6001\` - \`= this.\u8FDB\u5EA6\` |
 | \u4E66\u7CFB |\`= this.\u4E66\u7CFB\`|
@@ -290,13 +285,10 @@ Kindle: false
 | \u76F8\u5173 | \`= this.\u76F8\u5173\` |
 
 
-> [!abstract]+ **\u77ED\u8BC4**
-> {{my_comment}}
-
-> [!abstract]- **\u7B80\u4ECB**
+> [!abstract]+ **\u7B80\u4ECB**
 > {{summary}}
 
-> [!tip]- **\u4E3B\u8981\u89D2\u8272**
+> [!tip]+ **\u4E3B\u8981\u89D2\u8272**
 >
 |  **{{character1}}**| **{{character2}}**   |   **{{character3}}**  |
 |:------: |:----------------: | :--------------- : |
@@ -312,7 +304,6 @@ id: {{id}}
 \u539F\u540D: "{{name}}"
 \u522B\u540D: "{{alias}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
-Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u8FDE\u8F7D\u72B6\u6001: "{{status}}"
 \u9605\u8BFB\u72B6\u6001: {{my_status}}
 tags: {{tags}}
@@ -321,6 +312,7 @@ tags: {{tags}}
   - \u5267\u60C5\uFF1A{{rating_story}}
   - \u753B\u5DE5\uFF1A{{rating_drawing}}
   - \u4EBA\u8BBE\uFF1A{{rating_character}}
+\u77ED\u8BC4: {{my_comment}}
 \u6807\u8BED:
 \u5355\u8BC4: false
 \u7B14\u8BB0: "[[\u6536\u96C6\u7BB1/\u7B14\u8BB0/ACGN/\u300A{{name_cn}}\u300B\u7B14\u8BB0|\u300A{{name_cn}}\u300B\u7B14\u8BB0]]"
@@ -351,6 +343,7 @@ Kindle: false
 | \u6807\u7B7E |\`= this.tags\`|
 | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
 | \u660E\u7EC6 | \u5267\u60C5: {{rating_story}} \u753B\u5DE5: {{rating_drawing}} \u4EBA\u8BBE: {{rating_character}}|
+| \u77ED\u8BC4 |\`= this.\u77ED\u8BC4\`|
 | \u7B14\u8BB0 | \`= this.\u7B14\u8BB0\`|
 | \u4F5C\u8005 |\`= this.\u4F5C\u8005\` |
 | \u4F5C\u753B |\`= this.\u4F5C\u753B\`|
@@ -361,13 +354,10 @@ Kindle: false
 | \u76F8\u5173 | \`= this.\u76F8\u5173\` |
 
 
-> [!abstract]+ **\u77ED\u8BC4**
-> {{my_comment}}
-
-> [!abstract]- **\u7B80\u4ECB**
+> [!abstract]+ **\u7B80\u4ECB**
 > {{summary}}
 
-> [!tip]- **\u4E3B\u8981\u89D2\u8272**
+> [!tip]+ **\u4E3B\u8981\u89D2\u8272**
 >
 |  **{{character1}}**| **{{character2}}**   |   **{{character3}}**  |
 |:------: |:----------------: | :--------------- : |
@@ -383,7 +373,6 @@ id: {{id}}
 \u539F\u540D: "{{name}}"
 \u522B\u540D: "{{alias}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
-Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u5E73\u53F0:
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 \u6E38\u73A9\u72B6\u6001: {{my_status}}
@@ -394,6 +383,7 @@ tags: {{tags}}
   - \u8DA3\u5473\uFF1A{{rating_fun}}
   - \u97F3\u4E50\uFF1A{{rating_music}}
   - \u7F8E\u672F\uFF1A{{rating_art}}
+\u77ED\u8BC4: {{my_comment}}
 \u6807\u8BED:
 \u5355\u8BC4: false
 \u7B14\u8BB0: "[[\u6536\u96C6\u7BB1/\u7B14\u8BB0/ACGN/\u300A{{name_cn}}\u300B\u7B14\u8BB0|\u300A{{name_cn}}\u300BACGN\u7B14\u8BB0]]"
@@ -419,6 +409,7 @@ tags: {{tags}}
 | \u6807\u7B7E |\`= this.tags\`|
 | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
 | \u660E\u7EC6 |\u5267\u60C5: {{rating_story}} \u8DA3\u5473: {{rating_fun}} \u97F3\u4E50: {{rating_music}} \u7F8E\u672F: {{rating_art}} |
+| \u77ED\u8BC4 | \`= this.\u77ED\u8BC4\`|
 | \u7B14\u8BB0 | \`= this.\u7B14\u8BB0\`|
 | \u5F00\u53D1 | \`= this.\u5F00\u53D1\` |
 | \u53D1\u884C | \`= this.\u53D1\u884C\` |
@@ -427,13 +418,10 @@ tags: {{tags}}
 | \u76F8\u5173 | \`= this.\u76F8\u5173\` |
 
 
-> [!abstract]+ **\u77ED\u8BC4**
-> {{my_comment}}
-
-> [!abstract]- **\u7B80\u4ECB**
+> [!abstract]+ **\u7B80\u4ECB**
 > {{summary}}
 
-> [!tip]- **\u4E3B\u8981\u89D2\u8272**
+> [!tip]+ **\u4E3B\u8981\u89D2\u8272**
 >
 |  **{{character1}}**| **{{character2}}**   |   **{{character3}}**  |
 |:------: |:----------------: | :--------------- : |
@@ -450,10 +438,10 @@ id: {{id}}
 \u522B\u540D: "{{alias}}"
 \u4F5C\u8005: "[[{{author}}]]"
 Bangumi\u8BC4\u5206: "{{rating}}"
-Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u9605\u8BFB\u72B6\u6001: {{my_status}}
 tags: {{tags}}
 \u8BC4\u5206: {{my_rate}}
+\u77ED\u8BC4: {{my_comment}}
 \u5355\u8BC4: false
 \u7B14\u8BB0: "[[\u6536\u96C6\u7BB1/\u7B14\u8BB0/ACGN/\u300A{{name_cn}}\u300B\u7B14\u8BB0|\u300A{{name_cn}}\u300B\u7B14\u8BB0]]"
 \u7248\u672C:
@@ -479,6 +467,7 @@ ISBN: "{{isbn}}"
 | \u72B6\u6001 |\`= this.\u9605\u8BFB\u72B6\u6001\`|
 | \u6807\u7B7E |\`= this.tags\`|
 | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
+| \u77ED\u8BC4 |\`= this.\u77ED\u8BC4\`|
 | \u7B14\u8BB0 | \`= this.\u7B14\u8BB0\`|
 | \u9875\u6570 |\`= this.\u9875\u6570\`|
 | ISBN |\`= this.ISBN\`|
@@ -489,9 +478,6 @@ ISBN: "{{isbn}}"
 | \u76F8\u5173 | \`= this.\u76F8\u5173\` |
 
 
-> [!abstract]+ **\u77ED\u8BC4**
-> {{my_comment}}
-
 > [!abstract]+ **\u7B80\u4ECB**
 > {{summary}}
 `;
@@ -501,10 +487,10 @@ id: {{id}}
 \u539F\u540D: "{{name}}"
 \u522B\u540D: "{{alias}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
-Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u6536\u85CF\u72B6\u6001: {{my_status}}
 tags: {{tags}}
 \u8BC4\u5206: {{my_rate}}
+\u77ED\u8BC4: {{my_comment}}
 \u4F5C\u54C1\u5927\u7C7B: Music
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 \u5C01\u9762: "![]({{cover}})"
@@ -517,10 +503,8 @@ tags: {{tags}}
 | \u6807\u7B7E |\`= this.tags\`|
 |:------: |:------------------------------------------: |
 | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
+| \u77ED\u8BC4 |\`= this.\u77ED\u8BC4\`|
 | \u53D1\u884C |{{date}}|
-
-> [!abstract]+ **\u77ED\u8BC4**
-> {{my_comment}}
 
 > [!abstract]+ **\u7B80\u4ECB**
 > {{summary}}
@@ -531,10 +515,10 @@ id: {{id}}
 \u539F\u540D: "{{name}}"
 \u522B\u540D: "{{alias}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
-Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u89C2\u770B\u72B6\u6001: {{my_status}}
 tags: {{tags}}
 \u8BC4\u5206: {{my_rate}}
+\u77ED\u8BC4: {{my_comment}}
 \u4F5C\u54C1\u5927\u7C7B: Real
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 \u5C01\u9762: "![]({{cover}})"
@@ -548,10 +532,8 @@ tags: {{tags}}
 |:------: |:------------------------------------------: |
 | \u72B6\u6001 |\`= this.\u89C2\u770B\u72B6\u6001\`|
 | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
+| \u77ED\u8BC4 |\`= this.\u77ED\u8BC4\`|
 | \u4E0A\u6620 |{{date}}|
-
-> [!abstract]+ **\u77ED\u8BC4**
-> {{my_comment}}
 
 > [!abstract]+ **\u7B80\u4ECB**
 > {{summary}}
@@ -611,7 +593,7 @@ function getTypeLabel(subjectType, category) {
   }
 }
 
-// v4/src/settings/settingsTab.ts
+// v3/src/settings/settingsTab.ts
 var TEMPLATE_TYPES = [
   { key: "animeTemplateConfig", name: "\u52A8\u753B\u6A21\u677F", defaultTemplate: ANIME_TEMPLATE },
   { key: "novelTemplateConfig", name: "\u5C0F\u8BF4\u6A21\u677F", defaultTemplate: NOVEL_TEMPLATE },
@@ -630,9 +612,9 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Bangumi Sync V3 \u8BBE\u7F6E" });
+    containerEl.createEl("h2", { text: "Bangumi Sync V2 \u8BBE\u7F6E" });
     containerEl.createEl("p", {
-      text: "V3 \u65B0\u7279\u6027\uFF1A\u63A7\u5236\u9762\u677F\u3001\u6279\u91CF\u7F16\u8F91\u3001\u64A4\u9500\u652F\u6301\u3001\u6253\u5F00\u672C\u5730\u6587\u4EF6\u3002",
+      text: "V2 \u7248\u672C\u6539\u8FDB\uFF1A\u4F7F\u7528\u7528\u6237\u81EA\u5DF1\u7684\u6807\u7B7E\u3001\u901A\u8FC7\u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939\u68C0\u6D4B\u5DF2\u540C\u6B65\u6761\u76EE\u3001\u667A\u80FD\u6570\u91CF\u9650\u5236\u3002",
       cls: "bangumi-v2-info"
     });
     containerEl.createEl("h3", { text: "\u8BA4\u8BC1\u8BBE\u7F6E" });
@@ -653,7 +635,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
     });
     const previewEl = containerEl.createDiv({ cls: "bangumi-path-preview" });
     this.updatePathPreview(previewEl, this.settings.syncPathTemplate);
-    new import_obsidian.Setting(containerEl).setName("\u626B\u63CF\u6587\u4EF6\u5939\u8DEF\u5F84").setDesc("\u7528\u4E8E\u68C0\u6D4B\u5DF2\u540C\u6B65\u6761\u76EE\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\uFF08\u7559\u7A7A\u5219\u4F7F\u7528\u6587\u4EF6\u8DEF\u5F84\u6A21\u677F\u7684\u57FA\u7840\u8DEF\u5F84\uFF09").addText((text) => text.setPlaceholder("ACGN").setValue(this.settings.scanFolderPath).onChange(async (value) => {
+    new import_obsidian.Setting(containerEl).setName("\u626B\u63CF\u6587\u4EF6\u5939\u8DEF\u5F84").setDesc("V2 \u65B0\u589E\uFF1A\u7528\u4E8E\u68C0\u6D4B\u5DF2\u540C\u6B65\u6761\u76EE\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\uFF08\u7559\u7A7A\u5219\u4F7F\u7528\u6587\u4EF6\u8DEF\u5F84\u6A21\u677F\u7684\u57FA\u7840\u8DEF\u5F84\uFF09").addText((text) => text.setPlaceholder("ACGN").setValue(this.settings.scanFolderPath).onChange(async (value) => {
       this.settings.scanFolderPath = value;
       await this.onSave();
     }));
@@ -667,7 +649,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
     }));
     containerEl.createEl("h3", { text: "\u6A21\u677F\u8BBE\u7F6E" });
     const helpDiv = containerEl.createDiv({ cls: "bangumi-template-help" });
-    helpDiv.createEl("p", { text: "V3 \u6539\u8FDB: tags \u4F7F\u7528\u7528\u6237\u81EA\u5DF1\u7684\u6807\u7B7E\uFF0C\u5982\u679C\u6CA1\u6709\u5219\u7559\u7A7A" });
+    helpDiv.createEl("p", { text: "V2 \u6539\u8FDB: tags \u4F7F\u7528\u7528\u6237\u81EA\u5DF1\u7684\u6807\u7B7E\uFF0C\u5982\u679C\u6CA1\u6709\u5219\u7559\u7A7A" });
     const vars = [
       "{{name}}",
       "{{name_cn}}",
@@ -730,7 +712,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
       });
       label.createSpan({ text: getCollectionTypeName(type) });
     });
-    new import_obsidian.Setting(containerEl).setName("\u540C\u6B65\u6570\u91CF\u9650\u5236").setDesc("\u6BCF\u6B21\u540C\u6B65\u7684\u6700\u5927\u6761\u76EE\u6570\u91CF\uFF080 \u8868\u793A\u4E0D\u9650\u5236\uFF0CV3 \u4F1A\u667A\u80FD\u5904\u7406\uFF1A\u5982\u679C\u672A\u540C\u6B65\u6570\u91CF\u4E0D\u591F\uFF0C\u540C\u6B65\u6240\u6709\u672A\u540C\u6B65\u7684\uFF09").addText((text) => text.setPlaceholder("50").setValue(String(this.settings.syncLimit)).onChange(async (value) => {
+    new import_obsidian.Setting(containerEl).setName("\u540C\u6B65\u6570\u91CF\u9650\u5236").setDesc("\u6BCF\u6B21\u540C\u6B65\u7684\u6700\u5927\u6761\u76EE\u6570\u91CF\uFF080 \u8868\u793A\u4E0D\u9650\u5236\uFF0CV2 \u4F1A\u667A\u80FD\u5904\u7406\uFF1A\u5982\u679C\u672A\u540C\u6B65\u6570\u91CF\u4E0D\u591F\uFF0C\u540C\u6B65\u6240\u6709\u672A\u540C\u6B65\u7684\uFF09").addText((text) => text.setPlaceholder("50").setValue(String(this.settings.syncLimit)).onChange(async (value) => {
       const num = parseInt(value, 10);
       if (!isNaN(num) && num >= 0) {
         this.settings.syncLimit = num;
@@ -814,7 +796,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
    * 打开文件选择建议
    */
   openFileSuggest(templateType) {
-    const modal = new FileSuggestModalV3(
+    const modal = new FileSuggestModalV2(
       this.app,
       async (file) => {
         const config = this.settings[templateType.key];
@@ -832,7 +814,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
   openTemplateEditor(templateType) {
     const config = this.settings[templateType.key];
     const initialContent = config.customContent || templateType.defaultTemplate;
-    const modal = new TemplateEditorModalV3(
+    const modal = new TemplateEditorModalV2(
       this.app,
       initialContent,
       async (newTemplate) => {
@@ -846,7 +828,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
    * 打开模板预览
    */
   openTemplatePreview(templateType) {
-    const modal = new TemplateEditorModalV3(
+    const modal = new TemplateEditorModalV2(
       this.app,
       templateType.defaultTemplate,
       async () => {
@@ -855,7 +837,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
     modal.open();
   }
 };
-var FileSuggestModalV3 = class extends import_obsidian.FuzzySuggestModal {
+var FileSuggestModalV2 = class extends import_obsidian.FuzzySuggestModal {
   constructor(app, onSelect) {
     super(app);
     this.onSelect = onSelect;
@@ -870,7 +852,7 @@ var FileSuggestModalV3 = class extends import_obsidian.FuzzySuggestModal {
     this.onSelect(file);
   }
 };
-var TemplateEditorModalV3 = class extends import_obsidian.Modal {
+var TemplateEditorModalV2 = class extends import_obsidian.Modal {
   constructor(app, template, onSave) {
     super(app);
     this.template = template;
@@ -878,9 +860,9 @@ var TemplateEditorModalV3 = class extends import_obsidian.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "\u7F16\u8F91\u6A21\u677F (V3)" });
+    contentEl.createEl("h2", { text: "\u7F16\u8F91\u6A21\u677F (V2)" });
     const helpDiv = contentEl.createDiv({ cls: "bangumi-template-help" });
-    helpDiv.createEl("p", { text: "V3 \u6539\u8FDB: {{tags}} \u4F7F\u7528\u7528\u6237\u81EA\u5DF1\u7684\u6807\u7B7E\uFF0C\u5982\u679C\u6CA1\u6709\u5219\u7559\u7A7A" });
+    helpDiv.createEl("p", { text: "V2 \u6539\u8FDB: {{tags}} \u4F7F\u7528\u7528\u6237\u81EA\u5DF1\u7684\u6807\u7B7E\uFF0C\u5982\u679C\u6CA1\u6709\u5219\u7559\u7A7A" });
     const vars = [
       "{{name}} - \u539F\u540D",
       "{{name_cn}} - \u4E2D\u6587\u540D",
@@ -895,8 +877,8 @@ var TemplateEditorModalV3 = class extends import_obsidian.Modal {
       "{{my_rate}} - \u6211\u7684\u8BC4\u5206",
       "{{my_comment}} - \u6211\u7684\u77ED\u8BC4",
       "{{my_status}} - \u6536\u85CF\u72B6\u6001",
-      "{{my_tags}} - \u6211\u7684\u6807\u7B7E (V3)",
-      "{{tags}} - \u6211\u7684\u6807\u7B7E (V3)"
+      "{{my_tags}} - \u6211\u7684\u6807\u7B7E (V2)",
+      "{{tags}} - \u6211\u7684\u6807\u7B7E (V2)"
     ];
     vars.forEach((v) => helpDiv.createEl("span", { text: v, cls: "bangumi-var-tag" }));
     const textArea = new import_obsidian.TextAreaComponent(contentEl);
@@ -921,10 +903,10 @@ var TemplateEditorModalV3 = class extends import_obsidian.Modal {
   }
 };
 
-// v4/src/sync/syncManager.ts
+// v3/src/sync/syncManager.ts
 var import_obsidian6 = require("obsidian");
 
-// v4/src/api/client.ts
+// v3/src/api/client.ts
 var import_obsidian2 = require("obsidian");
 
 // common/api/endpoints.ts
@@ -957,18 +939,14 @@ var ENDPOINTS = {
   // 收藏相关
   USER_COLLECTIONS: (username) => `/v0/users/${username}/collections`,
   USER_COLLECTION_BY_ID: (username, subjectId) => `/v0/users/${username}/collections/${subjectId}`,
-  MY_COLLECTION_BY_ID: (subjectId) => `/v0/users/-/collections/${subjectId}`,
-  MY_COLLECTION_UPDATE: (subjectId) => `/v0/users/-/collections/${subjectId}`,
-  // 章节收藏相关
-  USER_SUBJECT_EPISODES: (subjectId) => `/v0/users/-/collections/${subjectId}/episodes`,
-  UPDATE_EPISODE_STATUS: (episodeId) => `/v0/users/-/collections/-/episodes/${episodeId}`
+  MY_COLLECTION_BY_ID: (subjectId) => `/v0/users/-/collections/${subjectId}`
 };
 var DEFAULT_HEADERS = {
   "Content-Type": "application/json",
   "User-Agent": "Bangumi-Obsidian-Plugin/1.0.0"
 };
 
-// v4/src/api/client.ts
+// v3/src/api/client.ts
 var BangumiClientV3 = class {
   constructor(accessToken = "", baseUrl = API_BASE_URL) {
     this.accessToken = accessToken;
@@ -1002,21 +980,21 @@ var BangumiClientV3 = class {
       body: data ? JSON.stringify(data) : void 0
     };
     try {
-      console.log(`[Bangumi Sync V3] ${method} ${url}`);
+      console.log(`[Bangumi Sync V2] ${method} ${url}`);
       const response = await (0, import_obsidian2.requestUrl)(options);
-      console.log(`[Bangumi Sync V3] Response status: ${response.status}`);
+      console.log(`[Bangumi Sync V2] Response status: ${response.status}`);
       if (response.status >= 400) {
         const error = response.json || {
           title: "API Error",
           description: `HTTP ${response.status}`
         };
         const errorMsg = error.title + (error.description ? `: ${error.description}` : "");
-        console.error(`[Bangumi Sync V3] API Error:`, errorMsg);
+        console.error(`[Bangumi Sync V2] API Error:`, errorMsg);
         throw new Error(errorMsg);
       }
       return response.json;
     } catch (error) {
-      console.error(`[Bangumi Sync V3] Request failed:`, error);
+      console.error(`[Bangumi Sync V2] Request failed:`, error);
       if (error instanceof Error) {
         throw error;
       }
@@ -1030,7 +1008,7 @@ var BangumiClientV3 = class {
     if (!this.accessToken) {
       return { valid: false, error: "\u672A\u914D\u7F6E Access Token" };
     }
-    console.log("[Bangumi Sync V3] \u9A8C\u8BC1 Token...");
+    console.log("[Bangumi Sync V2] \u9A8C\u8BC1 Token...");
     try {
       const headers = this.getHeaders();
       const response = await (0, import_obsidian2.requestUrl)({
@@ -1038,17 +1016,17 @@ var BangumiClientV3 = class {
         method: "GET",
         headers
       });
-      console.log(`[Bangumi Sync V3] /v0/me \u54CD\u5E94\u72B6\u6001: ${response.status}`);
+      console.log(`[Bangumi Sync V2] /v0/me \u54CD\u5E94\u72B6\u6001: ${response.status}`);
       if (response.status === 200) {
         const user = response.json;
-        console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230\u7528\u6237: ${user.username}`);
+        console.log(`[Bangumi Sync V2] \u83B7\u53D6\u5230\u7528\u6237: ${user.username}`);
         return { valid: true, username: user.username };
       }
       const errorData = response.json;
       const errorMsg = errorData.description || errorData.title || `HTTP ${response.status}`;
       return { valid: false, error: `\u9A8C\u8BC1\u5931\u8D25: ${errorMsg}` };
     } catch (error) {
-      console.error("[Bangumi Sync V3] Token \u9A8C\u8BC1\u5F02\u5E38:", error);
+      console.error("[Bangumi Sync V2] Token \u9A8C\u8BC1\u5F02\u5E38:", error);
       const errorMsg = error instanceof Error ? error.message : String(error);
       return { valid: false, error: `\u8BF7\u6C42\u5931\u8D25: ${errorMsg}` };
     }
@@ -1091,10 +1069,10 @@ var BangumiClientV3 = class {
       }
     }
     const endpoint = `${ENDPOINTS.USER_COLLECTIONS(username)}?${params.toString()}`;
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u6536\u85CF: ${endpoint}`);
+    console.log(`[Bangumi Sync V2] \u83B7\u53D6\u6536\u85CF: ${endpoint}`);
     try {
       const result = await this.request("GET", endpoint);
-      console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230 ${result.data.length}/${result.total} \u6761\u6536\u85CF`);
+      console.log(`[Bangumi Sync V2] \u83B7\u53D6\u5230 ${result.data.length}/${result.total} \u6761\u6536\u85CF`);
       return result;
     } catch (error) {
       if (error instanceof Error && error.message.includes("404")) {
@@ -1141,54 +1119,9 @@ var BangumiClientV3 = class {
     } while (true);
     return allCollections;
   }
-  /**
-   * 更新用户收藏（评分、短评、标签等）
-   * @param subjectId 条目 ID
-   * @param data 要更新的数据
-   */
-  async updateCollection(subjectId, data) {
-    const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
-    console.log(`[Bangumi Sync V3] \u66F4\u65B0\u6536\u85CF: PATCH ${endpoint}`);
-    console.log(`[Bangumi Sync V3] \u66F4\u65B0\u6570\u636E:`, data);
-    await this.request("PATCH", endpoint, data);
-    console.log(`[Bangumi Sync V3] \u6536\u85CF\u66F4\u65B0\u6210\u529F: ${subjectId}`);
-  }
-  /**
-   * 获取条目的所有章节
-   * @param subjectId 条目 ID
-   */
-  async getEpisodes(subjectId) {
-    const endpoint = `${ENDPOINTS.EPISODES}?subject_id=${subjectId}`;
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u7AE0\u8282: ${endpoint}`);
-    const result = await this.request("GET", endpoint);
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230 ${result.data.length}/${result.total} \u4E2A\u7AE0\u8282`);
-    return result;
-  }
-  /**
-   * 获取用户章节收藏状态
-   * @param subjectId 条目 ID
-   */
-  async getUserEpisodeStatus(subjectId) {
-    const endpoint = ENDPOINTS.USER_SUBJECT_EPISODES(subjectId);
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001: ${endpoint}`);
-    const result = await this.request("GET", endpoint);
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230 ${result.data.length} \u4E2A\u7AE0\u8282\u72B6\u6001`);
-    return result.data;
-  }
-  /**
-   * 更新章节收藏状态
-   * @param episodeId 章节 ID
-   * @param type 状态类型：1=想看, 2=看过, 3=抛弃
-   */
-  async updateEpisodeStatus(episodeId, type) {
-    const endpoint = ENDPOINTS.UPDATE_EPISODE_STATUS(episodeId);
-    console.log(`[Bangumi Sync V3] \u66F4\u65B0\u7AE0\u8282\u72B6\u6001: PUT ${endpoint}, type=${type}`);
-    await this.request("PUT", endpoint, { type });
-    console.log(`[Bangumi Sync V3] \u7AE0\u8282\u72B6\u6001\u66F4\u65B0\u6210\u529F: ${episodeId}`);
-  }
 };
 
-// v4/src/file/fileManager.ts
+// v3/src/file/fileManager.ts
 var import_obsidian3 = require("obsidian");
 var FileManagerV3 = class {
   constructor(app) {
@@ -1202,15 +1135,15 @@ var FileManagerV3 = class {
     const lastSlash = normalizedPath.lastIndexOf("/");
     const dirPath = lastSlash > 0 ? normalizedPath.substring(0, lastSlash) : "";
     if (dirPath) {
-      console.log(`[Bangumi Sync V3] \u68C0\u67E5\u76EE\u5F55: ${dirPath}`);
+      console.log(`[Bangumi Sync V2] \u68C0\u67E5\u76EE\u5F55: ${dirPath}`);
       const exists = await this.app.vault.adapter.exists(dirPath);
       if (!exists) {
-        console.log(`[Bangumi Sync V3] \u521B\u5EFA\u76EE\u5F55: ${dirPath}`);
+        console.log(`[Bangumi Sync V2] \u521B\u5EFA\u76EE\u5F55: ${dirPath}`);
         await this.ensureDirectory(dirPath);
         try {
           await this.app.vault.createFolder(dirPath);
         } catch (error) {
-          console.log(`[Bangumi Sync V3] \u521B\u5EFA\u76EE\u5F55\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\uFF09: ${error}`);
+          console.log(`[Bangumi Sync V2] \u521B\u5EFA\u76EE\u5F55\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\uFF09: ${error}`);
         }
       }
     }
@@ -1238,14 +1171,14 @@ var FileManagerV3 = class {
    */
   async createFile(path, content) {
     const normalizedPath = (0, import_obsidian3.normalizePath)(path);
-    console.log(`[Bangumi Sync V3] \u521B\u5EFA\u6587\u4EF6: ${normalizedPath}`);
+    console.log(`[Bangumi Sync V2] \u521B\u5EFA\u6587\u4EF6: ${normalizedPath}`);
     await this.ensureDirectory(normalizedPath);
     try {
       const file = await this.app.vault.create(normalizedPath, content);
-      console.log(`[Bangumi Sync V3] \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${normalizedPath}`);
+      console.log(`[Bangumi Sync V2] \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${normalizedPath}`);
       return file;
     } catch (error) {
-      console.error(`[Bangumi Sync V3] \u521B\u5EFA\u6587\u4EF6\u5931\u8D25: ${normalizedPath}`, error);
+      console.error(`[Bangumi Sync V2] \u521B\u5EFA\u6587\u4EF6\u5931\u8D25: ${normalizedPath}`, error);
       throw error;
     }
   }
@@ -1266,7 +1199,7 @@ var FileManagerV3 = class {
         await this.updateFile(existingFile, content);
         return { file: existingFile, created: false };
       }
-      console.log(`[Bangumi Sync V3] \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${normalizedPath}`);
+      console.log(`[Bangumi Sync V2] \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${normalizedPath}`);
       return { file: existingFile, created: false };
     }
     const file = await this.createFile(normalizedPath, content);
@@ -1390,7 +1323,7 @@ var ImageHandler = class {
   }
 };
 
-// v4/src/sync/incrementalSync.ts
+// v3/src/sync/incrementalSync.ts
 var import_obsidian5 = require("obsidian");
 var IncrementalSyncV3 = class {
   constructor(app) {
@@ -1404,18 +1337,18 @@ var IncrementalSyncV3 = class {
    * @param onProgress 进度回调
    */
   async scanLocalFolder(folderPath, onProgress) {
-    console.log(`[Bangumi Sync V3] \u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939: ${folderPath}`);
+    console.log(`[Bangumi Sync V2] \u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939: ${folderPath}`);
     this.localSubjects.clear();
     this.lastScanPath = folderPath;
     const normalizedPath = (0, import_obsidian5.normalizePath)(folderPath);
     const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
     if (!(folder instanceof import_obsidian5.TFolder)) {
-      console.log(`[Bangumi Sync V3] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
+      console.log(`[Bangumi Sync V2] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return 0;
     }
     const allFiles = this.app.vault.getMarkdownFiles();
     const targetFiles = allFiles.filter((file) => file.path.startsWith(normalizedPath));
-    console.log(`[Bangumi Sync V3] \u627E\u5230 ${targetFiles.length} \u4E2A\u6587\u4EF6`);
+    console.log(`[Bangumi Sync V2] \u627E\u5230 ${targetFiles.length} \u4E2A\u6587\u4EF6`);
     let processed = 0;
     for (const file of targetFiles) {
       try {
@@ -1428,17 +1361,17 @@ var IncrementalSyncV3 = class {
             path: file.path,
             name_cn
           });
-          console.log(`[Bangumi Sync V3] \u53D1\u73B0\u5DF2\u540C\u6B65\u6761\u76EE: ${name_cn} (ID: ${subjectId})`);
+          console.log(`[Bangumi Sync V2] \u53D1\u73B0\u5DF2\u540C\u6B65\u6761\u76EE: ${name_cn} (ID: ${subjectId})`);
         }
       } catch (error) {
-        console.error(`[Bangumi Sync V3] \u8BFB\u53D6\u6587\u4EF6\u5931\u8D25: ${file.path}`, error);
+        console.error(`[Bangumi Sync V2] \u8BFB\u53D6\u6587\u4EF6\u5931\u8D25: ${file.path}`, error);
       }
       processed++;
       if (onProgress) {
         onProgress(processed, targetFiles.length);
       }
     }
-    console.log(`[Bangumi Sync V3] \u626B\u63CF\u5B8C\u6210\uFF0C\u53D1\u73B0 ${this.localSubjects.size} \u4E2A\u5DF2\u540C\u6B65\u6761\u76EE`);
+    console.log(`[Bangumi Sync V2] \u626B\u63CF\u5B8C\u6210\uFF0C\u53D1\u73B0 ${this.localSubjects.size} \u4E2A\u5DF2\u540C\u6B65\u6761\u76EE`);
     return this.localSubjects.size;
   }
   /**
@@ -1500,7 +1433,7 @@ var IncrementalSyncV3 = class {
    * @returns toAdd: 需要新增的条目; toSkip: 本地已存在的条目
    */
   computeDiff(remoteCollections, options) {
-    console.log(`[Bangumi Sync V3] \u8BA1\u7B97\u540C\u6B65\u5DEE\u5F02\uFF0C\u8FDC\u7A0B\u6761\u76EE: ${remoteCollections.length}\uFF0C\u672C\u5730\u6761\u76EE: ${this.localSubjects.size}`);
+    console.log(`[Bangumi Sync V2] \u8BA1\u7B97\u540C\u6B65\u5DEE\u5F02\uFF0C\u8FDC\u7A0B\u6761\u76EE: ${remoteCollections.length}\uFF0C\u672C\u5730\u6761\u76EE: ${this.localSubjects.size}`);
     const existing = [];
     const notExisting = [];
     for (const collection of remoteCollections) {
@@ -1512,7 +1445,7 @@ var IncrementalSyncV3 = class {
         notExisting.push(collection);
       }
     }
-    console.log(`[Bangumi Sync V3] \u5DF2\u5B58\u5728: ${existing.length}\uFF0C\u672A\u540C\u6B65: ${notExisting.length}`);
+    console.log(`[Bangumi Sync V2] \u5DF2\u5B58\u5728: ${existing.length}\uFF0C\u672A\u540C\u6B65: ${notExisting.length}`);
     let toAdd;
     let toSkip;
     if (options.force) {
@@ -1522,7 +1455,7 @@ var IncrementalSyncV3 = class {
       toAdd = options.limit > 0 ? notExisting.slice(0, options.limit) : notExisting;
       toSkip = existing;
     }
-    console.log(`[Bangumi Sync V3] \u9700\u8981\u65B0\u589E: ${toAdd.length}\uFF0C\u8DF3\u8FC7: ${toSkip.length}`);
+    console.log(`[Bangumi Sync V2] \u9700\u8981\u65B0\u589E: ${toAdd.length}\uFF0C\u8DF3\u8FC7: ${toSkip.length}`);
     return {
       toAdd,
       toSkip
@@ -1534,49 +1467,6 @@ var IncrementalSyncV3 = class {
   clear() {
     this.localSubjects.clear();
     this.lastScanPath = "";
-  }
-  /**
-   * 从正文内容中提取短评
-   * 短评格式: > [!abstract]+ **短评**\n> {comment}
-   */
-  extractComment(content) {
-    const commentMatch = content.match(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)/);
-    if (commentMatch) {
-      const lines = commentMatch[1].split("\n");
-      const comment = lines.map((line) => line.replace(/^> /, "").trim()).filter((line) => line.length > 0).join(" ");
-      return comment || null;
-    }
-    return null;
-  }
-  /**
-   * 更新正文中的短评
-   * 如果短评不存在，在简介之前插入
-   */
-  updateComment(content, newComment) {
-    const commentMatch = content.match(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)/);
-    const newCommentLines = newComment.split("\n").map((line) => `> ${line}`).join("\n");
-    const newCommentBlock = `> [!abstract]+ **\u77ED\u8BC4**
-${newCommentLines}`;
-    if (commentMatch) {
-      return content.replace(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)/, newCommentBlock + "\n");
-    } else {
-      const introMatch = content.match(/> \[!abstract\]\+\s*\*\*简介\*\*/);
-      if (introMatch) {
-        return content.replace(/> \[!abstract\]\+\s*\*\*简介\*\*/, newCommentBlock + "\n\n> [!abstract]+ **\u7B80\u4ECB**");
-      }
-      const frontmatterEnd = content.indexOf("---", 3);
-      if (frontmatterEnd !== -1) {
-        const afterFrontmatter = content.substring(frontmatterEnd + 3).trimStart();
-        return content.substring(0, frontmatterEnd + 3) + "\n\n" + newCommentBlock + "\n\n" + afterFrontmatter;
-      }
-    }
-    return content;
-  }
-  /**
-   * 删除正文中的短评 callout
-   */
-  removeComment(content) {
-    return content.replace(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)\n?/, "");
   }
 };
 
@@ -1621,76 +1511,25 @@ function getCharacterTemplateVars(characters) {
 }
 
 // common/parser/infoboxParser.ts
-function getInfoboxValue(infobox, key, alternateKeys) {
+function getInfoboxValue(infobox, key) {
   if (!infobox)
     return void 0;
   const item = infobox.find((i) => i.key === key);
-  if (item) {
-    if (typeof item.value === "string") {
-      return item.value.trim();
-    }
-    if (Array.isArray(item.value)) {
-      if (item.value.length > 0 && typeof item.value[0] === "object" && "v" in item.value[0]) {
-        return item.value.map((v) => v.v).join("\u3001");
-      }
-      return item.value.join("\u3001");
-    }
+  if (!item)
+    return void 0;
+  if (typeof item.value === "string") {
+    return item.value.trim();
   }
-  if (alternateKeys) {
-    for (const altKey of alternateKeys) {
-      const altItem = infobox.find((i) => i.key === altKey);
-      if (altItem) {
-        if (typeof altItem.value === "string") {
-          return altItem.value.trim();
-        }
-        if (Array.isArray(altItem.value)) {
-          if (altItem.value.length > 0 && typeof altItem.value[0] === "object" && "v" in altItem.value[0]) {
-            return altItem.value.map((v) => v.v).join("\u3001");
-          }
-          return altItem.value.join("\u3001");
-        }
-      }
+  if (Array.isArray(item.value)) {
+    if (item.value.length > 0 && typeof item.value[0] === "object" && "v" in item.value[0]) {
+      return item.value.map((v) => v.v).join("\u3001");
     }
+    return item.value.join("\u3001");
   }
   return void 0;
 }
-function getWebsiteValue(infobox, keys) {
-  if (!infobox)
-    return void 0;
-  for (const key of keys) {
-    const item = infobox.find((i) => i.key === key);
-    if (item) {
-      if (typeof item.value === "string") {
-        return item.value.trim();
-      }
-      if (Array.isArray(item.value)) {
-        if (item.value.length > 0 && typeof item.value[0] === "object" && "v" in item.value[0]) {
-          return item.value.map((v) => v.v).join("\n");
-        }
-      }
-    }
-  }
-  return void 0;
-}
-function getValueFromVersion(infobox, versionKey, fieldKey) {
-  if (!infobox)
-    return void 0;
-  const versionItem = infobox.find((i) => i.key.includes(versionKey) || i.key === "\u7248\u672C");
-  if (!versionItem || !Array.isArray(versionItem.value))
-    return void 0;
-  const field = versionItem.value.find((item) => item.k === fieldKey);
-  return field == null ? void 0 : field.v;
-}
-function getNumberFromVersion(infobox, versionKey, fieldKey) {
-  const value = getValueFromVersion(infobox, versionKey, fieldKey);
-  if (value) {
-    const num = parseInt(value, 10);
-    return isNaN(num) ? void 0 : num;
-  }
-  return void 0;
-}
-function getInfoboxNumber(infobox, key, alternateKeys) {
-  const value = getInfoboxValue(infobox, key, alternateKeys);
+function getInfoboxNumber(infobox, key) {
+  const value = getInfoboxValue(infobox, key);
   if (value) {
     const num = parseInt(value, 10);
     return isNaN(num) ? void 0 : num;
@@ -1699,63 +1538,53 @@ function getInfoboxNumber(infobox, key, alternateKeys) {
 }
 function parseAnimeInfo(infobox) {
   return {
-    category: getInfoboxValue(infobox, "\u7C7B\u578B", ["\u64AD\u653E\u65E5\u671F"]) || "TV",
+    category: getInfoboxValue(infobox, "\u7C7B\u578B") || "TV",
     episode: getInfoboxNumber(infobox, "\u8BDD\u6570"),
-    director: getInfoboxValue(infobox, "\u5BFC\u6F14", ["\u76D1\u7763", "\u603B\u5BFC\u6F14"]),
-    music: getInfoboxValue(infobox, "\u97F3\u4E50", ["\u97F3\u4E50\u5236\u4F5C", "\u97F3\u4E50\u4EBA"]),
-    animeMake: getInfoboxValue(infobox, "\u52A8\u753B\u5236\u4F5C", ["\u5236\u4F5C", "\u52A8\u753B\u5DE5\u623F", "\u5DE5\u4F5C\u5BA4"]),
-    musicMake: getInfoboxValue(infobox, "\u97F3\u4E50\u5236\u4F5C", ["\u97F3\u4E50"]),
-    staff: getInfoboxValue(infobox, "\u811A\u672C", ["\u7CFB\u5217\u6784\u6210", "\u5267\u672C"]),
-    audioDirector: getInfoboxValue(infobox, "\u97F3\u54CD\u76D1\u7763", ["\u97F3\u54CD"]),
-    artDirector: getInfoboxValue(infobox, "\u7F8E\u672F\u76D1\u7763", ["\u7F8E\u672F"]),
-    animeChief: getInfoboxValue(infobox, "\u603B\u4F5C\u753B\u76D1\u7763", ["\u4F5C\u753B\u76D1\u7763"]),
-    from: getInfoboxValue(infobox, "\u539F\u4F5C", ["\u539F\u6848"]),
-    website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"])
+    director: getInfoboxValue(infobox, "\u5BFC\u6F14"),
+    music: getInfoboxValue(infobox, "\u97F3\u4E50"),
+    animeMake: getInfoboxValue(infobox, "\u52A8\u753B\u5236\u4F5C"),
+    musicMake: getInfoboxValue(infobox, "\u97F3\u4E50\u5236\u4F5C"),
+    staff: getInfoboxValue(infobox, "\u811A\u672C"),
+    audioDirector: getInfoboxValue(infobox, "\u97F3\u54CD\u76D1\u7763"),
+    artDirector: getInfoboxValue(infobox, "\u7F8E\u672F\u76D1\u7763"),
+    animeChief: getInfoboxValue(infobox, "\u603B\u4F5C\u753B\u76D1\u7763"),
+    from: getInfoboxValue(infobox, "\u539F\u4F5C"),
+    website: getInfoboxValue(infobox, "\u5B98\u65B9\u7F51\u7AD9")
   };
 }
 function parseNovelInfo(infobox) {
-  const author = getInfoboxValue(infobox, "\u4F5C\u8005", ["\u539F\u4F5C"]);
-  const start = getInfoboxValue(infobox, "\u5F00\u59CB", ["\u8FDE\u8F7D\u5F00\u59CB"]);
-  const end = getInfoboxValue(infobox, "\u7ED3\u675F", ["\u8FDE\u8F7D\u7ED3\u675F"]);
-  const illustration = getInfoboxValue(infobox, "\u63D2\u56FE", ["\u63D2\u753B"]);
-  const publish = getInfoboxValue(infobox, "\u51FA\u7248\u793E");
-  const seriesFromVersion = getValueFromVersion(infobox, "\u7248\u672C", "\u4E66\u7CFB");
-  const series = seriesFromVersion || getInfoboxValue(infobox, "\u4E66\u7CFB", ["\u4E1B\u4E66", "\u7CFB\u5217", "\u6587\u5E93", "\u56FE\u4E66\u54C1\u724C"]);
-  const volumesFromVersion = getNumberFromVersion(infobox, "\u7248\u672C", "\u518C\u6570");
-  const volumes = volumesFromVersion || getInfoboxNumber(infobox, "\u518C\u6570", ["\u5377\u6570"]);
-  const website = getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"]);
-  const journal = getInfoboxValue(infobox, "\u8FDE\u8F7D\u6742\u5FD7");
+  const author = getInfoboxValue(infobox, "\u4F5C\u8005") || getInfoboxValue(infobox, "\u539F\u4F5C");
+  const start = getInfoboxValue(infobox, "\u5F00\u59CB");
+  const end = getInfoboxValue(infobox, "\u7ED3\u675F");
   return {
     category: getInfoboxValue(infobox, "\u7C7B\u578B") || "\u5C0F\u8BF4",
     author,
-    illustration,
-    publish,
-    series,
-    volumes,
+    illustration: getInfoboxValue(infobox, "\u63D2\u56FE"),
+    publish: getInfoboxValue(infobox, "\u51FA\u7248\u793E"),
+    series: getInfoboxValue(infobox, "\u4E66\u7CFB"),
+    volumes: getInfoboxNumber(infobox, "\u518C\u6570"),
     status: end ? "\u5DF2\u5B8C\u7ED3" : "\u8FDE\u8F7D\u4E2D",
     progress: start ? `${start} - ${end || "\u8FDE\u8F7D\u4E2D"}` : void 0,
     start,
     end,
-    website,
-    journal
+    website: getInfoboxValue(infobox, "\u5B98\u65B9\u7F51\u7AD9")
   };
 }
 function parseComicInfo(infobox) {
-  const author = getInfoboxValue(infobox, "\u4F5C\u8005", ["\u539F\u4F5C"]);
-  const start = getInfoboxValue(infobox, "\u5F00\u59CB", ["\u8FDE\u8F7D\u5F00\u59CB"]);
-  const end = getInfoboxValue(infobox, "\u7ED3\u675F", ["\u8FDE\u8F7D\u7ED3\u675F"]);
+  const author = getInfoboxValue(infobox, "\u4F5C\u8005") || getInfoboxValue(infobox, "\u539F\u4F5C");
+  const start = getInfoboxValue(infobox, "\u5F00\u59CB");
+  const end = getInfoboxValue(infobox, "\u7ED3\u675F");
   return {
     category: getInfoboxValue(infobox, "\u7C7B\u578B") || "\u6F2B\u753B",
     author,
     staff2: getInfoboxValue(infobox, "\u4F5C\u753B"),
     publish: getInfoboxValue(infobox, "\u51FA\u7248\u793E"),
-    journal: getInfoboxValue(infobox, "\u8FDE\u8F7D\u6742\u5FD7", ["\u8FDE\u8F7D"]),
-    episode: getInfoboxNumber(infobox, "\u8BDD\u6570", ["\u518C\u6570"]),
+    journal: getInfoboxValue(infobox, "\u8FDE\u8F7D\u6742\u5FD7"),
+    episode: getInfoboxNumber(infobox, "\u8BDD\u6570"),
     status: end ? "\u5DF2\u5B8C\u7ED3" : "\u8FDE\u8F7D\u4E2D",
     progress: start ? `${start} - ${end || "\u8FDE\u8F7D\u4E2D"}` : void 0,
     start,
-    end,
-    website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"])
+    end
   };
 }
 function parseGameInfo(infobox) {
@@ -1771,34 +1600,33 @@ function parseGameInfo(infobox) {
     director: getInfoboxValue(infobox, "\u5BFC\u6F14"),
     producer: getInfoboxValue(infobox, "\u5236\u4F5C\u4EBA"),
     price: getInfoboxValue(infobox, "\u552E\u4EF7"),
-    website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"])
+    website: getInfoboxValue(infobox, "\u5B98\u65B9\u7F51\u7AD9")
   };
 }
 function parseAlbumInfo(infobox) {
   return {
     category: getInfoboxValue(infobox, "\u7C7B\u578B") || "\u753B\u96C6",
-    author: getInfoboxValue(infobox, "\u4F5C\u8005", ["\u539F\u4F5C", "\u63D2\u56FE", "\u63D2\u753B"]),
+    author: getInfoboxValue(infobox, "\u4F5C\u8005") || getInfoboxValue(infobox, "\u63D2\u56FE"),
     publish: getInfoboxValue(infobox, "\u51FA\u7248\u793E"),
     pages: getInfoboxNumber(infobox, "\u9875\u6570"),
-    isbn: getInfoboxValue(infobox, "ISBN"),
-    website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"])
+    isbn: getInfoboxValue(infobox, "ISBN")
   };
 }
-function parseInfoByType(infobox, subjectType, platform) {
+function parseInfoByType(infobox, subjectType, typeLabel) {
   switch (subjectType) {
     case 2 /* Anime */:
       return parseAnimeInfo(infobox);
     case 4 /* Game */:
       return parseGameInfo(infobox);
     case 1 /* Book */:
-      if (platform) {
-        if (platform.includes("\u5C0F\u8BF4") || platform.includes("\u8F7B\u5C0F\u8BF4")) {
+      if (typeLabel) {
+        if (typeLabel.includes("\u5C0F\u8BF4")) {
           return parseNovelInfo(infobox);
         }
-        if (platform.includes("\u6F2B\u753B")) {
+        if (typeLabel.includes("\u6F2B\u753B")) {
           return parseComicInfo(infobox);
         }
-        if (platform.includes("\u753B\u96C6") || platform.includes("\u753B\u672C") || platform.includes("\u753B\u518C")) {
+        if (typeLabel.includes("\u753B\u96C6") || typeLabel.includes("\u753B\u672C")) {
           return parseAlbumInfo(infobox);
         }
       }
@@ -1810,17 +1638,6 @@ function parseInfoByType(infobox, subjectType, platform) {
           }
           if (type.includes("\u6F2B\u753B")) {
             return parseComicInfo(infobox);
-          }
-          if (type.includes("\u753B\u96C6") || type.includes("\u753B\u672C") || type.includes("\u753B\u518C")) {
-            return parseAlbumInfo(infobox);
-          }
-        }
-        const pages = getInfoboxNumber(infobox, "\u9875\u6570");
-        const isbn = getInfoboxValue(infobox, "ISBN");
-        if (pages || isbn) {
-          const author = getInfoboxValue(infobox, "\u4F5C\u8005", ["\u539F\u4F5C"]);
-          if (!author && (pages || isbn)) {
-            return parseAlbumInfo(infobox);
           }
         }
       }
@@ -1864,10 +1681,15 @@ function cleanSummary(summary) {
     return "";
   return summary.replace(/&nbsp;/g, "\n").replace(/\s{4,}/g, "\n").trim();
 }
+function cleanMultilineText(text) {
+  if (!text)
+    return "";
+  return text.replace(/\r\n/g, " ").replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+}
 
 // common/template/pathTemplate.ts
 function extractPathVars(subject, collection) {
-  const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+  const parsedInfo = parseInfoByType(subject.infobox, subject.type);
   let typeLabel = getSubjectTypeLabel(subject.type);
   if (parsedInfo.category) {
     if (parsedInfo.category.includes("\u5C0F\u8BF4")) {
@@ -1918,75 +1740,17 @@ function generateFilePath(template, subject, collection) {
   return renderPathTemplate(template, vars);
 }
 
-// common/parser/episodeParser.ts
-function generateEpisodeBox(episode, status) {
-  if (episode.type !== 0 /* Main */) {
-    return "";
-  }
-  const titleParts = [];
-  const epNum = episode.ep || episode.sort;
-  const title = episode.name_cn || episode.name || `\u7B2C${epNum}\u8BDD`;
-  titleParts.push(`\u7B2C${epNum}\u8BDD\uFF1A${title}`);
-  if (episode.airdate) {
-    titleParts.push(`\u653E\u9001\uFF1A${episode.airdate}`);
-  }
-  if (episode.duration) {
-    titleParts.push(`\u65F6\u957F\uFF1A${episode.duration}`);
-  }
-  const tooltip = titleParts.join("&#10;");
-  let cssClass = "ep-box";
-  if (status === 2) {
-    cssClass += " watched";
-  }
-  return `<span class="${cssClass}" title="${tooltip}" data-ep="${epNum}" data-id="${episode.id}">${epNum}</span>`;
-}
-function parseEpisodes(episodes, userStatusMap) {
-  const mainEpisodes = episodes.filter((ep) => ep.type === 0 /* Main */);
-  if (mainEpisodes.length === 0) {
-    return "";
-  }
-  mainEpisodes.sort((a, b) => (a.sort || 0) - (b.sort || 0));
-  const boxes = [];
-  for (const episode of mainEpisodes) {
-    const status = userStatusMap == null ? void 0 : userStatusMap.get(episode.id);
-    const box = generateEpisodeBox(episode, status);
-    if (box) {
-      boxes.push(box);
-    }
-  }
-  return boxes.join(" ");
-}
-function createUserStatusMap(userEpisodes) {
-  const map = /* @__PURE__ */ new Map();
-  for (const item of userEpisodes) {
-    map.set(item.episode.id, item.type);
-  }
-  return map;
-}
-
-// v4/src/template/contentTemplate.ts
-function extractTemplateVarsV3(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus) {
-  var _a, _b, _c, _d, _e, _f;
-  const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+// v3/src/template/contentTemplate.ts
+function extractTemplateVarsV3(subject, collection, characters, ratingDetails) {
+  var _a, _b, _c, _d;
+  const parsedInfo = parseInfoByType(subject.infobox, subject.type);
   const typeLabel = getTypeLabel(subject.type, parsedInfo.category);
   const { year, month } = parseDate(subject.date);
   const my_tags = (collection == null ? void 0 : collection.tags) && collection.tags.length > 0 ? collection.tags.join(", ") : "";
   const cover = ((_a = subject.images) == null ? void 0 : _a.large) || ((_b = subject.images) == null ? void 0 : _b.common) || "";
   const my_rate = (collection == null ? void 0 : collection.rate) ? String(collection.rate) : "";
-  const my_comment = (collection == null ? void 0 : collection.comment) || "";
+  const my_comment = cleanMultilineText(collection == null ? void 0 : collection.comment);
   const my_status = collection ? getCollectionStatusEmoji(collection.type) : "";
-  let episodesContent = "";
-  let volumesContent = "";
-  if (episodes && episodes.length > 0) {
-    const statusMap = userEpisodeStatus ? createUserStatusMap(userEpisodeStatus) : void 0;
-    if (subject.type === 2) {
-      episodesContent = parseEpisodes(episodes, statusMap);
-    } else if ((_c = parsedInfo.category) == null ? void 0 : _c.includes("\u5C0F\u8BF4")) {
-      volumesContent = parseEpisodes(episodes, statusMap);
-    } else if ((_d = parsedInfo.category) == null ? void 0 : _d.includes("\u6F2B\u753B")) {
-      episodesContent = parseEpisodes(episodes, statusMap);
-    }
-  }
   const vars = {
     // 基础信息
     id: String(subject.id),
@@ -1994,12 +1758,11 @@ function extractTemplateVarsV3(subject, collection, characters, ratingDetails, e
     name_cn: subject.name_cn || "",
     alias: "",
     summary: cleanSummary(subject.summary),
-    rating: ((_e = subject.rating) == null ? void 0 : _e.score) ? String(subject.rating.score) : "",
-    rank: ((_f = subject.rating) == null ? void 0 : _f.rank) ? String(subject.rating.rank) : "",
+    rating: ((_c = subject.rating) == null ? void 0 : _c.score) ? String(subject.rating.score) : "",
+    rank: ((_d = subject.rating) == null ? void 0 : _d.rank) ? String(subject.rating.rank) : "",
     tags: my_tags,
-    // V3: 使用用户自己的标签
+    // V2: 使用用户自己的标签
     cover,
-    bangumi_url: `https://bgm.tv/subject/${subject.id}`,
     // 类型信息
     type: String(subject.type),
     typeLabel,
@@ -2033,9 +1796,6 @@ function extractTemplateVarsV3(subject, collection, characters, ratingDetails, e
     playerNum: parsedInfo.playerNum || "",
     pages: parsedInfo.pages ? String(parsedInfo.pages) : "",
     isbn: parsedInfo.isbn || "",
-    // V4: 章节显示
-    episodes: episodesContent,
-    volumes_display: volumesContent,
     // 评分明细
     rating_music: (ratingDetails == null ? void 0 : ratingDetails.music) || "",
     rating_character: (ratingDetails == null ? void 0 : ratingDetails.character) || "",
@@ -2063,12 +1823,12 @@ function renderContentTemplate(template, vars) {
   });
   return result;
 }
-function generateContentV3(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus) {
-  const vars = extractTemplateVarsV3(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus);
+function generateContentV2(template, subject, collection, characters, ratingDetails) {
+  const vars = extractTemplateVarsV3(subject, collection, characters, ratingDetails);
   return renderContentTemplate(template, vars);
 }
-function generateContentByTypeV3(subject, collection, characters, customTemplates, ratingDetails, episodes, userEpisodeStatus) {
-  const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+function generateContentByTypeV3(subject, collection, characters, customTemplates, ratingDetails) {
+  const parsedInfo = parseInfoByType(subject.infobox, subject.type);
   const category = parsedInfo.category || "";
   let template;
   if (customTemplates) {
@@ -2101,10 +1861,10 @@ function generateContentByTypeV3(subject, collection, characters, customTemplate
   } else {
     template = getDefaultTemplate(subject.type, category);
   }
-  return generateContentV3(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus);
+  return generateContentV2(template, subject, collection, characters, ratingDetails);
 }
 
-// v4/src/sync/syncManager.ts
+// v3/src/sync/syncManager.ts
 var SyncManagerV3 = class {
   constructor(app, config) {
     this.app = app;
@@ -2156,7 +1916,7 @@ var SyncManagerV3 = class {
       if (!username) {
         throw new Error("\u65E0\u6CD5\u83B7\u53D6\u7528\u6237\u540D\uFF0C\u8BF7\u68C0\u67E5 Access Token");
       }
-      console.log(`[Bangumi Sync V3] \u7528\u6237: ${username}`);
+      console.log(`[Bangumi Sync V2] \u7528\u6237: ${username}`);
       this.reportProgress({ status: "fetching", message: "\u83B7\u53D6\u6536\u85CF\u5217\u8868..." });
       const collections = await this.client.getAllUserCollections(username, {
         subjectType: options.subjectTypes.length === 1 ? options.subjectTypes[0] : void 0,
@@ -2170,10 +1930,10 @@ var SyncManagerV3 = class {
           });
         }
       });
-      console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
+      console.log(`[Bangumi Sync V2] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
       this.reportProgress({ status: "scanning", message: "\u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939..." });
       const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
-      console.log(`[Bangumi Sync V3] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
+      console.log(`[Bangumi Sync V2] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
       await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
         this.reportProgress({
           status: "scanning",
@@ -2184,14 +1944,14 @@ var SyncManagerV3 = class {
       });
       this.reportProgress({ status: "preparing", message: "\u8BA1\u7B97\u540C\u6B65\u5DEE\u5F02..." });
       const filteredCollections = this.filterCollections(collections, options);
-      console.log(`[Bangumi Sync V3] \u7B26\u5408\u6761\u4EF6\u7684\u6536\u85CF: ${filteredCollections.length}`);
+      console.log(`[Bangumi Sync V2] \u7B26\u5408\u6761\u4EF6\u7684\u6536\u85CF: ${filteredCollections.length}`);
       const diff = this.incrementalSync.computeDiff(filteredCollections, {
         limit: options.limit,
         force: options.force
       });
       result.total = diff.toAdd.length;
       result.skipped = diff.toSkip.length;
-      console.log(`[Bangumi Sync V3] \u9700\u8981\u540C\u6B65: ${result.total}\uFF0C\u5DF2\u5B58\u5728\u8DF3\u8FC7: ${result.skipped}`);
+      console.log(`[Bangumi Sync V2] \u9700\u8981\u540C\u6B65: ${result.total}\uFF0C\u5DF2\u5B58\u5728\u8DF3\u8FC7: ${result.skipped}`);
       for (let i = 0; i < diff.toAdd.length; i++) {
         const collection = diff.toAdd[i];
         this.reportProgress({
@@ -2205,14 +1965,14 @@ var SyncManagerV3 = class {
           await this.processCollection(collection);
           result.added++;
         } catch (error) {
-          console.error(`[Bangumi Sync V3] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${collection.subject.name_cn}`, error);
+          console.error(`[Bangumi Sync V2] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${collection.subject.name_cn}`, error);
           result.errors++;
         }
       }
       result.success = true;
       this.reportProgress({ status: "completed", message: "\u540C\u6B65\u5B8C\u6210" });
     } catch (error) {
-      console.error("[Bangumi Sync V3] \u540C\u6B65\u5931\u8D25:", error);
+      console.error("[Bangumi Sync V2] \u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: String(error) });
       new import_obsidian6.Notice(`\u540C\u6B65\u5931\u8D25: ${error}`);
     }
@@ -2246,14 +2006,14 @@ var SyncManagerV3 = class {
    */
   async processCollection(collection) {
     var _a, _b;
-    console.log(`[Bangumi Sync V3] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
+    console.log(`[Bangumi Sync V2] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
     const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
+    console.log(`[Bangumi Sync V2] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
     const characters = parseCharacters(relatedCharacters, 9);
     const typeLabel = getTypeLabel(subject.type);
     let coverUrl = ((_a = subject.images) == null ? void 0 : _a.large) || ((_b = subject.images) == null ? void 0 : _b.common) || "";
     if (this.config.downloadImages && coverUrl) {
-      console.log(`[Bangumi Sync V3] \u4E0B\u8F7D\u5C01\u9762: ${coverUrl}`);
+      console.log(`[Bangumi Sync V2] \u4E0B\u8F7D\u5C01\u9762: ${coverUrl}`);
       const localPath = await this.imageHandler.downloadCover(
         coverUrl,
         subject.id,
@@ -2268,51 +2028,18 @@ var SyncManagerV3 = class {
         coverUrl = localPath;
       }
     }
-    const episodeData = await this.fetchEpisodeData(subject);
     const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
-    console.log(`[Bangumi Sync V3] \u751F\u6210\u6587\u4EF6\u8DEF\u5F84: ${filePath}`);
+    console.log(`[Bangumi Sync V2] \u751F\u6210\u6587\u4EF6\u8DEF\u5F84: ${filePath}`);
     const content = generateContentByTypeV3(
       subject,
       collection,
       characters,
-      this.config.customTemplates,
-      void 0,
-      // ratingDetails
-      episodeData == null ? void 0 : episodeData.episodes,
-      episodeData == null ? void 0 : episodeData.userStatus
+      this.config.customTemplates
     );
     await this.fileManager.createOrUpdateFile(filePath, content, {
       overwrite: false
     });
-    console.log(`[Bangumi Sync V3] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
-  }
-  /**
-   * V4: 获取章节数据
-   * 仅对动画、小说、漫画类型获取
-   */
-  async fetchEpisodeData(subject) {
-    if (subject.type !== 2 && subject.type !== 1) {
-      return null;
-    }
-    try {
-      console.log(`[Bangumi Sync V3] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F: ${subject.name_cn}`);
-      const episodesData = await this.client.getEpisodes(subject.id);
-      const episodes = episodesData.data;
-      if (!episodes || episodes.length === 0) {
-        console.log(`[Bangumi Sync V3] \u65E0\u7AE0\u8282\u4FE1\u606F`);
-        return null;
-      }
-      let userStatus = [];
-      try {
-        userStatus = await this.client.getUserEpisodeStatus(subject.id);
-      } catch (error) {
-        console.log(`[Bangumi Sync V3] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001\u5931\u8D25\uFF0C\u53EF\u80FD\u672A\u6536\u85CF\u6B64\u6761\u76EE`);
-      }
-      return { episodes, userStatus };
-    } catch (error) {
-      console.error(`[Bangumi Sync V3] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F\u5931\u8D25:`, error);
-      return null;
-    }
+    console.log(`[Bangumi Sync V2] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
   }
   /**
    * 报告进度
@@ -2326,86 +2053,6 @@ var SyncManagerV3 = class {
         ...progress
       });
     }
-  }
-  /**
-   * 按 UserCollection 列表同步条目
-   * 用于控制面板选中同步功能，保留用户数据（评分、状态、短评等）
-   */
-  async syncByCollections(collections, options, onProgress) {
-    var _a, _b, _c;
-    const startTime = Date.now();
-    const result = {
-      success: false,
-      total: collections.length,
-      added: 0,
-      skipped: 0,
-      errors: 0,
-      duration: 0
-    };
-    const overwrite = (_a = options == null ? void 0 : options.overwrite) != null ? _a : false;
-    try {
-      console.log(`[Bangumi Sync V3] \u5F00\u59CB\u6309\u6536\u85CF\u5217\u8868\u540C\u6B65 ${collections.length} \u4E2A\u6761\u76EE\uFF0C\u8986\u76D6\u6A21\u5F0F: ${overwrite}`);
-      for (let i = 0; i < collections.length; i++) {
-        const collection = collections[i];
-        if (onProgress) {
-          onProgress(i + 1, collections.length, `\u6B63\u5728\u540C\u6B65\u6761\u76EE ${i + 1}/${collections.length}`);
-        }
-        this.reportProgress({
-          status: "processing",
-          current: i + 1,
-          total: collections.length,
-          message: `\u540C\u6B65\u6761\u76EE... (${i + 1}/${collections.length})`
-        });
-        try {
-          const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
-          const characters = parseCharacters(relatedCharacters, 9);
-          const typeLabel = getTypeLabel(subject.type);
-          let coverUrl = ((_b = subject.images) == null ? void 0 : _b.large) || ((_c = subject.images) == null ? void 0 : _c.common) || "";
-          if (this.config.downloadImages && coverUrl) {
-            const localPath = await this.imageHandler.downloadCover(
-              coverUrl,
-              subject.id,
-              this.config.imagePathTemplate,
-              {
-                name_cn: subject.name_cn,
-                name: subject.name,
-                typeLabel
-              }
-            );
-            if (localPath && !localPath.startsWith("http")) {
-              coverUrl = localPath;
-            }
-          }
-          const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
-          const episodeData = await this.fetchEpisodeData(subject);
-          const content = generateContentByTypeV3(
-            subject,
-            collection,
-            characters,
-            this.config.customTemplates,
-            void 0,
-            // ratingDetails
-            episodeData == null ? void 0 : episodeData.episodes,
-            episodeData == null ? void 0 : episodeData.userStatus
-          );
-          await this.fileManager.createOrUpdateFile(filePath, content, {
-            overwrite
-          });
-          result.added++;
-          console.log(`[Bangumi Sync V3] \u540C\u6B65\u5B8C\u6210: ${subject.name_cn || subject.name}`);
-        } catch (error) {
-          console.error(`[Bangumi Sync V3] \u540C\u6B65\u6761\u76EE\u5931\u8D25 (ID: ${collection.subject_id}):`, error);
-          result.errors++;
-        }
-      }
-      result.success = true;
-      this.reportProgress({ status: "completed", message: "\u540C\u6B65\u5B8C\u6210" });
-    } catch (error) {
-      console.error("[Bangumi Sync V3] \u6309\u6536\u85CF\u5217\u8868\u540C\u6B65\u5931\u8D25:", error);
-      this.reportProgress({ status: "error", message: String(error) });
-    }
-    result.duration = Date.now() - startTime;
-    return result;
   }
   /**
    * 重置同步状态
@@ -2431,7 +2078,7 @@ var SyncManagerV3 = class {
       if (!username) {
         throw new Error("\u65E0\u6CD5\u83B7\u53D6\u7528\u6237\u540D\uFF0C\u8BF7\u68C0\u67E5 Access Token");
       }
-      console.log(`[Bangumi Sync V3] \u7528\u6237: ${username}`);
+      console.log(`[Bangumi Sync V2] \u7528\u6237: ${username}`);
       this.reportProgress({ status: "fetching", message: "\u83B7\u53D6\u6536\u85CF\u5217\u8868..." });
       const collections = await this.client.getAllUserCollections(username, {
         subjectType: options.subjectTypes.length === 1 ? options.subjectTypes[0] : void 0,
@@ -2445,10 +2092,10 @@ var SyncManagerV3 = class {
           });
         }
       });
-      console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
+      console.log(`[Bangumi Sync V2] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
       this.reportProgress({ status: "scanning", message: "\u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939..." });
       const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
-      console.log(`[Bangumi Sync V3] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
+      console.log(`[Bangumi Sync V2] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
       await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
         this.reportProgress({
           status: "scanning",
@@ -2459,12 +2106,12 @@ var SyncManagerV3 = class {
       });
       this.reportProgress({ status: "preparing", message: "\u8BA1\u7B97\u540C\u6B65\u5DEE\u5F02..." });
       const filteredCollections = this.filterCollections(collections, options);
-      console.log(`[Bangumi Sync V3] \u7B26\u5408\u6761\u4EF6\u7684\u6536\u85CF: ${filteredCollections.length}`);
+      console.log(`[Bangumi Sync V2] \u7B26\u5408\u6761\u4EF6\u7684\u6536\u85CF: ${filteredCollections.length}`);
       const diff = this.incrementalSync.computeDiff(filteredCollections, {
         limit: options.limit,
         force: options.force
       });
-      console.log(`[Bangumi Sync V3] \u9700\u8981\u540C\u6B65: ${diff.toAdd.length}\uFF0C\u5DF2\u5B58\u5728\u8DF3\u8FC7: ${diff.toSkip.length}`);
+      console.log(`[Bangumi Sync V2] \u9700\u8981\u540C\u6B65: ${diff.toAdd.length}\uFF0C\u5DF2\u5B58\u5728\u8DF3\u8FC7: ${diff.toSkip.length}`);
       const previewItems = diff.toAdd.map((collection) => ({
         id: collection.subject_id,
         name_cn: collection.subject.name_cn || "",
@@ -2483,7 +2130,7 @@ var SyncManagerV3 = class {
         skipped: diff.toSkip.length
       };
     } catch (error) {
-      console.error("[Bangumi Sync V3] \u51C6\u5907\u540C\u6B65\u5931\u8D25:", error);
+      console.error("[Bangumi Sync V2] \u51C6\u5907\u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: String(error) });
       return {
         success: false,
@@ -2516,7 +2163,7 @@ var SyncManagerV3 = class {
         itemsToSync = previewItems.filter((item) => !item.selected);
       }
       result.total = itemsToSync.length;
-      console.log(`[Bangumi Sync V3] \u5F00\u59CB\u540C\u6B65 ${itemsToSync.length} \u4E2A\u6761\u76EE`);
+      console.log(`[Bangumi Sync V2] \u5F00\u59CB\u540C\u6B65 ${itemsToSync.length} \u4E2A\u6761\u76EE`);
       for (let i = 0; i < itemsToSync.length; i++) {
         const item = itemsToSync[i];
         this.reportProgress({
@@ -2530,14 +2177,14 @@ var SyncManagerV3 = class {
           await this.processCollectionWithRatingDetails(item.collection, item.ratingDetails);
           result.added++;
         } catch (error) {
-          console.error(`[Bangumi Sync V3] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${item.name_cn}`, error);
+          console.error(`[Bangumi Sync V2] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${item.name_cn}`, error);
           result.errors++;
         }
       }
       result.success = true;
       this.reportProgress({ status: "completed", message: "\u540C\u6B65\u5B8C\u6210" });
     } catch (error) {
-      console.error("[Bangumi Sync V3] \u6267\u884C\u540C\u6B65\u5931\u8D25:", error);
+      console.error("[Bangumi Sync V2] \u6267\u884C\u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: String(error) });
       new import_obsidian6.Notice(`\u540C\u6B65\u5931\u8D25: ${error}`);
     }
@@ -2549,14 +2196,14 @@ var SyncManagerV3 = class {
    */
   async processCollectionWithRatingDetails(collection, ratingDetails) {
     var _a, _b;
-    console.log(`[Bangumi Sync V3] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
+    console.log(`[Bangumi Sync V2] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
     const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
+    console.log(`[Bangumi Sync V2] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
     const characters = parseCharacters(relatedCharacters, 9);
     const typeLabel = getTypeLabel(subject.type);
     let coverUrl = ((_a = subject.images) == null ? void 0 : _a.large) || ((_b = subject.images) == null ? void 0 : _b.common) || "";
     if (this.config.downloadImages && coverUrl) {
-      console.log(`[Bangumi Sync V3] \u4E0B\u8F7D\u5C01\u9762: ${coverUrl}`);
+      console.log(`[Bangumi Sync V2] \u4E0B\u8F7D\u5C01\u9762: ${coverUrl}`);
       const localPath = await this.imageHandler.downloadCover(
         coverUrl,
         subject.id,
@@ -2572,25 +2219,22 @@ var SyncManagerV3 = class {
       }
     }
     const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
-    console.log(`[Bangumi Sync V3] \u751F\u6210\u6587\u4EF6\u8DEF\u5F84: ${filePath}`);
-    const episodeData = await this.fetchEpisodeData(subject);
+    console.log(`[Bangumi Sync V2] \u751F\u6210\u6587\u4EF6\u8DEF\u5F84: ${filePath}`);
     const content = generateContentByTypeV3(
       subject,
       collection,
       characters,
       this.config.customTemplates,
-      ratingDetails,
-      episodeData == null ? void 0 : episodeData.episodes,
-      episodeData == null ? void 0 : episodeData.userStatus
+      ratingDetails
     );
     await this.fileManager.createOrUpdateFile(filePath, content, {
       overwrite: false
     });
-    console.log(`[Bangumi Sync V3] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
+    console.log(`[Bangumi Sync V2] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
   }
 };
 
-// v4/src/ui/syncModal.ts
+// v3/src/ui/syncModal.ts
 var import_obsidian7 = require("obsidian");
 var SyncModalV3 = class extends import_obsidian7.Modal {
   constructor(app) {
@@ -2605,9 +2249,9 @@ var SyncModalV3 = class extends import_obsidian7.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "\u540C\u6B65 Bangumi \u6536\u85CF (V3)" });
+    contentEl.createEl("h2", { text: "\u540C\u6B65 Bangumi \u6536\u85CF (V2)" });
     contentEl.createEl("p", {
-      text: "V3: \u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939\u68C0\u6D4B\u5DF2\u540C\u6B65\u6761\u76EE",
+      text: "V2: \u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939\u68C0\u6D4B\u5DF2\u540C\u6B65\u6761\u76EE",
       cls: "bangumi-v2-info"
     });
     this.progressBar = contentEl.createDiv({ cls: "bangumi-progress-bar" });
@@ -2667,7 +2311,7 @@ var SyncModalV3 = class extends import_obsidian7.Modal {
   }
 };
 
-// v4/src/ui/syncOptionsModal.ts
+// v3/src/ui/syncOptionsModal.ts
 var import_obsidian8 = require("obsidian");
 var SyncOptionsModalV3 = class extends import_obsidian8.Modal {
   constructor(app, defaultOptions, onSave) {
@@ -2681,9 +2325,9 @@ var SyncOptionsModalV3 = class extends import_obsidian8.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "\u540C\u6B65\u9009\u9879 (V3)" });
+    contentEl.createEl("h2", { text: "\u540C\u6B65\u9009\u9879 (V2)" });
     contentEl.createEl("p", {
-      text: "V3 \u6539\u8FDB\uFF1A\u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939\u68C0\u6D4B\u5DF2\u540C\u6B65\u6761\u76EE\uFF0C\u667A\u80FD\u6570\u91CF\u9650\u5236",
+      text: "V2 \u6539\u8FDB\uFF1A\u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939\u68C0\u6D4B\u5DF2\u540C\u6B65\u6761\u76EE\uFF0C\u667A\u80FD\u6570\u91CF\u9650\u5236",
       cls: "bangumi-v2-info"
     });
     contentEl.createEl("h3", { text: "\u6761\u76EE\u7C7B\u578B" });
@@ -2757,7 +2401,7 @@ var SyncOptionsModalV3 = class extends import_obsidian8.Modal {
       });
     });
     contentEl.createEl("h3", { text: "\u540C\u6B65\u6570\u91CF" });
-    new import_obsidian8.Setting(contentEl).setName("\u540C\u6B65\u6570\u91CF\u9650\u5236").setDesc("V3 \u6539\u8FDB\uFF1A\u5982\u679C\u672A\u540C\u6B65\u6570\u91CF\u4E0D\u591F\uFF0C\u540C\u6B65\u6240\u6709\u672A\u540C\u6B65\u7684\u6761\u76EE").addText((text) => text.setPlaceholder("50").setValue(String(this.limitValue)).onChange((value) => {
+    new import_obsidian8.Setting(contentEl).setName("\u540C\u6B65\u6570\u91CF\u9650\u5236").setDesc("V2 \u6539\u8FDB\uFF1A\u5982\u679C\u672A\u540C\u6B65\u6570\u91CF\u4E0D\u591F\uFF0C\u540C\u6B65\u6240\u6709\u672A\u540C\u6B65\u7684\u6761\u76EE").addText((text) => text.setPlaceholder("50").setValue(String(this.limitValue)).onChange((value) => {
       const num = parseInt(value, 10);
       if (!isNaN(num) && num >= 0) {
         this.limitValue = num;
@@ -2796,7 +2440,7 @@ var SyncOptionsModalV3 = class extends import_obsidian8.Modal {
   }
 };
 
-// v4/src/ui/syncPreviewModal.ts
+// v3/src/ui/syncPreviewModal.ts
 var import_obsidian9 = require("obsidian");
 var RATING_DETAIL_FIELDS = {
   [2 /* Anime */]: [
@@ -2840,7 +2484,7 @@ var SyncPreviewModalV3 = class extends import_obsidian9.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "\u540C\u6B65\u9884\u89C8 (V3)" });
+    contentEl.createEl("h2", { text: "\u540C\u6B65\u9884\u89C8 (V2)" });
     contentEl.createEl("p", {
       text: `\u5171 ${this.items.length} \u4E2A\u6761\u76EE\u5F85\u540C\u6B65\uFF0C\u8BF7\u786E\u8BA4\u8981\u5BFC\u5165\u7684\u6761\u76EE\u5E76\u586B\u5199\u8BC4\u5206\u660E\u7EC6`,
       cls: "bangumi-preview-info"
@@ -2958,10 +2602,10 @@ var SyncPreviewModalV3 = class extends import_obsidian9.Modal {
   }
 };
 
-// v4/src/panel/controlPanel.ts
-var import_obsidian12 = require("obsidian");
+// v3/src/panel/controlPanel.ts
+var import_obsidian11 = require("obsidian");
 
-// v4/src/panel/batchEditorModal.ts
+// v3/src/panel/batchEditorModal.ts
 var import_obsidian10 = require("obsidian");
 var BatchEditorModal = class extends import_obsidian10.Modal {
   constructor(app, filePaths, onConfirm) {
@@ -3209,171 +2853,8 @@ var FrontmatterEditor = class {
   }
 };
 
-// v4/src/panel/commentSyncModal.ts
-var import_obsidian11 = require("obsidian");
-var CommentSyncModal = class extends import_obsidian11.Modal {
-  constructor(app, client, incrementalSync, diffs, onComplete) {
-    super(app);
-    this.client = client;
-    this.incrementalSync = incrementalSync;
-    this.diffs = diffs;
-    this.onComplete = onComplete;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("bangumi-comment-sync-modal");
-    contentEl.createEl("h2", { text: "\u77ED\u8BC4\u540C\u6B65" });
-    contentEl.createEl("p", {
-      text: `\u53D1\u73B0 ${this.diffs.length} \u4E2A\u6761\u76EE\u7684\u77ED\u8BC4\u5B58\u5728\u5DEE\u5F02\uFF0C\u8BF7\u9009\u62E9\u8981\u4FDD\u7559\u7684\u7248\u672C\u3002`,
-      cls: "bangumi-sync-description"
-    });
-    const actionBar = contentEl.createDiv({ cls: "bangumi-comment-sync-actions" });
-    actionBar.createEl("button", { text: "\u5168\u90E8\u4FDD\u7559\u672C\u5730" }, (btn) => {
-      btn.addEventListener("click", () => this.selectAll("local"));
-    });
-    actionBar.createEl("button", { text: "\u5168\u90E8\u4FDD\u7559\u4E91\u7AEF" }, (btn) => {
-      btn.addEventListener("click", () => this.selectAll("cloud"));
-    });
-    actionBar.createEl("button", { text: "\u5168\u90E8\u8DF3\u8FC7" }, (btn) => {
-      btn.addEventListener("click", () => this.selectAll("skip"));
-    });
-    this.statusEl = contentEl.createDiv({ cls: "bangumi-comment-sync-status" });
-    this.tableEl = contentEl.createDiv({ cls: "bangumi-comment-sync-table" });
-    this.renderTable();
-    const footer = contentEl.createDiv({ cls: "bangumi-comment-sync-footer" });
-    footer.createEl("button", { text: "\u6267\u884C\u540C\u6B65", cls: "mod-cta" }, (btn) => {
-      btn.addEventListener("click", () => this.executeSync());
-    });
-    footer.createEl("button", { text: "\u53D6\u6D88" }, (btn) => {
-      btn.addEventListener("click", () => this.close());
-    });
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-  /**
-   * 渲染表格
-   */
-  renderTable() {
-    this.tableEl.empty();
-    if (this.diffs.length === 0) {
-      this.tableEl.createDiv({ text: "\u6CA1\u6709\u9700\u8981\u540C\u6B65\u7684\u77ED\u8BC4\u5DEE\u5F02", cls: "bangumi-empty-message" });
-      return;
-    }
-    const table = this.tableEl.createEl("table");
-    const thead = table.createEl("thead");
-    const headerRow = thead.createEl("tr");
-    headerRow.createEl("th", { text: "\u6761\u76EE" });
-    headerRow.createEl("th", { text: "\u672C\u5730\u77ED\u8BC4" });
-    headerRow.createEl("th", { text: "\u4E91\u7AEF\u77ED\u8BC4" });
-    headerRow.createEl("th", { text: "\u9009\u62E9" });
-    const tbody = table.createEl("tbody");
-    this.diffs.forEach((diff, index) => {
-      const row = tbody.createEl("tr");
-      const nameCell = row.createEl("td", { cls: "bangumi-name-cell" });
-      nameCell.createSpan({ text: diff.name_cn || diff.name || "\u672A\u77E5" });
-      const localCell = row.createEl("td", { cls: "bangumi-comment-local" });
-      if (diff.localComment) {
-        localCell.setText(this.truncate(diff.localComment, 50));
-        localCell.setAttribute("title", diff.localComment);
-      } else {
-        localCell.createSpan({ text: "(\u7A7A)", cls: "bangumi-empty-comment" });
-      }
-      const cloudCell = row.createEl("td", { cls: "bangumi-comment-cloud" });
-      if (diff.cloudComment) {
-        cloudCell.setText(this.truncate(diff.cloudComment, 50));
-        cloudCell.setAttribute("title", diff.cloudComment);
-      } else {
-        cloudCell.createSpan({ text: "(\u7A7A)", cls: "bangumi-empty-comment" });
-      }
-      const selectCell = row.createEl("td");
-      const select = selectCell.createEl("select");
-      select.createEl("option", { value: "skip", text: "\u8DF3\u8FC7" });
-      select.createEl("option", { value: "local", text: "\u4FDD\u7559\u672C\u5730" });
-      select.createEl("option", { value: "cloud", text: "\u4FDD\u7559\u4E91\u7AEF" });
-      select.value = diff.decision;
-      select.addEventListener("change", () => {
-        this.diffs[index].decision = select.value;
-      });
-    });
-  }
-  /**
-   * 全部选择
-   */
-  selectAll(decision) {
-    this.diffs.forEach((diff) => {
-      diff.decision = decision;
-    });
-    this.renderTable();
-  }
-  /**
-   * 执行同步
-   */
-  async executeSync() {
-    const toSyncLocal = this.diffs.filter((d) => d.decision === "local");
-    const toSyncCloud = this.diffs.filter((d) => d.decision === "cloud");
-    if (toSyncLocal.length === 0 && toSyncCloud.length === 0) {
-      new import_obsidian11.Notice("\u6CA1\u6709\u9009\u62E9\u8981\u540C\u6B65\u7684\u6761\u76EE");
-      return;
-    }
-    this.statusEl.setText("\u6B63\u5728\u540C\u6B65...");
-    let successCount = 0;
-    let failCount = 0;
-    for (const diff of toSyncLocal) {
-      try {
-        await this.client.updateCollection(diff.subjectId, {
-          comment: diff.localComment || ""
-        });
-        successCount++;
-        console.log(`[Bangumi Sync V3] \u5DF2\u66F4\u65B0\u4E91\u7AEF\u77ED\u8BC4: ${diff.name_cn}`);
-      } catch (error) {
-        failCount++;
-        console.error(`[Bangumi Sync V3] \u66F4\u65B0\u4E91\u7AEF\u77ED\u8BC4\u5931\u8D25: ${diff.name_cn}`, error);
-      }
-    }
-    for (const diff of toSyncCloud) {
-      try {
-        const file = this.app.vault.getAbstractFileByPath(diff.localPath);
-        if (file instanceof import_obsidian11.TFile) {
-          const content = await this.app.vault.read(file);
-          let newContent;
-          if (diff.cloudComment) {
-            newContent = this.incrementalSync.updateComment(content, diff.cloudComment);
-          } else {
-            newContent = this.incrementalSync.removeComment(content);
-          }
-          await this.app.vault.modify(file, newContent);
-          successCount++;
-          console.log(`[Bangumi Sync V3] \u5DF2\u66F4\u65B0\u672C\u5730\u77ED\u8BC4: ${diff.name_cn}`);
-        }
-      } catch (error) {
-        failCount++;
-        console.error(`[Bangumi Sync V3] \u66F4\u65B0\u672C\u5730\u77ED\u8BC4\u5931\u8D25: ${diff.name_cn}`, error);
-      }
-    }
-    this.statusEl.setText(`\u540C\u6B65\u5B8C\u6210\uFF1A\u6210\u529F ${successCount} \u4E2A\uFF0C\u5931\u8D25 ${failCount} \u4E2A`);
-    if (successCount > 0) {
-      new import_obsidian11.Notice(`\u77ED\u8BC4\u540C\u6B65\u5B8C\u6210\uFF1A\u6210\u529F ${successCount} \u4E2A\uFF0C\u5931\u8D25 ${failCount} \u4E2A`);
-      this.onComplete();
-      this.close();
-    } else {
-      new import_obsidian11.Notice("\u540C\u6B65\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u8FDE\u63A5");
-    }
-  }
-  /**
-   * 截断文本
-   */
-  truncate(text, maxLen) {
-    if (text.length <= maxLen) {
-      return text;
-    }
-    return text.substring(0, maxLen) + "...";
-  }
-};
-
-// v4/src/panel/controlPanel.ts
-var ControlPanel = class extends import_obsidian12.Modal {
+// v3/src/panel/controlPanel.ts
+var ControlPanel = class extends import_obsidian11.Modal {
   constructor(app, settings, syncManager, onFiltersChange) {
     super(app);
     // 分页
@@ -3484,19 +2965,10 @@ var ControlPanel = class extends import_obsidian12.Modal {
       btn.addEventListener("click", () => this.loadData());
     });
     this.actionBarEl.createEl("button", { text: "\u540C\u6B65\u9009\u4E2D", cls: "bangumi-action-btn" }, (btn) => {
-      btn.addEventListener("click", () => this.syncSelected(false));
-    });
-    this.actionBarEl.createEl("button", { text: "\u5F3A\u5236\u540C\u6B65", cls: "bangumi-action-btn" }, (btn) => {
-      btn.addEventListener("click", () => this.syncSelected(true));
-    });
-    this.actionBarEl.createEl("button", { text: "\u5220\u9664\u9009\u4E2D", cls: "bangumi-action-btn" }, (btn) => {
-      btn.addEventListener("click", () => this.deleteSelected());
+      btn.addEventListener("click", () => this.syncSelected());
     });
     this.actionBarEl.createEl("button", { text: "\u6279\u91CF\u7F16\u8F91", cls: "bangumi-action-btn" }, (btn) => {
       btn.addEventListener("click", () => this.openBatchEditor());
-    });
-    this.actionBarEl.createEl("button", { text: "\u540C\u6B65\u77ED\u8BC4", cls: "bangumi-action-btn" }, (btn) => {
-      btn.addEventListener("click", () => this.syncComments());
     });
     const undoBtn = this.actionBarEl.createEl("button", { text: "\u64A4\u9500", cls: "bangumi-action-btn" }, (btn) => {
       btn.addEventListener("click", () => this.undoLastEdit());
@@ -3627,16 +3099,16 @@ var ControlPanel = class extends import_obsidian12.Modal {
         this.renderActionBar();
       });
     });
+    headerRow.createEl("th", { text: "\u5C01\u9762" });
     headerRow.createEl("th", { text: "\u540D\u79F0" });
     headerRow.createEl("th", { text: "\u7C7B\u578B" });
     headerRow.createEl("th", { text: "\u72B6\u6001" });
     headerRow.createEl("th", { text: "\u8BC4\u5206" });
-    headerRow.createEl("th", { text: "\u77ED\u8BC4" });
-    headerRow.createEl("th", { text: "\u6807\u7B7E" });
     headerRow.createEl("th", { text: "\u540C\u6B65" });
     headerRow.createEl("th", { text: "\u64CD\u4F5C" });
     const tbody = table.createEl("tbody");
     pageCollections.forEach((collection) => {
+      var _a;
       const row = tbody.createEl("tr");
       const isSynced = this.state.localSubjects.has(collection.subject_id);
       const localInfo = this.state.localSubjects.get(collection.subject_id);
@@ -3651,6 +3123,13 @@ var ControlPanel = class extends import_obsidian12.Modal {
           this.renderActionBar();
         });
       });
+      const coverCell = row.createEl("td");
+      if ((_a = collection.subject.images) == null ? void 0 : _a.small) {
+        coverCell.createEl("img", {
+          cls: "bangumi-cover-thumb",
+          attr: { src: collection.subject.images.small }
+        });
+      }
       const nameCell = row.createEl("td", { cls: "bangumi-name-cell" });
       nameCell.createSpan({ text: collection.subject.name_cn || collection.subject.name || "\u672A\u77E5" });
       if (collection.subject.name && collection.subject.name_cn && collection.subject.name !== collection.subject.name_cn) {
@@ -3665,21 +3144,6 @@ var ControlPanel = class extends import_obsidian12.Modal {
       }
       if (collection.rate) {
         ratingCell.createSpan({ cls: "bangumi-my-rate", text: ` [${collection.rate}]` });
-      }
-      const commentCell = row.createEl("td", { cls: "bangumi-comment-cell" });
-      if (collection.comment) {
-        const maxLen = 20;
-        const displayComment = collection.comment.length > maxLen ? collection.comment.substring(0, maxLen) + "..." : collection.comment;
-        commentCell.setText(displayComment);
-        commentCell.setAttribute("title", collection.comment);
-      }
-      const tagsCell = row.createEl("td", { cls: "bangumi-tags-cell" });
-      if (collection.tags && collection.tags.length > 0) {
-        const displayTags = collection.tags.slice(0, 3).join(", ");
-        tagsCell.setText(displayTags);
-        if (collection.tags.length > 3) {
-          tagsCell.setText(displayTags + "...");
-        }
       }
       const syncCell = row.createEl("td", { cls: "bangumi-sync-status" });
       if (isSynced) {
@@ -3734,117 +3198,28 @@ var ControlPanel = class extends import_obsidian12.Modal {
    */
   openFile(path) {
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (file instanceof import_obsidian12.TFile) {
+    if (file instanceof import_obsidian11.TFile) {
       this.app.workspace.openLinkText(file.path, "", true);
     } else {
-      new import_obsidian12.Notice("\u6587\u4EF6\u4E0D\u5B58\u5728");
+      new import_obsidian11.Notice("\u6587\u4EF6\u4E0D\u5B58\u5728");
     }
   }
   /**
    * 同步选中条目
-   * @param overwrite 是否强制覆盖已存在的文件
    */
-  async syncSelected(overwrite = false) {
+  syncSelected() {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian12.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u540C\u6B65\u7684\u6761\u76EE");
+      new import_obsidian11.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u540C\u6B65\u7684\u6761\u76EE");
       return;
     }
-    let selectedCollections;
-    if (overwrite) {
-      selectedCollections = this.state.collections.filter(
-        (c) => this.state.selectedIds.has(c.subject_id)
-      );
-    } else {
-      selectedCollections = this.state.collections.filter(
-        (c) => this.state.selectedIds.has(c.subject_id) && !this.state.localSubjects.has(c.subject_id)
-      );
-    }
-    if (selectedCollections.length === 0) {
-      new import_obsidian12.Notice(overwrite ? "\u8BF7\u9009\u62E9\u8981\u540C\u6B65\u7684\u6761\u76EE" : "\u9009\u4E2D\u7684\u6761\u76EE\u90FD\u5DF2\u540C\u6B65");
-      return;
-    }
-    this.state.loading = true;
-    this.renderStatus(`\u6B63\u5728\u540C\u6B65 ${selectedCollections.length} \u4E2A\u6761\u76EE...`);
-    try {
-      const result = await this.syncManager.syncByCollections(
-        selectedCollections,
-        { overwrite },
-        (current, total, message) => {
-          this.renderStatus(message);
-        }
-      );
-      this.state.loading = false;
-      if (result.success) {
-        new import_obsidian12.Notice(`\u540C\u6B65\u5B8C\u6210\uFF01\u6210\u529F: ${result.added}, \u5931\u8D25: ${result.errors}`);
-        const scanPath = this.settings.scanFolderPath || "ACGN";
-        await this.incrementalSync.scanLocalFolder(scanPath);
-        this.state.localSubjects = /* @__PURE__ */ new Map();
-        const syncedIds = this.incrementalSync.getSyncedIds();
-        for (const id of syncedIds) {
-          const info = this.incrementalSync.getLocalSubject(id);
-          if (info) {
-            this.state.localSubjects.set(id, info);
-          }
-        }
-        this.state.selectedIds.clear();
-        this.renderStatus(`\u540C\u6B65\u5B8C\u6210\uFF0C\u5171 ${this.state.collections.length} \u6761\u6536\u85CF\uFF0C${syncedIds.size} \u6761\u5DF2\u540C\u6B65`);
-        this.renderTable();
-        this.renderActionBar();
-        this.renderPagination();
-      } else {
-        new import_obsidian12.Notice("\u540C\u6B65\u5931\u8D25");
-        this.renderStatus("\u540C\u6B65\u5931\u8D25");
-      }
-    } catch (error) {
-      this.state.loading = false;
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian12.Notice(`\u540C\u6B65\u51FA\u9519: ${errorMsg}`);
-      this.renderStatus(`\u540C\u6B65\u51FA\u9519: ${errorMsg}`);
-    }
-  }
-  /**
-   * 删除选中的本地条目
-   */
-  async deleteSelected() {
-    if (this.state.selectedIds.size === 0) {
-      new import_obsidian12.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u5220\u9664\u7684\u6761\u76EE");
-      return;
-    }
-    const syncedCollections = this.state.collections.filter(
-      (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
+    const unsyncedCollections = this.state.collections.filter(
+      (c) => this.state.selectedIds.has(c.subject_id) && !this.state.localSubjects.has(c.subject_id)
     );
-    if (syncedCollections.length === 0) {
-      new import_obsidian12.Notice("\u9009\u4E2D\u7684\u6761\u76EE\u90FD\u672A\u540C\u6B65\uFF0C\u65E0\u6CD5\u5220\u9664");
+    if (unsyncedCollections.length === 0) {
+      new import_obsidian11.Notice("\u9009\u4E2D\u7684\u6761\u76EE\u90FD\u5DF2\u540C\u6B65");
       return;
     }
-    const confirmed = confirm(`\u786E\u5B9A\u8981\u5220\u9664 ${syncedCollections.length} \u4E2A\u672C\u5730\u6587\u4EF6\u5417\uFF1F
-\u6B64\u64CD\u4F5C\u5C06\u79FB\u52A8\u5230\u7CFB\u7EDF\u56DE\u6536\u7AD9\u3002`);
-    if (!confirmed) {
-      return;
-    }
-    let deleted = 0;
-    let failed = 0;
-    for (const collection of syncedCollections) {
-      const localInfo = this.state.localSubjects.get(collection.subject_id);
-      if (localInfo) {
-        try {
-          const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-          if (file instanceof import_obsidian12.TFile) {
-            await this.app.vault.trash(file, true);
-            this.state.localSubjects.delete(collection.subject_id);
-            deleted++;
-          }
-        } catch (error) {
-          console.error(`\u5220\u9664\u6587\u4EF6\u5931\u8D25: ${localInfo.path}`, error);
-          failed++;
-        }
-      }
-    }
-    new import_obsidian12.Notice(`\u5220\u9664\u5B8C\u6210\uFF1A\u6210\u529F ${deleted} \u4E2A\uFF0C\u5931\u8D25 ${failed} \u4E2A`);
-    this.state.selectedIds.clear();
-    this.renderStatus(`\u5171 ${this.state.collections.length} \u6761\u6536\u85CF\uFF0C${this.state.localSubjects.size} \u6761\u5DF2\u540C\u6B65`);
-    this.renderTable();
-    this.renderActionBar();
+    new import_obsidian11.Notice(`\u5C06\u540C\u6B65 ${unsyncedCollections.length} \u4E2A\u672A\u540C\u6B65\u6761\u76EE\uFF08\u529F\u80FD\u5F00\u53D1\u4E2D\uFF09`);
   }
   /**
    * 打开批量编辑器
@@ -3854,7 +3229,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (selectedCollections.length === 0) {
-      new import_obsidian12.Notice("\u8BF7\u5148\u9009\u62E9\u5DF2\u540C\u6B65\u7684\u6761\u76EE\u8FDB\u884C\u7F16\u8F91");
+      new import_obsidian11.Notice("\u8BF7\u5148\u9009\u62E9\u5DF2\u540C\u6B65\u7684\u6761\u76EE\u8FDB\u884C\u7F16\u8F91");
       return;
     }
     const filePaths = selectedCollections.map((c) => {
@@ -3866,7 +3241,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
       filePaths,
       async (operations) => {
         const result = await this.frontmatterEditor.batchModify(filePaths, operations);
-        new import_obsidian12.Notice(`\u6279\u91CF\u7F16\u8F91\u5B8C\u6210\uFF1A\u6210\u529F ${result.success} \u4E2A\uFF0C\u5931\u8D25 ${result.failed} \u4E2A`);
+        new import_obsidian11.Notice(`\u6279\u91CF\u7F16\u8F91\u5B8C\u6210\uFF1A\u6210\u529F ${result.success} \u4E2A\uFF0C\u5931\u8D25 ${result.failed} \u4E2A`);
         this.renderActionBar();
       }
     );
@@ -3877,84 +3252,20 @@ var ControlPanel = class extends import_obsidian12.Modal {
    */
   async undoLastEdit() {
     if (!this.frontmatterEditor.canUndo()) {
-      new import_obsidian12.Notice("\u6CA1\u6709\u53EF\u64A4\u9500\u7684\u64CD\u4F5C");
+      new import_obsidian11.Notice("\u6CA1\u6709\u53EF\u64A4\u9500\u7684\u64CD\u4F5C");
       return;
     }
     const success = await this.frontmatterEditor.undo();
     if (success) {
-      new import_obsidian12.Notice("\u64A4\u9500\u6210\u529F");
+      new import_obsidian11.Notice("\u64A4\u9500\u6210\u529F");
       this.renderActionBar();
     } else {
-      new import_obsidian12.Notice("\u64A4\u9500\u5931\u8D25");
-    }
-  }
-  /**
-   * 同步短评
-   * 对比本地与云端短评差异
-   */
-  async syncComments() {
-    const syncedCollections = this.state.collections.filter(
-      (c) => this.state.localSubjects.has(c.subject_id)
-    );
-    if (syncedCollections.length === 0) {
-      new import_obsidian12.Notice("\u6CA1\u6709\u5DF2\u540C\u6B65\u7684\u6761\u76EE\uFF0C\u65E0\u6CD5\u5BF9\u6BD4\u77ED\u8BC4");
-      return;
-    }
-    this.state.loading = true;
-    this.renderStatus("\u6B63\u5728\u5BF9\u6BD4\u77ED\u8BC4\u5DEE\u5F02...");
-    try {
-      const diffs = [];
-      for (const collection of syncedCollections) {
-        const localInfo = this.state.localSubjects.get(collection.subject_id);
-        if (!localInfo)
-          continue;
-        const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-        if (!(file instanceof import_obsidian12.TFile))
-          continue;
-        const content = await this.app.vault.read(file);
-        const localComment = this.incrementalSync.extractComment(content);
-        const cloudComment = collection.comment || null;
-        const localNormalized = (localComment == null ? void 0 : localComment.trim()) || null;
-        const cloudNormalized = (cloudComment == null ? void 0 : cloudComment.trim()) || null;
-        if (localNormalized !== cloudNormalized) {
-          diffs.push({
-            subjectId: collection.subject_id,
-            name_cn: collection.subject.name_cn || "",
-            name: collection.subject.name || "",
-            localComment: localNormalized,
-            cloudComment: cloudNormalized,
-            localPath: localInfo.path,
-            collection,
-            decision: "skip"
-          });
-        }
-      }
-      this.state.loading = false;
-      if (diffs.length === 0) {
-        new import_obsidian12.Notice("\u6CA1\u6709\u77ED\u8BC4\u5DEE\u5F02");
-        this.renderStatus("\u6CA1\u6709\u77ED\u8BC4\u5DEE\u5F02");
-        return;
-      }
-      const modal = new CommentSyncModal(
-        this.app,
-        this.client,
-        this.incrementalSync,
-        diffs,
-        () => {
-          this.loadData();
-        }
-      );
-      modal.open();
-    } catch (error) {
-      this.state.loading = false;
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian12.Notice(`\u5BF9\u6BD4\u77ED\u8BC4\u5931\u8D25: ${errorMsg}`);
-      this.renderStatus(`\u5BF9\u6BD4\u77ED\u8BC4\u5931\u8D25: ${errorMsg}`);
+      new import_obsidian11.Notice("\u64A4\u9500\u5931\u8D25");
     }
   }
 };
 
-// v4/main.ts
+// v3/main.ts
 var TEMPLATE_CONFIG_MAP = {
   animeTemplateConfig: ANIME_TEMPLATE,
   novelTemplateConfig: NOVEL_TEMPLATE,
@@ -3964,7 +3275,7 @@ var TEMPLATE_CONFIG_MAP = {
   musicTemplateConfig: MUSIC_TEMPLATE,
   realTemplateConfig: REAL_TEMPLATE
 };
-var BangumiPluginV3 = class extends import_obsidian13.Plugin {
+var BangumiPluginV3 = class extends import_obsidian12.Plugin {
   constructor() {
     super(...arguments);
     this.syncManager = null;
@@ -3981,13 +3292,13 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
       callback: () => this.openControlPanel()
     });
     this.addCommand({
-      id: "sync-collections",
-      name: "\u540C\u6B65 Bangumi \u6536\u85CF",
+      id: "sync-collections-v3",
+      name: "\u540C\u6B65 Bangumi \u6536\u85CF (V3)",
       callback: () => this.openSyncOptions()
     });
     this.addCommand({
-      id: "quick-sync-collections",
-      name: "\u5FEB\u901F\u540C\u6B65\uFF08\u4F7F\u7528\u9ED8\u8BA4\u8BBE\u7F6E\uFF09",
+      id: "quick-sync-collections-v3",
+      name: "\u5FEB\u901F\u540C\u6B65 V3\uFF08\u4F7F\u7528\u9ED8\u8BA4\u8BBE\u7F6E\uFF09",
       callback: () => this.syncCollections()
     });
     this.addRibbonIcon("database", "Bangumi \u6536\u85CF\u7BA1\u7406", () => {
@@ -4099,12 +3410,12 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
         if (config.filePath) {
           try {
             const file = this.app.vault.getAbstractFileByPath(config.filePath);
-            if (file instanceof import_obsidian13.TFile) {
+            if (file instanceof import_obsidian12.TFile) {
               return await this.app.vault.read(file);
             }
           } catch (error) {
             console.error(`[Bangumi Sync V3] \u8BFB\u53D6\u6A21\u677F\u6587\u4EF6\u5931\u8D25: ${config.filePath}`, error);
-            new import_obsidian13.Notice(`\u6A21\u677F\u6587\u4EF6\u8BFB\u53D6\u5931\u8D25: ${config.filePath}`);
+            new import_obsidian12.Notice(`\u6A21\u677F\u6587\u4EF6\u8BFB\u53D6\u5931\u8D25: ${config.filePath}`);
           }
         }
         return defaultTemplate;
@@ -4120,7 +3431,7 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
    */
   openControlPanel() {
     if (!this.settings.accessToken) {
-      new import_obsidian13.Notice("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E Access Token");
+      new import_obsidian12.Notice("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E Access Token");
       return;
     }
     if (this.controlPanel) {
@@ -4142,7 +3453,7 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
    */
   openSyncOptions() {
     if (!this.settings.accessToken) {
-      new import_obsidian13.Notice("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E Access Token");
+      new import_obsidian12.Notice("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E Access Token");
       return;
     }
     const modal = new SyncOptionsModalV3(
@@ -4175,19 +3486,19 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
    */
   async syncCollectionsWithOptions(options, showPreview = true) {
     if (!this.settings.accessToken) {
-      new import_obsidian13.Notice("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E Access Token");
+      new import_obsidian12.Notice("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E Access Token");
       return;
     }
     if (options.subjectTypes.length === 0) {
-      new import_obsidian13.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u79CD\u6761\u76EE\u7C7B\u578B");
+      new import_obsidian12.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u79CD\u6761\u76EE\u7C7B\u578B");
       return;
     }
     if (options.collectionTypes.length === 0) {
-      new import_obsidian13.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u79CD\u6536\u85CF\u72B6\u6001");
+      new import_obsidian12.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u79CD\u6536\u85CF\u72B6\u6001");
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian13.Notice("\u540C\u6B65\u7BA1\u7406\u5668\u672A\u521D\u59CB\u5316");
+      new import_obsidian12.Notice("\u540C\u6B65\u7BA1\u7406\u5668\u672A\u521D\u59CB\u5316");
       return;
     }
     this.syncModal = new SyncModalV3(this.app);
@@ -4205,13 +3516,13 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
         force: options.force
       });
       if (!prepareResult.success) {
-        new import_obsidian13.Notice(`\u540C\u6B65\u5931\u8D25: ${prepareResult.error}`);
+        new import_obsidian12.Notice(`\u540C\u6B65\u5931\u8D25: ${prepareResult.error}`);
         this.syncModal.close();
         this.syncModal = null;
         return;
       }
       if (!prepareResult.previewItems || prepareResult.previewItems.length === 0) {
-        new import_obsidian13.Notice("\u6CA1\u6709\u9700\u8981\u540C\u6B65\u7684\u6761\u76EE");
+        new import_obsidian12.Notice("\u6CA1\u6709\u9700\u8981\u540C\u6B65\u7684\u6761\u76EE");
         this.syncModal.close();
         this.syncModal = null;
         return;
@@ -4223,7 +3534,7 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
         prepareResult.previewItems,
         async (result) => {
           if (result.action === "cancel") {
-            new import_obsidian13.Notice("\u5DF2\u53D6\u6D88\u540C\u6B65");
+            new import_obsidian12.Notice("\u5DF2\u53D6\u6D88\u540C\u6B65");
             return;
           }
           this.syncModal = new SyncModalV3(this.app);
@@ -4237,7 +3548,7 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
           this.settings.lastSyncTime = new Date().toISOString();
           this.settings.lastSyncCount = syncResult.added + syncResult.skipped;
           await this.saveSettings();
-          new import_obsidian13.Notice(
+          new import_obsidian12.Notice(
             `V3 \u540C\u6B65\u5B8C\u6210\uFF01\u65B0\u589E: ${syncResult.added}, \u8DF3\u8FC7: ${prepareResult.skipped}, \u9519\u8BEF: ${syncResult.errors}`
           );
           setTimeout(() => {
@@ -4259,7 +3570,7 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
       this.settings.lastSyncTime = new Date().toISOString();
       this.settings.lastSyncCount = result.added + result.skipped;
       await this.saveSettings();
-      new import_obsidian13.Notice(
+      new import_obsidian12.Notice(
         `V3 \u540C\u6B65\u5B8C\u6210\uFF01\u65B0\u589E: ${result.added}, \u8DF3\u8FC7: ${result.skipped}, \u9519\u8BEF: ${result.errors}`
       );
       setTimeout(() => {
