@@ -77,7 +77,10 @@
       "Bash(git rm *)",
       "WebFetch(domain:github.com)",
       "Bash(sed -n '410,430p' \"E:/cctry/bangumi/v3/src/sync/syncManager.ts\")",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(sed -i '420a\\\\\\\\t\\\\t\\\\tthis.tableRows.push\\(row\\);  // 跟踪行用于键盘导航' \"v4/src/panel/controlPanel.ts\")",
+      "Bash(sed -i '419a\\\\\\\\t\\\\t// 重置行跟踪\\\\n\\\\t\\\\tthis.tableRows = [];' \"v4/src/panel/controlPanel.ts\")",
+      "Bash(git checkout *)"
     ]
   }
 }

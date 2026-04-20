@@ -194,8 +194,8 @@ Kindle: false
 话数: "{{episode}}"
 进度: "{{progress}}"
 杂志: "{{journal}}"
-作者: "[[{{author}}]]"
-作画: "[[{{staff}}]]"
+作者: "[[{{author}}]]"{{#if staff}}
+作画: "[[{{staff}}]]"{{/if}}
 封面: "![]({{cover}})"
 出版社: "{{publish}}"
 ---
@@ -210,8 +210,8 @@ Kindle: false
 | 评分 |\`= this.评分\`|
 | 明细 | 剧情: {{rating_story}} 画工: {{rating_drawing}} 人设: {{rating_character}}|
 | 笔记 | \`= this.笔记\`|
-| 作者 |\`= this.作者\` |
-| 作画 |\`= this.作画\`|
+| 作者 |\`= this.作者\` |{{#if staff}}
+| 作画 |\`= this.作画\`|{{/if}}
 | 杂志 |\`= this.杂志\`|
 | 进度 |\`= this.连载状态\` - \`= this.进度\`|
 | 版本 | \`= this.版本\`|

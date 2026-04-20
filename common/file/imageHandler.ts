@@ -3,13 +3,30 @@
  * 下载封面图片到本地
  */
 
-import { App, requestUrl, normalizePath } from 'obsidian';
+import { App, requestUrl, normalizePath, TFile, Notice } from 'obsidian';
 import { FileManager } from './fileManager';
+
+/**
+ * 图片质量选项
+ */
+export type ImageQuality = 'small' | 'medium' | 'large';
+
+/**
+ * 图片设置
+ */
+export interface ImageSettings {
+	quality: ImageQuality;
+	updateExisting: boolean;
+}
 
 export class ImageHandler {
 	private app: App;
 	private fileManager: FileManager;
 	private downloadEnabled: boolean = true;
+	private imageSettings: ImageSettings = {
+		quality: 'large',
+		updateExisting: false,
+	};
 
 	constructor(app: App, fileManager: FileManager) {
 		this.app = app;
@@ -24,10 +41,49 @@ export class ImageHandler {
 	}
 
 	/**
+	 * 设置图片质量
+	 */
+	setImageQuality(quality: ImageQuality): void {
+		this.imageSettings.quality = quality;
+	}
+
+	/**
+	 * 设置是否更新已存在的图片
+	 */
+	setUpdateExisting(update: boolean): void {
+		this.imageSettings.updateExisting = update;
+	}
+
+	/**
+	 * 获取当前图片设置
+	 */
+	getImageSettings(): ImageSettings {
+		return { ...this.imageSettings };
+	}
+
+	/**
 	 * 检查是否应该下载图片
 	 */
 	shouldDownloadImages(): boolean {
 		return this.downloadEnabled;
+	}
+
+	/**
+	 * 根据质量选择图片 URL
+	 */
+	selectImageUrlByQuality(images: { small?: string; medium?: string; large?: string; common?: string } | undefined): string {
+		if (!images) return '';
+
+		// 根据质量选择
+		switch (this.imageSettings.quality) {
+			case 'small':
+				return images.small || images.medium || images.large || images.common || '';
+			case 'medium':
+				return images.medium || images.large || images.small || images.common || '';
+			case 'large':
+			default:
+				return images.large || images.common || images.medium || images.small || '';
+		}
 	}
 
 	/**
@@ -155,5 +211,84 @@ export class ImageHandler {
 			// 添加小延迟避免请求过快
 			await new Promise(resolve => setTimeout(resolve, 100));
 		}
+	}
+
+	/**
+	 * 清理图片缓存
+	 * @param folderPath 图片文件夹路径
+	 * @returns 清理的文件数量
+	 */
+	async clearImageCache(folderPath: string): Promise<number> {
+		try {
+			const normalizedPath = normalizePath(folderPath);
+			const exists = await this.app.vault.adapter.exists(normalizedPath);
+
+			if (!exists) {
+				new Notice('图片文件夹不存在');
+				return 0;
+			}
+
+			const files = await this.app.vault.adapter.list(normalizedPath);
+			let count = 0;
+
+			for (const file of files.files) {
+				// 只删除图片文件
+				if (/\.(jpg|jpeg|png|webp|gif)$/i.test(file)) {
+					await this.app.vault.adapter.remove(file);
+					count++;
+				}
+			}
+
+			new Notice(`已清理 ${count} 个图片文件`);
+			return count;
+		} catch (error) {
+			console.error('[ImageHandler] 清理图片缓存失败:', error);
+			new Notice('清理图片缓存失败');
+			return 0;
+		}
+	}
+
+	/**
+	 * 获取图片缓存统计
+	 * @param folderPath 图片文件夹路径
+	 */
+	async getImageCacheStats(folderPath: string): Promise<{ count: number; size: number }> {
+		try {
+			const normalizedPath = normalizePath(folderPath);
+			const exists = await this.app.vault.adapter.exists(normalizedPath);
+
+			if (!exists) {
+				return { count: 0, size: 0 };
+			}
+
+			const files = await this.app.vault.adapter.list(normalizedPath);
+			let count = 0;
+			let totalSize = 0;
+
+			for (const file of files.files) {
+				if (/\.(jpg|jpeg|png|webp|gif)$/i.test(file)) {
+					count++;
+					const stat = await this.app.vault.adapter.stat(file);
+					if (stat) {
+						totalSize += stat.size;
+					}
+				}
+			}
+
+			return { count, size: totalSize };
+		} catch (error) {
+			console.error('[ImageHandler] 获取图片缓存统计失败:', error);
+			return { count: 0, size: 0 };
+		}
+	}
+
+	/**
+	 * 格式化文件大小
+	 */
+	formatFileSize(bytes: number): string {
+		if (bytes < 1024) return `${bytes} B`;
+		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+		if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+		return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 	}
 }

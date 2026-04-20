@@ -12,13 +12,12 @@ if you want to view the source, please visit the github repository of this plugi
 `;
 
 const prod = (process.argv[2] === 'production');
-const version = process.argv[3] || 'v1'; // v1, v2, v3, or v4
 
 /**
  * 同步插件文件到 release 文件夹
  * 每次构建后将 main.js, manifest.json, styles.css 复制到 release/
  */
-function syncToRelease(versionDir) {
+function syncToRelease() {
 	const releaseDir = 'release';
 
 	// 确保 release 目录存在
@@ -29,7 +28,7 @@ function syncToRelease(versionDir) {
 	const files = ['main.js', 'manifest.json', 'styles.css'];
 
 	for (const file of files) {
-		const srcPath = path.join(versionDir, file);
+		const srcPath = file;
 		const destPath = path.join(releaseDir, file);
 
 		if (fs.existsSync(srcPath)) {
@@ -39,35 +38,13 @@ function syncToRelease(versionDir) {
 	}
 }
 
-// 根据版本选择入口文件和输出路径
-let entryPoint;
-let outfile;
-
-switch (version) {
-	case 'v2':
-		entryPoint = 'v2/main.ts';
-		outfile = 'v2/main.js';
-		break;
-	case 'v3':
-		entryPoint = 'v3/main.ts';
-		outfile = 'v3/main.js';
-		break;
-	case 'v4':
-		entryPoint = 'v4/main.ts';
-		outfile = 'v4/main.js';
-		break;
-	default:
-		entryPoint = 'v1/main.ts';
-		outfile = 'v1/main.js';
-}
-
-console.log(`Building ${version}: ${entryPoint} -> ${outfile}`);
+console.log(`Building: main.ts -> main.js`);
 
 const context = await esbuild.context({
 	banner: {
 		js: banner,
 	},
-	entryPoints: [entryPoint],
+	entryPoints: ['main.ts'],
 	bundle: true,
 	external: [
 		'obsidian',
@@ -90,13 +67,13 @@ const context = await esbuild.context({
 	logLevel: "info",
 	sourcemap: prod ? false : 'inline',
 	treeShaking: true,
-	outfile: outfile,
+	outfile: 'main.js',
 });
 
 if (prod) {
 	await context.rebuild();
 	// 同步到 release 文件夹
-	syncToRelease(version);
+	syncToRelease();
 	process.exit(0);
 } else {
 	await context.watch();

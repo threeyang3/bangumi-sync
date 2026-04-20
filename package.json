@@ -1,18 +1,11 @@
 {
 	"name": "bangumi-sync",
-	"version": "4.0.0",
+	"version": "4.1.0",
 	"description": "Obsidian plugin to sync Bangumi collections",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
-		"dev:v2": "node esbuild.config.mjs development v2",
-		"dev:v3": "node esbuild.config.mjs development v3",
-		"dev:v4": "node esbuild.config.mjs development v4",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production v1",
-		"build:v2": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production v2",
-		"build:v3": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production v3",
-		"build:v4": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production v4 && cp styles.css v4/",
-		"build:all": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production v1 && node esbuild.config.mjs production v2 && node esbuild.config.mjs production v3 && node esbuild.config.mjs production v4 && cp styles.css v4/",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [

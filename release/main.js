@@ -21,14 +21,15 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// v4/main.ts
+// main.ts
 var main_exports = {};
 __export(main_exports, {
+  BangumiPlugin: () => BangumiPlugin,
   BangumiPluginV3: () => BangumiPluginV3,
   default: () => main_default
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 
 // common/api/types.ts
 var SubjectType = /* @__PURE__ */ ((SubjectType2) => {
@@ -112,7 +113,7 @@ function getCollectionStatusEmoji(type) {
   }
 }
 
-// v4/src/settings/settings.ts
+// src/settings/settings.ts
 var DEFAULT_TEMPLATE_CONFIG = {
   source: "default"
 };
@@ -122,11 +123,14 @@ var DEFAULT_PANEL_FILTERS = {
   syncStatus: "all",
   keyword: ""
 };
-var DEFAULT_SETTINGS_V3 = {
+var DEFAULT_SETTINGS = {
   accessToken: "",
   syncPathTemplate: "ACGN/{{type}}/{{name_cn}}.md",
   downloadImages: true,
   imagePathTemplate: "ACGN/assets/{{id}}_cover.jpg",
+  // 图片设置
+  imageQuality: "large",
+  imageUpdateExisting: false,
   scanFolderPath: "ACGN",
   // 模板配置
   animeTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
@@ -143,11 +147,11 @@ var DEFAULT_SETTINGS_V3 = {
   autoSyncInterval: 60,
   lastSyncTime: null,
   lastSyncCount: 0,
-  // V3 新增
+  // 控制面板筛选条件
   panelFilters: { ...DEFAULT_PANEL_FILTERS }
 };
 
-// v4/src/settings/settingsTab.ts
+// src/settings/settingsTab.ts
 var import_obsidian = require("obsidian");
 
 // common/template/defaultTemplates.ts
@@ -336,8 +340,8 @@ Kindle: false
 \u8BDD\u6570: "{{episode}}"
 \u8FDB\u5EA6: "{{progress}}"
 \u6742\u5FD7: "{{journal}}"
-\u4F5C\u8005: "[[{{author}}]]"
-\u4F5C\u753B: "[[{{staff}}]]"
+\u4F5C\u8005: "[[{{author}}]]"{{#if staff}}
+\u4F5C\u753B: "[[{{staff}}]]"{{/if}}
 \u5C01\u9762: "![]({{cover}})"
 \u51FA\u7248\u793E: "{{publish}}"
 ---
@@ -352,8 +356,8 @@ Kindle: false
 | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
 | \u660E\u7EC6 | \u5267\u60C5: {{rating_story}} \u753B\u5DE5: {{rating_drawing}} \u4EBA\u8BBE: {{rating_character}}|
 | \u7B14\u8BB0 | \`= this.\u7B14\u8BB0\`|
-| \u4F5C\u8005 |\`= this.\u4F5C\u8005\` |
-| \u4F5C\u753B |\`= this.\u4F5C\u753B\`|
+| \u4F5C\u8005 |\`= this.\u4F5C\u8005\` |{{#if staff}}
+| \u4F5C\u753B |\`= this.\u4F5C\u753B\`|{{/if}}
 | \u6742\u5FD7 |\`= this.\u6742\u5FD7\`|
 | \u8FDB\u5EA6 |\`= this.\u8FDE\u8F7D\u72B6\u6001\` - \`= this.\u8FDB\u5EA6\`|
 | \u7248\u672C | \`= this.\u7248\u672C\`|
@@ -611,7 +615,7 @@ function getTypeLabel(subjectType, category) {
   }
 }
 
-// v4/src/settings/settingsTab.ts
+// src/settings/settingsTab.ts
 var TEMPLATE_TYPES = [
   { key: "animeTemplateConfig", name: "\u52A8\u753B\u6A21\u677F", defaultTemplate: ANIME_TEMPLATE },
   { key: "novelTemplateConfig", name: "\u5C0F\u8BF4\u6A21\u677F", defaultTemplate: NOVEL_TEMPLATE },
@@ -621,7 +625,7 @@ var TEMPLATE_TYPES = [
   { key: "musicTemplateConfig", name: "\u97F3\u4E50\u6A21\u677F", defaultTemplate: MUSIC_TEMPLATE },
   { key: "realTemplateConfig", name: "\u4E09\u6B21\u5143\u6A21\u677F", defaultTemplate: REAL_TEMPLATE }
 ];
-var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
+var BangumiSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin, settings, onSave) {
     super(app, plugin);
     this.settings = settings;
@@ -630,11 +634,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Bangumi Sync V3 \u8BBE\u7F6E" });
-    containerEl.createEl("p", {
-      text: "V3 \u65B0\u7279\u6027\uFF1A\u63A7\u5236\u9762\u677F\u3001\u6279\u91CF\u7F16\u8F91\u3001\u64A4\u9500\u652F\u6301\u3001\u6253\u5F00\u672C\u5730\u6587\u4EF6\u3002",
-      cls: "bangumi-v2-info"
-    });
+    containerEl.createEl("h2", { text: "Bangumi Sync \u8BBE\u7F6E" });
     containerEl.createEl("h3", { text: "\u8BA4\u8BC1\u8BBE\u7F6E" });
     new import_obsidian.Setting(containerEl).setName("Access Token").setDesc("\u5728 https://next.bgm.tv/demo/access-token \u751F\u6210 Access Token").addText((text) => text.setPlaceholder("\u8F93\u5165 Access Token").setValue(this.settings.accessToken).onChange(async (value) => {
       this.settings.accessToken = value;
@@ -661,13 +661,21 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
       this.settings.downloadImages = value;
       await this.onSave();
     }));
+    new import_obsidian.Setting(containerEl).setName("\u56FE\u7247\u8D28\u91CF").setDesc("\u9009\u62E9\u4E0B\u8F7D\u7684\u56FE\u7247\u8D28\u91CF").addDropdown((dropdown) => dropdown.addOption("small", "\u5C0F (small)").addOption("medium", "\u4E2D (medium)").addOption("large", "\u5927 (large)").setValue(this.settings.imageQuality || "large").onChange(async (value) => {
+      this.settings.imageQuality = value;
+      await this.onSave();
+    }));
+    new import_obsidian.Setting(containerEl).setName("\u66F4\u65B0\u5DF2\u5B58\u5728\u7684\u56FE\u7247").setDesc("\u540C\u6B65\u65F6\u662F\u5426\u66F4\u65B0\u5DF2\u5B58\u5728\u7684\u5C01\u9762\u56FE\u7247").addToggle((toggle) => toggle.setValue(this.settings.imageUpdateExisting || false).onChange(async (value) => {
+      this.settings.imageUpdateExisting = value;
+      await this.onSave();
+    }));
     new import_obsidian.Setting(containerEl).setName("\u56FE\u7247\u8DEF\u5F84\u6A21\u677F").setDesc("\u652F\u6301\u53D8\u91CF: {{id}}, {{name_cn}}, {{name}}, {{typeLabel}} (\u5982: ACGN/assets/{{name_cn}}_{{typeLabel}}.jpg)").addText((text) => text.setPlaceholder("ACGN/assets/{{name_cn}}_{{typeLabel}}.jpg").setValue(this.settings.imagePathTemplate).onChange(async (value) => {
       this.settings.imagePathTemplate = value;
       await this.onSave();
     }));
     containerEl.createEl("h3", { text: "\u6A21\u677F\u8BBE\u7F6E" });
     const helpDiv = containerEl.createDiv({ cls: "bangumi-template-help" });
-    helpDiv.createEl("p", { text: "V3 \u6539\u8FDB: tags \u4F7F\u7528\u7528\u6237\u81EA\u5DF1\u7684\u6807\u7B7E\uFF0C\u5982\u679C\u6CA1\u6709\u5219\u7559\u7A7A" });
+    helpDiv.createEl("p", { text: "\u6A21\u677F\u53D8\u91CF\u63D0\u793A\uFF1A{{tags}} \u4F7F\u7528\u7528\u6237\u81EA\u5DF1\u7684\u6807\u7B7E\uFF0C\u5982\u679C\u6CA1\u6709\u5219\u7559\u7A7A" });
     const vars = [
       "{{name}}",
       "{{name_cn}}",
@@ -730,7 +738,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
       });
       label.createSpan({ text: getCollectionTypeName(type) });
     });
-    new import_obsidian.Setting(containerEl).setName("\u540C\u6B65\u6570\u91CF\u9650\u5236").setDesc("\u6BCF\u6B21\u540C\u6B65\u7684\u6700\u5927\u6761\u76EE\u6570\u91CF\uFF080 \u8868\u793A\u4E0D\u9650\u5236\uFF0CV3 \u4F1A\u667A\u80FD\u5904\u7406\uFF1A\u5982\u679C\u672A\u540C\u6B65\u6570\u91CF\u4E0D\u591F\uFF0C\u540C\u6B65\u6240\u6709\u672A\u540C\u6B65\u7684\uFF09").addText((text) => text.setPlaceholder("50").setValue(String(this.settings.syncLimit)).onChange(async (value) => {
+    new import_obsidian.Setting(containerEl).setName("\u540C\u6B65\u6570\u91CF\u9650\u5236").setDesc("\u6BCF\u6B21\u540C\u6B65\u7684\u6700\u5927\u6761\u76EE\u6570\u91CF\uFF080 \u8868\u793A\u4E0D\u9650\u5236\uFF0C\u4F1A\u667A\u80FD\u5904\u7406\uFF1A\u5982\u679C\u672A\u540C\u6B65\u6570\u91CF\u4E0D\u591F\uFF0C\u540C\u6B65\u6240\u6709\u672A\u540C\u6B65\u7684\uFF09").addText((text) => text.setPlaceholder("50").setValue(String(this.settings.syncLimit)).onChange(async (value) => {
       const num = parseInt(value, 10);
       if (!isNaN(num) && num >= 0) {
         this.settings.syncLimit = num;
@@ -814,7 +822,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
    * 打开文件选择建议
    */
   openFileSuggest(templateType) {
-    const modal = new FileSuggestModalV3(
+    const modal = new FileSuggestModal(
       this.app,
       async (file) => {
         const config = this.settings[templateType.key];
@@ -832,7 +840,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
   openTemplateEditor(templateType) {
     const config = this.settings[templateType.key];
     const initialContent = config.customContent || templateType.defaultTemplate;
-    const modal = new TemplateEditorModalV3(
+    const modal = new TemplateEditorModal(
       this.app,
       initialContent,
       async (newTemplate) => {
@@ -846,7 +854,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
    * 打开模板预览
    */
   openTemplatePreview(templateType) {
-    const modal = new TemplateEditorModalV3(
+    const modal = new TemplateEditorModal(
       this.app,
       templateType.defaultTemplate,
       async () => {
@@ -855,7 +863,7 @@ var BangumiSettingTabV3 = class extends import_obsidian.PluginSettingTab {
     modal.open();
   }
 };
-var FileSuggestModalV3 = class extends import_obsidian.FuzzySuggestModal {
+var FileSuggestModal = class extends import_obsidian.FuzzySuggestModal {
   constructor(app, onSelect) {
     super(app);
     this.onSelect = onSelect;
@@ -870,7 +878,7 @@ var FileSuggestModalV3 = class extends import_obsidian.FuzzySuggestModal {
     this.onSelect(file);
   }
 };
-var TemplateEditorModalV3 = class extends import_obsidian.Modal {
+var TemplateEditorModal = class extends import_obsidian.Modal {
   constructor(app, template, onSave) {
     super(app);
     this.template = template;
@@ -878,9 +886,9 @@ var TemplateEditorModalV3 = class extends import_obsidian.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "\u7F16\u8F91\u6A21\u677F (V3)" });
+    contentEl.createEl("h2", { text: "\u7F16\u8F91\u6A21\u677F" });
     const helpDiv = contentEl.createDiv({ cls: "bangumi-template-help" });
-    helpDiv.createEl("p", { text: "V3 \u6539\u8FDB: {{tags}} \u4F7F\u7528\u7528\u6237\u81EA\u5DF1\u7684\u6807\u7B7E\uFF0C\u5982\u679C\u6CA1\u6709\u5219\u7559\u7A7A" });
+    helpDiv.createEl("p", { text: "\u6A21\u677F\u53D8\u91CF\u63D0\u793A\uFF1A{{tags}} \u4F7F\u7528\u7528\u6237\u81EA\u5DF1\u7684\u6807\u7B7E\uFF0C\u5982\u679C\u6CA1\u6709\u5219\u7559\u7A7A" });
     const vars = [
       "{{name}} - \u539F\u540D",
       "{{name_cn}} - \u4E2D\u6587\u540D",
@@ -895,8 +903,8 @@ var TemplateEditorModalV3 = class extends import_obsidian.Modal {
       "{{my_rate}} - \u6211\u7684\u8BC4\u5206",
       "{{my_comment}} - \u6211\u7684\u77ED\u8BC4",
       "{{my_status}} - \u6536\u85CF\u72B6\u6001",
-      "{{my_tags}} - \u6211\u7684\u6807\u7B7E (V3)",
-      "{{tags}} - \u6211\u7684\u6807\u7B7E (V3)"
+      "{{my_tags}} - \u6211\u7684\u6807\u7B7E",
+      "{{tags}} - \u6211\u7684\u6807\u7B7E"
     ];
     vars.forEach((v) => helpDiv.createEl("span", { text: v, cls: "bangumi-var-tag" }));
     const textArea = new import_obsidian.TextAreaComponent(contentEl);
@@ -921,10 +929,10 @@ var TemplateEditorModalV3 = class extends import_obsidian.Modal {
   }
 };
 
-// v4/src/sync/syncManager.ts
+// src/sync/syncManager.ts
 var import_obsidian6 = require("obsidian");
 
-// v4/src/api/client.ts
+// src/api/client.ts
 var import_obsidian2 = require("obsidian");
 
 // common/api/endpoints.ts
@@ -968,8 +976,8 @@ var DEFAULT_HEADERS = {
   "User-Agent": "Bangumi-Obsidian-Plugin/1.0.0"
 };
 
-// v4/src/api/client.ts
-var BangumiClientV3 = class {
+// src/api/client.ts
+var BangumiClient = class {
   constructor(accessToken = "", baseUrl = API_BASE_URL) {
     this.accessToken = accessToken;
     this.baseUrl = baseUrl;
@@ -1002,21 +1010,21 @@ var BangumiClientV3 = class {
       body: data ? JSON.stringify(data) : void 0
     };
     try {
-      console.log(`[Bangumi Sync V3] ${method} ${url}`);
+      console.log(`[Bangumi Sync] ${method} ${url}`);
       const response = await (0, import_obsidian2.requestUrl)(options);
-      console.log(`[Bangumi Sync V3] Response status: ${response.status}`);
+      console.log(`[Bangumi Sync] Response status: ${response.status}`);
       if (response.status >= 400) {
         const error = response.json || {
           title: "API Error",
           description: `HTTP ${response.status}`
         };
         const errorMsg = error.title + (error.description ? `: ${error.description}` : "");
-        console.error(`[Bangumi Sync V3] API Error:`, errorMsg);
+        console.error(`[Bangumi Sync] API Error:`, errorMsg);
         throw new Error(errorMsg);
       }
       return response.json;
     } catch (error) {
-      console.error(`[Bangumi Sync V3] Request failed:`, error);
+      console.error(`[Bangumi Sync] Request failed:`, error);
       if (error instanceof Error) {
         throw error;
       }
@@ -1030,7 +1038,7 @@ var BangumiClientV3 = class {
     if (!this.accessToken) {
       return { valid: false, error: "\u672A\u914D\u7F6E Access Token" };
     }
-    console.log("[Bangumi Sync V3] \u9A8C\u8BC1 Token...");
+    console.log("[Bangumi Sync] \u9A8C\u8BC1 Token...");
     try {
       const headers = this.getHeaders();
       const response = await (0, import_obsidian2.requestUrl)({
@@ -1038,17 +1046,17 @@ var BangumiClientV3 = class {
         method: "GET",
         headers
       });
-      console.log(`[Bangumi Sync V3] /v0/me \u54CD\u5E94\u72B6\u6001: ${response.status}`);
+      console.log(`[Bangumi Sync] /v0/me \u54CD\u5E94\u72B6\u6001: ${response.status}`);
       if (response.status === 200) {
         const user = response.json;
-        console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230\u7528\u6237: ${user.username}`);
+        console.log(`[Bangumi Sync] \u83B7\u53D6\u5230\u7528\u6237: ${user.username}`);
         return { valid: true, username: user.username };
       }
       const errorData = response.json;
       const errorMsg = errorData.description || errorData.title || `HTTP ${response.status}`;
       return { valid: false, error: `\u9A8C\u8BC1\u5931\u8D25: ${errorMsg}` };
     } catch (error) {
-      console.error("[Bangumi Sync V3] Token \u9A8C\u8BC1\u5F02\u5E38:", error);
+      console.error("[Bangumi Sync] Token \u9A8C\u8BC1\u5F02\u5E38:", error);
       const errorMsg = error instanceof Error ? error.message : String(error);
       return { valid: false, error: `\u8BF7\u6C42\u5931\u8D25: ${errorMsg}` };
     }
@@ -1091,10 +1099,10 @@ var BangumiClientV3 = class {
       }
     }
     const endpoint = `${ENDPOINTS.USER_COLLECTIONS(username)}?${params.toString()}`;
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u6536\u85CF: ${endpoint}`);
+    console.log(`[Bangumi Sync] \u83B7\u53D6\u6536\u85CF: ${endpoint}`);
     try {
       const result = await this.request("GET", endpoint);
-      console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230 ${result.data.length}/${result.total} \u6761\u6536\u85CF`);
+      console.log(`[Bangumi Sync] \u83B7\u53D6\u5230 ${result.data.length}/${result.total} \u6761\u6536\u85CF`);
       return result;
     } catch (error) {
       if (error instanceof Error && error.message.includes("404")) {
@@ -1148,10 +1156,10 @@ var BangumiClientV3 = class {
    */
   async updateCollection(subjectId, data) {
     const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
-    console.log(`[Bangumi Sync V3] \u66F4\u65B0\u6536\u85CF: PATCH ${endpoint}`);
-    console.log(`[Bangumi Sync V3] \u66F4\u65B0\u6570\u636E:`, data);
+    console.log(`[Bangumi Sync] \u66F4\u65B0\u6536\u85CF: PATCH ${endpoint}`);
+    console.log(`[Bangumi Sync] \u66F4\u65B0\u6570\u636E:`, data);
     await this.request("PATCH", endpoint, data);
-    console.log(`[Bangumi Sync V3] \u6536\u85CF\u66F4\u65B0\u6210\u529F: ${subjectId}`);
+    console.log(`[Bangumi Sync] \u6536\u85CF\u66F4\u65B0\u6210\u529F: ${subjectId}`);
   }
   /**
    * 获取条目的所有章节
@@ -1159,9 +1167,9 @@ var BangumiClientV3 = class {
    */
   async getEpisodes(subjectId) {
     const endpoint = `${ENDPOINTS.EPISODES}?subject_id=${subjectId}`;
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u7AE0\u8282: ${endpoint}`);
+    console.log(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282: ${endpoint}`);
     const result = await this.request("GET", endpoint);
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230 ${result.data.length}/${result.total} \u4E2A\u7AE0\u8282`);
+    console.log(`[Bangumi Sync] \u83B7\u53D6\u5230 ${result.data.length}/${result.total} \u4E2A\u7AE0\u8282`);
     return result;
   }
   /**
@@ -1170,9 +1178,9 @@ var BangumiClientV3 = class {
    */
   async getUserEpisodeStatus(subjectId) {
     const endpoint = ENDPOINTS.USER_SUBJECT_EPISODES(subjectId);
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001: ${endpoint}`);
+    console.log(`[Bangumi Sync] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001: ${endpoint}`);
     const result = await this.request("GET", endpoint);
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230 ${result.data.length} \u4E2A\u7AE0\u8282\u72B6\u6001`);
+    console.log(`[Bangumi Sync] \u83B7\u53D6\u5230 ${result.data.length} \u4E2A\u7AE0\u8282\u72B6\u6001`);
     return result.data;
   }
   /**
@@ -1182,15 +1190,15 @@ var BangumiClientV3 = class {
    */
   async updateEpisodeStatus(episodeId, type) {
     const endpoint = ENDPOINTS.UPDATE_EPISODE_STATUS(episodeId);
-    console.log(`[Bangumi Sync V3] \u66F4\u65B0\u7AE0\u8282\u72B6\u6001: PUT ${endpoint}, type=${type}`);
+    console.log(`[Bangumi Sync] \u66F4\u65B0\u7AE0\u8282\u72B6\u6001: PUT ${endpoint}, type=${type}`);
     await this.request("PUT", endpoint, { type });
-    console.log(`[Bangumi Sync V3] \u7AE0\u8282\u72B6\u6001\u66F4\u65B0\u6210\u529F: ${episodeId}`);
+    console.log(`[Bangumi Sync] \u7AE0\u8282\u72B6\u6001\u66F4\u65B0\u6210\u529F: ${episodeId}`);
   }
 };
 
-// v4/src/file/fileManager.ts
+// src/file/fileManager.ts
 var import_obsidian3 = require("obsidian");
-var FileManagerV3 = class {
+var FileManager = class {
   constructor(app) {
     this.app = app;
   }
@@ -1202,15 +1210,15 @@ var FileManagerV3 = class {
     const lastSlash = normalizedPath.lastIndexOf("/");
     const dirPath = lastSlash > 0 ? normalizedPath.substring(0, lastSlash) : "";
     if (dirPath) {
-      console.log(`[Bangumi Sync V3] \u68C0\u67E5\u76EE\u5F55: ${dirPath}`);
+      console.log(`[Bangumi Sync] \u68C0\u67E5\u76EE\u5F55: ${dirPath}`);
       const exists = await this.app.vault.adapter.exists(dirPath);
       if (!exists) {
-        console.log(`[Bangumi Sync V3] \u521B\u5EFA\u76EE\u5F55: ${dirPath}`);
+        console.log(`[Bangumi Sync] \u521B\u5EFA\u76EE\u5F55: ${dirPath}`);
         await this.ensureDirectory(dirPath);
         try {
           await this.app.vault.createFolder(dirPath);
         } catch (error) {
-          console.log(`[Bangumi Sync V3] \u521B\u5EFA\u76EE\u5F55\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\uFF09: ${error}`);
+          console.log(`[Bangumi Sync] \u521B\u5EFA\u76EE\u5F55\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\uFF09: ${error}`);
         }
       }
     }
@@ -1238,14 +1246,14 @@ var FileManagerV3 = class {
    */
   async createFile(path, content) {
     const normalizedPath = (0, import_obsidian3.normalizePath)(path);
-    console.log(`[Bangumi Sync V3] \u521B\u5EFA\u6587\u4EF6: ${normalizedPath}`);
+    console.log(`[Bangumi Sync] \u521B\u5EFA\u6587\u4EF6: ${normalizedPath}`);
     await this.ensureDirectory(normalizedPath);
     try {
       const file = await this.app.vault.create(normalizedPath, content);
-      console.log(`[Bangumi Sync V3] \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${normalizedPath}`);
+      console.log(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${normalizedPath}`);
       return file;
     } catch (error) {
-      console.error(`[Bangumi Sync V3] \u521B\u5EFA\u6587\u4EF6\u5931\u8D25: ${normalizedPath}`, error);
+      console.error(`[Bangumi Sync] \u521B\u5EFA\u6587\u4EF6\u5931\u8D25: ${normalizedPath}`, error);
       throw error;
     }
   }
@@ -1266,7 +1274,7 @@ var FileManagerV3 = class {
         await this.updateFile(existingFile, content);
         return { file: existingFile, created: false };
       }
-      console.log(`[Bangumi Sync V3] \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${normalizedPath}`);
+      console.log(`[Bangumi Sync] \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${normalizedPath}`);
       return { file: existingFile, created: false };
     }
     const file = await this.createFile(normalizedPath, content);
@@ -1296,6 +1304,10 @@ var import_obsidian4 = require("obsidian");
 var ImageHandler = class {
   constructor(app, fileManager) {
     this.downloadEnabled = true;
+    this.imageSettings = {
+      quality: "large",
+      updateExisting: false
+    };
     this.app = app;
     this.fileManager = fileManager;
   }
@@ -1306,10 +1318,44 @@ var ImageHandler = class {
     this.downloadEnabled = enabled;
   }
   /**
+   * 设置图片质量
+   */
+  setImageQuality(quality) {
+    this.imageSettings.quality = quality;
+  }
+  /**
+   * 设置是否更新已存在的图片
+   */
+  setUpdateExisting(update) {
+    this.imageSettings.updateExisting = update;
+  }
+  /**
+   * 获取当前图片设置
+   */
+  getImageSettings() {
+    return { ...this.imageSettings };
+  }
+  /**
    * 检查是否应该下载图片
    */
   shouldDownloadImages() {
     return this.downloadEnabled;
+  }
+  /**
+   * 根据质量选择图片 URL
+   */
+  selectImageUrlByQuality(images) {
+    if (!images)
+      return "";
+    switch (this.imageSettings.quality) {
+      case "small":
+        return images.small || images.medium || images.large || images.common || "";
+      case "medium":
+        return images.medium || images.large || images.small || images.common || "";
+      case "large":
+      default:
+        return images.large || images.common || images.medium || images.small || "";
+    }
   }
   /**
    * 下载图片
@@ -1388,11 +1434,81 @@ var ImageHandler = class {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }
+  /**
+   * 清理图片缓存
+   * @param folderPath 图片文件夹路径
+   * @returns 清理的文件数量
+   */
+  async clearImageCache(folderPath) {
+    try {
+      const normalizedPath = (0, import_obsidian4.normalizePath)(folderPath);
+      const exists = await this.app.vault.adapter.exists(normalizedPath);
+      if (!exists) {
+        new import_obsidian4.Notice("\u56FE\u7247\u6587\u4EF6\u5939\u4E0D\u5B58\u5728");
+        return 0;
+      }
+      const files = await this.app.vault.adapter.list(normalizedPath);
+      let count = 0;
+      for (const file of files.files) {
+        if (/\.(jpg|jpeg|png|webp|gif)$/i.test(file)) {
+          await this.app.vault.adapter.remove(file);
+          count++;
+        }
+      }
+      new import_obsidian4.Notice(`\u5DF2\u6E05\u7406 ${count} \u4E2A\u56FE\u7247\u6587\u4EF6`);
+      return count;
+    } catch (error) {
+      console.error("[ImageHandler] \u6E05\u7406\u56FE\u7247\u7F13\u5B58\u5931\u8D25:", error);
+      new import_obsidian4.Notice("\u6E05\u7406\u56FE\u7247\u7F13\u5B58\u5931\u8D25");
+      return 0;
+    }
+  }
+  /**
+   * 获取图片缓存统计
+   * @param folderPath 图片文件夹路径
+   */
+  async getImageCacheStats(folderPath) {
+    try {
+      const normalizedPath = (0, import_obsidian4.normalizePath)(folderPath);
+      const exists = await this.app.vault.adapter.exists(normalizedPath);
+      if (!exists) {
+        return { count: 0, size: 0 };
+      }
+      const files = await this.app.vault.adapter.list(normalizedPath);
+      let count = 0;
+      let totalSize = 0;
+      for (const file of files.files) {
+        if (/\.(jpg|jpeg|png|webp|gif)$/i.test(file)) {
+          count++;
+          const stat = await this.app.vault.adapter.stat(file);
+          if (stat) {
+            totalSize += stat.size;
+          }
+        }
+      }
+      return { count, size: totalSize };
+    } catch (error) {
+      console.error("[ImageHandler] \u83B7\u53D6\u56FE\u7247\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25:", error);
+      return { count: 0, size: 0 };
+    }
+  }
+  /**
+   * 格式化文件大小
+   */
+  formatFileSize(bytes) {
+    if (bytes < 1024)
+      return `${bytes} B`;
+    if (bytes < 1024 * 1024)
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024)
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
 };
 
-// v4/src/sync/incrementalSync.ts
+// src/sync/incrementalSync.ts
 var import_obsidian5 = require("obsidian");
-var IncrementalSyncV3 = class {
+var IncrementalSync = class {
   constructor(app) {
     this.localSubjects = /* @__PURE__ */ new Map();
     this.lastScanPath = "";
@@ -1404,18 +1520,18 @@ var IncrementalSyncV3 = class {
    * @param onProgress 进度回调
    */
   async scanLocalFolder(folderPath, onProgress) {
-    console.log(`[Bangumi Sync V3] \u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939: ${folderPath}`);
+    console.log(`[Bangumi Sync] \u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939: ${folderPath}`);
     this.localSubjects.clear();
     this.lastScanPath = folderPath;
     const normalizedPath = (0, import_obsidian5.normalizePath)(folderPath);
     const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
     if (!(folder instanceof import_obsidian5.TFolder)) {
-      console.log(`[Bangumi Sync V3] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
+      console.log(`[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return 0;
     }
     const allFiles = this.app.vault.getMarkdownFiles();
     const targetFiles = allFiles.filter((file) => file.path.startsWith(normalizedPath));
-    console.log(`[Bangumi Sync V3] \u627E\u5230 ${targetFiles.length} \u4E2A\u6587\u4EF6`);
+    console.log(`[Bangumi Sync] \u627E\u5230 ${targetFiles.length} \u4E2A\u6587\u4EF6`);
     let processed = 0;
     for (const file of targetFiles) {
       try {
@@ -1428,17 +1544,17 @@ var IncrementalSyncV3 = class {
             path: file.path,
             name_cn
           });
-          console.log(`[Bangumi Sync V3] \u53D1\u73B0\u5DF2\u540C\u6B65\u6761\u76EE: ${name_cn} (ID: ${subjectId})`);
+          console.log(`[Bangumi Sync] \u53D1\u73B0\u5DF2\u540C\u6B65\u6761\u76EE: ${name_cn} (ID: ${subjectId})`);
         }
       } catch (error) {
-        console.error(`[Bangumi Sync V3] \u8BFB\u53D6\u6587\u4EF6\u5931\u8D25: ${file.path}`, error);
+        console.error(`[Bangumi Sync] \u8BFB\u53D6\u6587\u4EF6\u5931\u8D25: ${file.path}`, error);
       }
       processed++;
       if (onProgress) {
         onProgress(processed, targetFiles.length);
       }
     }
-    console.log(`[Bangumi Sync V3] \u626B\u63CF\u5B8C\u6210\uFF0C\u53D1\u73B0 ${this.localSubjects.size} \u4E2A\u5DF2\u540C\u6B65\u6761\u76EE`);
+    console.log(`[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u53D1\u73B0 ${this.localSubjects.size} \u4E2A\u5DF2\u540C\u6B65\u6761\u76EE`);
     return this.localSubjects.size;
   }
   /**
@@ -1500,7 +1616,7 @@ var IncrementalSyncV3 = class {
    * @returns toAdd: 需要新增的条目; toSkip: 本地已存在的条目
    */
   computeDiff(remoteCollections, options) {
-    console.log(`[Bangumi Sync V3] \u8BA1\u7B97\u540C\u6B65\u5DEE\u5F02\uFF0C\u8FDC\u7A0B\u6761\u76EE: ${remoteCollections.length}\uFF0C\u672C\u5730\u6761\u76EE: ${this.localSubjects.size}`);
+    console.log(`[Bangumi Sync] \u8BA1\u7B97\u540C\u6B65\u5DEE\u5F02\uFF0C\u8FDC\u7A0B\u6761\u76EE: ${remoteCollections.length}\uFF0C\u672C\u5730\u6761\u76EE: ${this.localSubjects.size}`);
     const existing = [];
     const notExisting = [];
     for (const collection of remoteCollections) {
@@ -1512,7 +1628,7 @@ var IncrementalSyncV3 = class {
         notExisting.push(collection);
       }
     }
-    console.log(`[Bangumi Sync V3] \u5DF2\u5B58\u5728: ${existing.length}\uFF0C\u672A\u540C\u6B65: ${notExisting.length}`);
+    console.log(`[Bangumi Sync] \u5DF2\u5B58\u5728: ${existing.length}\uFF0C\u672A\u540C\u6B65: ${notExisting.length}`);
     let toAdd;
     let toSkip;
     if (options.force) {
@@ -1522,7 +1638,7 @@ var IncrementalSyncV3 = class {
       toAdd = options.limit > 0 ? notExisting.slice(0, options.limit) : notExisting;
       toSkip = existing;
     }
-    console.log(`[Bangumi Sync V3] \u9700\u8981\u65B0\u589E: ${toAdd.length}\uFF0C\u8DF3\u8FC7: ${toSkip.length}`);
+    console.log(`[Bangumi Sync] \u9700\u8981\u65B0\u589E: ${toAdd.length}\uFF0C\u8DF3\u8FC7: ${toSkip.length}`);
     return {
       toAdd,
       toSkip
@@ -1964,8 +2080,8 @@ function createUserStatusMap(userEpisodes) {
   return map;
 }
 
-// v4/src/template/contentTemplate.ts
-function extractTemplateVarsV3(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus) {
+// src/template/contentTemplate.ts
+function extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus) {
   var _a, _b, _c, _d, _e, _f;
   const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
   const typeLabel = getTypeLabel(subject.type, parsedInfo.category);
@@ -2054,6 +2170,20 @@ function extractTemplateVarsV3(subject, collection, characters, ratingDetails, e
 }
 function renderContentTemplate(template, vars) {
   let result = template;
+  result = result.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (match, key, content) => {
+    const value = vars[key];
+    if (value !== void 0 && value !== null && value !== "") {
+      return content;
+    }
+    return "";
+  });
+  result = result.replace(/\{\{(\w+)\|([^}]+)\}\}/g, (match, key, defaultVal) => {
+    const value = vars[key];
+    if (value !== void 0 && value !== null && value !== "") {
+      return String(value);
+    }
+    return defaultVal;
+  });
   result = result.replace(/\{\{(\w+)\}\}/g, (match, key) => {
     const value = vars[key];
     if (value === void 0 || value === null) {
@@ -2063,11 +2193,11 @@ function renderContentTemplate(template, vars) {
   });
   return result;
 }
-function generateContentV3(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus) {
-  const vars = extractTemplateVarsV3(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus);
+function generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus) {
+  const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus);
   return renderContentTemplate(template, vars);
 }
-function generateContentByTypeV3(subject, collection, characters, customTemplates, ratingDetails, episodes, userEpisodeStatus) {
+function generateContentByType(subject, collection, characters, customTemplates, ratingDetails, episodes, userEpisodeStatus) {
   const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
   const category = parsedInfo.category || "";
   let template;
@@ -2101,19 +2231,19 @@ function generateContentByTypeV3(subject, collection, characters, customTemplate
   } else {
     template = getDefaultTemplate(subject.type, category);
   }
-  return generateContentV3(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus);
+  return generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus);
 }
 
-// v4/src/sync/syncManager.ts
-var SyncManagerV3 = class {
+// src/sync/syncManager.ts
+var SyncManager = class {
   constructor(app, config) {
     this.app = app;
     this.config = config;
-    this.client = new BangumiClientV3(config.accessToken);
-    this.fileManager = new FileManagerV3(app);
+    this.client = new BangumiClient(config.accessToken);
+    this.fileManager = new FileManager(app);
     this.imageHandler = new ImageHandler(app, this.fileManager);
     this.imageHandler.setDownloadEnabled(config.downloadImages);
-    this.incrementalSync = new IncrementalSyncV3(app);
+    this.incrementalSync = new IncrementalSync(app);
   }
   /**
    * 设置进度回调
@@ -2156,7 +2286,7 @@ var SyncManagerV3 = class {
       if (!username) {
         throw new Error("\u65E0\u6CD5\u83B7\u53D6\u7528\u6237\u540D\uFF0C\u8BF7\u68C0\u67E5 Access Token");
       }
-      console.log(`[Bangumi Sync V3] \u7528\u6237: ${username}`);
+      console.log(`[Bangumi Sync] \u7528\u6237: ${username}`);
       this.reportProgress({ status: "fetching", message: "\u83B7\u53D6\u6536\u85CF\u5217\u8868..." });
       const collections = await this.client.getAllUserCollections(username, {
         subjectType: options.subjectTypes.length === 1 ? options.subjectTypes[0] : void 0,
@@ -2170,10 +2300,10 @@ var SyncManagerV3 = class {
           });
         }
       });
-      console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
+      console.log(`[Bangumi Sync] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
       this.reportProgress({ status: "scanning", message: "\u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939..." });
       const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
-      console.log(`[Bangumi Sync V3] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
+      console.log(`[Bangumi Sync] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
       await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
         this.reportProgress({
           status: "scanning",
@@ -2184,14 +2314,14 @@ var SyncManagerV3 = class {
       });
       this.reportProgress({ status: "preparing", message: "\u8BA1\u7B97\u540C\u6B65\u5DEE\u5F02..." });
       const filteredCollections = this.filterCollections(collections, options);
-      console.log(`[Bangumi Sync V3] \u7B26\u5408\u6761\u4EF6\u7684\u6536\u85CF: ${filteredCollections.length}`);
+      console.log(`[Bangumi Sync] \u7B26\u5408\u6761\u4EF6\u7684\u6536\u85CF: ${filteredCollections.length}`);
       const diff = this.incrementalSync.computeDiff(filteredCollections, {
         limit: options.limit,
         force: options.force
       });
       result.total = diff.toAdd.length;
       result.skipped = diff.toSkip.length;
-      console.log(`[Bangumi Sync V3] \u9700\u8981\u540C\u6B65: ${result.total}\uFF0C\u5DF2\u5B58\u5728\u8DF3\u8FC7: ${result.skipped}`);
+      console.log(`[Bangumi Sync] \u9700\u8981\u540C\u6B65: ${result.total}\uFF0C\u5DF2\u5B58\u5728\u8DF3\u8FC7: ${result.skipped}`);
       for (let i = 0; i < diff.toAdd.length; i++) {
         const collection = diff.toAdd[i];
         this.reportProgress({
@@ -2205,14 +2335,14 @@ var SyncManagerV3 = class {
           await this.processCollection(collection);
           result.added++;
         } catch (error) {
-          console.error(`[Bangumi Sync V3] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${collection.subject.name_cn}`, error);
+          console.error(`[Bangumi Sync] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${collection.subject.name_cn}`, error);
           result.errors++;
         }
       }
       result.success = true;
       this.reportProgress({ status: "completed", message: "\u540C\u6B65\u5B8C\u6210" });
     } catch (error) {
-      console.error("[Bangumi Sync V3] \u540C\u6B65\u5931\u8D25:", error);
+      console.error("[Bangumi Sync] \u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: String(error) });
       new import_obsidian6.Notice(`\u540C\u6B65\u5931\u8D25: ${error}`);
     }
@@ -2246,14 +2376,14 @@ var SyncManagerV3 = class {
    */
   async processCollection(collection) {
     var _a, _b;
-    console.log(`[Bangumi Sync V3] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
+    console.log(`[Bangumi Sync] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
     const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
+    console.log(`[Bangumi Sync] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
     const characters = parseCharacters(relatedCharacters, 9);
     const typeLabel = getTypeLabel(subject.type);
     let coverUrl = ((_a = subject.images) == null ? void 0 : _a.large) || ((_b = subject.images) == null ? void 0 : _b.common) || "";
     if (this.config.downloadImages && coverUrl) {
-      console.log(`[Bangumi Sync V3] \u4E0B\u8F7D\u5C01\u9762: ${coverUrl}`);
+      console.log(`[Bangumi Sync] \u4E0B\u8F7D\u5C01\u9762: ${coverUrl}`);
       const localPath = await this.imageHandler.downloadCover(
         coverUrl,
         subject.id,
@@ -2270,8 +2400,8 @@ var SyncManagerV3 = class {
     }
     const episodeData = await this.fetchEpisodeData(subject);
     const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
-    console.log(`[Bangumi Sync V3] \u751F\u6210\u6587\u4EF6\u8DEF\u5F84: ${filePath}`);
-    const content = generateContentByTypeV3(
+    console.log(`[Bangumi Sync] \u751F\u6210\u6587\u4EF6\u8DEF\u5F84: ${filePath}`);
+    const content = generateContentByType(
       subject,
       collection,
       characters,
@@ -2284,7 +2414,7 @@ var SyncManagerV3 = class {
     await this.fileManager.createOrUpdateFile(filePath, content, {
       overwrite: false
     });
-    console.log(`[Bangumi Sync V3] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
+    console.log(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
   }
   /**
    * V4: 获取章节数据
@@ -2295,22 +2425,22 @@ var SyncManagerV3 = class {
       return null;
     }
     try {
-      console.log(`[Bangumi Sync V3] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F: ${subject.name_cn}`);
+      console.log(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F: ${subject.name_cn}`);
       const episodesData = await this.client.getEpisodes(subject.id);
       const episodes = episodesData.data;
       if (!episodes || episodes.length === 0) {
-        console.log(`[Bangumi Sync V3] \u65E0\u7AE0\u8282\u4FE1\u606F`);
+        console.log(`[Bangumi Sync] \u65E0\u7AE0\u8282\u4FE1\u606F`);
         return null;
       }
       let userStatus = [];
       try {
         userStatus = await this.client.getUserEpisodeStatus(subject.id);
       } catch (error) {
-        console.log(`[Bangumi Sync V3] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001\u5931\u8D25\uFF0C\u53EF\u80FD\u672A\u6536\u85CF\u6B64\u6761\u76EE`);
+        console.log(`[Bangumi Sync] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001\u5931\u8D25\uFF0C\u53EF\u80FD\u672A\u6536\u85CF\u6B64\u6761\u76EE`);
       }
       return { episodes, userStatus };
     } catch (error) {
-      console.error(`[Bangumi Sync V3] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F\u5931\u8D25:`, error);
+      console.error(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F\u5931\u8D25:`, error);
       return null;
     }
   }
@@ -2344,7 +2474,7 @@ var SyncManagerV3 = class {
     };
     const overwrite = (_a = options == null ? void 0 : options.overwrite) != null ? _a : false;
     try {
-      console.log(`[Bangumi Sync V3] \u5F00\u59CB\u6309\u6536\u85CF\u5217\u8868\u540C\u6B65 ${collections.length} \u4E2A\u6761\u76EE\uFF0C\u8986\u76D6\u6A21\u5F0F: ${overwrite}`);
+      console.log(`[Bangumi Sync] \u5F00\u59CB\u6309\u6536\u85CF\u5217\u8868\u540C\u6B65 ${collections.length} \u4E2A\u6761\u76EE\uFF0C\u8986\u76D6\u6A21\u5F0F: ${overwrite}`);
       for (let i = 0; i < collections.length; i++) {
         const collection = collections[i];
         if (onProgress) {
@@ -2378,7 +2508,7 @@ var SyncManagerV3 = class {
           }
           const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
           const episodeData = await this.fetchEpisodeData(subject);
-          const content = generateContentByTypeV3(
+          const content = generateContentByType(
             subject,
             collection,
             characters,
@@ -2392,16 +2522,16 @@ var SyncManagerV3 = class {
             overwrite
           });
           result.added++;
-          console.log(`[Bangumi Sync V3] \u540C\u6B65\u5B8C\u6210: ${subject.name_cn || subject.name}`);
+          console.log(`[Bangumi Sync] \u540C\u6B65\u5B8C\u6210: ${subject.name_cn || subject.name}`);
         } catch (error) {
-          console.error(`[Bangumi Sync V3] \u540C\u6B65\u6761\u76EE\u5931\u8D25 (ID: ${collection.subject_id}):`, error);
+          console.error(`[Bangumi Sync] \u540C\u6B65\u6761\u76EE\u5931\u8D25 (ID: ${collection.subject_id}):`, error);
           result.errors++;
         }
       }
       result.success = true;
       this.reportProgress({ status: "completed", message: "\u540C\u6B65\u5B8C\u6210" });
     } catch (error) {
-      console.error("[Bangumi Sync V3] \u6309\u6536\u85CF\u5217\u8868\u540C\u6B65\u5931\u8D25:", error);
+      console.error("[Bangumi Sync] \u6309\u6536\u85CF\u5217\u8868\u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: String(error) });
     }
     result.duration = Date.now() - startTime;
@@ -2431,7 +2561,7 @@ var SyncManagerV3 = class {
       if (!username) {
         throw new Error("\u65E0\u6CD5\u83B7\u53D6\u7528\u6237\u540D\uFF0C\u8BF7\u68C0\u67E5 Access Token");
       }
-      console.log(`[Bangumi Sync V3] \u7528\u6237: ${username}`);
+      console.log(`[Bangumi Sync] \u7528\u6237: ${username}`);
       this.reportProgress({ status: "fetching", message: "\u83B7\u53D6\u6536\u85CF\u5217\u8868..." });
       const collections = await this.client.getAllUserCollections(username, {
         subjectType: options.subjectTypes.length === 1 ? options.subjectTypes[0] : void 0,
@@ -2445,10 +2575,10 @@ var SyncManagerV3 = class {
           });
         }
       });
-      console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
+      console.log(`[Bangumi Sync] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
       this.reportProgress({ status: "scanning", message: "\u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939..." });
       const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
-      console.log(`[Bangumi Sync V3] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
+      console.log(`[Bangumi Sync] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
       await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
         this.reportProgress({
           status: "scanning",
@@ -2459,12 +2589,12 @@ var SyncManagerV3 = class {
       });
       this.reportProgress({ status: "preparing", message: "\u8BA1\u7B97\u540C\u6B65\u5DEE\u5F02..." });
       const filteredCollections = this.filterCollections(collections, options);
-      console.log(`[Bangumi Sync V3] \u7B26\u5408\u6761\u4EF6\u7684\u6536\u85CF: ${filteredCollections.length}`);
+      console.log(`[Bangumi Sync] \u7B26\u5408\u6761\u4EF6\u7684\u6536\u85CF: ${filteredCollections.length}`);
       const diff = this.incrementalSync.computeDiff(filteredCollections, {
         limit: options.limit,
         force: options.force
       });
-      console.log(`[Bangumi Sync V3] \u9700\u8981\u540C\u6B65: ${diff.toAdd.length}\uFF0C\u5DF2\u5B58\u5728\u8DF3\u8FC7: ${diff.toSkip.length}`);
+      console.log(`[Bangumi Sync] \u9700\u8981\u540C\u6B65: ${diff.toAdd.length}\uFF0C\u5DF2\u5B58\u5728\u8DF3\u8FC7: ${diff.toSkip.length}`);
       const previewItems = diff.toAdd.map((collection) => ({
         id: collection.subject_id,
         name_cn: collection.subject.name_cn || "",
@@ -2483,7 +2613,7 @@ var SyncManagerV3 = class {
         skipped: diff.toSkip.length
       };
     } catch (error) {
-      console.error("[Bangumi Sync V3] \u51C6\u5907\u540C\u6B65\u5931\u8D25:", error);
+      console.error("[Bangumi Sync] \u51C6\u5907\u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: String(error) });
       return {
         success: false,
@@ -2516,7 +2646,7 @@ var SyncManagerV3 = class {
         itemsToSync = previewItems.filter((item) => !item.selected);
       }
       result.total = itemsToSync.length;
-      console.log(`[Bangumi Sync V3] \u5F00\u59CB\u540C\u6B65 ${itemsToSync.length} \u4E2A\u6761\u76EE`);
+      console.log(`[Bangumi Sync] \u5F00\u59CB\u540C\u6B65 ${itemsToSync.length} \u4E2A\u6761\u76EE`);
       for (let i = 0; i < itemsToSync.length; i++) {
         const item = itemsToSync[i];
         this.reportProgress({
@@ -2530,14 +2660,14 @@ var SyncManagerV3 = class {
           await this.processCollectionWithRatingDetails(item.collection, item.ratingDetails);
           result.added++;
         } catch (error) {
-          console.error(`[Bangumi Sync V3] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${item.name_cn}`, error);
+          console.error(`[Bangumi Sync] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${item.name_cn}`, error);
           result.errors++;
         }
       }
       result.success = true;
       this.reportProgress({ status: "completed", message: "\u540C\u6B65\u5B8C\u6210" });
     } catch (error) {
-      console.error("[Bangumi Sync V3] \u6267\u884C\u540C\u6B65\u5931\u8D25:", error);
+      console.error("[Bangumi Sync] \u6267\u884C\u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: String(error) });
       new import_obsidian6.Notice(`\u540C\u6B65\u5931\u8D25: ${error}`);
     }
@@ -2549,14 +2679,14 @@ var SyncManagerV3 = class {
    */
   async processCollectionWithRatingDetails(collection, ratingDetails) {
     var _a, _b;
-    console.log(`[Bangumi Sync V3] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
+    console.log(`[Bangumi Sync] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
     const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
-    console.log(`[Bangumi Sync V3] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
+    console.log(`[Bangumi Sync] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
     const characters = parseCharacters(relatedCharacters, 9);
     const typeLabel = getTypeLabel(subject.type);
     let coverUrl = ((_a = subject.images) == null ? void 0 : _a.large) || ((_b = subject.images) == null ? void 0 : _b.common) || "";
     if (this.config.downloadImages && coverUrl) {
-      console.log(`[Bangumi Sync V3] \u4E0B\u8F7D\u5C01\u9762: ${coverUrl}`);
+      console.log(`[Bangumi Sync] \u4E0B\u8F7D\u5C01\u9762: ${coverUrl}`);
       const localPath = await this.imageHandler.downloadCover(
         coverUrl,
         subject.id,
@@ -2572,9 +2702,9 @@ var SyncManagerV3 = class {
       }
     }
     const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
-    console.log(`[Bangumi Sync V3] \u751F\u6210\u6587\u4EF6\u8DEF\u5F84: ${filePath}`);
+    console.log(`[Bangumi Sync] \u751F\u6210\u6587\u4EF6\u8DEF\u5F84: ${filePath}`);
     const episodeData = await this.fetchEpisodeData(subject);
-    const content = generateContentByTypeV3(
+    const content = generateContentByType(
       subject,
       collection,
       characters,
@@ -2586,13 +2716,13 @@ var SyncManagerV3 = class {
     await this.fileManager.createOrUpdateFile(filePath, content, {
       overwrite: false
     });
-    console.log(`[Bangumi Sync V3] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
+    console.log(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
   }
 };
 
-// v4/src/ui/syncModal.ts
+// src/ui/syncModal.ts
 var import_obsidian7 = require("obsidian");
-var SyncModalV3 = class extends import_obsidian7.Modal {
+var SyncModal = class extends import_obsidian7.Modal {
   constructor(app) {
     super(app);
     this.progressBar = null;
@@ -2605,11 +2735,7 @@ var SyncModalV3 = class extends import_obsidian7.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "\u540C\u6B65 Bangumi \u6536\u85CF (V3)" });
-    contentEl.createEl("p", {
-      text: "V3: \u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939\u68C0\u6D4B\u5DF2\u540C\u6B65\u6761\u76EE",
-      cls: "bangumi-v2-info"
-    });
+    contentEl.createEl("h2", { text: "\u540C\u6B65 Bangumi \u6536\u85CF" });
     this.progressBar = contentEl.createDiv({ cls: "bangumi-progress-bar" });
     this.progressBar.createEl("div", { cls: "bangumi-progress-fill" });
     this.statusText = contentEl.createDiv({ cls: "bangumi-sync-status" });
@@ -2667,9 +2793,9 @@ var SyncModalV3 = class extends import_obsidian7.Modal {
   }
 };
 
-// v4/src/ui/syncOptionsModal.ts
+// src/ui/syncOptionsModal.ts
 var import_obsidian8 = require("obsidian");
-var SyncOptionsModalV3 = class extends import_obsidian8.Modal {
+var SyncOptionsModal = class extends import_obsidian8.Modal {
   constructor(app, defaultOptions, onSave) {
     super(app);
     this.options = defaultOptions;
@@ -2681,11 +2807,7 @@ var SyncOptionsModalV3 = class extends import_obsidian8.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "\u540C\u6B65\u9009\u9879 (V3)" });
-    contentEl.createEl("p", {
-      text: "V3 \u6539\u8FDB\uFF1A\u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939\u68C0\u6D4B\u5DF2\u540C\u6B65\u6761\u76EE\uFF0C\u667A\u80FD\u6570\u91CF\u9650\u5236",
-      cls: "bangumi-v2-info"
-    });
+    contentEl.createEl("h2", { text: "\u540C\u6B65\u9009\u9879" });
     contentEl.createEl("h3", { text: "\u6761\u76EE\u7C7B\u578B" });
     const subjectTypesDiv = contentEl.createDiv({ cls: "bangumi-checkbox-group" });
     const subjectTypes = [
@@ -2757,7 +2879,7 @@ var SyncOptionsModalV3 = class extends import_obsidian8.Modal {
       });
     });
     contentEl.createEl("h3", { text: "\u540C\u6B65\u6570\u91CF" });
-    new import_obsidian8.Setting(contentEl).setName("\u540C\u6B65\u6570\u91CF\u9650\u5236").setDesc("V3 \u6539\u8FDB\uFF1A\u5982\u679C\u672A\u540C\u6B65\u6570\u91CF\u4E0D\u591F\uFF0C\u540C\u6B65\u6240\u6709\u672A\u540C\u6B65\u7684\u6761\u76EE").addText((text) => text.setPlaceholder("50").setValue(String(this.limitValue)).onChange((value) => {
+    new import_obsidian8.Setting(contentEl).setName("\u540C\u6B65\u6570\u91CF\u9650\u5236").setDesc("\u5982\u679C\u672A\u540C\u6B65\u6570\u91CF\u4E0D\u591F\uFF0C\u540C\u6B65\u6240\u6709\u672A\u540C\u6B65\u7684\u6761\u76EE").addText((text) => text.setPlaceholder("50").setValue(String(this.limitValue)).onChange((value) => {
       const num = parseInt(value, 10);
       if (!isNaN(num) && num >= 0) {
         this.limitValue = num;
@@ -2796,7 +2918,7 @@ var SyncOptionsModalV3 = class extends import_obsidian8.Modal {
   }
 };
 
-// v4/src/ui/syncPreviewModal.ts
+// src/ui/syncPreviewModal.ts
 var import_obsidian9 = require("obsidian");
 var RATING_DETAIL_FIELDS = {
   [2 /* Anime */]: [
@@ -2831,7 +2953,7 @@ function getRatingFields(type, category) {
   }
   return RATING_DETAIL_FIELDS[type] || [];
 }
-var SyncPreviewModalV3 = class extends import_obsidian9.Modal {
+var SyncPreviewModal = class extends import_obsidian9.Modal {
   constructor(app, items, onConfirm) {
     super(app);
     this.itemElements = /* @__PURE__ */ new Map();
@@ -2840,7 +2962,7 @@ var SyncPreviewModalV3 = class extends import_obsidian9.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h2", { text: "\u540C\u6B65\u9884\u89C8 (V3)" });
+    contentEl.createEl("h2", { text: "\u540C\u6B65\u9884\u89C8" });
     contentEl.createEl("p", {
       text: `\u5171 ${this.items.length} \u4E2A\u6761\u76EE\u5F85\u540C\u6B65\uFF0C\u8BF7\u786E\u8BA4\u8981\u5BFC\u5165\u7684\u6761\u76EE\u5E76\u586B\u5199\u8BC4\u5206\u660E\u7EC6`,
       cls: "bangumi-preview-info"
@@ -2958,10 +3080,10 @@ var SyncPreviewModalV3 = class extends import_obsidian9.Modal {
   }
 };
 
-// v4/src/panel/controlPanel.ts
-var import_obsidian12 = require("obsidian");
+// src/panel/controlPanel.ts
+var import_obsidian13 = require("obsidian");
 
-// v4/src/panel/batchEditorModal.ts
+// src/panel/batchEditorModal.ts
 var import_obsidian10 = require("obsidian");
 var BatchEditorModal = class extends import_obsidian10.Modal {
   constructor(app, filePaths, onConfirm) {
@@ -3209,7 +3331,7 @@ var FrontmatterEditor = class {
   }
 };
 
-// v4/src/panel/commentSyncModal.ts
+// src/panel/commentSyncModal.ts
 var import_obsidian11 = require("obsidian");
 var CommentSyncModal = class extends import_obsidian11.Modal {
   constructor(app, client, incrementalSync, diffs, onComplete) {
@@ -3326,10 +3448,10 @@ var CommentSyncModal = class extends import_obsidian11.Modal {
           comment: diff.localComment || ""
         });
         successCount++;
-        console.log(`[Bangumi Sync V3] \u5DF2\u66F4\u65B0\u4E91\u7AEF\u77ED\u8BC4: ${diff.name_cn}`);
+        console.log(`[Bangumi Sync] \u5DF2\u66F4\u65B0\u4E91\u7AEF\u77ED\u8BC4: ${diff.name_cn}`);
       } catch (error) {
         failCount++;
-        console.error(`[Bangumi Sync V3] \u66F4\u65B0\u4E91\u7AEF\u77ED\u8BC4\u5931\u8D25: ${diff.name_cn}`, error);
+        console.error(`[Bangumi Sync] \u66F4\u65B0\u4E91\u7AEF\u77ED\u8BC4\u5931\u8D25: ${diff.name_cn}`, error);
       }
     }
     for (const diff of toSyncCloud) {
@@ -3345,11 +3467,11 @@ var CommentSyncModal = class extends import_obsidian11.Modal {
           }
           await this.app.vault.modify(file, newContent);
           successCount++;
-          console.log(`[Bangumi Sync V3] \u5DF2\u66F4\u65B0\u672C\u5730\u77ED\u8BC4: ${diff.name_cn}`);
+          console.log(`[Bangumi Sync] \u5DF2\u66F4\u65B0\u672C\u5730\u77ED\u8BC4: ${diff.name_cn}`);
         }
       } catch (error) {
         failCount++;
-        console.error(`[Bangumi Sync V3] \u66F4\u65B0\u672C\u5730\u77ED\u8BC4\u5931\u8D25: ${diff.name_cn}`, error);
+        console.error(`[Bangumi Sync] \u66F4\u65B0\u672C\u5730\u77ED\u8BC4\u5931\u8D25: ${diff.name_cn}`, error);
       }
     }
     this.statusEl.setText(`\u540C\u6B65\u5B8C\u6210\uFF1A\u6210\u529F ${successCount} \u4E2A\uFF0C\u5931\u8D25 ${failCount} \u4E2A`);
@@ -3372,19 +3494,120 @@ var CommentSyncModal = class extends import_obsidian11.Modal {
   }
 };
 
-// v4/src/panel/controlPanel.ts
-var ControlPanel = class extends import_obsidian12.Modal {
+// src/panel/conflictResolver.ts
+var import_obsidian12 = require("obsidian");
+var ConflictDetector = class {
+  constructor(app) {
+    this.app = app;
+  }
+  /**
+   * 检测冲突
+   * @param localItems 本地条目映射
+   * @param cloudItems 云端收藏列表
+   * @param localModifiedTime 本地修改时间映射
+   */
+  detectConflicts(localItems, cloudItems, localModifiedTime) {
+    const conflicts = [];
+    for (const cloudItem of cloudItems) {
+      const subjectId = cloudItem.subject_id;
+      const localData = localItems.get(subjectId);
+      if (!localData)
+        continue;
+      const localModified = localModifiedTime.get(subjectId) || "";
+      const cloudModified = cloudItem.updated_at || "";
+      const diff = this.computeDiff(localData, cloudItem);
+      if (this.hasDiff(diff) && localModified) {
+        conflicts.push({
+          subjectId,
+          name_cn: cloudItem.subject.name_cn || "",
+          name: cloudItem.subject.name || "",
+          localModified,
+          cloudModified,
+          localData,
+          cloudData: cloudItem,
+          diff,
+          decision: "skip"
+        });
+      }
+    }
+    return conflicts;
+  }
+  /**
+   * 计算差异
+   */
+  computeDiff(local, cloud) {
+    return {
+      rateChanged: local.rate !== cloud.rate,
+      commentChanged: (local.comment || "") !== (cloud.comment || ""),
+      tagsChanged: !this.arraysEqual(local.tags || [], cloud.tags || []),
+      statusChanged: local.type !== cloud.type,
+      localRate: local.rate,
+      cloudRate: cloud.rate,
+      localComment: local.comment,
+      cloudComment: cloud.comment,
+      localTags: local.tags,
+      cloudTags: cloud.tags,
+      localStatus: local.type,
+      cloudStatus: cloud.type
+    };
+  }
+  /**
+   * 检查是否有差异
+   */
+  hasDiff(diff) {
+    return diff.rateChanged || diff.commentChanged || diff.tagsChanged || diff.statusChanged;
+  }
+  /**
+   * 比较数组是否相等
+   */
+  arraysEqual(a, b) {
+    if (a.length !== b.length)
+      return false;
+    return a.every((val, index) => val === b[index]);
+  }
+  /**
+   * 从本地文件提取数据
+   */
+  async extractLocalData(file) {
+    var _a;
+    try {
+      const content = await this.app.vault.read(file);
+      const frontmatter = (_a = this.app.metadataCache.getFileCache(file)) == null ? void 0 : _a.frontmatter;
+      if (!frontmatter)
+        return null;
+      return {
+        path: file.path,
+        name_cn: frontmatter.title || frontmatter.name_cn || "",
+        rate: frontmatter.my_rate,
+        comment: frontmatter.comment,
+        tags: frontmatter.tags ? String(frontmatter.tags).split(",").map((t) => t.trim()) : [],
+        type: frontmatter.status,
+        updated_at: frontmatter.updated_at || file.stat.mtime.toString()
+      };
+    } catch (error) {
+      console.error("[ConflictDetector] \u63D0\u53D6\u672C\u5730\u6570\u636E\u5931\u8D25:", error);
+      return null;
+    }
+  }
+};
+
+// src/panel/controlPanel.ts
+var ControlPanel = class extends import_obsidian13.Modal {
   constructor(app, settings, syncManager, onFiltersChange) {
     super(app);
     // 分页
     this.currentPage = 1;
     this.pageSize = 50;
+    // 键盘导航
+    this.focusedRowIndex = -1;
+    this.tableRows = [];
     this.settings = settings;
     this.syncManager = syncManager;
     this.onFiltersChange = onFiltersChange;
-    this.client = new BangumiClientV3(settings.accessToken);
-    this.incrementalSync = new IncrementalSyncV3(app);
+    this.client = new BangumiClient(settings.accessToken);
+    this.incrementalSync = new IncrementalSync(app);
     this.frontmatterEditor = new FrontmatterEditor(app);
+    this.conflictDetector = new ConflictDetector(app);
     this.filters = { ...settings.panelFilters };
     this.state = {
       collections: [],
@@ -3406,6 +3629,8 @@ var ControlPanel = class extends import_obsidian12.Modal {
     this.statusEl = contentEl.createDiv({ cls: "bangumi-panel-status" });
     this.tableEl = contentEl.createDiv({ cls: "bangumi-panel-table" });
     this.paginationEl = contentEl.createDiv({ cls: "bangumi-panel-pagination" });
+    this.tableEl.setAttribute("tabindex", "0");
+    this.tableEl.addEventListener("keydown", (e) => this.handleKeyDown(e));
     this.loadData();
   }
   onClose() {
@@ -3636,8 +3861,10 @@ var ControlPanel = class extends import_obsidian12.Modal {
     headerRow.createEl("th", { text: "\u540C\u6B65" });
     headerRow.createEl("th", { text: "\u64CD\u4F5C" });
     const tbody = table.createEl("tbody");
+    this.tableRows = [];
     pageCollections.forEach((collection) => {
       const row = tbody.createEl("tr");
+      this.tableRows.push(row);
       const isSynced = this.state.localSubjects.has(collection.subject_id);
       const localInfo = this.state.localSubjects.get(collection.subject_id);
       row.createEl("td").createEl("input", { type: "checkbox" }, (checkbox) => {
@@ -3734,10 +3961,10 @@ var ControlPanel = class extends import_obsidian12.Modal {
    */
   openFile(path) {
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (file instanceof import_obsidian12.TFile) {
+    if (file instanceof import_obsidian13.TFile) {
       this.app.workspace.openLinkText(file.path, "", true);
     } else {
-      new import_obsidian12.Notice("\u6587\u4EF6\u4E0D\u5B58\u5728");
+      new import_obsidian13.Notice("\u6587\u4EF6\u4E0D\u5B58\u5728");
     }
   }
   /**
@@ -3746,7 +3973,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
    */
   async syncSelected(overwrite = false) {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian12.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u540C\u6B65\u7684\u6761\u76EE");
+      new import_obsidian13.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u540C\u6B65\u7684\u6761\u76EE");
       return;
     }
     let selectedCollections;
@@ -3760,7 +3987,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
       );
     }
     if (selectedCollections.length === 0) {
-      new import_obsidian12.Notice(overwrite ? "\u8BF7\u9009\u62E9\u8981\u540C\u6B65\u7684\u6761\u76EE" : "\u9009\u4E2D\u7684\u6761\u76EE\u90FD\u5DF2\u540C\u6B65");
+      new import_obsidian13.Notice(overwrite ? "\u8BF7\u9009\u62E9\u8981\u540C\u6B65\u7684\u6761\u76EE" : "\u9009\u4E2D\u7684\u6761\u76EE\u90FD\u5DF2\u540C\u6B65");
       return;
     }
     this.state.loading = true;
@@ -3775,7 +4002,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
       );
       this.state.loading = false;
       if (result.success) {
-        new import_obsidian12.Notice(`\u540C\u6B65\u5B8C\u6210\uFF01\u6210\u529F: ${result.added}, \u5931\u8D25: ${result.errors}`);
+        new import_obsidian13.Notice(`\u540C\u6B65\u5B8C\u6210\uFF01\u6210\u529F: ${result.added}, \u5931\u8D25: ${result.errors}`);
         const scanPath = this.settings.scanFolderPath || "ACGN";
         await this.incrementalSync.scanLocalFolder(scanPath);
         this.state.localSubjects = /* @__PURE__ */ new Map();
@@ -3792,13 +4019,13 @@ var ControlPanel = class extends import_obsidian12.Modal {
         this.renderActionBar();
         this.renderPagination();
       } else {
-        new import_obsidian12.Notice("\u540C\u6B65\u5931\u8D25");
+        new import_obsidian13.Notice("\u540C\u6B65\u5931\u8D25");
         this.renderStatus("\u540C\u6B65\u5931\u8D25");
       }
     } catch (error) {
       this.state.loading = false;
       const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian12.Notice(`\u540C\u6B65\u51FA\u9519: ${errorMsg}`);
+      new import_obsidian13.Notice(`\u540C\u6B65\u51FA\u9519: ${errorMsg}`);
       this.renderStatus(`\u540C\u6B65\u51FA\u9519: ${errorMsg}`);
     }
   }
@@ -3807,14 +4034,14 @@ var ControlPanel = class extends import_obsidian12.Modal {
    */
   async deleteSelected() {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian12.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u5220\u9664\u7684\u6761\u76EE");
+      new import_obsidian13.Notice("\u8BF7\u5148\u9009\u62E9\u8981\u5220\u9664\u7684\u6761\u76EE");
       return;
     }
     const syncedCollections = this.state.collections.filter(
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (syncedCollections.length === 0) {
-      new import_obsidian12.Notice("\u9009\u4E2D\u7684\u6761\u76EE\u90FD\u672A\u540C\u6B65\uFF0C\u65E0\u6CD5\u5220\u9664");
+      new import_obsidian13.Notice("\u9009\u4E2D\u7684\u6761\u76EE\u90FD\u672A\u540C\u6B65\uFF0C\u65E0\u6CD5\u5220\u9664");
       return;
     }
     const confirmed = confirm(`\u786E\u5B9A\u8981\u5220\u9664 ${syncedCollections.length} \u4E2A\u672C\u5730\u6587\u4EF6\u5417\uFF1F
@@ -3829,7 +4056,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
       if (localInfo) {
         try {
           const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-          if (file instanceof import_obsidian12.TFile) {
+          if (file instanceof import_obsidian13.TFile) {
             await this.app.vault.trash(file, true);
             this.state.localSubjects.delete(collection.subject_id);
             deleted++;
@@ -3840,7 +4067,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
         }
       }
     }
-    new import_obsidian12.Notice(`\u5220\u9664\u5B8C\u6210\uFF1A\u6210\u529F ${deleted} \u4E2A\uFF0C\u5931\u8D25 ${failed} \u4E2A`);
+    new import_obsidian13.Notice(`\u5220\u9664\u5B8C\u6210\uFF1A\u6210\u529F ${deleted} \u4E2A\uFF0C\u5931\u8D25 ${failed} \u4E2A`);
     this.state.selectedIds.clear();
     this.renderStatus(`\u5171 ${this.state.collections.length} \u6761\u6536\u85CF\uFF0C${this.state.localSubjects.size} \u6761\u5DF2\u540C\u6B65`);
     this.renderTable();
@@ -3854,7 +4081,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (selectedCollections.length === 0) {
-      new import_obsidian12.Notice("\u8BF7\u5148\u9009\u62E9\u5DF2\u540C\u6B65\u7684\u6761\u76EE\u8FDB\u884C\u7F16\u8F91");
+      new import_obsidian13.Notice("\u8BF7\u5148\u9009\u62E9\u5DF2\u540C\u6B65\u7684\u6761\u76EE\u8FDB\u884C\u7F16\u8F91");
       return;
     }
     const filePaths = selectedCollections.map((c) => {
@@ -3866,7 +4093,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
       filePaths,
       async (operations) => {
         const result = await this.frontmatterEditor.batchModify(filePaths, operations);
-        new import_obsidian12.Notice(`\u6279\u91CF\u7F16\u8F91\u5B8C\u6210\uFF1A\u6210\u529F ${result.success} \u4E2A\uFF0C\u5931\u8D25 ${result.failed} \u4E2A`);
+        new import_obsidian13.Notice(`\u6279\u91CF\u7F16\u8F91\u5B8C\u6210\uFF1A\u6210\u529F ${result.success} \u4E2A\uFF0C\u5931\u8D25 ${result.failed} \u4E2A`);
         this.renderActionBar();
       }
     );
@@ -3877,15 +4104,15 @@ var ControlPanel = class extends import_obsidian12.Modal {
    */
   async undoLastEdit() {
     if (!this.frontmatterEditor.canUndo()) {
-      new import_obsidian12.Notice("\u6CA1\u6709\u53EF\u64A4\u9500\u7684\u64CD\u4F5C");
+      new import_obsidian13.Notice("\u6CA1\u6709\u53EF\u64A4\u9500\u7684\u64CD\u4F5C");
       return;
     }
     const success = await this.frontmatterEditor.undo();
     if (success) {
-      new import_obsidian12.Notice("\u64A4\u9500\u6210\u529F");
+      new import_obsidian13.Notice("\u64A4\u9500\u6210\u529F");
       this.renderActionBar();
     } else {
-      new import_obsidian12.Notice("\u64A4\u9500\u5931\u8D25");
+      new import_obsidian13.Notice("\u64A4\u9500\u5931\u8D25");
     }
   }
   /**
@@ -3897,7 +4124,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
       (c) => this.state.localSubjects.has(c.subject_id)
     );
     if (syncedCollections.length === 0) {
-      new import_obsidian12.Notice("\u6CA1\u6709\u5DF2\u540C\u6B65\u7684\u6761\u76EE\uFF0C\u65E0\u6CD5\u5BF9\u6BD4\u77ED\u8BC4");
+      new import_obsidian13.Notice("\u6CA1\u6709\u5DF2\u540C\u6B65\u7684\u6761\u76EE\uFF0C\u65E0\u6CD5\u5BF9\u6BD4\u77ED\u8BC4");
       return;
     }
     this.state.loading = true;
@@ -3909,7 +4136,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
         if (!localInfo)
           continue;
         const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-        if (!(file instanceof import_obsidian12.TFile))
+        if (!(file instanceof import_obsidian13.TFile))
           continue;
         const content = await this.app.vault.read(file);
         const localComment = this.incrementalSync.extractComment(content);
@@ -3931,7 +4158,7 @@ var ControlPanel = class extends import_obsidian12.Modal {
       }
       this.state.loading = false;
       if (diffs.length === 0) {
-        new import_obsidian12.Notice("\u6CA1\u6709\u77ED\u8BC4\u5DEE\u5F02");
+        new import_obsidian13.Notice("\u6CA1\u6709\u77ED\u8BC4\u5DEE\u5F02");
         this.renderStatus("\u6CA1\u6709\u77ED\u8BC4\u5DEE\u5F02");
         return;
       }
@@ -3948,13 +4175,81 @@ var ControlPanel = class extends import_obsidian12.Modal {
     } catch (error) {
       this.state.loading = false;
       const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian12.Notice(`\u5BF9\u6BD4\u77ED\u8BC4\u5931\u8D25: ${errorMsg}`);
+      new import_obsidian13.Notice(`\u5BF9\u6BD4\u77ED\u8BC4\u5931\u8D25: ${errorMsg}`);
       this.renderStatus(`\u5BF9\u6BD4\u77ED\u8BC4\u5931\u8D25: ${errorMsg}`);
     }
   }
+  /**
+   * 处理键盘导航
+   */
+  handleKeyDown(event) {
+    const filteredCollections = this.getFilteredCollections();
+    const startIndex = (this.currentPage - 1) * this.pageSize;
+    const pageCollections = filteredCollections.slice(startIndex, startIndex + this.pageSize);
+    if (pageCollections.length === 0)
+      return;
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        this.focusedRowIndex = Math.min(this.focusedRowIndex + 1, pageCollections.length - 1);
+        this.updateFocus();
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        this.focusedRowIndex = Math.max(this.focusedRowIndex - 1, 0);
+        this.updateFocus();
+        break;
+      case "PageDown":
+        event.preventDefault();
+        if (this.currentPage < Math.ceil(filteredCollections.length / this.pageSize)) {
+          this.currentPage++;
+          this.focusedRowIndex = 0;
+          this.renderTable();
+          this.renderPagination();
+        }
+        break;
+      case "PageUp":
+        event.preventDefault();
+        if (this.currentPage > 1) {
+          this.currentPage--;
+          this.focusedRowIndex = 0;
+          this.renderTable();
+          this.renderPagination();
+        }
+        break;
+      case "Enter":
+      case " ":
+        event.preventDefault();
+        if (this.focusedRowIndex >= 0 && this.focusedRowIndex < pageCollections.length) {
+          const collection = pageCollections[this.focusedRowIndex];
+          const localInfo = this.state.localSubjects.get(collection.subject_id);
+          if (localInfo) {
+            this.openFile(localInfo.path);
+          }
+        }
+        break;
+      case "Escape":
+        event.preventDefault();
+        this.close();
+        break;
+    }
+  }
+  /**
+   * 更新焦点样式
+   */
+  updateFocus() {
+    this.tableRows.forEach((row, index) => {
+      if (index === this.focusedRowIndex) {
+        row.addClass("focused");
+        row.scrollIntoView({ block: "nearest" });
+      } else {
+        row.removeClass("focused");
+      }
+    });
+  }
 };
 
-// v4/main.ts
+// main.ts
 var TEMPLATE_CONFIG_MAP = {
   animeTemplateConfig: ANIME_TEMPLATE,
   novelTemplateConfig: NOVEL_TEMPLATE,
@@ -3964,7 +4259,7 @@ var TEMPLATE_CONFIG_MAP = {
   musicTemplateConfig: MUSIC_TEMPLATE,
   realTemplateConfig: REAL_TEMPLATE
 };
-var BangumiPluginV3 = class extends import_obsidian13.Plugin {
+var BangumiPlugin = class extends import_obsidian14.Plugin {
   constructor() {
     super(...arguments);
     this.syncManager = null;
@@ -3978,22 +4273,25 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
     this.addCommand({
       id: "open-control-panel",
       name: "\u6253\u5F00\u6536\u85CF\u7BA1\u7406\u9762\u677F",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "b" }],
       callback: () => this.openControlPanel()
     });
     this.addCommand({
       id: "sync-collections",
       name: "\u540C\u6B65 Bangumi \u6536\u85CF",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "s" }],
       callback: () => this.openSyncOptions()
     });
     this.addCommand({
       id: "quick-sync-collections",
       name: "\u5FEB\u901F\u540C\u6B65\uFF08\u4F7F\u7528\u9ED8\u8BA4\u8BBE\u7F6E\uFF09",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "q" }],
       callback: () => this.syncCollections()
     });
     this.addRibbonIcon("database", "Bangumi \u6536\u85CF\u7BA1\u7406", () => {
       this.openControlPanel();
     });
-    this.addSettingTab(new BangumiSettingTabV3(
+    this.addSettingTab(new BangumiSettingTab(
       this.app,
       this,
       this.settings,
@@ -4005,7 +4303,7 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
     if (this.settings.autoSync) {
       this.setupAutoSync();
     }
-    console.log("[Bangumi Sync V3] \u63D2\u4EF6\u52A0\u8F7D\u5B8C\u6210");
+    console.log("[Bangumi Sync] \u63D2\u4EF6\u52A0\u8F7D\u5B8C\u6210");
   }
   onunload() {
     if (this.autoSyncIntervalId !== null) {
@@ -4020,14 +4318,14 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
       this.controlPanel.close();
       this.controlPanel = null;
     }
-    console.log("[Bangumi Sync V3] \u63D2\u4EF6\u5378\u8F7D");
+    console.log("[Bangumi Sync] \u63D2\u4EF6\u5378\u8F7D");
   }
   /**
    * 加载设置
    */
   async loadSettings() {
     const loadedData = await this.loadData();
-    this.settings = Object.assign({}, DEFAULT_SETTINGS_V3, loadedData);
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
   }
   /**
    * 保存设置
@@ -4048,7 +4346,7 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
       scanFolderPath: this.settings.scanFolderPath,
       customTemplates: templates
     };
-    this.syncManager = new SyncManagerV3(this.app, config);
+    this.syncManager = new SyncManager(this.app, config);
   }
   /**
    * 获取各类型模板
@@ -4099,12 +4397,12 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
         if (config.filePath) {
           try {
             const file = this.app.vault.getAbstractFileByPath(config.filePath);
-            if (file instanceof import_obsidian13.TFile) {
+            if (file instanceof import_obsidian14.TFile) {
               return await this.app.vault.read(file);
             }
           } catch (error) {
-            console.error(`[Bangumi Sync V3] \u8BFB\u53D6\u6A21\u677F\u6587\u4EF6\u5931\u8D25: ${config.filePath}`, error);
-            new import_obsidian13.Notice(`\u6A21\u677F\u6587\u4EF6\u8BFB\u53D6\u5931\u8D25: ${config.filePath}`);
+            console.error(`[Bangumi Sync] \u8BFB\u53D6\u6A21\u677F\u6587\u4EF6\u5931\u8D25: ${config.filePath}`, error);
+            new import_obsidian14.Notice(`\u6A21\u677F\u6587\u4EF6\u8BFB\u53D6\u5931\u8D25: ${config.filePath}`);
           }
         }
         return defaultTemplate;
@@ -4116,11 +4414,11 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
     }
   }
   /**
-   * 打开控制面板（V3 核心功能）
+   * 打开控制面板
    */
   openControlPanel() {
     if (!this.settings.accessToken) {
-      new import_obsidian13.Notice("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E Access Token");
+      new import_obsidian14.Notice("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E Access Token");
       return;
     }
     if (this.controlPanel) {
@@ -4142,10 +4440,10 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
    */
   openSyncOptions() {
     if (!this.settings.accessToken) {
-      new import_obsidian13.Notice("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E Access Token");
+      new import_obsidian14.Notice("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E Access Token");
       return;
     }
-    const modal = new SyncOptionsModalV3(
+    const modal = new SyncOptionsModal(
       this.app,
       {
         subjectTypes: this.settings.defaultSubjectTypes,
@@ -4175,22 +4473,22 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
    */
   async syncCollectionsWithOptions(options, showPreview = true) {
     if (!this.settings.accessToken) {
-      new import_obsidian13.Notice("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E Access Token");
+      new import_obsidian14.Notice("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E Access Token");
       return;
     }
     if (options.subjectTypes.length === 0) {
-      new import_obsidian13.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u79CD\u6761\u76EE\u7C7B\u578B");
+      new import_obsidian14.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u79CD\u6761\u76EE\u7C7B\u578B");
       return;
     }
     if (options.collectionTypes.length === 0) {
-      new import_obsidian13.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u79CD\u6536\u85CF\u72B6\u6001");
+      new import_obsidian14.Notice("\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u79CD\u6536\u85CF\u72B6\u6001");
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian13.Notice("\u540C\u6B65\u7BA1\u7406\u5668\u672A\u521D\u59CB\u5316");
+      new import_obsidian14.Notice("\u540C\u6B65\u7BA1\u7406\u5668\u672A\u521D\u59CB\u5316");
       return;
     }
-    this.syncModal = new SyncModalV3(this.app);
+    this.syncModal = new SyncModal(this.app);
     this.syncModal.open();
     this.syncManager.setProgressCallback((progress) => {
       if (this.syncModal) {
@@ -4205,28 +4503,28 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
         force: options.force
       });
       if (!prepareResult.success) {
-        new import_obsidian13.Notice(`\u540C\u6B65\u5931\u8D25: ${prepareResult.error}`);
+        new import_obsidian14.Notice(`\u540C\u6B65\u5931\u8D25: ${prepareResult.error}`);
         this.syncModal.close();
         this.syncModal = null;
         return;
       }
       if (!prepareResult.previewItems || prepareResult.previewItems.length === 0) {
-        new import_obsidian13.Notice("\u6CA1\u6709\u9700\u8981\u540C\u6B65\u7684\u6761\u76EE");
+        new import_obsidian14.Notice("\u6CA1\u6709\u9700\u8981\u540C\u6B65\u7684\u6761\u76EE");
         this.syncModal.close();
         this.syncModal = null;
         return;
       }
       this.syncModal.close();
       this.syncModal = null;
-      const previewModal = new SyncPreviewModalV3(
+      const previewModal = new SyncPreviewModal(
         this.app,
         prepareResult.previewItems,
         async (result) => {
           if (result.action === "cancel") {
-            new import_obsidian13.Notice("\u5DF2\u53D6\u6D88\u540C\u6B65");
+            new import_obsidian14.Notice("\u5DF2\u53D6\u6D88\u540C\u6B65");
             return;
           }
-          this.syncModal = new SyncModalV3(this.app);
+          this.syncModal = new SyncModal(this.app);
           this.syncModal.open();
           this.syncManager.setProgressCallback((progress) => {
             if (this.syncModal) {
@@ -4237,8 +4535,8 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
           this.settings.lastSyncTime = new Date().toISOString();
           this.settings.lastSyncCount = syncResult.added + syncResult.skipped;
           await this.saveSettings();
-          new import_obsidian13.Notice(
-            `V3 \u540C\u6B65\u5B8C\u6210\uFF01\u65B0\u589E: ${syncResult.added}, \u8DF3\u8FC7: ${prepareResult.skipped}, \u9519\u8BEF: ${syncResult.errors}`
+          new import_obsidian14.Notice(
+            `\u540C\u6B65\u5B8C\u6210\uFF01\u65B0\u589E: ${syncResult.added}, \u8DF3\u8FC7: ${prepareResult.skipped}, \u9519\u8BEF: ${syncResult.errors}`
           );
           setTimeout(() => {
             if (this.syncModal) {
@@ -4259,8 +4557,8 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
       this.settings.lastSyncTime = new Date().toISOString();
       this.settings.lastSyncCount = result.added + result.skipped;
       await this.saveSettings();
-      new import_obsidian13.Notice(
-        `V3 \u540C\u6B65\u5B8C\u6210\uFF01\u65B0\u589E: ${result.added}, \u8DF3\u8FC7: ${result.skipped}, \u9519\u8BEF: ${result.errors}`
+      new import_obsidian14.Notice(
+        `\u540C\u6B65\u5B8C\u6210\uFF01\u65B0\u589E: ${result.added}, \u8DF3\u8FC7: ${result.skipped}, \u9519\u8BEF: ${result.errors}`
       );
       setTimeout(() => {
         if (this.syncModal) {
@@ -4286,4 +4584,5 @@ var BangumiPluginV3 = class extends import_obsidian13.Plugin {
     }
   }
 };
-var main_default = BangumiPluginV3;
+var main_default = BangumiPlugin;
+var BangumiPluginV3 = BangumiPlugin;

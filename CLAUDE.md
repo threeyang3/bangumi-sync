@@ -10,38 +10,32 @@
 
 ## 版本说明
 
-### V1 版本（默认）
-- 使用缓存记录已同步条目 ID
-- 使用公共标签
+当前版本集成了以下功能：
 
-### V2 版本
-- **通过扫描本地文件夹检测已同步条目**（不依赖缓存）
-- **使用用户自己的标签**，如果没有则留空
-- **智能数量限制**：如果未同步数量不够，同步所有未同步的条目
-- **手动同步预览**：导入前可预览条目列表，勾选要导入的条目
-- **评分明细输入**：手动同步时可在弹窗中填写评分明细
-
-### V3 版本
+- **集数追踪**：自动获取并显示动画集数、小说卷数、漫画话数
+- **紧凑显示**：集数以数字框形式显示，节省空间
+- **悬浮提示**：鼠标悬浮显示集数标题、放送日期、时长
+- **观看状态**：已看集数高亮显示，与 Bangumi 同步
 - **控制面板**：查询并展示用户所有收藏条目
 - **同步状态标记**：对照本地目录，标记条目是否已同步
 - **标签显示**：列表中显示用户标签（最多3个）
 - **短评显示**：列表中显示云端短评（最多20字）
-- **同步选中**：在面板中选中未同步条目后可直接同步，保留用户数据（评分、状态、短评、标签等）
+- **同步选中**：在面板中选中未同步条目后可直接同步，保留用户数据
 - **强制同步**：覆盖已存在的本地文件
 - **删除本地文件**：从面板中删除已同步的条目（移动到回收站）
 - **批量编辑**：选择多个条目统一新增/修改/删除 frontmatter 属性
 - **撤销支持**：批量编辑支持撤销操作（最多10步）
 - **打开本地文件**：在控制面板中直接打开已同步的本地文件
 - **短评双向同步**：对比本地与云端短评差异，选择保留哪个版本
-- **性能优化**：列表不加载封面图片，加快加载速度
-- 继承 V2 所有特性
-
-### V4 版本（推荐）
-- **集数追踪**：自动获取并显示动画集数、小说卷数、漫画话数
-- **紧凑显示**：集数以数字框形式显示，节省空间
-- **悬浮提示**：鼠标悬浮显示集数标题、放送日期、时长
-- **观看状态**：已看集数高亮显示，与 Bangumi 同步
-- 继承 V3 所有特性
+- **模板增强**：支持条件渲染 `{{#if}}` 和默认值 `{{var|default}}`
+- **快捷键**：默认快捷键支持，控制面板键盘导航
+- **冲突处理**：检测本地与云端数据冲突，提供解决选项
+- **图片管理**：支持选择图片质量、更新已存在图片
+- **扫描本地文件夹**：检测已同步条目（不依赖缓存）
+- **用户标签**：使用用户自己的标签，如果没有则留空
+- **智能数量限制**：如果未同步数量不够，同步所有未同步的条目
+- **手动同步预览**：导入前可预览条目列表，勾选要导入的条目
+- **评分明细输入**：手动同步时可在弹窗中填写评分明细
 
 ## 技术栈
 
@@ -58,110 +52,48 @@ bangumi/
 ├── package.json               # NPM 配置
 ├── tsconfig.json              # TypeScript 配置
 ├── esbuild.config.mjs         # 构建配置
+├── main.ts                    # 插件入口
+├── main.js                    # 编译输出
+├── manifest.json              # 插件清单
 ├── styles.css                 # 插件样式
 │
-├── v1/                        # V1 版本
-│   ├── main.ts                # V1 插件入口
-│   ├── main.js                # V1 编译输出
-│   ├── manifest.json          # V1 插件清单
-│   └── src/
-│       ├── api/               # V1 API 层
-│       │   └── client.ts      # V1 API 客户端
-│       ├── sync/              # V1 同步层
-│       │   ├── syncManager.ts # V1 同步管理器
-│       │   ├── incrementalSync.ts # V1 增量同步（基于缓存）
-│       │   └── syncStatus.ts  # V1 同步状态
-│       ├── template/          # V1 模板层
-│       │   └── contentTemplate.ts # V1 内容模板
-│       ├── parser/            # V1 解析层
-│       │   ├── infoboxParser.ts
-│       │   └── characterParser.ts
-│       ├── file/              # V1 文件层
-│       │   └── fileManager.ts
-│       ├── settings/          # V1 设置层
-│       │   ├── settings.ts
-│       │   └── settingsTab.ts
-│       └── ui/                # V1 UI 层
-│           ├── syncModal.ts
-│           └── syncOptionsModal.ts
+├── src/                       # 源代码
+│   ├── api/                   # API 层
+│   │   └── client.ts          # API 客户端
+│   ├── sync/                  # 同步层
+│   │   ├── syncManager.ts     # 同步管理器
+│   │   ├── incrementalSync.ts # 增量同步
+│   │   └── syncStatus.ts      # 同步状态
+│   ├── template/              # 模板层
+│   │   └── contentTemplate.ts # 内容模板（支持条件渲染、默认值）
+│   ├── file/                  # 文件层
+│   │   └── fileManager.ts     # 文件管理器
+│   ├── panel/                 # 控制面板层
+│   │   ├── controlPanel.ts    # 控制面板主类（支持键盘导航）
+│   │   ├── batchEditorModal.ts # 批量编辑器
+│   │   ├── commentSyncModal.ts # 短评同步弹窗
+│   │   └── conflictResolver.ts # 冲突解决器
+│   ├── settings/              # 设置层
+│   │   ├── settings.ts        # 设置数据结构
+│   │   └── settingsTab.ts     # 设置面板 UI
+│   └── ui/                    # UI 层
+│       ├── syncModal.ts       # 同步进度弹窗
+│       ├── syncOptionsModal.ts # 同步选项弹窗
+│       └── syncPreviewModal.ts # 同步预览弹窗
 │
-├── v2/                        # V2 版本
-│   ├── main.ts                # V2 插件入口
-│   ├── main.js                # V2 编译输出
-│   ├── manifest.json          # V2 插件清单
-│   └── src/
-│       ├── api/               # V2 API 层
-│       │   └── client.ts      # V2 API 客户端
-│       ├── sync/              # V2 同步层
-│       │   ├── syncManager.ts # V2 同步管理器
-│       │   ├── incrementalSync.ts # V2 增量同步（扫描本地文件夹）
-│       │   └── syncStatus.ts  # V2 同步状态
-│       ├── template/          # V2 模板层
-│       │   └── contentTemplate.ts # V2 内容模板（使用用户标签）
-│       ├── file/              # V2 文件层
-│       │   └── fileManager.ts
-│       ├── settings/          # V2 设置层
-│       │   ├── settings.ts
-│       │   └── settingsTab.ts
-│       └── ui/                # V2 UI 层
-│           ├── syncModal.ts
-│           ├── syncOptionsModal.ts
-│           └── syncPreviewModal.ts  # V2 预览确认弹窗
+├── docs/                      # 文档目录
+│   └── TEMPLATE_GUIDE.md      # 模板设计指南
 │
-├── v3/                        # V3 版本
-│   ├── main.ts                # V3 插件入口
-│   ├── main.js                # V3 编译输出
-│   ├── manifest.json          # V3 插件清单
-│   └── src/
-│       ├── api/               # V3 API 层
-│       │   └── client.ts      # V3 API 客户端
-│       ├── sync/              # V3 同步层
-│       │   ├── syncManager.ts # V3 同步管理器
-│       │   ├── incrementalSync.ts # V3 增量同步
-│       │   └── syncStatus.ts  # V3 同步状态
-│       ├── template/          # V3 模板层
-│       │   └── contentTemplate.ts # V3 内容模板
-│       ├── file/              # V3 文件层
-│       │   └── fileManager.ts
-│       ├── panel/             # V3 控制面板层
-│       │   ├── controlPanel.ts    # 控制面板主类
-│       │   ├── batchEditorModal.ts # 批量编辑器
-│       │   └── commentSyncModal.ts # 短评同步弹窗
-│       ├── settings/          # V3 设置层
-│       │   ├── settings.ts
-│       │   └── settingsTab.ts
-│       └── ui/                # V3 UI 层
-│           ├── syncModal.ts
-│           ├── syncOptionsModal.ts
-│           └── syncPreviewModal.ts
+├── release/                   # 发布目录
+│   ├── main.js                # 最新版本插件文件
+│   ├── manifest.json          # 最新版本清单
+│   └── styles.css             # 最新版本样式
 │
-├── v4/                        # V4 版本
-│   ├── main.ts                # V4 插件入口
-│   ├── main.js                # V4 编译输出
-│   ├── manifest.json          # V4 插件清单
-│   ├── styles.css             # V4 样式文件
-│   └── src/
-│       ├── api/               # V4 API 层
-│       │   └── client.ts      # V4 API 客户端
-│       ├── sync/              # V4 同步层
-│       │   ├── syncManager.ts # V4 同步管理器
-│       │   ├── incrementalSync.ts # V4 增量同步
-│       │   └── syncStatus.ts  # V4 同步状态
-│       ├── template/          # V4 模板层
-│       │   └── contentTemplate.ts # V4 内容模板
-│       ├── file/              # V4 文件层
-│       │   └── fileManager.ts
-│       ├── panel/             # V4 控制面板层
-│       │   ├── controlPanel.ts    # 控制面板主类
-│       │   ├── batchEditorModal.ts # 批量编辑器
-│       │   └── commentSyncModal.ts # 短评同步弹窗
-│       ├── settings/          # V4 设置层
-│       │   ├── settings.ts
-│       │   └── settingsTab.ts
-│       └── ui/                # V4 UI 层
-│           ├── syncModal.ts
-│           ├── syncOptionsModal.ts
-│           └── syncPreviewModal.ts
+├── archives/                  # 历史版本压缩包
+│   ├── bangumi-sync-v1.zip
+│   ├── bangumi-sync-v2.zip
+│   ├── bangumi-sync-v3.x.zip
+│   └── ...
 │
 └── common/                    # 共享模块
     ├── api/                   # 共享 API 模块
@@ -170,7 +102,8 @@ bangumi/
     │   └── client.ts          # 基础 API 客户端
     ├── parser/                # 共享解析模块
     │   ├── infoboxParser.ts   # 条目信息解析
-    │   └── characterParser.ts # 角色信息解析
+    │   ├── characterParser.ts # 角色信息解析
+    │   └── episodeParser.ts   # 章节信息解析
     ├── template/              # 共享模板模块
     │   ├── defaultTemplates.ts # 默认模板定义
     │   └── pathTemplate.ts    # 路径模板处理
@@ -214,9 +147,9 @@ bangumi/
 #### 强制同步选项
 - 开关控制是否忽略已存在的条目重新同步
 
-### 3. 同步预览（V2/V3 手动同步）
+### 3. 同步预览
 
-V2/V3 版本在手动同步时会显示**预览确认弹窗**：
+手动同步时会显示**预览确认弹窗**：
 
 - 列出所有待同步的条目
 - 每个条目可勾选/取消勾选
@@ -236,32 +169,15 @@ V2/V3 版本在手动同步时会显示**预览确认弹窗**：
 
 ### 5. 命令列表
 
-#### V1/V2 命令
+| 命令 | 快捷键 | 说明 |
+|------|--------|------|
+| 同步 Bangumi 收藏 | `Ctrl+Shift+S` | 打开同步选项弹窗 |
+| 快速同步（使用默认设置） | `Ctrl+Shift+Q` | 自动同步模式 |
+| 打开控制面板 | `Ctrl+Shift+B` | 打开收藏管理控制面板 |
 
-| 命令 | 说明 |
-|------|------|
-| 同步 Bangumi 收藏 | 打开同步选项弹窗，选择后显示预览确认 |
-| 快速同步（使用默认设置） | 自动同步模式，不显示预览弹窗 |
+### 6. 控制面板
 
-#### V3 命令
-
-| 命令 | 说明 |
-|------|------|
-| 同步 Bangumi 收藏 | 打开同步选项弹窗 |
-| 快速同步（使用默认设置） | 自动同步模式 |
-| 打开控制面板 | 打开收藏管理控制面板 |
-
-#### V4 命令
-
-| 命令 | 说明 |
-|------|------|
-| 同步 Bangumi 收藏 | 打开同步选项弹窗 |
-| 快速同步（使用默认设置） | 自动同步模式 |
-| 打开控制面板 | 打开收藏管理控制面板 |
-
-### 6. 控制面板（V3）
-
-V3 版本新增**控制面板**功能：
+控制面板功能：
 
 #### 功能概述
 - 展示用户所有收藏条目（不加载封面图片，加载速度快）
@@ -321,8 +237,8 @@ V3 版本新增**控制面板**功能：
   - `CollectionType` - 收藏类型枚举
   - `Subject` - 条目数据结构
   - `UserCollection` - 用户收藏数据结构
-  - `Episode` - 章节数据结构（V4）
-  - `UserEpisodeCollection` - 用户章节收藏状态（V4）
+  - `Episode` - 章节数据结构
+  - `UserEpisodeCollection` - 用户章节收藏状态
 - **endpoints.ts**: API 端点常量
 - **client.ts**: 基础 API 客户端
 
@@ -334,7 +250,7 @@ V3 版本新增**控制面板**功能：
   - `cleanSummary()` - 清理简介文本
   - `cleanMultilineText()` - 清理多行文本（用于短评等字段）
 - **characterParser.ts**: 解析角色信息（最多9个角色）
-- **episodeParser.ts**: 解析章节信息（V4 新增）
+- **episodeParser.ts**: 解析章节信息
   - `parseEpisodes()` - 生成集数显示内容
   - `generateEpisodeBox()` - 生成单个集数框 HTML
   - `createUserStatusMap()` - 创建用户章节状态映射
@@ -349,27 +265,43 @@ V3 版本新增**控制面板**功能：
 - **fileManager.ts**: 文件创建/更新管理
 - **imageHandler.ts**: 封面图片下载处理，支持自定义文件名
 
-### V1 同步层 (`v1/src/sync/`)
+### 同步层 (`src/sync/`)
 
-- **syncManager.ts**: V1 核心同步逻辑
-- **incrementalSync.ts**: V1 增量同步（基于缓存记录已同步 ID）
-
-### V2 同步层 (`v2/src/sync/`)
-
-- **syncManager.ts**: V2 核心同步逻辑
+- **syncManager.ts**: 核心同步逻辑
   - `sync()` - 自动同步，直接导入
   - `prepareSync()` - 准备同步，获取预览数据
   - `executeSync()` - 执行同步，支持用户编辑的数据
-- **incrementalSync.ts**: V2 增量同步，通过扫描本地文件夹检测已同步条目
+  - `syncByCollections()` - 按收藏列表同步，保留用户数据
+- **incrementalSync.ts**: 增量同步，通过扫描本地文件夹检测已同步条目
   - `scanLocalFolder()` - 扫描本地文件夹，提取已同步条目 ID
   - `computeDiff()` - 计算需要同步的条目，支持智能数量限制
 
-### V2 模板层 (`v2/src/template/`)
+### 模板层 (`src/template/`)
 
-- **contentTemplate.ts**: V2 内容模板处理
-  - `extractTemplateVarsV2()` - 提取模板变量，使用用户自己的标签，支持评分明细
+- **contentTemplate.ts**: 内容模板处理
+  - 支持条件渲染 `{{#if}}`
+  - 支持默认值 `{{var|default}}`
+  - 使用用户自己的标签，支持评分明细
 
-### V2 UI 层 (`v2/src/ui/`)
+### 控制面板层 (`src/panel/`)
+
+- **controlPanel.ts**: 控制面板主类
+  - 展示所有收藏条目（无封面，加载快）
+  - 筛选、搜索、分页
+  - 同步状态标记
+  - 同步选中（保留用户数据）
+  - 键盘导航支持
+- **batchEditorModal.ts**: 批量编辑器
+  - `BatchEditorModal` - 批量编辑弹窗 UI
+  - `FrontmatterEditor` - Frontmatter 编辑器
+    - `batchModify()` - 批量修改多个文件
+    - `undo()` - 撤销上一次操作
+    - `canUndo()` - 检查是否可撤销
+- **conflictResolver.ts**: 冲突解决器
+  - 检测本地与云端数据冲突
+  - 提供解决选项
+
+### UI 层 (`src/ui/`)
 
 - **syncOptionsModal.ts**: 同步选项弹窗
 - **syncModal.ts**: 同步进度弹窗
@@ -378,64 +310,17 @@ V3 版本新增**控制面板**功能：
   - 评分明细输入
   - 全选/全不选/反选
 
-### V3 同步层 (`v3/src/sync/`)
-
-- **syncManager.ts**: V3 核心同步逻辑
-  - `sync()` - 自动同步，直接导入
-  - `prepareSync()` - 准备同步，获取预览数据
-  - `executeSync()` - 执行同步，支持用户编辑的数据
-  - `syncByCollections()` - 按收藏列表同步，保留用户数据（评分、状态、短评等）
-- **incrementalSync.ts**: V3 增量同步，通过扫描本地文件夹检测已同步条目
-  - `scanLocalFolder()` - 扫描本地文件夹，提取已同步条目 ID
-  - `computeDiff()` - 计算需要同步的条目，支持智能数量限制
-
-### V3 控制面板层 (`v3/src/panel/`)
-
-- **controlPanel.ts**: 控制面板主类
-  - 展示所有收藏条目（无封面，加载快）
-  - 筛选、搜索、分页
-  - 同步状态标记
-  - 同步选中（保留用户数据）
-  - 打开本地文件
-- **batchEditorModal.ts**: 批量编辑器
-  - `BatchEditorModal` - 批量编辑弹窗 UI
-  - `FrontmatterEditor` - Frontmatter 编辑器
-    - `batchModify()` - 批量修改多个文件
-    - `undo()` - 撤销上一次操作
-    - `canUndo()` - 检查是否可撤销
-
 ## 开发命令
 
 ```bash
 # 安装依赖
 npm install
 
-# 开发模式（监听文件变化）- V1
+# 开发模式（监听文件变化）
 npm run dev
 
-# 开发模式 - V2
-npm run dev:v2
-
-# 开发模式 - V3
-npm run dev:v3
-
-# 开发模式 - V4
-npm run dev:v4
-
-# 生产构建 - V1
+# 生产构建
 npm run build
-
-# 生产构建 - V2
-npm run build:v2
-
-# 生产构建 - V3
-npm run build:v3
-
-# 生产构建 - V4
-npm run build:v4
-
-# 构建所有版本
-npm run build:all
 ```
 
 ## 代码风格
@@ -480,7 +365,24 @@ npm run build:all
 - 条目特定: `{{episode}}`, `{{director}}`, `{{author}}`, `{{develop}}` 等
 - 角色: `{{character1-9}}`, `{{characterCV1-9}}`, `{{characterPhoto1-9}}`
 - 评分明细: `{{rating_music}}`, `{{rating_character}}`, `{{rating_story}}`, `{{rating_art}}`, `{{rating_illustration}}`, `{{rating_writing}}`, `{{rating_drawing}}`, `{{rating_fun}}`
-- 章节 (V4): `{{episodes}}`, `{{volumes}}`
+- 章节: `{{episodes}}`, `{{volumes}}`
+
+### 模板高级语法
+
+#### 条件渲染
+```markdown
+{{#if my_rate}}my_rate: {{my_rate}}{{/if}}
+```
+当变量有值时显示内容。
+
+#### 默认值
+```markdown
+rating: {{rating|未评分}}
+director: {{director|未知}}
+```
+当变量为空时显示默认值。
+
+详细模板变量说明请参考 `docs/TEMPLATE_GUIDE.md`。
 
 ### 评分明细字段说明
 
@@ -508,15 +410,15 @@ npm run build:all
 - `GET /v0/subjects/{subject_id}` - 获取条目详情
 - `GET /v0/subjects/{subject_id}/characters` - 获取条目角色
 - `POST /v0/search/subjects` - 搜索条目
-- `GET /v0/episodes?subject_id={id}` - 获取条目章节（V4）
-- `GET /v0/users/-/collections/{subject_id}/episodes` - 获取用户章节状态（V4）
-- `PUT /v0/users/-/collections/-/episodes/{episode_id}` - 更新章节状态（V4）
+- `GET /v0/episodes?subject_id={id}` - 获取条目章节
+- `GET /v0/users/-/collections/{subject_id}/episodes` - 获取用户章节状态
+- `PUT /v0/users/-/collections/-/episodes/{episode_id}` - 更新章节状态
 
 ## 调试技巧
 
 1. 在 Obsidian 中启用开发者模式
 2. 打开开发者控制台 (Ctrl+Shift+I)
-3. 查看控制台日志（带 `[Bangumi Sync]`、`[Bangumi Sync V2]` 或 `[Bangumi Sync V3]` 前缀）
+3. 查看控制台日志（带 `[Bangumi Sync]` 前缀）
 4. 插件数据存储在 `.obsidian/plugins/bangumi-sync/` 目录
 
 ## 注意事项
@@ -530,55 +432,50 @@ npm run build:all
 - **多行文本处理**: 短评 (`my_comment`) 等多行文本字段会自动将换行符替换为空格，以符合 YAML frontmatter 格式要求
 - **条目 ID 存储**: 模板中包含 `id: {{id}}` 字段，用于扫描本地文件夹时识别已同步条目
 
-## V2/V3 版本特性
+## 历史版本特性
 
-### 1. 扫描本地文件夹检测已同步条目
+以下特性在当前版本中均已支持：
 
-V2/V3 不再依赖缓存记录已同步的条目 ID，而是通过扫描本地文件夹来检测：
+### 扫描本地文件夹检测已同步条目
+
+不再依赖缓存记录已同步的条目 ID，而是通过扫描本地文件夹来检测：
 
 - 扫描指定文件夹中的所有 Markdown 文件
 - 从文件内容中提取条目 ID（通过 frontmatter 中的 `id` 字段）
 - 自动跳过已存在的条目
 
-### 2. 使用用户自己的标签
+### 使用用户自己的标签
 
-V2/V3 中 `{{tags}}` 变量使用用户在 Bangumi 上自己标注的标签：
+`{{tags}}` 变量使用用户在 Bangumi 上自己标注的标签：
 - 如果用户没有标注标签，则留空
 - 不再使用公共标签
 
-### 3. 智能数量限制
+### 智能数量限制
 
-V2/V3 改进了数量限制逻辑：
+改进的数量限制逻辑：
 - 用户设置同步数量限制（如 50）
 - 系统计算未同步的条目数量
 - 如果未同步数量少于限制，同步所有未同步的条目
 - 如果未同步数量多于限制，只同步指定数量的条目
 
-### 4. 手动同步预览
+### 手动同步预览
 
-V2/V3 手动同步时显示预览弹窗：
+手动同步时显示预览弹窗：
 - 列出所有待同步条目
 - 支持勾选/取消勾选
 - 支持填写评分明细
 - 三种导入方式：全部导入、只导入选中的、只导入未选中的
 
-### 5. 自动同步无预览
+### 自动同步无预览
 
-V2/V3 自动同步模式：
+自动同步模式：
 - 不显示预览弹窗
 - 直接导入所有待同步条目
 - 评分明细字段留空
 
-### V2/V3 设置
+## 控制面板功能
 
-V2/V3 新增设置项：
-- **扫描文件夹路径**: 用于检测已同步条目的文件夹路径（留空则使用文件路径模板的基础路径）
-
-## V3 版本特有功能
-
-### 控制面板
-
-V3 新增控制面板，提供收藏管理功能：
+### 功能概述
 
 - **查看所有收藏**: 展示用户在 Bangumi 上的所有收藏条目（不加载封面，加载速度快）
 - **标签显示**: 列表中显示用户标签（最多3个）
@@ -606,7 +503,7 @@ V3 新增控制面板，提供收藏管理功能：
 
 ### 批量编辑
 
-V3 支持对已同步条目进行批量编辑：
+支持对已同步条目进行批量编辑：
 
 - **新增属性**: 为选中的条目添加新的 frontmatter 属性
 - **修改属性**: 修改选中条目的现有属性值
@@ -619,33 +516,10 @@ V3 支持对已同步条目进行批量编辑：
 
 ### 短评双向同步
 
-V3 新增短评双向同步功能：
-
 - **对比差异**: 点击"同步短评"按钮，对比已同步条目的本地与云端短评
 - **选择版本**: 对于有差异的条目，选择保留本地版本或云端版本
 - **同步到云端**: 选择保留本地时，更新 Bangumi 云端短评
 - **同步到本地**: 选择保留云端时，更新本地文件中的短评
-
-### 使用 V3 版本
-
-**方式一：从 GitHub Release 下载（推荐）**
-1. 访问 https://github.com/threeyang3/bangumi-sync/releases
-2. 下载 V3 版本的 `main.js` 和 `manifest.json`
-3. 放入 Obsidian 插件目录
-
-**方式二：自行构建**
-1. 克隆仓库：`git clone https://github.com/threeyang3/bangumi-sync.git`
-2. 安装依赖：`npm install`
-3. 构建 V3 版本：`npm run build:v3`
-4. 将 `v3/main.js` 和 `v3/manifest.json` 复制到插件目录
-
-**V3 插件目录结构**：
-```
-你的Vault/.obsidian/plugins/bangumi-sync-v3/
-├── main.js          # 插件主文件
-├── manifest.json    # 插件清单
-└── styles.css       # 样式文件
-```
 
 ## 扩展参考
 
@@ -659,9 +533,12 @@ V3 新增短评双向同步功能：
 
 ### 发布流程
 
-1. 构建插件：`npm run build:all`
-2. 打包发布文件到 `release/` 目录
-3. 使用 GitHub CLI 创建 Release 并上传 zip 文件
+1. 更新 `package.json` 和 `manifest.json` 中的版本号
+2. 构建插件：`npm run build`
+3. 在 `release/` 下创建版本号命名的子目录（如 `release/v4.1.0/`）
+4. 复制 `main.js`、`manifest.json`、`styles.css` 到该目录
+5. 打包为 zip 文件放入 `archives/`
+6. 使用 GitHub CLI 创建 Release 并上传 zip 文件
 
 ### 已发布版本
 
@@ -677,12 +554,21 @@ V3 新增短评双向同步功能：
   - 修复小说书系、册数、官网字段解析问题
   - 支持从版本信息中提取书系和册数
   - 支持链接数组格式的官网字段
+- **v4.1.0**: V4 用户体验增强版本
+  - 新增模板设计指南文档 (`docs/TEMPLATE_GUIDE.md`)
+  - 模板支持条件渲染 `{{#if}}` 和默认值 `{{var|default}}`
+  - 新增默认快捷键支持（Ctrl+Shift+B/S/Q）
+  - 控制面板支持键盘导航（方向键、PageUp/PageDown、Enter、Escape）
+  - 新增同步冲突检测与解决功能
+  - 新增图片质量选择（小/中/大）
+  - 新增更新已存在图片选项
+  - 项目结构重构，删除旧版本代码，简化维护
 
-## V4 版本特有功能
+## 集数追踪功能
 
 ### 集数追踪
 
-V4 新增集数追踪功能，自动获取并显示条目的章节信息：
+自动获取并显示条目的章节信息：
 
 - **动画**：显示所有集数，以数字框形式展示
 - **小说**：显示卷数信息
@@ -706,24 +592,37 @@ V4 新增集数追踪功能，自动获取并显示条目的章节信息：
 - 已看集数在本地文件中会以不同样式显示
 - 支持通过 API 更新章节状态到 Bangumi
 
-### 使用 V4 版本
+### 快捷键支持
 
-**方式一：从 GitHub Release 下载（推荐）**
-1. 访问 https://github.com/threeyang3/bangumi-sync/releases
-2. 下载 V4 版本的 `main.js`、`manifest.json` 和 `styles.css`
-3. 放入 Obsidian 插件目录
+为常用操作添加了默认快捷键：
 
-**方式二：自行构建**
-1. 克隆仓库：`git clone https://github.com/threeyang3/bangumi-sync.git`
-2. 安装依赖：`npm install`
-3. 构建 V4 版本：`npm run build:v4`
-4. 将 `v4/` 目录下的文件复制到插件目录
+| 功能 | 快捷键 |
+|------|--------|
+| 打开控制面板 | `Ctrl+Shift+B` |
+| 同步收藏 | `Ctrl+Shift+S` |
+| 快速同步 | `Ctrl+Shift+Q` |
 
-**V4 插件目录结构**：
-```
-你的Vault/.obsidian/plugins/bangumi-sync-v4/
-├── main.js          # 插件主文件
-├── manifest.json    # 插件清单
-└── styles.css       # 样式文件
-```
+控制面板支持键盘导航：
+- **↑/↓**: 上下移动选中行
+- **PageUp/PageDown**: 翻页
+- **Enter/Space**: 打开选中的已同步文件
+- **Escape**: 关闭面板
+
+### 同步冲突处理
+
+当本地修改后云端也有更新时，会检测冲突并提供解决选项：
+
+- **保留本地**: 使用本地版本的数据
+- **保留云端**: 使用云端版本的数据
+- **跳过**: 不处理此条目
+
+冲突检测范围：评分、短评、标签、收藏状态。
+
+### 图片管理
+
+图片管理设置：
+
+- **图片质量**: 选择下载的图片质量（小/中/大）
+- **更新已存在图片**: 同步时是否更新已存在的封面图片
+
 

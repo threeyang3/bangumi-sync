@@ -1,10 +1,10 @@
 {
-	"id": "bangumi-sync",
-	"name": "Bangumi Sync",
-	"version": "1.0.0",
+	"id": "bangumi-sync-v4",
+	"name": "Bangumi Sync V4",
+	"version": "4.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Sync your Bangumi collections to Obsidian notes with custom templates.",
-	"author": "Your Name",
-	"authorUrl": "https://github.com/yourusername",
+	"description": "Sync your Bangumi collections to Obsidian notes with control panel. V4 features: episode tracking, watched status display, chapter progress sync.",
+	"author": "threeyang",
+	"authorUrl": "https://github.com/threeyang3",
 	"isDesktopOnly": false
 }
