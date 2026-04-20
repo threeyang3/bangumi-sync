@@ -87,13 +87,18 @@ bangumi/
 ├── release/                   # 发布目录
 │   ├── main.js                # 最新版本插件文件
 │   ├── manifest.json          # 最新版本清单
-│   └── styles.css             # 最新版本样式
+│   ├── styles.css             # 最新版本样式
+│   └── v4.1.0/                # 历史版本存档
+│       ├── main.js
+│       ├── manifest.json
+│       └── styles.css
 │
 ├── archives/                  # 历史版本压缩包
 │   ├── bangumi-sync-v1.zip
 │   ├── bangumi-sync-v2.zip
 │   ├── bangumi-sync-v3.x.zip
-│   └── ...
+│   ├── bangumi-sync-v4.0.0.zip
+│   └── bangumi-sync-v4.1.0.zip
 │
 └── common/                    # 共享模块
     ├── api/                   # 共享 API 模块
@@ -554,7 +559,7 @@ director: {{director|未知}}
   - 修复小说书系、册数、官网字段解析问题
   - 支持从版本信息中提取书系和册数
   - 支持链接数组格式的官网字段
-- **v4.1.0**: V4 用户体验增强版本
+- **v4.1.0**: 用户体验增强版本
   - 新增模板设计指南文档 (`docs/TEMPLATE_GUIDE.md`)
   - 模板支持条件渲染 `{{#if}}` 和默认值 `{{var|default}}`
   - 新增默认快捷键支持（Ctrl+Shift+B/S/Q）
@@ -563,6 +568,8 @@ director: {{director|未知}}
   - 新增图片质量选择（小/中/大）
   - 新增更新已存在图片选项
   - 项目结构重构，删除旧版本代码，简化维护
+  - 移除代码中的 V3/V4 版本标识，统一日志前缀
+  - 漫画模板支持条件渲染作画字段
 
 ## 集数追踪功能
 
