@@ -15,8 +15,9 @@ import { SyncManager, SyncManagerConfig } from './src/sync/syncManager';
 import { SyncModal } from './src/ui/syncModal';
 import { SyncOptionsModal, SyncOptionsInput } from './src/ui/syncOptionsModal';
 import { SyncPreviewModal, SyncPreviewItem, SyncPreviewResult } from './src/ui/syncPreviewModal';
-import { ControlPanel } from './src/panel/controlPanel';
+import { ControlPanel, CachedPanelData } from './src/panel/controlPanel';
 import { SyncProgress } from './src/sync/syncStatus';
+import { UserCollection } from './common/api/types';
 import {
 	ANIME_TEMPLATE,
 	NOVEL_TEMPLATE,
@@ -26,6 +27,15 @@ import {
 	MUSIC_TEMPLATE,
 	REAL_TEMPLATE,
 } from './common/template/defaultTemplates';
+
+/**
+ * 缓存数据结构
+ */
+interface CachedData {
+	collections: UserCollection[];
+	localSubjects: Map<number, { id: number; path: string; name_cn: string }>;
+	timestamp: number;
+}
 
 /**
  * 模板类型键名
@@ -61,6 +71,10 @@ export class BangumiPlugin extends Plugin {
 	private autoSyncIntervalId: number | null = null;
 	private syncModal: SyncModal | null = null;
 	private controlPanel: ControlPanel | null = null;
+
+	// 数据缓存
+	private cachedData: CachedData | null = null;
+	private readonly CACHE_TTL = 10 * 60 * 1000; // 10 分钟缓存
 
 	async onload() {
 		await this.loadSettings();
@@ -166,6 +180,7 @@ export class BangumiPlugin extends Plugin {
 			downloadImages: this.settings.downloadImages,
 			scanFolderPath: this.settings.scanFolderPath,
 			customTemplates: templates,
+			defaultPropertyValues: this.settings.defaultPropertyValues,
 		};
 
 		this.syncManager = new SyncManager(this.app, config);
@@ -252,6 +267,13 @@ export class BangumiPlugin extends Plugin {
 			this.controlPanel.close();
 		}
 
+		// 获取缓存数据
+		const cachedData = this.getCachedData();
+		const cachedPanelData = cachedData ? {
+			collections: cachedData.collections,
+			localSubjects: cachedData.localSubjects,
+		} : null;
+
 		this.controlPanel = new ControlPanel(
 			this.app,
 			this.settings,
@@ -260,6 +282,15 @@ export class BangumiPlugin extends Plugin {
 				// 保存筛选条件
 				this.settings.panelFilters = filters;
 				await this.saveSettings();
+			},
+			cachedPanelData,
+			(data) => {
+				// 更新缓存
+				this.setCachedData({
+					collections: data.collections,
+					localSubjects: data.localSubjects,
+					timestamp: Date.now(),
+				});
 			}
 		);
 		this.controlPanel.open();
@@ -436,6 +467,50 @@ export class BangumiPlugin extends Plugin {
 			this.autoSyncIntervalId = window.setInterval(() => {
 				this.syncCollections();
 			}, intervalMs);
+		}
+	}
+
+	/**
+	 * 获取缓存数据
+	 * @returns 缓存数据，如果过期或不存在则返回 null
+	 */
+	getCachedData(): CachedData | null {
+		if (!this.cachedData) {
+			return null;
+		}
+
+		const now = Date.now();
+		if (now - this.cachedData.timestamp > this.CACHE_TTL) {
+			this.cachedData = null;
+			return null;
+		}
+
+		return this.cachedData;
+	}
+
+	/**
+	 * 设置缓存数据
+	 */
+	setCachedData(data: CachedData): void {
+		this.cachedData = {
+			...data,
+			timestamp: Date.now(),
+		};
+	}
+
+	/**
+	 * 清除缓存
+	 */
+	clearCache(): void {
+		this.cachedData = null;
+	}
+
+	/**
+	 * 更新缓存中的单个条目（同步后调用）
+	 */
+	updateCachedItem(subjectId: number, localInfo: { id: number; path: string; name_cn: string }): void {
+		if (this.cachedData) {
+			this.cachedData.localSubjects.set(subjectId, localInfo);
 		}
 	}
 }

@@ -21,6 +21,7 @@ import { generateFilePath } from '../../common/template/pathTemplate';
 import { generateContentByType } from '../template/contentTemplate';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { SyncPreviewItem, RatingDetails } from '../ui/syncPreviewModal';
+import { DefaultPropertyValues } from '../settings/settings';
 
 /**
  * 同步管理器配置
@@ -40,6 +41,7 @@ export interface SyncManagerConfig {
 		music?: string;
 		real?: string;
 	};
+	defaultPropertyValues?: DefaultPropertyValues;
 }
 
 /**
@@ -277,7 +279,8 @@ export class SyncManager {
 			this.config.customTemplates,
 			undefined,  // ratingDetails
 			episodeData?.episodes,
-			episodeData?.userStatus
+			episodeData?.userStatus,
+			this.config.defaultPropertyValues
 		);
 
 		// 创建文件
@@ -423,7 +426,8 @@ export class SyncManager {
 						this.config.customTemplates,
 						undefined,  // ratingDetails
 						episodeData?.episodes,
-						episodeData?.userStatus
+						episodeData?.userStatus,
+						this.config.defaultPropertyValues
 					);
 
 					// 创建文件
@@ -686,7 +690,8 @@ export class SyncManager {
 			this.config.customTemplates,
 			ratingDetails,
 			episodeData?.episodes,
-			episodeData?.userStatus
+			episodeData?.userStatus,
+			this.config.defaultPropertyValues
 		);
 
 		// 创建文件

@@ -11,6 +11,7 @@ import { parseCharacters, getCharacterTemplateVars, CharacterInfo } from '../../
 import { getDefaultTemplate, getTypeLabel } from '../../common/template/defaultTemplates';
 import { parseEpisodes, createUserStatusMap } from '../../common/parser/episodeParser';
 import { RatingDetails } from '../ui/syncPreviewModal';
+import { DefaultPropertyValues } from '../settings/settings';
 
 /**
  * 内容模板变量
@@ -222,7 +223,8 @@ export function generateContentByType(
 	},
 	ratingDetails?: RatingDetails,
 	episodes?: Episode[],
-	userEpisodeStatus?: UserEpisodeCollection[]
+	userEpisodeStatus?: UserEpisodeCollection[],
+	defaultPropertyValues?: DefaultPropertyValues
 ): string {
 	// 解析 infobox 获取详细信息以确定细分类别
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
@@ -263,7 +265,72 @@ export function generateContentByType(
 		template = getDefaultTemplate(subject.type, category);
 	}
 
-	return generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus);
+	let content = generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus);
+
+	// 应用默认属性值
+	if (defaultPropertyValues) {
+		content = applyDefaultPropertyValues(content, subject.type, category, defaultPropertyValues);
+	}
+
+	return content;
+}
+
+/**
+ * 应用默认属性值到内容中
+ */
+function applyDefaultPropertyValues(
+	content: string,
+	subjectType: number,
+	category: string,
+	defaultValues: DefaultPropertyValues
+): string {
+	// 根据条目类型应用对应的默认值
+	if (subjectType === 2) {  // 动画
+		if (defaultValues.anime_storage) {
+			content = replaceEmptyProperty(content, '存储:', defaultValues.anime_storage);
+		}
+		if (defaultValues.anime_resourceAttr) {
+			content = replaceEmptyProperty(content, '资源属性:', defaultValues.anime_resourceAttr);
+		}
+		if (defaultValues.anime_slogan) {
+			content = replaceEmptyProperty(content, '标语:', defaultValues.anime_slogan);
+		}
+	} else if (category.includes('小说')) {
+		if (defaultValues.novel_version) {
+			content = replaceEmptyProperty(content, '版本:', defaultValues.novel_version);
+		}
+		if (defaultValues.novel_kindle !== undefined) {
+			content = replaceEmptyProperty(content, 'Kindle:', String(defaultValues.novel_kindle));
+		}
+		if (defaultValues.novel_saved !== undefined) {
+			content = replaceEmptyProperty(content, '保存:', String(defaultValues.novel_saved));
+		}
+	} else if (category.includes('漫画')) {
+		if (defaultValues.comic_version) {
+			content = replaceEmptyProperty(content, '版本:', defaultValues.comic_version);
+		}
+		if (defaultValues.comic_format) {
+			content = replaceEmptyProperty(content, '格式:', defaultValues.comic_format);
+		}
+	} else if (subjectType === 4) {  // 游戏
+		if (defaultValues.game_platform) {
+			content = replaceEmptyProperty(content, '平台:', defaultValues.game_platform);
+		}
+		if (defaultValues.game_storage) {
+			content = replaceEmptyProperty(content, '存储:', defaultValues.game_storage);
+		}
+	}
+
+	return content;
+}
+
+/**
+ * 替换空属性值
+ */
+function replaceEmptyProperty(content: string, propertyName: string, defaultValue: string): string {
+	// 匹配属性: 后面为空或只有空白的情况
+	const regex = new RegExp(`(${propertyName}\\s*)(\\n|$)`, 'g');
+	return content.replace(regex, `$1${defaultValue}$2`);
 }
 
 // 兼容旧版本的类型别名

@@ -25,6 +25,14 @@ interface LocalSubjectInfo {
 }
 
 /**
+ * 缓存数据接口
+ */
+export interface CachedPanelData {
+	collections: UserCollection[];
+	localSubjects: Map<number, LocalSubjectInfo>;
+}
+
+/**
  * 面板状态
  */
 interface PanelState {
@@ -48,6 +56,10 @@ export class ControlPanel extends Modal {
 	private conflictDetector: ConflictDetector;
 	private onFiltersChange: (filters: PanelFilters) => void;
 
+	// 缓存相关
+	private cachedData: CachedPanelData | null;
+	private onCacheUpdate: (data: CachedPanelData) => void;
+
 	private state: PanelState;
 	private filters: PanelFilters;
 
@@ -70,12 +82,16 @@ export class ControlPanel extends Modal {
 		app: App,
 		settings: BangumiPluginSettings,
 		syncManager: SyncManager,
-		onFiltersChange: (filters: PanelFilters) => void
+		onFiltersChange: (filters: PanelFilters) => void,
+		cachedData: CachedPanelData | null,
+		onCacheUpdate: (data: CachedPanelData) => void
 	) {
 		super(app);
 		this.settings = settings;
 		this.syncManager = syncManager;
 		this.onFiltersChange = onFiltersChange;
+		this.cachedData = cachedData;
+		this.onCacheUpdate = onCacheUpdate;
 
 		this.client = new BangumiClient(settings.accessToken);
 		this.incrementalSync = new IncrementalSync(app);
@@ -84,8 +100,8 @@ export class ControlPanel extends Modal {
 
 		this.filters = { ...settings.panelFilters };
 		this.state = {
-			collections: [],
-			localSubjects: new Map(),
+			collections: cachedData?.collections || [],
+			localSubjects: cachedData?.localSubjects || new Map(),
 			selectedIds: new Set(),
 			loading: false,
 			loadingProgress: { current: 0, total: 0 },
@@ -122,8 +138,15 @@ export class ControlPanel extends Modal {
 		this.tableEl.setAttribute('tabindex', '0');
 		this.tableEl.addEventListener('keydown', (e) => this.handleKeyDown(e));
 
-		// 加载数据
-		this.loadData();
+		// 检查是否有缓存数据
+		if (this.cachedData && this.cachedData.collections.length > 0) {
+			// 使用缓存数据，直接显示
+			this.renderStatus(`已加载缓存数据，共 ${this.state.collections.length} 条收藏`);
+			this.applyFilters();
+		} else {
+			// 无缓存，加载数据
+			this.loadData();
+		}
 	}
 
 	onClose(): void {
@@ -301,6 +324,13 @@ export class ControlPanel extends Modal {
 
 			this.state.loading = false;
 			this.renderStatus(`加载完成，共 ${collections.length} 条收藏，${syncedIds.size} 条已同步`);
+
+			// 更新缓存
+			this.onCacheUpdate({
+				collections: this.state.collections,
+				localSubjects: new Map(this.state.localSubjects),
+			});
+
 			this.applyFilters();
 
 		} catch (error) {

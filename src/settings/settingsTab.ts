@@ -279,6 +279,105 @@ export class BangumiSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('同步状态')
 			.setDesc(statusText);
+
+		// ==================== 默认属性值 ====================
+		containerEl.createEl('h3', { text: '默认属性值' });
+		containerEl.createEl('p', { text: '批量同步时，自动填充这些属性的默认值（留空则不填充）', cls: 'bangumi-setting-desc' });
+
+		// 动画默认值
+		containerEl.createEl('h4', { text: '动画' });
+		new Setting(containerEl)
+			.setName('存储')
+			.addText(text => text
+				.setPlaceholder('如：本地')
+				.setValue(this.settings.defaultPropertyValues.anime_storage || '')
+				.onChange(async (value) => {
+					this.settings.defaultPropertyValues.anime_storage = value || undefined;
+					await this.onSave();
+				}));
+		new Setting(containerEl)
+			.setName('资源属性')
+			.addText(text => text
+				.setPlaceholder('如：1080p')
+				.setValue(this.settings.defaultPropertyValues.anime_resourceAttr || '')
+				.onChange(async (value) => {
+					this.settings.defaultPropertyValues.anime_resourceAttr = value || undefined;
+					await this.onSave();
+				}));
+		new Setting(containerEl)
+			.setName('标语')
+			.addText(text => text
+				.setValue(this.settings.defaultPropertyValues.anime_slogan || '')
+				.onChange(async (value) => {
+					this.settings.defaultPropertyValues.anime_slogan = value || undefined;
+					await this.onSave();
+				}));
+
+		// 小说默认值
+		containerEl.createEl('h4', { text: '小说' });
+		new Setting(containerEl)
+			.setName('版本')
+			.addText(text => text
+				.setValue(this.settings.defaultPropertyValues.novel_version || '')
+				.onChange(async (value) => {
+					this.settings.defaultPropertyValues.novel_version = value || undefined;
+					await this.onSave();
+				}));
+		new Setting(containerEl)
+			.setName('Kindle')
+			.addToggle(toggle => toggle
+				.setValue(this.settings.defaultPropertyValues.novel_kindle || false)
+				.onChange(async (value) => {
+					this.settings.defaultPropertyValues.novel_kindle = value;
+					await this.onSave();
+				}));
+		new Setting(containerEl)
+			.setName('保存')
+			.addToggle(toggle => toggle
+				.setValue(this.settings.defaultPropertyValues.novel_saved || false)
+				.onChange(async (value) => {
+					this.settings.defaultPropertyValues.novel_saved = value;
+					await this.onSave();
+				}));
+
+		// 漫画默认值
+		containerEl.createEl('h4', { text: '漫画' });
+		new Setting(containerEl)
+			.setName('版本')
+			.addText(text => text
+				.setValue(this.settings.defaultPropertyValues.comic_version || '')
+				.onChange(async (value) => {
+					this.settings.defaultPropertyValues.comic_version = value || undefined;
+					await this.onSave();
+				}));
+		new Setting(containerEl)
+			.setName('格式')
+			.addText(text => text
+				.setValue(this.settings.defaultPropertyValues.comic_format || '')
+				.onChange(async (value) => {
+					this.settings.defaultPropertyValues.comic_format = value || undefined;
+					await this.onSave();
+				}));
+
+		// 游戏默认值
+		containerEl.createEl('h4', { text: '游戏' });
+		new Setting(containerEl)
+			.setName('平台')
+			.addText(text => text
+				.setPlaceholder('如：Steam')
+				.setValue(this.settings.defaultPropertyValues.game_platform || '')
+				.onChange(async (value) => {
+					this.settings.defaultPropertyValues.game_platform = value || undefined;
+					await this.onSave();
+				}));
+		new Setting(containerEl)
+			.setName('存储')
+			.addText(text => text
+				.setValue(this.settings.defaultPropertyValues.game_storage || '')
+				.onChange(async (value) => {
+					this.settings.defaultPropertyValues.game_storage = value || undefined;
+					await this.onSave();
+				}));
 	}
 
 	/**

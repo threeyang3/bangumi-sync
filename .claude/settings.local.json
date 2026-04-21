@@ -80,7 +80,23 @@
       "Read(//tmp/**)",
       "Bash(sed -i '420a\\\\\\\\t\\\\t\\\\tthis.tableRows.push\\(row\\);  // 跟踪行用于键盘导航' \"v4/src/panel/controlPanel.ts\")",
       "Bash(sed -i '419a\\\\\\\\t\\\\t// 重置行跟踪\\\\n\\\\t\\\\tthis.tableRows = [];' \"v4/src/panel/controlPanel.ts\")",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(xxd)",
+      "Bash(cp \"E:/cctry/bangumi/release/main.js\" \"D:/obsidian-sandbox/sandbox/\")",
+      "Bash(cp \"E:/cctry/bangumi/release/manifest.json\" \"D:/obsidian-sandbox/sandbox/\")",
+      "Bash(cp \"E:/cctry/bangumi/release/styles.css\" \"D:/obsidian-sandbox/sandbox/\")",
+      "Read(//d//**)",
+      "Bash(cp \"E:/cctry/bangumi/release/main.js\" \"D:/obsidian-sandbox/\")",
+      "Bash(cp \"E:/cctry/bangumi/release/manifest.json\" \"D:/obsidian-sandbox/\")",
+      "Bash(cp \"E:/cctry/bangumi/release/styles.css\" \"D:/obsidian-sandbox/\")",
+      "Bash(mkdir -p \"D:/obsidian-sandbox/.obsidian/plugins/bangumi-sync\")",
+      "Bash(cp \"E:/cctry/bangumi/release/main.js\" \"D:/obsidian-sandbox/.obsidian/plugins/bangumi-sync/\")",
+      "Bash(cp \"E:/cctry/bangumi/release/manifest.json\" \"D:/obsidian-sandbox/.obsidian/plugins/bangumi-sync/\")",
+      "Bash(cp \"E:/cctry/bangumi/release/styles.css\" \"D:/obsidian-sandbox/.obsidian/plugins/bangumi-sync/\")",
+      "Bash(mkdir -p \"E:/cctry/bangumi/release/v4.3.0\")",
+      "Bash(cp \"E:/cctry/bangumi/release/main.js\" \"E:/cctry/bangumi/release/v4.3.0/\")",
+      "Bash(cp \"E:/cctry/bangumi/release/manifest.json\" \"E:/cctry/bangumi/release/v4.3.0/\")",
+      "Bash(cp \"E:/cctry/bangumi/release/styles.css\" \"E:/cctry/bangumi/release/v4.3.0/\")"
     ]
   }
 }
