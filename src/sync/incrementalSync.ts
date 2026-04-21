@@ -269,6 +269,97 @@ export class IncrementalSync {
 	removeComment(content: string): string {
 		return content.replace(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)\n?/, '');
 	}
+
+	/**
+	 * 从 frontmatter 中提取标签
+	 * 支持两种格式：
+	 * 1. YAML 数组格式: tags:\n  - tag1\n  - tag2
+	 * 2. 逗号分隔格式: tags: tag1, tag2
+	 */
+	extractTags(content: string): string[] | null {
+		// 匹配 frontmatter 中的 tags 字段
+		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+		if (!frontmatterMatch) {
+			return null;
+		}
+
+		const frontmatter = frontmatterMatch[1];
+
+		// 方式1: YAML 数组格式
+		const arrayMatch = frontmatter.match(/^tags:\s*\n((?:\s+- .+\n?)+)/m);
+		if (arrayMatch) {
+			const tags = arrayMatch[1]
+				.split('\n')
+				.map(line => line.replace(/^\s+- /, '').trim())
+				.filter(line => line.length > 0);
+			return tags.length > 0 ? tags : null;
+		}
+
+		// 方式2: 逗号分隔格式
+		const inlineMatch = frontmatter.match(/^tags:\s*(.+)$/m);
+		if (inlineMatch) {
+			const tagStr = inlineMatch[1].trim();
+			// 移除可能的引号
+			const cleanStr = tagStr.replace(/^["']|["']$/g, '');
+			const tags = cleanStr.split(',').map(t => t.trim()).filter(t => t.length > 0);
+			return tags.length > 0 ? tags : null;
+		}
+
+		return null;
+	}
+
+	/**
+	 * 更新 frontmatter 中的标签
+	 * 使用 YAML 数组格式
+	 */
+	updateTags(content: string, newTags: string[]): string {
+		// 匹配 frontmatter
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
+		if (!frontmatterMatch) {
+			return content;
+		}
+
+		const prefix = frontmatterMatch[1];
+		let frontmatter = frontmatterMatch[2];
+		const suffix = frontmatterMatch[3];
+
+		// 构建新的标签 YAML 数组
+		const newTagsYaml = newTags.length > 0
+			? `tags:\n${newTags.map(t => `  - ${t}`).join('\n')}`
+			: 'tags:';
+
+		// 检查是否已有 tags 字段
+		const existingTagsMatch = frontmatter.match(/^tags:.*(\n\s+- .+)*/m);
+		if (existingTagsMatch) {
+			// 替换现有标签
+			frontmatter = frontmatter.replace(/^tags:.*(\n\s+- .+)*/m, newTagsYaml);
+		} else {
+			// 在 frontmatter 末尾添加标签
+			frontmatter = frontmatter + '\n' + newTagsYaml;
+		}
+
+		return prefix + frontmatter + suffix;
+	}
+
+	/**
+	 * 删除 frontmatter 中的标签字段
+	 */
+	removeTags(content: string): string {
+		// 匹配 frontmatter
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
+		if (!frontmatterMatch) {
+			return content;
+		}
+
+		const prefix = frontmatterMatch[1];
+		let frontmatter = frontmatterMatch[2];
+		const suffix = frontmatterMatch[3];
+
+		// 移除 tags 字段（支持数组和内联格式）
+		frontmatter = frontmatter.replace(/^tags:.*(\n\s+- .+)*/m, '').trim();
+
+		return prefix + frontmatter + suffix;
+	}
 }
 
 // 兼容旧版本的类型别名

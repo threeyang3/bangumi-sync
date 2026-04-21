@@ -72,6 +72,7 @@ bangumi/
 │   │   ├── controlPanel.ts    # 控制面板主类（支持键盘导航）
 │   │   ├── batchEditorModal.ts # 批量编辑器
 │   │   ├── commentSyncModal.ts # 短评同步弹窗
+│   │   ├── tagSyncModal.ts    # 标签同步弹窗
 │   │   └── conflictResolver.ts # 冲突解决器
 │   ├── settings/              # 设置层
 │   │   ├── settings.ts        # 设置数据结构
@@ -570,6 +571,11 @@ director: {{director|未知}}
   - 项目结构重构，删除旧版本代码，简化维护
   - 移除代码中的 V3/V4 版本标识，统一日志前缀
   - 漫画模板支持条件渲染作画字段
+- **v4.2.0**: 标签优化版本
+  - 标签格式改为 YAML 数组格式，兼容新版 Obsidian
+  - 新增标签双向同步功能
+  - 支持合并本地与云端标签
+  - 新增 `tags_inline` 变量，兼容旧模板的内联格式
 
 ## 集数追踪功能
 
@@ -634,32 +640,7 @@ director: {{director|未知}}
 
 ## 开发计划
 
-### v4.2.0 待办事项
+### v4.3.0 待办事项
 
-1. **标签格式兼容性优化**
-   - 问题：新版本 Obsidian 无法识别 `,` 分隔的多个标签
-   - 解决方案：
-     - 方案A：改用 YAML 数组格式 `tags: [tag1, tag2, tag3]`
-     - 方案B：使用换行分隔格式
-       ```yaml
-       tags:
-         - tag1
-         - tag2
-         - tag3
-       ```
-     - 方案C：保持逗号分隔，但添加引号 `tags: "tag1, tag2, tag3"`
-   - 需要测试各方案在 Obsidian 中的标签识别效果
-
-2. **标签双向同步功能**
-   - 类似于短评双向同步，实现标签的双向同步
-   - 功能：
-     - 在控制面板中对比本地与云端标签差异
-     - 选择保留本地版本或云端版本
-     - 支持合并本地和云端标签
-   - 涉及文件：
-     - `src/panel/controlPanel.ts` - 添加"同步标签"按钮
-     - `src/panel/tagSyncModal.ts` - 新建标签同步弹窗
-     - `src/api/client.ts` - 添加更新标签的 API 调用
-   - API 参考：
-     - `PUT /v0/users/-/collections/{subject_id}` - 更新收藏信息（包含标签）
+（待规划）
 

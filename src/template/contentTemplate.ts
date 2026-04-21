@@ -42,11 +42,11 @@ export function extractTemplateVars(
 	// 解析日期
 	const { year, month } = parseDate(subject.date);
 
-	// V3 改进：使用用户自己的标签，如果没有则留空
-	// 不再使用公共标签 subject.tags
-	const my_tags = collection?.tags && collection.tags.length > 0
-		? collection.tags.join(', ')
-		: '';  // 如果用户没有标签，留空
+	// V4.2: 使用 YAML 数组格式输出标签，兼容新版 Obsidian
+	// 如果用户没有标签，输出空数组
+	const my_tags_array = collection?.tags && collection.tags.length > 0
+		? collection.tags
+		: [];
 
 	// 获取封面
 	const cover = subject.images?.large || subject.images?.common || '';
@@ -84,7 +84,8 @@ export function extractTemplateVars(
 		summary: cleanSummary(subject.summary),
 		rating: subject.rating?.score ? String(subject.rating.score) : '',
 		rank: subject.rating?.rank ? String(subject.rating.rank) : '',
-		tags: my_tags,  // V3: 使用用户自己的标签
+		tags: my_tags_array.length > 0 ? my_tags_array.map(t => `  - ${t}`).join('\n') : '',
+		tags_inline: my_tags_array.join(', '),  // 兼容旧模板的内联格式
 		cover,
 		bangumi_url: `https://bgm.tv/subject/${subject.id}`,
 
@@ -102,7 +103,7 @@ export function extractTemplateVars(
 		my_rate,
 		my_comment,
 		my_status,
-		my_tags,
+		my_tags: my_tags_array.join(', '),  // 兼容旧模板
 
 		// 条目特定字段
 		episode: parsedInfo.episode ? String(parsedInfo.episode) : '',

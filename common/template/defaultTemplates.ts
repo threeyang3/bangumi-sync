@@ -13,7 +13,8 @@ id: {{id}}
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 观看状态: {{my_status}}
-tags: {{tags}}
+tags:
+{{tags}}
 评分: {{my_rate}}
 评分明细:
   - 音乐：{{rating_music}}
@@ -98,7 +99,8 @@ Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 连载状态: {{status}}
 阅读状态: {{my_status}}
-tags: {{tags}}
+tags:
+{{tags}}
 评分: {{my_rate}}
 评分明细:
   - 剧情：{{rating_story}}
@@ -173,7 +175,8 @@ Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 连载状态: "{{status}}"
 阅读状态: {{my_status}}
-tags: {{tags}}
+tags:
+{{tags}}
 评分: {{my_rate}}
 评分明细:
   - 剧情：{{rating_story}}
@@ -247,7 +250,8 @@ Bangumi链接: "{{bangumi_url}}"
 平台:
 具体类型: "{{category}}"
 游玩状态: {{my_status}}
-tags: {{tags}}
+tags:
+{{tags}}
 评分: {{my_rate}}
 评分明细:
   - 剧情：{{rating_story}}
@@ -314,7 +318,8 @@ id: {{id}}
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 阅读状态: {{my_status}}
-tags: {{tags}}
+tags:
+{{tags}}
 评分: {{my_rate}}
 单评: false
 笔记: "[[收集箱/笔记/ACGN/《{{name_cn}}》笔记|《{{name_cn}}》笔记]]"
@@ -367,7 +372,8 @@ id: {{id}}
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 收藏状态: {{my_status}}
-tags: {{tags}}
+tags:
+{{tags}}
 评分: {{my_rate}}
 作品大类: Music
 具体类型: "{{category}}"
@@ -399,7 +405,8 @@ id: {{id}}
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 观看状态: {{my_status}}
-tags: {{tags}}
+tags:
+{{tags}}
 评分: {{my_rate}}
 作品大类: Real
 具体类型: "{{category}}"

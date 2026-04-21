@@ -12,6 +12,7 @@ import { BangumiClient } from '../api/client';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { BatchEditorModal, BatchEditOperation, FrontmatterEditor } from './batchEditorModal';
 import { CommentSyncModal, CommentDiff } from './commentSyncModal';
+import { TagSyncModal, TagDiff } from './tagSyncModal';
 import { ConflictDetector, ConflictResolverModal, LocalItemData } from './conflictResolver';
 
 /**
@@ -236,6 +237,11 @@ export class ControlPanel extends Modal {
 		// 同步短评按钮
 		this.actionBarEl.createEl('button', { text: '同步短评', cls: 'bangumi-action-btn' }, btn => {
 			btn.addEventListener('click', () => this.syncComments());
+		});
+
+		// 同步标签按钮
+		this.actionBarEl.createEl('button', { text: '同步标签', cls: 'bangumi-action-btn' }, btn => {
+			btn.addEventListener('click', () => this.syncTags());
 		});
 
 		// 撤销按钮
@@ -819,6 +825,90 @@ export class ControlPanel extends Modal {
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			new Notice(`对比短评失败: ${errorMsg}`);
 			this.renderStatus(`对比短评失败: ${errorMsg}`);
+		}
+	}
+
+	/**
+	 * 同步标签
+	 * 对比本地与云端标签差异
+	 */
+	private async syncTags(): Promise<void> {
+		// 获取已同步的条目
+		const syncedCollections = this.state.collections.filter(c =>
+			this.state.localSubjects.has(c.subject_id)
+		);
+
+		if (syncedCollections.length === 0) {
+			new Notice('没有已同步的条目，无法对比标签');
+			return;
+		}
+
+		this.state.loading = true;
+		this.renderStatus('正在对比标签差异...');
+
+		try {
+			const diffs: TagDiff[] = [];
+
+			for (const collection of syncedCollections) {
+				const localInfo = this.state.localSubjects.get(collection.subject_id);
+				if (!localInfo) continue;
+
+				// 读取本地文件
+				const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+				if (!(file instanceof TFile)) continue;
+
+				const content = await this.app.vault.read(file);
+				const localTags = this.incrementalSync.extractTags(content);
+				const cloudTags = collection.tags && collection.tags.length > 0 ? collection.tags : null;
+
+				// 对比差异（忽略顺序）
+				const localSet = localTags ? new Set(localTags.map(t => t.toLowerCase().trim())) : new Set();
+				const cloudSet = cloudTags ? new Set(cloudTags.map(t => t.toLowerCase().trim())) : new Set();
+
+				// 检查是否有差异
+				const hasDiff = localSet.size !== cloudSet.size ||
+					![...localSet].every(t => cloudSet.has(t));
+
+				if (hasDiff) {
+					diffs.push({
+						subjectId: collection.subject_id,
+						name_cn: collection.subject.name_cn || '',
+						name: collection.subject.name || '',
+						localTags,
+						cloudTags,
+						localPath: localInfo.path,
+						collection,
+						decision: 'skip',
+					});
+				}
+			}
+
+			this.state.loading = false;
+
+			if (diffs.length === 0) {
+				new Notice('没有标签差异');
+				this.renderStatus('没有标签差异');
+				return;
+			}
+
+			// 打开标签同步弹窗
+			const modal = new TagSyncModal(
+				this.app,
+				this.client,
+				this.incrementalSync,
+				diffs,
+				() => {
+					// 同步完成后刷新
+					this.loadData();
+				}
+			);
+			modal.open();
+
+		} catch (error) {
+			this.state.loading = false;
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			new Notice(`对比标签失败: ${errorMsg}`);
+			this.renderStatus(`对比标签失败: ${errorMsg}`);
 		}
 	}
 

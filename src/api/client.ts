@@ -79,6 +79,11 @@ export class BangumiClient {
 				throw new Error(errorMsg);
 			}
 
+			// 204 No Content 表示成功但无返回内容
+			if (response.status === 204) {
+				return {} as T;
+			}
+
 			return response.json as T;
 		} catch (error) {
 			console.error(`[Bangumi Sync] Request failed:`, error);
