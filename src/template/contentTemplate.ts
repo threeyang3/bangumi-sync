@@ -32,7 +32,8 @@ export function extractTemplateVars(
 	characters?: CharacterInfo[],
 	ratingDetails?: RatingDetails,
 	episodes?: Episode[],
-	userEpisodeStatus?: UserEpisodeCollection[]
+	userEpisodeStatus?: UserEpisodeCollection[],
+	notePathTemplate?: string
 ): ContentTemplateVars {
 	// 解析 infobox 获取详细信息
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
@@ -75,12 +76,18 @@ export function extractTemplateVars(
 		}
 	}
 
+	// 生成笔记链接
+	const name_cn = subject.name_cn || '';
+	const noteLink = notePathTemplate
+		? `[[${notePathTemplate}/《${name_cn}》笔记|《${name_cn}》笔记]]`
+		: '';
+
 	// 构建变量对象
 	const vars: ContentTemplateVars = {
 		// 基础信息
 		id: String(subject.id),
 		name: subject.name || '',
-		name_cn: subject.name_cn || '',
+		name_cn,
 		alias: '',
 		summary: cleanSummary(subject.summary),
 		rating: subject.rating?.score ? String(subject.rating.score) : '',
@@ -140,6 +147,9 @@ export function extractTemplateVars(
 		rating_writing: ratingDetails?.writing || '',
 		rating_drawing: ratingDetails?.drawing || '',
 		rating_fun: ratingDetails?.fun || '',
+
+		// 笔记链接
+		note_link: noteLink,
 	};
 
 	// 添加角色变量
@@ -199,9 +209,10 @@ export function generateContent(
 	characters?: CharacterInfo[],
 	ratingDetails?: RatingDetails,
 	episodes?: Episode[],
-	userEpisodeStatus?: UserEpisodeCollection[]
+	userEpisodeStatus?: UserEpisodeCollection[],
+	notePathTemplate?: string
 ): string {
-	const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus);
+	const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate);
 	return renderContentTemplate(template, vars);
 }
 
@@ -224,7 +235,8 @@ export function generateContentByType(
 	ratingDetails?: RatingDetails,
 	episodes?: Episode[],
 	userEpisodeStatus?: UserEpisodeCollection[],
-	defaultPropertyValues?: DefaultPropertyValues
+	defaultPropertyValues?: DefaultPropertyValues,
+	notePathTemplate?: string
 ): string {
 	// 解析 infobox 获取详细信息以确定细分类别
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
@@ -265,7 +277,7 @@ export function generateContentByType(
 		template = getDefaultTemplate(subject.type, category);
 	}
 
-	let content = generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus);
+	let content = generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate);
 
 	// 应用默认属性值
 	if (defaultPropertyValues) {

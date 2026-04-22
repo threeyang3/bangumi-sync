@@ -30,6 +30,7 @@ export interface SyncManagerConfig {
 	accessToken: string;
 	pathTemplate: string;
 	imagePathTemplate: string;
+	notePathTemplate?: string;  // 笔记链接路径模板
 	downloadImages: boolean;
 	scanFolderPath: string;  // 扫描本地文件夹的路径
 	customTemplates?: {
@@ -280,7 +281,8 @@ export class SyncManager {
 			undefined,  // ratingDetails
 			episodeData?.episodes,
 			episodeData?.userStatus,
-			this.config.defaultPropertyValues
+			this.config.defaultPropertyValues,
+			this.config.notePathTemplate
 		);
 
 		// 创建文件
@@ -427,7 +429,8 @@ export class SyncManager {
 						undefined,  // ratingDetails
 						episodeData?.episodes,
 						episodeData?.userStatus,
-						this.config.defaultPropertyValues
+						this.config.defaultPropertyValues,
+						this.config.notePathTemplate
 					);
 
 					// 创建文件
@@ -691,7 +694,8 @@ export class SyncManager {
 			ratingDetails,
 			episodeData?.episodes,
 			episodeData?.userStatus,
-			this.config.defaultPropertyValues
+			this.config.defaultPropertyValues,
+			this.config.notePathTemplate
 		);
 
 		// 创建文件

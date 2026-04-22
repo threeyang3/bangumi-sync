@@ -174,12 +174,20 @@ function getInfoboxNumber(infobox: InfoboxItem[] | undefined, key: string, alter
  * 解析动画信息
  */
 export function parseAnimeInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
+	// 首先尝试获取动画制作字段
+	let animeMake = getInfoboxValue(infobox, '动画制作');
+
+	// 如果没有动画制作字段，尝试从 Copyright 提取（针对吉卜力等作品）
+	if (!animeMake) {
+		animeMake = extractAnimeMakeFromCopyright(infobox);
+	}
+
 	return {
 		category: getInfoboxValue(infobox, '类型', ['播放日期']) || 'TV',
 		episode: getInfoboxNumber(infobox, '话数'),
 		director: getInfoboxValue(infobox, '导演', ['监督', '总导演']),
 		music: getInfoboxValue(infobox, '音乐', ['音乐制作', '音乐人']),
-		animeMake: getInfoboxValue(infobox, '动画制作', ['制作', '动画制作公司', '制作公司', '动画工房', '工作室', '制作委员会']),
+		animeMake: animeMake,
 		musicMake: getInfoboxValue(infobox, '音乐制作', ['音乐']),
 		staff: getInfoboxValue(infobox, '脚本', ['系列构成', '剧本']),
 		audioDirector: getInfoboxValue(infobox, '音响监督', ['音响']),
@@ -188,6 +196,48 @@ export function parseAnimeInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 		from: getInfoboxValue(infobox, '原作', ['原案']),
 		website: getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']),
 	};
+}
+
+/**
+ * 从 Copyright 字段提取动画公司
+ * 针对吉卜力等作品，格式如 "© 1989 角野栄子・Studio Ghibli・N"
+ */
+function extractAnimeMakeFromCopyright(infobox: InfoboxItem[] | undefined): string | undefined {
+	if (!infobox) return undefined;
+
+	const copyrightItem = infobox.find(i => i.key === 'Copyright');
+	if (!copyrightItem || typeof copyrightItem.value !== 'string') return undefined;
+
+	const copyright = copyrightItem.value;
+
+	// 常见动画公司关键词（按优先级排序）
+	const studioPatterns = [
+		'Studio Ghibli', 'スタジオジブリ',
+		'GHIBLI', 'ジブリ',
+		'TOEI ANIMATION', '東映アニメーション',
+		'MAPPA', 'WIT STUDIO', 'BONES',
+		'A-1 Pictures', 'SHAFT', 'ufotable',
+		'Kyoto Animation', '京都アニメーション', '京阿尼',
+		'Production I.G', 'SUNRISE', 'SUNRISE BEYOND',
+		'TRIGGER', 'CloverWorks', 'MADHOUSE',
+		'SILVER LINK.', 'J.C.STAFF',
+		'TMS Entertainment', 'シンエイ動画',
+		'ピーエーワークス', 'P.A.WORKS',
+		'Doga Kobo', '動画工房',
+		'LIDENFILMS', 'SANZIGEN',
+		'ORDET', '8bit',
+		'Brain\'s Base', 'feel.',
+		'白組', 'Shirogumi',
+		'タイタン工業', // Titan Kogyo
+	];
+
+	for (const pattern of studioPatterns) {
+		if (copyright.includes(pattern)) {
+			return pattern;
+		}
+	}
+
+	return undefined;
 }
 
 /**

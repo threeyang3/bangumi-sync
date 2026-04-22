@@ -651,3 +651,62 @@
 .ep-box.watched:hover {
 	opacity: 0.9;
 }
+
+/* Bangumi Info Callout 响应式布局 */
+.callout[data-callout="bangumi-info"] {
+	--callout-color: var(--text-accent);
+	--callout-icon: lucide-info;
+}
+
+.callout[data-callout="bangumi-info"] .callout-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 16px;
+}
+
+.callout[data-callout="bangumi-info"] .callout-content > p {
+	margin: 0;
+	text-align: center;
+}
+
+.callout[data-callout="bangumi-info"] img {
+	width: 400px;
+	max-width: 100%;
+	height: auto;
+	object-fit: cover;
+	border-radius: 4px;
+}
+
+.callout[data-callout="bangumi-info"] table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+/* 宽屏布局：图片在左，表格在右，高度一致 */
+@media (min-width: 1000px) {
+	.callout[data-callout="bangumi-info"] .callout-content {
+		flex-direction: row;
+		align-items: stretch;
+		gap: 16px;
+	}
+
+	.callout[data-callout="bangumi-info"] .callout-content > p {
+		flex-shrink: 0;
+		text-align: left;
+		display: flex;
+		align-items: stretch;
+	}
+
+	.callout[data-callout="bangumi-info"] img {
+		flex-shrink: 0;
+		width: 400px;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.callout[data-callout="bangumi-info"] table {
+		flex: 1;
+		min-width: 0;
+	}
+}

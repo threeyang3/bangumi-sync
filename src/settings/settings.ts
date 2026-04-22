@@ -3,21 +3,16 @@
  */
 
 import { SubjectType, CollectionType } from '../../common/api/types';
-import {
-	ANIME_TEMPLATE,
-	NOVEL_TEMPLATE,
-	COMIC_TEMPLATE,
-	GAME_TEMPLATE,
-	ALBUM_TEMPLATE,
-	MUSIC_TEMPLATE,
-	REAL_TEMPLATE,
-} from '../../common/template/defaultTemplates';
 import { ImageQuality } from '../../common/file/imageHandler';
 
 /**
  * 模板来源类型
+ * - standard: 标准模板（只含 Bangumi 数据）
+ * - author: 作者自用模板（含自定义变量）
+ * - file: 从文件选择
+ * - custom: 自定义内容
  */
-export type TemplateSource = 'default' | 'file' | 'custom';
+export type TemplateSource = 'standard' | 'author' | 'file' | 'custom';
 
 /**
  * 模板配置
@@ -83,6 +78,7 @@ export interface BangumiPluginSettings {
 	syncPathTemplate: string;
 	downloadImages: boolean;
 	imagePathTemplate: string;
+	notePathTemplate: string; // 笔记链接路径模板
 
 	// 图片设置
 	imageQuality: ImageQuality;
@@ -124,7 +120,7 @@ export interface BangumiPluginSettings {
  * 默认模板配置
  */
 const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
-	source: 'default',
+	source: 'standard',
 };
 
 /**
@@ -145,6 +141,7 @@ export const DEFAULT_SETTINGS: BangumiPluginSettings = {
 	syncPathTemplate: 'ACGN/{{type}}/{{name_cn}}.md',
 	downloadImages: true,
 	imagePathTemplate: 'ACGN/assets/{{id}}_cover.jpg',
+	notePathTemplate: '收集箱/笔记/ACGN',
 
 	// 图片设置
 	imageQuality: 'large',

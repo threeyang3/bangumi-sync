@@ -157,6 +157,17 @@ export class BangumiSettingTab extends PluginSettingTab {
 					await this.onSave();
 				}));
 
+		new Setting(containerEl)
+			.setName('笔记路径模板')
+			.setDesc('笔记链接的基础路径，生成格式: [[路径/《中文名》笔记|《中文名》笔记]]')
+			.addText(text => text
+				.setPlaceholder('收集箱/笔记/ACGN')
+				.setValue(this.settings.notePathTemplate)
+				.onChange(async (value) => {
+					this.settings.notePathTemplate = value;
+					await this.onSave();
+				}));
+
 		// ==================== 模板设置 ====================
 		containerEl.createEl('h3', { text: '模板设置' });
 
@@ -410,10 +421,11 @@ export class BangumiSettingTab extends PluginSettingTab {
 			.setDesc(this.getTemplateSourceDesc(config))
 			.addDropdown(dropdown => {
 				dropdown
-					.addOption('default', '默认模板')
+					.addOption('standard', '标准模板')
+						.addOption('author', '作者自用模板')
 					.addOption('file', '从文件选择')
 					.addOption('custom', '自定义内容')
-					.setValue(config.source)
+						.setValue(['standard', 'author', 'file', 'custom'].includes(config.source) ? config.source : 'author')
 					.onChange(async (value: TemplateSource) => {
 						const newConfig: TemplateConfig = { source: value };
 						if (value === 'file' && config.filePath) {
@@ -454,8 +466,10 @@ export class BangumiSettingTab extends PluginSettingTab {
 	 */
 	private getTemplateSourceDesc(config: TemplateConfig): string {
 		switch (config.source) {
-			case 'default':
-				return '使用插件内置的默认模板';
+			case 'standard':
+				return '使用标准模板（只含 Bangumi 数据）';
+			case 'author':
+				return '使用作者自用模板（含自定义变量）';
 			case 'file':
 				return config.filePath ? `使用文件: ${config.filePath}` : '请选择模板文件';
 			case 'custom':

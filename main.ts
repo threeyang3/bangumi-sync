@@ -19,13 +19,18 @@ import { ControlPanel } from './src/panel/controlPanel';
 import { SyncProgress } from './src/sync/syncStatus';
 import { UserCollection } from './common/api/types';
 import {
-	ANIME_TEMPLATE,
-	NOVEL_TEMPLATE,
-	COMIC_TEMPLATE,
-	GAME_TEMPLATE,
-	ALBUM_TEMPLATE,
-	MUSIC_TEMPLATE,
-	REAL_TEMPLATE,
+	ANIME_TEMPLATE_STANDARD,
+	NOVEL_TEMPLATE_STANDARD,
+	COMIC_TEMPLATE_STANDARD,
+	GAME_TEMPLATE_STANDARD,
+	ALBUM_TEMPLATE_STANDARD,
+	MUSIC_TEMPLATE_STANDARD,
+	REAL_TEMPLATE_STANDARD,
+	ANIME_TEMPLATE_AUTHOR,
+	NOVEL_TEMPLATE_AUTHOR,
+	COMIC_TEMPLATE_AUTHOR,
+	GAME_TEMPLATE_AUTHOR,
+	ALBUM_TEMPLATE_AUTHOR,
 } from './common/template/defaultTemplates';
 
 /**
@@ -55,14 +60,24 @@ interface TemplatesMap {
 	real: string;
 }
 
-const TEMPLATE_CONFIG_MAP: Record<TemplateKey, string> = {
-	animeTemplateConfig: ANIME_TEMPLATE,
-	novelTemplateConfig: NOVEL_TEMPLATE,
-	comicTemplateConfig: COMIC_TEMPLATE,
-	gameTemplateConfig: GAME_TEMPLATE,
-	albumTemplateConfig: ALBUM_TEMPLATE,
-	musicTemplateConfig: MUSIC_TEMPLATE,
-	realTemplateConfig: REAL_TEMPLATE,
+const TEMPLATE_CONFIG_MAP_STANDARD: Record<TemplateKey, string> = {
+	animeTemplateConfig: ANIME_TEMPLATE_STANDARD,
+	novelTemplateConfig: NOVEL_TEMPLATE_STANDARD,
+	comicTemplateConfig: COMIC_TEMPLATE_STANDARD,
+	gameTemplateConfig: GAME_TEMPLATE_STANDARD,
+	albumTemplateConfig: ALBUM_TEMPLATE_STANDARD,
+	musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
+	realTemplateConfig: REAL_TEMPLATE_STANDARD,
+};
+
+const TEMPLATE_CONFIG_MAP_AUTHOR: Record<TemplateKey, string> = {
+	animeTemplateConfig: ANIME_TEMPLATE_AUTHOR,
+	novelTemplateConfig: NOVEL_TEMPLATE_AUTHOR,
+	comicTemplateConfig: COMIC_TEMPLATE_AUTHOR,
+	gameTemplateConfig: GAME_TEMPLATE_AUTHOR,
+	albumTemplateConfig: ALBUM_TEMPLATE_AUTHOR,
+	musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
+	realTemplateConfig: REAL_TEMPLATE_STANDARD,
 };
 
 export class BangumiPlugin extends Plugin {
@@ -174,6 +189,7 @@ export class BangumiPlugin extends Plugin {
 			accessToken: this.settings.accessToken,
 			pathTemplate: this.settings.syncPathTemplate,
 			imagePathTemplate: this.settings.imagePathTemplate,
+			notePathTemplate: this.settings.notePathTemplate,
 			downloadImages: this.settings.downloadImages,
 			scanFolderPath: this.settings.scanFolderPath,
 			customTemplates: templates,
@@ -225,9 +241,14 @@ export class BangumiPlugin extends Plugin {
 	 */
 	private async resolveTemplate(configKey: TemplateKey): Promise<string> {
 		const config = this.settings[configKey] as TemplateConfig;
-		const defaultTemplate = TEMPLATE_CONFIG_MAP[configKey];
 
 		switch (config.source) {
+			case 'standard':
+				return TEMPLATE_CONFIG_MAP_STANDARD[configKey];
+
+			case 'author':
+				return TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
+
 			case 'file':
 				if (config.filePath) {
 					try {
@@ -240,14 +261,13 @@ export class BangumiPlugin extends Plugin {
 						new Notice(`模板文件读取失败: ${config.filePath}`);
 					}
 				}
-				return defaultTemplate;
+				return TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
 
 			case 'custom':
-				return config.customContent || defaultTemplate;
+				return config.customContent || TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
 
-			case 'default':
 			default:
-				return defaultTemplate;
+				return TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
 		}
 	}
 
