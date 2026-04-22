@@ -244,7 +244,7 @@ rating: {{rating|未评分}}
 
 如果这个插件对你有帮助，欢迎赞助支持开发者：
 
-![赞助二维码](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/赞助二维码.jpg)
+![赞助二维码](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/赞助二维码.jpg =200x)
 
 ## 许可证
 
