@@ -49,6 +49,7 @@
 ```
 bangumi/
 ├── CLAUDE.md                  # 项目说明文档
+├── README.md                  # 用户说明文档（含截图）
 ├── package.json               # NPM 配置
 ├── tsconfig.json              # TypeScript 配置
 ├── esbuild.config.mjs         # 构建配置
@@ -56,6 +57,15 @@ bangumi/
 ├── main.js                    # 编译输出
 ├── manifest.json              # 插件清单
 ├── styles.css                 # 插件样式
+│
+├── demo_pic/                  # README 配图目录
+│   ├── 同步选项设置.png
+│   ├── 本地条目完整示意.png
+│   ├── 模板设置.png
+│   ├── 漫画类型模板.png
+│   ├── 轻小说类型模板.png
+│   ├── 路径设置.png
+│   └── 赞助二维码.jpg
 │
 ├── src/                       # 源代码
 │   ├── api/                   # API 层
@@ -667,6 +677,10 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
   - 修复 case 块词法声明：用花括号包裹 case 块
   - 修复 Promise 处理：为异步回调添加 void 操作符
   - 修复异步事件监听器：使用 void IIFE 模式包装
+- **v4.3.5**: 文档优化版本
+  - README 添加配图（模板设置、同步选项、路径设置、模板示例等）
+  - 使用 GitHub raw 链接引用图片
+  - 添加赞助二维码
 
 ## 集数追踪功能
 
