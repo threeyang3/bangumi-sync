@@ -709,7 +709,7 @@ export class ControlPanel extends Modal {
 				try {
 					const file = this.app.vault.getAbstractFileByPath(localInfo.path);
 					if (file instanceof TFile) {
-						await this.app.vault.trash(file, true);
+						await this.app.fileManager.trashFile(file);
 						this.state.localSubjects.delete(collection.subject_id);
 						deleted++;
 					}

@@ -96,7 +96,12 @@
       "Bash(mkdir -p \"E:/cctry/bangumi/release/v4.3.0\")",
       "Bash(cp \"E:/cctry/bangumi/release/main.js\" \"E:/cctry/bangumi/release/v4.3.0/\")",
       "Bash(cp \"E:/cctry/bangumi/release/manifest.json\" \"E:/cctry/bangumi/release/v4.3.0/\")",
-      "Bash(cp \"E:/cctry/bangumi/release/styles.css\" \"E:/cctry/bangumi/release/v4.3.0/\")"
+      "Bash(cp \"E:/cctry/bangumi/release/styles.css\" \"E:/cctry/bangumi/release/v4.3.0/\")",
+      "Bash(sed 's/]$//')",
+      "Bash(python3 -c \" import json import sys data = json.load\\(sys.stdin\\) data.append\\({ 'id': 'bangumi-sync', 'name': 'Bangumi Sync', 'author': 'threeyang', 'description': 'Sync your Bangumi collections to Obsidian notes with episode tracking, control panel, and batch editing.', 'repo': 'threeyang3/bangumi-sync' }\\) print\\(json.dumps\\(data, indent=2, ensure_ascii=False\\)\\) \")",
+      "Bash(python3 -c \" import json import sys import io sys.stdout = io.TextIOWrapper\\(sys.stdout.buffer, encoding='utf-8'\\) data = json.load\\(sys.stdin\\) data.append\\({ 'id': 'bangumi-sync', 'name': 'Bangumi Sync', 'author': 'threeyang', 'description': 'Sync your Bangumi collections to Obsidian notes with episode tracking, control panel, and batch editing.', 'repo': 'threeyang3/bangumi-sync' }\\) print\\(json.dumps\\(data, indent=2, ensure_ascii=False\\)\\) \")",
+      "Bash(git clone *)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

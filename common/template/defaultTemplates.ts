@@ -9,9 +9,6 @@ export const ANIME_TEMPLATE = `---
 id: {{id}}
 中文名: "{{name_cn}}"
 原名: "{{name}}"
-别名: "{{alias}}"
-Bangumi评分: "{{rating}}"
-Bangumi链接: "{{bangumi_url}}"
 观看状态: {{my_status}}
 tags:
 {{tags}}
@@ -31,6 +28,8 @@ tags:
   -
 作品大类: Anime
 具体类型: "{{category}}"
+Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 封面: "![]({{cover}})"
 开播时间: "{{year}} 年 {{month}} 月"
 集数: "{{episode}}"
@@ -92,12 +91,8 @@ export const NOVEL_TEMPLATE = `---
 id: {{id}}
 中文名: "{{name_cn}}"
 原名: "{{name}}"
-别名: "{{alias}}"
 作者: "[[{{author}}]]"
 插画: "[[{{illustration}}]]"
-Bangumi评分: "{{rating}}"
-Bangumi链接: "{{bangumi_url}}"
-连载状态: {{status}}
 阅读状态: {{my_status}}
 tags:
 {{tags}}
@@ -120,6 +115,8 @@ Kindle: false
 已购: false
 作品大类: Novel
 具体类型: "{{category}}"
+Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 书系: "{{series}}"
 进度: "{{progress}}"
 册数: "{{volumes}}"
@@ -163,6 +160,10 @@ Kindle: false
 | {{characterPhoto4}}  |  {{characterPhoto5}}  | {{characterPhoto6}}  |
 | **{{character7}}**  |  **{{character8}}**  | **{{character9}}**  |
 | {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
+
+## 记录
+
+## 感想
 `;
 
 // 漫画模板
@@ -170,10 +171,6 @@ export const COMIC_TEMPLATE = `---
 id: {{id}}
 中文名: "{{name_cn}}"
 原名: "{{name}}"
-别名: "{{alias}}"
-Bangumi评分: "{{rating}}"
-Bangumi链接: "{{bangumi_url}}"
-连载状态: "{{status}}"
 阅读状态: {{my_status}}
 tags:
 {{tags}}
@@ -194,6 +191,8 @@ Kindle: false
 已购: false
 作品大类: Comic
 具体类型: "{{category}}"
+Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 话数: "{{episode}}"
 进度: "{{progress}}"
 杂志: "{{journal}}"
@@ -216,7 +215,7 @@ Kindle: false
 | 作者 |\`= this.作者\` |{{#if staff}}
 | 作画 |\`= this.作画\`|{{/if}}
 | 杂志 |\`= this.杂志\`|
-| 进度 |\`= this.连载状态\` - \`= this.进度\`|
+| 进度 |\`= this.进度\`|
 | 版本 | \`= this.版本\`|
 | 格式 | \`= this.格式\` |
 | 相关 | \`= this.相关\` |
@@ -237,6 +236,10 @@ Kindle: false
 | {{characterPhoto4}}  |  {{characterPhoto5}}  | {{characterPhoto6}}  |
 | **{{character7}}**  |  **{{character8}}**  | **{{character9}}**  |
 | {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
+
+## 记录
+
+## 感想
 `;
 
 // 游戏模板
@@ -244,11 +247,6 @@ export const GAME_TEMPLATE = `---
 id: {{id}}
 中文名: "{{name_cn}}"
 原名: "{{name}}"
-别名: "{{alias}}"
-Bangumi评分: "{{rating}}"
-Bangumi链接: "{{bangumi_url}}"
-平台:
-具体类型: "{{category}}"
 游玩状态: {{my_status}}
 tags:
 {{tags}}
@@ -265,6 +263,10 @@ tags:
 相关:
   -
 作品大类: Game
+具体类型: "{{category}}"
+Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
+平台:
 开发: "{{develop}}"
 发行: "{{publish}}"
 发行日期: "{{date}}"
@@ -306,6 +308,10 @@ tags:
 | {{characterPhoto4}}  |  {{characterPhoto5}}  | {{characterPhoto6}}  |
 | **{{character7}}**  |  **{{character8}}**  | **{{character9}}**  |
 | {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
+
+## 记录
+
+## 感想
 `;
 
 // 画集模板
@@ -313,10 +319,7 @@ export const ALBUM_TEMPLATE = `---
 id: {{id}}
 中文名: "{{name_cn}}"
 原名: "{{name}}"
-别名: "{{alias}}"
 作者: "[[{{author}}]]"
-Bangumi评分: "{{rating}}"
-Bangumi链接: "{{bangumi_url}}"
 阅读状态: {{my_status}}
 tags:
 {{tags}}
@@ -330,6 +333,8 @@ tags:
 已购: false
 作品大类: Album
 具体类型: "{{category}}"
+Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 页数: "{{pages}}"
 ISBN: "{{isbn}}"
 封面: "![]({{cover}})"
@@ -361,6 +366,10 @@ ISBN: "{{isbn}}"
 
 > [!abstract]+ **简介**
 > {{summary}}
+
+## 记录
+
+## 感想
 `;
 
 // 音乐模板（基础版）
@@ -368,15 +377,14 @@ export const MUSIC_TEMPLATE = `---
 id: {{id}}
 中文名: "{{name_cn}}"
 原名: "{{name}}"
-别名: "{{alias}}"
-Bangumi评分: "{{rating}}"
-Bangumi链接: "{{bangumi_url}}"
 收藏状态: {{my_status}}
 tags:
 {{tags}}
 评分: {{my_rate}}
 作品大类: Music
 具体类型: "{{category}}"
+Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 封面: "![]({{cover}})"
 发行日期: "{{date}}"
 ---
@@ -401,15 +409,14 @@ export const REAL_TEMPLATE = `---
 id: {{id}}
 中文名: "{{name_cn}}"
 原名: "{{name}}"
-别名: "{{alias}}"
-Bangumi评分: "{{rating}}"
-Bangumi链接: "{{bangumi_url}}"
 观看状态: {{my_status}}
 tags:
 {{tags}}
 评分: {{my_rate}}
 作品大类: Real
 具体类型: "{{category}}"
+Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
 封面: "![]({{cover}})"
 上映日期: "{{date}}"
 ---

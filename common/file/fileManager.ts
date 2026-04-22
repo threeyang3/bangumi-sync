@@ -98,7 +98,7 @@ export class FileManager {
 			}
 
 			// 默认不更新已存在的文件
-			console.log(`[Bangumi Sync] 文件已存在，跳过: ${normalizedPath}`);
+			console.debug(`[Bangumi Sync] 文件已存在，跳过: ${normalizedPath}`);
 			return { file: existingFile, created: false };
 		}
 

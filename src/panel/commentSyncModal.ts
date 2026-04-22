@@ -191,7 +191,7 @@ export class CommentSyncModal extends Modal {
 					comment: diff.localComment || '',
 				});
 				successCount++;
-				console.log(`[Bangumi Sync] 已更新云端短评: ${diff.name_cn}`);
+				console.debug(`[Bangumi Sync] 已更新云端短评: ${diff.name_cn}`);
 			} catch (error) {
 				failCount++;
 				console.error(`[Bangumi Sync] 更新云端短评失败: ${diff.name_cn}`, error);
@@ -214,7 +214,7 @@ export class CommentSyncModal extends Modal {
 
 					await this.app.vault.modify(file, newContent);
 					successCount++;
-					console.log(`[Bangumi Sync] 已更新本地短评: ${diff.name_cn}`);
+					console.debug(`[Bangumi Sync] 已更新本地短评: ${diff.name_cn}`);
 				}
 			} catch (error) {
 				failCount++;

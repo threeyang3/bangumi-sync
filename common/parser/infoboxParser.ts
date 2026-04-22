@@ -179,7 +179,7 @@ export function parseAnimeInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 		episode: getInfoboxNumber(infobox, '话数'),
 		director: getInfoboxValue(infobox, '导演', ['监督', '总导演']),
 		music: getInfoboxValue(infobox, '音乐', ['音乐制作', '音乐人']),
-		animeMake: getInfoboxValue(infobox, '动画制作', ['制作', '动画工房', '工作室']),
+		animeMake: getInfoboxValue(infobox, '动画制作', ['制作', '动画制作公司', '制作公司', '动画工房', '工作室', '制作委员会']),
 		musicMake: getInfoboxValue(infobox, '音乐制作', ['音乐']),
 		staff: getInfoboxValue(infobox, '脚本', ['系列构成', '剧本']),
 		audioDirector: getInfoboxValue(infobox, '音响监督', ['音响']),

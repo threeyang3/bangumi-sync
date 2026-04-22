@@ -21,18 +21,18 @@ export class FileManager {
 		const dirPath = lastSlash > 0 ? normalizedPath.substring(0, lastSlash) : '';
 
 		if (dirPath) {
-			console.log(`[Bangumi Sync] 检查目录: ${dirPath}`);
+			console.debug(`[Bangumi Sync] 检查目录: ${dirPath}`);
 			const exists = await this.app.vault.adapter.exists(dirPath);
 
 			if (!exists) {
-				console.log(`[Bangumi Sync] 创建目录: ${dirPath}`);
+				console.debug(`[Bangumi Sync] 创建目录: ${dirPath}`);
 				// 递归创建父目录
 				await this.ensureDirectory(dirPath);
 				try {
 					await this.app.vault.createFolder(dirPath);
 				} catch (error) {
 					// 目录可能已存在（并发创建）
-					console.log(`[Bangumi Sync] 创建目录失败（可能已存在）: ${error}`);
+					console.debug(`[Bangumi Sync] 创建目录失败（可能已存在）: ${error}`);
 				}
 			}
 		}
@@ -63,7 +63,7 @@ export class FileManager {
 	 */
 	async createFile(path: string, content: string): Promise<TFile> {
 		const normalizedPath = normalizePath(path);
-		console.log(`[Bangumi Sync] 创建文件: ${normalizedPath}`);
+		console.debug(`[Bangumi Sync] 创建文件: ${normalizedPath}`);
 
 		// 确保目录存在
 		await this.ensureDirectory(normalizedPath);
@@ -71,7 +71,7 @@ export class FileManager {
 		// 创建文件
 		try {
 			const file = await this.app.vault.create(normalizedPath, content);
-			console.log(`[Bangumi Sync] 文件创建成功: ${normalizedPath}`);
+			console.debug(`[Bangumi Sync] 文件创建成功: ${normalizedPath}`);
 			return file;
 		} catch (error) {
 			console.error(`[Bangumi Sync] 创建文件失败: ${normalizedPath}`, error);
@@ -108,7 +108,7 @@ export class FileManager {
 			}
 
 			// 默认不更新已存在的文件
-			console.log(`[Bangumi Sync] 文件已存在，跳过: ${normalizedPath}`);
+			console.debug(`[Bangumi Sync] 文件已存在，跳过: ${normalizedPath}`);
 			return { file: existingFile, created: false };
 		}
 
@@ -120,7 +120,7 @@ export class FileManager {
 	/**
 	 * 获取文件夹中的所有 Markdown 文件
 	 */
-	async getMarkdownFiles(folderPath: string): Promise<TFile[]> {
+	getMarkdownFiles(folderPath: string): TFile[] {
 		const normalizedPath = normalizePath(folderPath);
 		const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
 

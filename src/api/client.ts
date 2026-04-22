@@ -64,10 +64,10 @@ export class BangumiClient {
 		};
 
 		try {
-			console.log(`[Bangumi Sync] ${method} ${url}`);
+			console.debug(`[Bangumi Sync] ${method} ${url}`);
 			const response = await requestUrl(options);
 
-			console.log(`[Bangumi Sync] Response status: ${response.status}`);
+			console.debug(`[Bangumi Sync] Response status: ${response.status}`);
 
 			if (response.status >= 400) {
 				const error: APIError = response.json || {
@@ -102,7 +102,7 @@ export class BangumiClient {
 			return { valid: false, error: '未配置 Access Token' };
 		}
 
-		console.log('[Bangumi Sync] 验证 Token...');
+		console.debug('[Bangumi Sync] 验证 Token...');
 
 		try {
 			const headers = this.getHeaders();
@@ -112,11 +112,11 @@ export class BangumiClient {
 				headers: headers,
 			});
 
-			console.log(`[Bangumi Sync] /v0/me 响应状态: ${response.status}`);
+			console.debug(`[Bangumi Sync] /v0/me 响应状态: ${response.status}`);
 
 			if (response.status === 200) {
 				const user = response.json as { username?: string };
-				console.log(`[Bangumi Sync] 获取到用户: ${user.username}`);
+				console.debug(`[Bangumi Sync] 获取到用户: ${user.username}`);
 				return { valid: true, username: user.username };
 			}
 
@@ -182,11 +182,11 @@ export class BangumiClient {
 		}
 
 		const endpoint = `${ENDPOINTS.USER_COLLECTIONS(username)}?${params.toString()}`;
-		console.log(`[Bangumi Sync] 获取收藏: ${endpoint}`);
+		console.debug(`[Bangumi Sync] 获取收藏: ${endpoint}`);
 
 		try {
 			const result = await this.request<PagedResult<UserCollection>>('GET', endpoint);
-			console.log(`[Bangumi Sync] 获取到 ${result.data.length}/${result.total} 条收藏`);
+			console.debug(`[Bangumi Sync] 获取到 ${result.data.length}/${result.total} 条收藏`);
 			return result;
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('404')) {
@@ -267,11 +267,11 @@ export class BangumiClient {
 		private?: boolean;
 	}): Promise<void> {
 		const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
-		console.log(`[Bangumi Sync] 更新收藏: PATCH ${endpoint}`);
-		console.log(`[Bangumi Sync] 更新数据:`, data);
+		console.debug(`[Bangumi Sync] 更新收藏: PATCH ${endpoint}`);
+		console.debug(`[Bangumi Sync] 更新数据:`, data);
 
 		await this.request('PATCH', endpoint, data);
-		console.log(`[Bangumi Sync] 收藏更新成功: ${subjectId}`);
+		console.debug(`[Bangumi Sync] 收藏更新成功: ${subjectId}`);
 	}
 
 	/**
@@ -280,10 +280,10 @@ export class BangumiClient {
 	 */
 	async getEpisodes(subjectId: number): Promise<PagedEpisodes> {
 		const endpoint = `${ENDPOINTS.EPISODES}?subject_id=${subjectId}`;
-		console.log(`[Bangumi Sync] 获取章节: ${endpoint}`);
+		console.debug(`[Bangumi Sync] 获取章节: ${endpoint}`);
 
 		const result = await this.request<PagedEpisodes>('GET', endpoint);
-		console.log(`[Bangumi Sync] 获取到 ${result.data.length}/${result.total} 个章节`);
+		console.debug(`[Bangumi Sync] 获取到 ${result.data.length}/${result.total} 个章节`);
 		return result;
 	}
 
@@ -293,10 +293,10 @@ export class BangumiClient {
 	 */
 	async getUserEpisodeStatus(subjectId: number): Promise<UserEpisodeCollection[]> {
 		const endpoint = ENDPOINTS.USER_SUBJECT_EPISODES(subjectId);
-		console.log(`[Bangumi Sync] 获取用户章节状态: ${endpoint}`);
+		console.debug(`[Bangumi Sync] 获取用户章节状态: ${endpoint}`);
 
 		const result = await this.request<PagedResult<UserEpisodeCollection>>('GET', endpoint);
-		console.log(`[Bangumi Sync] 获取到 ${result.data.length} 个章节状态`);
+		console.debug(`[Bangumi Sync] 获取到 ${result.data.length} 个章节状态`);
 		return result.data;
 	}
 
@@ -307,10 +307,10 @@ export class BangumiClient {
 	 */
 	async updateEpisodeStatus(episodeId: number, type: number): Promise<void> {
 		const endpoint = ENDPOINTS.UPDATE_EPISODE_STATUS(episodeId);
-		console.log(`[Bangumi Sync] 更新章节状态: PUT ${endpoint}, type=${type}`);
+		console.debug(`[Bangumi Sync] 更新章节状态: PUT ${endpoint}, type=${type}`);
 
 		await this.request('PUT', endpoint, { type });
-		console.log(`[Bangumi Sync] 章节状态更新成功: ${episodeId}`);
+		console.debug(`[Bangumi Sync] 章节状态更新成功: ${episodeId}`);
 	}
 }
 

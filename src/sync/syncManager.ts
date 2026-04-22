@@ -114,7 +114,7 @@ export class SyncManager {
 				throw new Error('无法获取用户名，请检查 Access Token');
 			}
 
-			console.log(`[Bangumi Sync] 用户: ${username}`);
+			console.debug(`[Bangumi Sync] 用户: ${username}`);
 
 			// 2. 获取远程收藏列表
 			this.reportProgress({ status: 'fetching', message: '获取收藏列表...' });
@@ -132,13 +132,13 @@ export class SyncManager {
 				},
 			});
 
-			console.log(`[Bangumi Sync] 获取到 ${collections.length} 条收藏`);
+			console.debug(`[Bangumi Sync] 获取到 ${collections.length} 条收藏`);
 
 			// 3. 扫描本地文件夹
 			this.reportProgress({ status: 'scanning', message: '扫描本地文件夹...' });
 
 			const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
-			console.log(`[Bangumi Sync] 扫描路径: ${scanPath}`);
+			console.debug(`[Bangumi Sync] 扫描路径: ${scanPath}`);
 
 			await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
 				this.reportProgress({
@@ -154,7 +154,7 @@ export class SyncManager {
 
 			// 过滤符合条件的收藏（条目类型和收藏类型）
 			const filteredCollections = this.filterCollections(collections, options);
-			console.log(`[Bangumi Sync] 符合条件的收藏: ${filteredCollections.length}`);
+			console.debug(`[Bangumi Sync] 符合条件的收藏: ${filteredCollections.length}`);
 
 			const diff = this.incrementalSync.computeDiff(filteredCollections, {
 				limit: options.limit,
@@ -164,7 +164,7 @@ export class SyncManager {
 			result.total = diff.toAdd.length;
 			result.skipped = diff.toSkip.length;
 
-			console.log(`[Bangumi Sync] 需要同步: ${result.total}，已存在跳过: ${result.skipped}`);
+			console.debug(`[Bangumi Sync] 需要同步: ${result.total}，已存在跳过: ${result.skipped}`);
 
 			// 5. 处理每个条目
 			for (let i = 0; i < diff.toAdd.length; i++) {
@@ -233,11 +233,11 @@ export class SyncManager {
 	 * 处理单个收藏
 	 */
 	private async processCollection(collection: UserCollection): Promise<void> {
-		console.log(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
 		const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
-		console.log(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
+		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
 
 		// 解析角色信息
 		const characters = parseCharacters(relatedCharacters, 9);
@@ -248,7 +248,7 @@ export class SyncManager {
 		// 下载封面图片
 		let coverUrl = subject.images?.large || subject.images?.common || '';
 		if (this.config.downloadImages && coverUrl) {
-			console.log(`[Bangumi Sync] 下载封面: ${coverUrl}`);
+			console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
 			const localPath = await this.imageHandler.downloadCover(
 				coverUrl,
 				subject.id,
@@ -269,7 +269,7 @@ export class SyncManager {
 
 		// 生成文件路径
 		const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
-		console.log(`[Bangumi Sync] 生成文件路径: ${filePath}`);
+		console.debug(`[Bangumi Sync] 生成文件路径: ${filePath}`);
 
 		// 生成文件内容（使用 V3 版本，包含用户自己的标签）
 		const content = generateContentByType(
@@ -287,7 +287,7 @@ export class SyncManager {
 		await this.fileManager.createOrUpdateFile(filePath, content, {
 			overwrite: false,
 		});
-		console.log(`[Bangumi Sync] 文件创建完成: ${filePath}`);
+		console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
 	}
 
 	/**
@@ -306,14 +306,14 @@ export class SyncManager {
 		}
 
 		try {
-			console.log(`[Bangumi Sync] 获取章节信息: ${subject.name_cn}`);
+			console.debug(`[Bangumi Sync] 获取章节信息: ${subject.name_cn}`);
 
 			// 获取章节列表
 			const episodesData = await this.client.getEpisodes(subject.id);
 			const episodes = episodesData.data;
 
 			if (!episodes || episodes.length === 0) {
-				console.log(`[Bangumi Sync] 无章节信息`);
+				console.debug(`[Bangumi Sync] 无章节信息`);
 				return null;
 			}
 
@@ -322,7 +322,7 @@ export class SyncManager {
 			try {
 				userStatus = await this.client.getUserEpisodeStatus(subject.id);
 			} catch (error) {
-				console.log(`[Bangumi Sync] 获取用户章节状态失败，可能未收藏此条目`);
+				console.debug(`[Bangumi Sync] 获取用户章节状态失败，可能未收藏此条目`);
 			}
 
 			return { episodes, userStatus };
@@ -368,7 +368,7 @@ export class SyncManager {
 		const overwrite = options?.overwrite ?? false;
 
 		try {
-			console.log(`[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}`);
+			console.debug(`[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}`);
 
 			for (let i = 0; i < collections.length; i++) {
 				const collection = collections[i];
@@ -436,7 +436,7 @@ export class SyncManager {
 					});
 
 					result.added++;
-					console.log(`[Bangumi Sync] 同步完成: ${subject.name_cn || subject.name}`);
+					console.debug(`[Bangumi Sync] 同步完成: ${subject.name_cn || subject.name}`);
 
 				} catch (error) {
 					console.error(`[Bangumi Sync] 同步条目失败 (ID: ${collection.subject_id}):`, error);
@@ -491,7 +491,7 @@ export class SyncManager {
 				throw new Error('无法获取用户名，请检查 Access Token');
 			}
 
-			console.log(`[Bangumi Sync] 用户: ${username}`);
+			console.debug(`[Bangumi Sync] 用户: ${username}`);
 
 			// 2. 获取远程收藏列表
 			this.reportProgress({ status: 'fetching', message: '获取收藏列表...' });
@@ -509,13 +509,13 @@ export class SyncManager {
 				},
 			});
 
-			console.log(`[Bangumi Sync] 获取到 ${collections.length} 条收藏`);
+			console.debug(`[Bangumi Sync] 获取到 ${collections.length} 条收藏`);
 
 			// 3. 扫描本地文件夹
 			this.reportProgress({ status: 'scanning', message: '扫描本地文件夹...' });
 
 			const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
-			console.log(`[Bangumi Sync] 扫描路径: ${scanPath}`);
+			console.debug(`[Bangumi Sync] 扫描路径: ${scanPath}`);
 
 			await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
 				this.reportProgress({
@@ -531,14 +531,14 @@ export class SyncManager {
 
 			// 过滤符合条件的收藏（条目类型和收藏类型）
 			const filteredCollections = this.filterCollections(collections, options);
-			console.log(`[Bangumi Sync] 符合条件的收藏: ${filteredCollections.length}`);
+			console.debug(`[Bangumi Sync] 符合条件的收藏: ${filteredCollections.length}`);
 
 			const diff = this.incrementalSync.computeDiff(filteredCollections, {
 				limit: options.limit,
 				force: options.force,
 			});
 
-			console.log(`[Bangumi Sync] 需要同步: ${diff.toAdd.length}，已存在跳过: ${diff.toSkip.length}`);
+			console.debug(`[Bangumi Sync] 需要同步: ${diff.toAdd.length}，已存在跳过: ${diff.toSkip.length}`);
 
 			// 5. 创建预览数据
 			const previewItems: SyncPreviewItem[] = diff.toAdd.map(collection => ({
@@ -601,7 +601,7 @@ export class SyncManager {
 			}
 
 			result.total = itemsToSync.length;
-			console.log(`[Bangumi Sync] 开始同步 ${itemsToSync.length} 个条目`);
+			console.debug(`[Bangumi Sync] 开始同步 ${itemsToSync.length} 个条目`);
 
 			// 处理每个条目
 			for (let i = 0; i < itemsToSync.length; i++) {
@@ -644,11 +644,11 @@ export class SyncManager {
 		collection: UserCollection,
 		ratingDetails: RatingDetails
 	): Promise<void> {
-		console.log(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
 		const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
-		console.log(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
+		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
 
 		// 解析角色信息
 		const characters = parseCharacters(relatedCharacters, 9);
@@ -659,7 +659,7 @@ export class SyncManager {
 		// 下载封面图片
 		let coverUrl = subject.images?.large || subject.images?.common || '';
 		if (this.config.downloadImages && coverUrl) {
-			console.log(`[Bangumi Sync] 下载封面: ${coverUrl}`);
+			console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
 			const localPath = await this.imageHandler.downloadCover(
 				coverUrl,
 				subject.id,
@@ -677,7 +677,7 @@ export class SyncManager {
 
 		// 生成文件路径
 		const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
-		console.log(`[Bangumi Sync] 生成文件路径: ${filePath}`);
+		console.debug(`[Bangumi Sync] 生成文件路径: ${filePath}`);
 
 		// V4: 获取章节信息
 		const episodeData = await this.fetchEpisodeData(subject);
@@ -698,6 +698,6 @@ export class SyncManager {
 		await this.fileManager.createOrUpdateFile(filePath, content, {
 			overwrite: false,
 		});
-		console.log(`[Bangumi Sync] 文件创建完成: ${filePath}`);
+		console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
 	}
 }

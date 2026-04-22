@@ -194,7 +194,7 @@ export class TagSyncModal extends Modal {
 					tags: diff.localTags || [],
 				});
 				successCount++;
-				console.log(`[Bangumi Sync] 已更新云端标签: ${diff.name_cn}`);
+				console.debug(`[Bangumi Sync] 已更新云端标签: ${diff.name_cn}`);
 			} catch (error) {
 				failCount++;
 				console.error(`[Bangumi Sync] 更新云端标签失败: ${diff.name_cn}`, error);
@@ -217,7 +217,7 @@ export class TagSyncModal extends Modal {
 
 					await this.app.vault.modify(file, newContent);
 					successCount++;
-					console.log(`[Bangumi Sync] 已更新本地标签: ${diff.name_cn}`);
+					console.debug(`[Bangumi Sync] 已更新本地标签: ${diff.name_cn}`);
 				}
 			} catch (error) {
 				failCount++;
@@ -252,7 +252,7 @@ export class TagSyncModal extends Modal {
 				});
 
 				successCount++;
-				console.log(`[Bangumi Sync] 已合并标签: ${diff.name_cn}`);
+				console.debug(`[Bangumi Sync] 已合并标签: ${diff.name_cn}`);
 			} catch (error) {
 				failCount++;
 				console.error(`[Bangumi Sync] 合并标签失败: ${diff.name_cn}`, error);

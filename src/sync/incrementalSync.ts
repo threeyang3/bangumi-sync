@@ -36,7 +36,7 @@ export class IncrementalSync {
 		folderPath: string,
 		onProgress?: (current: number, total: number) => void
 	): Promise<number> {
-		console.log(`[Bangumi Sync] 扫描本地文件夹: ${folderPath}`);
+		console.debug(`[Bangumi Sync] 扫描本地文件夹: ${folderPath}`);
 		this.localSubjects.clear();
 		this.lastScanPath = folderPath;
 
@@ -44,7 +44,7 @@ export class IncrementalSync {
 		const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
 
 		if (!(folder instanceof TFolder)) {
-			console.log(`[Bangumi Sync] 文件夹不存在: ${folderPath}`);
+			console.debug(`[Bangumi Sync] 文件夹不存在: ${folderPath}`);
 			return 0;
 		}
 
@@ -52,7 +52,7 @@ export class IncrementalSync {
 		const allFiles = this.app.vault.getMarkdownFiles();
 		const targetFiles = allFiles.filter(file => file.path.startsWith(normalizedPath));
 
-		console.log(`[Bangumi Sync] 找到 ${targetFiles.length} 个文件`);
+		console.debug(`[Bangumi Sync] 找到 ${targetFiles.length} 个文件`);
 
 		let processed = 0;
 		for (const file of targetFiles) {
@@ -67,7 +67,7 @@ export class IncrementalSync {
 						path: file.path,
 						name_cn: name_cn,
 					});
-					console.log(`[Bangumi Sync] 发现已同步条目: ${name_cn} (ID: ${subjectId})`);
+					console.debug(`[Bangumi Sync] 发现已同步条目: ${name_cn} (ID: ${subjectId})`);
 				}
 			} catch (error) {
 				console.error(`[Bangumi Sync] 读取文件失败: ${file.path}`, error);
@@ -79,7 +79,7 @@ export class IncrementalSync {
 			}
 		}
 
-		console.log(`[Bangumi Sync] 扫描完成，发现 ${this.localSubjects.size} 个已同步条目`);
+		console.debug(`[Bangumi Sync] 扫描完成，发现 ${this.localSubjects.size} 个已同步条目`);
 		return this.localSubjects.size;
 	}
 
@@ -165,7 +165,7 @@ export class IncrementalSync {
 		toAdd: T[];
 		toSkip: T[];
 	} {
-		console.log(`[Bangumi Sync] 计算同步差异，远程条目: ${remoteCollections.length}，本地条目: ${this.localSubjects.size}`);
+		console.debug(`[Bangumi Sync] 计算同步差异，远程条目: ${remoteCollections.length}，本地条目: ${this.localSubjects.size}`);
 
 		// 分离已存在和未存在的条目
 		const existing: T[] = [];
@@ -182,7 +182,7 @@ export class IncrementalSync {
 			}
 		}
 
-		console.log(`[Bangumi Sync] 已存在: ${existing.length}，未同步: ${notExisting.length}`);
+		console.debug(`[Bangumi Sync] 已存在: ${existing.length}，未同步: ${notExisting.length}`);
 
 		let toAdd: T[];
 		let toSkip: T[];
@@ -198,7 +198,7 @@ export class IncrementalSync {
 			toSkip = existing;
 		}
 
-		console.log(`[Bangumi Sync] 需要新增: ${toAdd.length}，跳过: ${toSkip.length}`);
+		console.debug(`[Bangumi Sync] 需要新增: ${toAdd.length}，跳过: ${toSkip.length}`);
 
 		return {
 			toAdd,

@@ -574,7 +574,7 @@ class TemplateEditorModal extends Modal {
 		textArea
 			.setValue(this.template)
 			.setPlaceholder('输入模板内容...');
-		textArea.inputEl.style.height = '400px';
+		textArea.inputEl.addClass('bangumi-template-textarea');
 		textArea.inputEl.style.width = '100%';
 		textArea.inputEl.style.fontFamily = 'monospace';
 

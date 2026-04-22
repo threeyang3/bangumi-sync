@@ -64,10 +64,10 @@ export class BangumiClient {
 		};
 
 		try {
-			console.log(`[Bangumi Sync] ${method} ${url}`);
+			console.debug(`[Bangumi Sync] ${method} ${url}`);
 			const response = await requestUrl(options);
 
-			console.log(`[Bangumi Sync] Response status: ${response.status}`);
+			console.debug(`[Bangumi Sync] Response status: ${response.status}`);
 
 			if (response.status >= 400) {
 				const error: APIError = response.json || {
@@ -227,11 +227,11 @@ export class BangumiClient {
 		}
 
 		const endpoint = `${ENDPOINTS.USER_COLLECTIONS(username)}?${params.toString()}`;
-		console.log(`[Bangumi Sync] 获取收藏: ${endpoint}`);
+		console.debug(`[Bangumi Sync] 获取收藏: ${endpoint}`);
 
 		try {
 			const result = await this.request<PagedResult<UserCollection>>('GET', endpoint);
-			console.log(`[Bangumi Sync] 获取到 ${result.data.length}/${result.total} 条收藏`);
+			console.debug(`[Bangumi Sync] 获取到 ${result.data.length}/${result.total} 条收藏`);
 			return result;
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('404')) {
@@ -282,12 +282,12 @@ export class BangumiClient {
 			return { valid: false, error: '未配置 Access Token' };
 		}
 
-		console.log('[Bangumi Sync] 验证 Token...');
-		console.log(`[Bangumi Sync] Token 长度: ${this.accessToken.length}`);
+		console.debug('[Bangumi Sync] 验证 Token...');
+		console.debug(`[Bangumi Sync] Token 长度: ${this.accessToken.length}`);
 
 		try {
 			const headers = this.getHeaders();
-			console.log('[Bangumi Sync] 请求头:', JSON.stringify(headers));
+			console.debug('[Bangumi Sync] 请求头:', JSON.stringify(headers));
 
 			// 使用 /v0/me 获取当前用户信息
 			const response = await requestUrl({
@@ -296,11 +296,11 @@ export class BangumiClient {
 				headers: headers,
 			});
 
-			console.log(`[Bangumi Sync] /v0/me 响应状态: ${response.status}`);
+			console.debug(`[Bangumi Sync] /v0/me 响应状态: ${response.status}`);
 
 			if (response.status === 200) {
 				const user = response.json as { username?: string };
-				console.log(`[Bangumi Sync] 获取到用户: ${user.username}`);
+				console.debug(`[Bangumi Sync] 获取到用户: ${user.username}`);
 				return { valid: true, username: user.username };
 			}
 

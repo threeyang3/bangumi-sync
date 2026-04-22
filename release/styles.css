@@ -1,5 +1,12 @@
 /* Bangumi Sync Plugin Styles */
 
+/* 模板编辑器文本区域 */
+.bangumi-template-textarea {
+	height: 400px;
+	width: 100%;
+	font-family: monospace;
+}
+
 /* 同步状态 */
 .bangumi-sync-status {
 	padding: 10px;

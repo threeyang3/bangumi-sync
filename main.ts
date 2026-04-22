@@ -14,8 +14,8 @@ import { BangumiSettingTab } from './src/settings/settingsTab';
 import { SyncManager, SyncManagerConfig } from './src/sync/syncManager';
 import { SyncModal } from './src/ui/syncModal';
 import { SyncOptionsModal, SyncOptionsInput } from './src/ui/syncOptionsModal';
-import { SyncPreviewModal, SyncPreviewItem, SyncPreviewResult } from './src/ui/syncPreviewModal';
-import { ControlPanel, CachedPanelData } from './src/panel/controlPanel';
+import { SyncPreviewModal, SyncPreviewResult } from './src/ui/syncPreviewModal';
+import { ControlPanel } from './src/panel/controlPanel';
 import { SyncProgress } from './src/sync/syncStatus';
 import { UserCollection } from './common/api/types';
 import {
@@ -86,7 +86,6 @@ export class BangumiPlugin extends Plugin {
 		this.addCommand({
 			id: 'open-control-panel',
 			name: '打开收藏管理面板',
-			hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'b' }],
 			callback: () => this.openControlPanel(),
 		});
 
@@ -94,7 +93,6 @@ export class BangumiPlugin extends Plugin {
 		this.addCommand({
 			id: 'sync-collections',
 			name: '同步 Bangumi 收藏',
-			hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 's' }],
 			callback: () => this.openSyncOptions(),
 		});
 
@@ -102,7 +100,6 @@ export class BangumiPlugin extends Plugin {
 		this.addCommand({
 			id: 'quick-sync-collections',
 			name: '快速同步（使用默认设置）',
-			hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'q' }],
 			callback: () => this.syncCollections(),
 		});
 
@@ -127,7 +124,7 @@ export class BangumiPlugin extends Plugin {
 			this.setupAutoSync();
 		}
 
-		console.log('[Bangumi Sync] 插件加载完成');
+		console.debug('[Bangumi Sync] 插件加载完成');
 	}
 
 	onunload() {
@@ -149,7 +146,7 @@ export class BangumiPlugin extends Plugin {
 			this.controlPanel = null;
 		}
 
-		console.log('[Bangumi Sync] 插件卸载');
+		console.debug('[Bangumi Sync] 插件卸载');
 	}
 
 	/**
@@ -314,7 +311,7 @@ export class BangumiPlugin extends Plugin {
 				force: false,
 			},
 			(options: SyncOptionsInput) => {
-				this.syncCollectionsWithOptions(options, true);
+				void this.syncCollectionsWithOptions(options, true);
 			}
 		);
 		modal.open();
@@ -465,7 +462,7 @@ export class BangumiPlugin extends Plugin {
 		if (this.settings.autoSync && this.settings.autoSyncInterval > 0) {
 			const intervalMs = this.settings.autoSyncInterval * 60 * 1000;
 			this.autoSyncIntervalId = window.setInterval(() => {
-				this.syncCollections();
+				void this.syncCollections();
 			}, intervalMs);
 		}
 	}
