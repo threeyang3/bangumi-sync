@@ -3,7 +3,7 @@
  * 检测本地与云端数据冲突，提供解决选项
  */
 
-import { App, Modal, Notice, TFile } from 'obsidian';
+import { App, Modal, TFile } from 'obsidian';
 import { UserCollection } from '../../common/api/types';
 
 /**

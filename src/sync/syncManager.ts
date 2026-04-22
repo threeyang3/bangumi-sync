@@ -11,12 +11,12 @@
 
 import { Notice, App } from 'obsidian';
 import { BangumiClient } from '../api/client';
-import { Subject, UserCollection, SubjectType, CollectionType, Episode, UserEpisodeCollection } from '../../common/api/types';
+import { Subject, UserCollection, Episode, UserEpisodeCollection } from '../../common/api/types';
 import { FileManager } from '../file/fileManager';
 import { ImageHandler } from '../../common/file/imageHandler';
 import { IncrementalSync } from './incrementalSync';
 import { SyncOptions, SyncResult, SyncProgress } from './syncStatus';
-import { parseCharacters, CharacterInfo } from '../../common/parser/characterParser';
+import { parseCharacters } from '../../common/parser/characterParser';
 import { generateFilePath } from '../../common/template/pathTemplate';
 import { generateContentByType } from '../template/contentTemplate';
 import { getTypeLabel } from '../../common/template/defaultTemplates';

@@ -381,11 +381,10 @@ id: {{id}}
 tags:
 {{tags}}
 评分: {{my_rate}}
-评分明细:
-  - 音乐：{{rating_music}}
-  - 人设：{{rating_character}}
-  - 剧情：{{rating_story}}
-  - 美术：{{rating_art}}
+音乐评分: {{rating_music}}
+人设评分: {{rating_character}}
+剧情评分: {{rating_story}}
+美术评分: {{rating_art}}
 标语:
 单评: false
 精彩片段:
@@ -417,11 +416,11 @@ Bangumi链接: "{{bangumi_url}}"
 > | 状态 |\`= this.观看状态\`|
 > | 标签 |\`= this.tags\`|
 > | 评分 |\`= this.评分\`|
-> | 明细 |音乐: {{rating_music}} 人设: {{rating_character}} 剧情: {{rating_story}} 美术: {{rating_art}}|
+> | 明细 |音乐: \`= this.音乐评分\` 人设: \`= this.人设评分\` 剧情: \`= this.剧情评分\` 美术: \`= this.美术评分\`|
 > | 笔记 | \`= this.笔记\`|
 > | 放送 | {{year}} 年 {{month}} 月 |
 > | 集数 | {{category}} 共{{episode}}话 |
-> | 制作 | {{animeMake}} |
+> | 精彩片段 | \`= this.精彩片段\` |
 > | 导演 | {{director}} |
 > | 音乐 | {{music}} |
 > | 存储 | \`= this.存储\`·\`=this.资源属性\` |
@@ -466,13 +465,13 @@ id: {{id}}
 tags:
 {{tags}}
 评分: {{my_rate}}
-评分明细:
-  - 剧情：{{rating_story}}
-  - 插画：{{rating_illustration}}
-  - 文笔：{{rating_writing}}
-  - 人设：{{rating_character}}
+剧情评分: {{rating_story}}
+插画评分: {{rating_illustration}}
+文笔评分: {{rating_writing}}
+人设评分: {{rating_character}}
 标语:
 单评: false
+精彩片段:
 笔记: "{{note_link}}"
 版本:
 Kindle: false
@@ -507,8 +506,9 @@ Bangumi链接: "{{bangumi_url}}"
 > | 状态 |\`= this.阅读状态\`|
 > | 标签 |\`= this.tags\`|
 > | 评分 |\`= this.评分\`|
-> | 明细 | 剧情: {{rating_story}} 插画: {{rating_illustration}} 文笔: {{rating_writing}} 人设: {{rating_character}}|
+> | 明细 | 剧情: \`= this.剧情评分\` 插画: \`= this.插画评分\` 文笔: \`= this.文笔评分\` 人设: \`= this.人设评分\`|
 > | 笔记 | \`= this.笔记\`|
+> | 精彩片段 | \`= this.精彩片段\` |
 > | 进度 |\`= this.连载状态\` - \`= this.进度\` |
 > | 书系 |\`= this.书系\`|
 > | 官网 |\`= this.官网\`|
@@ -545,12 +545,12 @@ id: {{id}}
 tags:
 {{tags}}
 评分: {{my_rate}}
-评分明细:
-  - 剧情：{{rating_story}}
-  - 画工：{{rating_drawing}}
-  - 人设：{{rating_character}}
+剧情评分: {{rating_story}}
+画工评分: {{rating_drawing}}
+人设评分: {{rating_character}}
 标语:
 单评: false
+精彩片段:
 笔记: "{{note_link}}"
 版本:
 格式:
@@ -582,8 +582,9 @@ Bangumi链接: "{{bangumi_url}}"
 > | 状态 |\`= this.阅读状态\`|
 > | 标签 |\`= this.tags\`|
 > | 评分 |\`= this.评分\`|
-> | 明细 | 剧情: {{rating_story}} 画工: {{rating_drawing}} 人设: {{rating_character}}|
+> | 明细 | 剧情: \`= this.剧情评分\` 画工: \`= this.画工评分\` 人设: \`= this.人设评分\`|
 > | 笔记 | \`= this.笔记\`|
+> | 精彩片段 | \`= this.精彩片段\` |
 > | 作者 |\`= this.作者\`|{{#if staff}}
 > | 作画 |\`= this.作画\`|{{/if}}
 > | 杂志 |\`= this.杂志\`|
@@ -622,11 +623,10 @@ id: {{id}}
 tags:
 {{tags}}
 评分: {{my_rate}}
-评分明细:
-  - 剧情：{{rating_story}}
-  - 趣味：{{rating_fun}}
-  - 音乐：{{rating_music}}
-  - 美术：{{rating_art}}
+剧情评分: {{rating_story}}
+趣味评分: {{rating_fun}}
+音乐评分: {{rating_music}}
+美术评分: {{rating_art}}
 标语:
 单评: false
 笔记: "{{note_link}}"
@@ -657,7 +657,7 @@ Bangumi链接: "{{bangumi_url}}"
 > | 平台 |\`= this.平台\`|
 > | 标签 |\`= this.tags\`|
 > | 评分 |\`= this.评分\`|
-> | 明细 |剧情: {{rating_story}} 趣味: {{rating_fun}} 音乐: {{rating_music}} 美术: {{rating_art}}|
+> | 明细 |剧情: \`= this.剧情评分\` 趣味: \`= this.趣味评分\` 音乐: \`= this.音乐评分\` 美术: \`= this.美术评分\`|
 > | 笔记 | \`= this.笔记\`|
 > | 开发 | \`= this.开发\`|
 > | 发行 | \`= this.发行\`|

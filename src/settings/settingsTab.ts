@@ -13,6 +13,13 @@ import {
 	ALBUM_TEMPLATE,
 	MUSIC_TEMPLATE,
 	REAL_TEMPLATE,
+	ANIME_TEMPLATE_STANDARD,
+	NOVEL_TEMPLATE_STANDARD,
+	COMIC_TEMPLATE_STANDARD,
+	GAME_TEMPLATE_STANDARD,
+	ALBUM_TEMPLATE_STANDARD,
+	MUSIC_TEMPLATE_STANDARD,
+	REAL_TEMPLATE_STANDARD,
 } from '../../common/template/defaultTemplates';
 
 /**
@@ -91,7 +98,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 						await this.onSave();
 						this.updatePathPreview(previewEl, value);
 					});
-				text.inputEl.style.width = '100%';
+				text.inputEl.addClass('bangumi-path-input');
 			});
 
 		// 路径预览
@@ -458,7 +465,84 @@ export class BangumiSettingTab extends PluginSettingTab {
 							this.openTemplatePreview(templateType);
 						});
 				}
+			})
+			.addButton(button => {
+				button
+					.setButtonText('复制')
+					.setTooltip('复制当前模板到自定义内容')
+					.onClick(async () => {
+						await this.copyCurrentTemplate(templateType);
+					});
 			});
+	}
+
+	/**
+	 * 复制当前模板到自定义内容
+	 */
+	private async copyCurrentTemplate(templateType: TemplateTypeOption): Promise<void> {
+		const config = this.settings[templateType.key] as TemplateConfig;
+		let templateContent: string;
+
+		// 根据当前配置获取模板内容
+		switch (config.source) {
+			case 'standard':
+				templateContent = this.getStandardTemplate(templateType.key);
+				break;
+			case 'author':
+				templateContent = templateType.defaultTemplate;
+				break;
+			case 'file':
+				if (config.filePath) {
+					try {
+						const file = this.app.vault.getAbstractFileByPath(config.filePath);
+						if (file instanceof TFile) {
+							templateContent = await this.app.vault.read(file);
+						} else {
+							new Notice('模板文件不存在');
+							return;
+						}
+					} catch (error) {
+						new Notice('读取模板文件失败');
+						return;
+					}
+				} else {
+					new Notice('请先选择模板文件');
+					return;
+				}
+				break;
+			case 'custom':
+				templateContent = config.customContent || templateType.defaultTemplate;
+				break;
+			default:
+				templateContent = templateType.defaultTemplate;
+		}
+
+		// 设置为自定义内容并保存
+		const newConfig: TemplateConfig = {
+			source: 'custom',
+			customContent: templateContent,
+		};
+		(this.settings[templateType.key] as TemplateConfig) = newConfig;
+		await this.onSave();
+
+		new Notice('已复制到自定义内容，可以开始编辑');
+		this.display();
+	}
+
+	/**
+	 * 获取标准模板内容
+	 */
+	private getStandardTemplate(key: TemplateKey): string {
+		const standardTemplates: Record<TemplateKey, string> = {
+			animeTemplateConfig: ANIME_TEMPLATE_STANDARD,
+			novelTemplateConfig: NOVEL_TEMPLATE_STANDARD,
+			comicTemplateConfig: COMIC_TEMPLATE_STANDARD,
+			gameTemplateConfig: GAME_TEMPLATE_STANDARD,
+			albumTemplateConfig: ALBUM_TEMPLATE_STANDARD,
+			musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
+			realTemplateConfig: REAL_TEMPLATE_STANDARD,
+		};
+		return standardTemplates[key];
 	}
 
 	/**
@@ -589,8 +673,6 @@ class TemplateEditorModal extends Modal {
 			.setValue(this.template)
 			.setPlaceholder('输入模板内容...');
 		textArea.inputEl.addClass('bangumi-template-textarea');
-		textArea.inputEl.style.width = '100%';
-		textArea.inputEl.style.fontFamily = 'monospace';
 
 		// 按钮
 		const buttonDiv = contentEl.createDiv({ cls: 'bangumi-modal-buttons' });

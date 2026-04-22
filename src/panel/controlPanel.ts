@@ -695,40 +695,42 @@ export class ControlPanel extends Modal {
 		}
 
 		// 确认删除
-		const confirmed = confirm(`确定要删除 ${syncedCollections.length} 个本地文件吗？\n此操作将移动到系统回收站。`);
-		if (!confirmed) {
-			return;
-		}
+		const modal = new ConfirmModal(
+			this.app,
+			`确定要删除 ${syncedCollections.length} 个本地文件吗？此操作将移动到系统回收站。`,
+			async () => {
+				let deleted = 0;
+				let failed = 0;
 
-		let deleted = 0;
-		let failed = 0;
-
-		for (const collection of syncedCollections) {
-			const localInfo = this.state.localSubjects.get(collection.subject_id);
-			if (localInfo) {
-				try {
-					const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-					if (file instanceof TFile) {
-						await this.app.fileManager.trashFile(file);
-						this.state.localSubjects.delete(collection.subject_id);
-						deleted++;
+				for (const collection of syncedCollections) {
+					const localInfo = this.state.localSubjects.get(collection.subject_id);
+					if (localInfo) {
+						try {
+							const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+							if (file instanceof TFile) {
+								await this.app.fileManager.trashFile(file);
+								this.state.localSubjects.delete(collection.subject_id);
+								deleted++;
+							}
+						} catch (error) {
+							console.error(`删除文件失败: ${localInfo.path}`, error);
+							failed++;
+						}
 					}
-				} catch (error) {
-					console.error(`删除文件失败: ${localInfo.path}`, error);
-					failed++;
 				}
+
+				new Notice(`删除完成：成功 ${deleted} 个，失败 ${failed} 个`);
+
+				// 清空选中状态
+				this.state.selectedIds.clear();
+
+				// 刷新表格
+				this.renderStatus(`共 ${this.state.collections.length} 条收藏，${this.state.localSubjects.size} 条已同步`);
+				this.renderTable();
+				this.renderActionBar();
 			}
-		}
-
-		new Notice(`删除完成：成功 ${deleted} 个，失败 ${failed} 个`);
-
-		// 清空选中状态
-		this.state.selectedIds.clear();
-
-		// 刷新表格
-		this.renderStatus(`共 ${this.state.collections.length} 条收藏，${this.state.localSubjects.size} 条已同步`);
-		this.renderTable();
-		this.renderActionBar();
+		);
+		modal.open();
 	}
 
 	/**
@@ -1016,5 +1018,43 @@ export class ControlPanel extends Modal {
 				row.removeClass('focused');
 			}
 		});
+	}
+}
+
+/**
+ * 确认对话框
+ */
+class ConfirmModal extends Modal {
+	private message: string;
+	private onConfirm: () => void;
+
+	constructor(app: App, message: string, onConfirm: () => void) {
+		super(app);
+		this.message = message;
+		this.onConfirm = onConfirm;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+
+		contentEl.createEl('p', { text: this.message });
+
+		const buttonDiv = contentEl.createDiv({ cls: 'modal-button-container' });
+
+		const confirmBtn = buttonDiv.createEl('button', { text: '确定', cls: 'mod-cta' });
+		confirmBtn.addEventListener('click', () => {
+			this.onConfirm();
+			this.close();
+		});
+
+		const cancelBtn = buttonDiv.createEl('button', { text: '取消' });
+		cancelBtn.addEventListener('click', () => {
+			this.close();
+		});
+	}
+
+	onClose(): void {
+		const { contentEl } = this;
+		contentEl.empty();
 	}
 }

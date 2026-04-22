@@ -11,9 +11,7 @@ import {
 	PagedResult,
 	RelatedCharacter,
 	RelatedPerson,
-	User,
 	APIError,
-	Episode,
 	PagedEpisodes,
 	UserEpisodeCollection,
 } from '../../common/api/types';
@@ -229,27 +227,35 @@ export class BangumiClient {
 		let total = 0;
 		const allCollections: UserCollection[] = [];
 
-		do {
+		// 首次请求获取 total
+		const firstResult = await this.getUserCollections(username, {
+			...options,
+			limit,
+			offset,
+		});
+		total = firstResult.total;
+		allCollections.push(...firstResult.data);
+
+		if (options?.onProgress) {
+			options.onProgress(allCollections.length, total);
+		}
+
+		// 继续获取剩余数据
+		while (allCollections.length < total) {
+			offset += limit;
+			await new Promise(resolve => setTimeout(resolve, 100));
+
 			const result = await this.getUserCollections(username, {
 				...options,
 				limit,
 				offset,
 			});
-
-			total = result.total;
 			allCollections.push(...result.data);
-			offset += limit;
 
 			if (options?.onProgress) {
 				options.onProgress(allCollections.length, total);
 			}
-
-			if (allCollections.length >= total) {
-				break;
-			}
-
-			await new Promise(resolve => setTimeout(resolve, 100));
-		} while (true);
+		}
 
 		return allCollections;
 	}

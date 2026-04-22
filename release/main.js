@@ -505,11 +505,10 @@ id: {{id}}
 tags:
 {{tags}}
 \u8BC4\u5206: {{my_rate}}
-\u8BC4\u5206\u660E\u7EC6:
-  - \u97F3\u4E50\uFF1A{{rating_music}}
-  - \u4EBA\u8BBE\uFF1A{{rating_character}}
-  - \u5267\u60C5\uFF1A{{rating_story}}
-  - \u7F8E\u672F\uFF1A{{rating_art}}
+\u97F3\u4E50\u8BC4\u5206: {{rating_music}}
+\u4EBA\u8BBE\u8BC4\u5206: {{rating_character}}
+\u5267\u60C5\u8BC4\u5206: {{rating_story}}
+\u7F8E\u672F\u8BC4\u5206: {{rating_art}}
 \u6807\u8BED:
 \u5355\u8BC4: false
 \u7CBE\u5F69\u7247\u6BB5:
@@ -541,11 +540,11 @@ Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 > | \u72B6\u6001 |\`= this.\u89C2\u770B\u72B6\u6001\`|
 > | \u6807\u7B7E |\`= this.tags\`|
 > | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
-> | \u660E\u7EC6 |\u97F3\u4E50: {{rating_music}} \u4EBA\u8BBE: {{rating_character}} \u5267\u60C5: {{rating_story}} \u7F8E\u672F: {{rating_art}}|
+> | \u660E\u7EC6 |\u97F3\u4E50: \`= this.\u97F3\u4E50\u8BC4\u5206\` \u4EBA\u8BBE: \`= this.\u4EBA\u8BBE\u8BC4\u5206\` \u5267\u60C5: \`= this.\u5267\u60C5\u8BC4\u5206\` \u7F8E\u672F: \`= this.\u7F8E\u672F\u8BC4\u5206\`|
 > | \u7B14\u8BB0 | \`= this.\u7B14\u8BB0\`|
 > | \u653E\u9001 | {{year}} \u5E74 {{month}} \u6708 |
 > | \u96C6\u6570 | {{category}} \u5171{{episode}}\u8BDD |
-> | \u5236\u4F5C | {{animeMake}} |
+> | \u7CBE\u5F69\u7247\u6BB5 | \`= this.\u7CBE\u5F69\u7247\u6BB5\` |
 > | \u5BFC\u6F14 | {{director}} |
 > | \u97F3\u4E50 | {{music}} |
 > | \u5B58\u50A8 | \`= this.\u5B58\u50A8\`\xB7\`=this.\u8D44\u6E90\u5C5E\u6027\` |
@@ -588,13 +587,13 @@ id: {{id}}
 tags:
 {{tags}}
 \u8BC4\u5206: {{my_rate}}
-\u8BC4\u5206\u660E\u7EC6:
-  - \u5267\u60C5\uFF1A{{rating_story}}
-  - \u63D2\u753B\uFF1A{{rating_illustration}}
-  - \u6587\u7B14\uFF1A{{rating_writing}}
-  - \u4EBA\u8BBE\uFF1A{{rating_character}}
+\u5267\u60C5\u8BC4\u5206: {{rating_story}}
+\u63D2\u753B\u8BC4\u5206: {{rating_illustration}}
+\u6587\u7B14\u8BC4\u5206: {{rating_writing}}
+\u4EBA\u8BBE\u8BC4\u5206: {{rating_character}}
 \u6807\u8BED:
 \u5355\u8BC4: false
+\u7CBE\u5F69\u7247\u6BB5:
 \u7B14\u8BB0: "{{note_link}}"
 \u7248\u672C:
 Kindle: false
@@ -629,8 +628,9 @@ Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 > | \u72B6\u6001 |\`= this.\u9605\u8BFB\u72B6\u6001\`|
 > | \u6807\u7B7E |\`= this.tags\`|
 > | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
-> | \u660E\u7EC6 | \u5267\u60C5: {{rating_story}} \u63D2\u753B: {{rating_illustration}} \u6587\u7B14: {{rating_writing}} \u4EBA\u8BBE: {{rating_character}}|
+> | \u660E\u7EC6 | \u5267\u60C5: \`= this.\u5267\u60C5\u8BC4\u5206\` \u63D2\u753B: \`= this.\u63D2\u753B\u8BC4\u5206\` \u6587\u7B14: \`= this.\u6587\u7B14\u8BC4\u5206\` \u4EBA\u8BBE: \`= this.\u4EBA\u8BBE\u8BC4\u5206\`|
 > | \u7B14\u8BB0 | \`= this.\u7B14\u8BB0\`|
+> | \u7CBE\u5F69\u7247\u6BB5 | \`= this.\u7CBE\u5F69\u7247\u6BB5\` |
 > | \u8FDB\u5EA6 |\`= this.\u8FDE\u8F7D\u72B6\u6001\` - \`= this.\u8FDB\u5EA6\` |
 > | \u4E66\u7CFB |\`= this.\u4E66\u7CFB\`|
 > | \u5B98\u7F51 |\`= this.\u5B98\u7F51\`|
@@ -665,12 +665,12 @@ id: {{id}}
 tags:
 {{tags}}
 \u8BC4\u5206: {{my_rate}}
-\u8BC4\u5206\u660E\u7EC6:
-  - \u5267\u60C5\uFF1A{{rating_story}}
-  - \u753B\u5DE5\uFF1A{{rating_drawing}}
-  - \u4EBA\u8BBE\uFF1A{{rating_character}}
+\u5267\u60C5\u8BC4\u5206: {{rating_story}}
+\u753B\u5DE5\u8BC4\u5206: {{rating_drawing}}
+\u4EBA\u8BBE\u8BC4\u5206: {{rating_character}}
 \u6807\u8BED:
 \u5355\u8BC4: false
+\u7CBE\u5F69\u7247\u6BB5:
 \u7B14\u8BB0: "{{note_link}}"
 \u7248\u672C:
 \u683C\u5F0F:
@@ -702,8 +702,9 @@ Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 > | \u72B6\u6001 |\`= this.\u9605\u8BFB\u72B6\u6001\`|
 > | \u6807\u7B7E |\`= this.tags\`|
 > | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
-> | \u660E\u7EC6 | \u5267\u60C5: {{rating_story}} \u753B\u5DE5: {{rating_drawing}} \u4EBA\u8BBE: {{rating_character}}|
+> | \u660E\u7EC6 | \u5267\u60C5: \`= this.\u5267\u60C5\u8BC4\u5206\` \u753B\u5DE5: \`= this.\u753B\u5DE5\u8BC4\u5206\` \u4EBA\u8BBE: \`= this.\u4EBA\u8BBE\u8BC4\u5206\`|
 > | \u7B14\u8BB0 | \`= this.\u7B14\u8BB0\`|
+> | \u7CBE\u5F69\u7247\u6BB5 | \`= this.\u7CBE\u5F69\u7247\u6BB5\` |
 > | \u4F5C\u8005 |\`= this.\u4F5C\u8005\`|{{#if staff}}
 > | \u4F5C\u753B |\`= this.\u4F5C\u753B\`|{{/if}}
 > | \u6742\u5FD7 |\`= this.\u6742\u5FD7\`|
@@ -740,11 +741,10 @@ id: {{id}}
 tags:
 {{tags}}
 \u8BC4\u5206: {{my_rate}}
-\u8BC4\u5206\u660E\u7EC6:
-  - \u5267\u60C5\uFF1A{{rating_story}}
-  - \u8DA3\u5473\uFF1A{{rating_fun}}
-  - \u97F3\u4E50\uFF1A{{rating_music}}
-  - \u7F8E\u672F\uFF1A{{rating_art}}
+\u5267\u60C5\u8BC4\u5206: {{rating_story}}
+\u8DA3\u5473\u8BC4\u5206: {{rating_fun}}
+\u97F3\u4E50\u8BC4\u5206: {{rating_music}}
+\u7F8E\u672F\u8BC4\u5206: {{rating_art}}
 \u6807\u8BED:
 \u5355\u8BC4: false
 \u7B14\u8BB0: "{{note_link}}"
@@ -775,7 +775,7 @@ Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 > | \u5E73\u53F0 |\`= this.\u5E73\u53F0\`|
 > | \u6807\u7B7E |\`= this.tags\`|
 > | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
-> | \u660E\u7EC6 |\u5267\u60C5: {{rating_story}} \u8DA3\u5473: {{rating_fun}} \u97F3\u4E50: {{rating_music}} \u7F8E\u672F: {{rating_art}}|
+> | \u660E\u7EC6 |\u5267\u60C5: \`= this.\u5267\u60C5\u8BC4\u5206\` \u8DA3\u5473: \`= this.\u8DA3\u5473\u8BC4\u5206\` \u97F3\u4E50: \`= this.\u97F3\u4E50\u8BC4\u5206\` \u7F8E\u672F: \`= this.\u7F8E\u672F\u8BC4\u5206\`|
 > | \u7B14\u8BB0 | \`= this.\u7B14\u8BB0\`|
 > | \u5F00\u53D1 | \`= this.\u5F00\u53D1\`|
 > | \u53D1\u884C | \`= this.\u53D1\u884C\`|
@@ -955,7 +955,7 @@ var BangumiSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.onSave();
         this.updatePathPreview(previewEl, value);
       });
-      text.inputEl.style.width = "100%";
+      text.inputEl.addClass("bangumi-path-input");
     });
     const previewEl = containerEl.createDiv({ cls: "bangumi-path-preview" });
     this.updatePathPreview(previewEl, this.settings.syncPathTemplate);
@@ -1157,7 +1157,73 @@ var BangumiSettingTab = class extends import_obsidian.PluginSettingTab {
           this.openTemplatePreview(templateType);
         });
       }
+    }).addButton((button) => {
+      button.setButtonText("\u590D\u5236").setTooltip("\u590D\u5236\u5F53\u524D\u6A21\u677F\u5230\u81EA\u5B9A\u4E49\u5185\u5BB9").onClick(async () => {
+        await this.copyCurrentTemplate(templateType);
+      });
     });
+  }
+  /**
+   * 复制当前模板到自定义内容
+   */
+  async copyCurrentTemplate(templateType) {
+    const config = this.settings[templateType.key];
+    let templateContent;
+    switch (config.source) {
+      case "standard":
+        templateContent = this.getStandardTemplate(templateType.key);
+        break;
+      case "author":
+        templateContent = templateType.defaultTemplate;
+        break;
+      case "file":
+        if (config.filePath) {
+          try {
+            const file = this.app.vault.getAbstractFileByPath(config.filePath);
+            if (file instanceof import_obsidian.TFile) {
+              templateContent = await this.app.vault.read(file);
+            } else {
+              new import_obsidian.Notice("\u6A21\u677F\u6587\u4EF6\u4E0D\u5B58\u5728");
+              return;
+            }
+          } catch (error) {
+            new import_obsidian.Notice("\u8BFB\u53D6\u6A21\u677F\u6587\u4EF6\u5931\u8D25");
+            return;
+          }
+        } else {
+          new import_obsidian.Notice("\u8BF7\u5148\u9009\u62E9\u6A21\u677F\u6587\u4EF6");
+          return;
+        }
+        break;
+      case "custom":
+        templateContent = config.customContent || templateType.defaultTemplate;
+        break;
+      default:
+        templateContent = templateType.defaultTemplate;
+    }
+    const newConfig = {
+      source: "custom",
+      customContent: templateContent
+    };
+    this.settings[templateType.key] = newConfig;
+    await this.onSave();
+    new import_obsidian.Notice("\u5DF2\u590D\u5236\u5230\u81EA\u5B9A\u4E49\u5185\u5BB9\uFF0C\u53EF\u4EE5\u5F00\u59CB\u7F16\u8F91");
+    this.display();
+  }
+  /**
+   * 获取标准模板内容
+   */
+  getStandardTemplate(key) {
+    const standardTemplates = {
+      animeTemplateConfig: ANIME_TEMPLATE_STANDARD,
+      novelTemplateConfig: NOVEL_TEMPLATE_STANDARD,
+      comicTemplateConfig: COMIC_TEMPLATE_STANDARD,
+      gameTemplateConfig: GAME_TEMPLATE_STANDARD,
+      albumTemplateConfig: ALBUM_TEMPLATE_STANDARD,
+      musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
+      realTemplateConfig: REAL_TEMPLATE_STANDARD
+    };
+    return standardTemplates[key];
   }
   /**
    * 获取模板来源描述
@@ -1268,8 +1334,6 @@ var TemplateEditorModal = class extends import_obsidian.Modal {
     const textArea = new import_obsidian.TextAreaComponent(contentEl);
     textArea.setValue(this.template).setPlaceholder("\u8F93\u5165\u6A21\u677F\u5185\u5BB9...");
     textArea.inputEl.addClass("bangumi-template-textarea");
-    textArea.inputEl.style.width = "100%";
-    textArea.inputEl.style.fontFamily = "monospace";
     const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
     const saveBtn = buttonDiv.createEl("button", { text: "\u4FDD\u5B58" });
     saveBtn.addEventListener("click", () => {
@@ -1491,23 +1555,29 @@ var BangumiClient = class {
     let offset = 0;
     let total = 0;
     const allCollections = [];
-    do {
+    const firstResult = await this.getUserCollections(username, {
+      ...options,
+      limit,
+      offset
+    });
+    total = firstResult.total;
+    allCollections.push(...firstResult.data);
+    if (options == null ? void 0 : options.onProgress) {
+      options.onProgress(allCollections.length, total);
+    }
+    while (allCollections.length < total) {
+      offset += limit;
+      await new Promise((resolve) => setTimeout(resolve, 100));
       const result = await this.getUserCollections(username, {
         ...options,
         limit,
         offset
       });
-      total = result.total;
       allCollections.push(...result.data);
-      offset += limit;
       if (options == null ? void 0 : options.onProgress) {
         options.onProgress(allCollections.length, total);
       }
-      if (allCollections.length >= total) {
-        break;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    } while (true);
+    }
     return allCollections;
   }
   /**
@@ -2172,7 +2242,15 @@ function getInfoboxValue(infobox, key, alternateKeys) {
       if (item.value.length > 0 && typeof item.value[0] === "object" && "v" in item.value[0]) {
         return item.value.map((v) => v.v).join("\u3001");
       }
-      return item.value.join("\u3001");
+      if (item.value.every((v) => typeof v === "string" || typeof v === "number")) {
+        return item.value.join("\u3001");
+      }
+      return item.value.map((v) => {
+        if (typeof v === "object" && v !== null && "v" in v) {
+          return v.v;
+        }
+        return String(v);
+      }).join("\u3001");
     }
   }
   if (alternateKeys) {
@@ -4781,34 +4859,36 @@ var ControlPanel = class extends import_obsidian14.Modal {
       new import_obsidian14.Notice("\u9009\u4E2D\u7684\u6761\u76EE\u90FD\u672A\u540C\u6B65\uFF0C\u65E0\u6CD5\u5220\u9664");
       return;
     }
-    const confirmed = confirm(`\u786E\u5B9A\u8981\u5220\u9664 ${syncedCollections.length} \u4E2A\u672C\u5730\u6587\u4EF6\u5417\uFF1F
-\u6B64\u64CD\u4F5C\u5C06\u79FB\u52A8\u5230\u7CFB\u7EDF\u56DE\u6536\u7AD9\u3002`);
-    if (!confirmed) {
-      return;
-    }
-    let deleted = 0;
-    let failed = 0;
-    for (const collection of syncedCollections) {
-      const localInfo = this.state.localSubjects.get(collection.subject_id);
-      if (localInfo) {
-        try {
-          const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-          if (file instanceof import_obsidian14.TFile) {
-            await this.app.fileManager.trashFile(file);
-            this.state.localSubjects.delete(collection.subject_id);
-            deleted++;
+    const modal = new ConfirmModal(
+      this.app,
+      `\u786E\u5B9A\u8981\u5220\u9664 ${syncedCollections.length} \u4E2A\u672C\u5730\u6587\u4EF6\u5417\uFF1F\u6B64\u64CD\u4F5C\u5C06\u79FB\u52A8\u5230\u7CFB\u7EDF\u56DE\u6536\u7AD9\u3002`,
+      async () => {
+        let deleted = 0;
+        let failed = 0;
+        for (const collection of syncedCollections) {
+          const localInfo = this.state.localSubjects.get(collection.subject_id);
+          if (localInfo) {
+            try {
+              const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+              if (file instanceof import_obsidian14.TFile) {
+                await this.app.fileManager.trashFile(file);
+                this.state.localSubjects.delete(collection.subject_id);
+                deleted++;
+              }
+            } catch (error) {
+              console.error(`\u5220\u9664\u6587\u4EF6\u5931\u8D25: ${localInfo.path}`, error);
+              failed++;
+            }
           }
-        } catch (error) {
-          console.error(`\u5220\u9664\u6587\u4EF6\u5931\u8D25: ${localInfo.path}`, error);
-          failed++;
         }
+        new import_obsidian14.Notice(`\u5220\u9664\u5B8C\u6210\uFF1A\u6210\u529F ${deleted} \u4E2A\uFF0C\u5931\u8D25 ${failed} \u4E2A`);
+        this.state.selectedIds.clear();
+        this.renderStatus(`\u5171 ${this.state.collections.length} \u6761\u6536\u85CF\uFF0C${this.state.localSubjects.size} \u6761\u5DF2\u540C\u6B65`);
+        this.renderTable();
+        this.renderActionBar();
       }
-    }
-    new import_obsidian14.Notice(`\u5220\u9664\u5B8C\u6210\uFF1A\u6210\u529F ${deleted} \u4E2A\uFF0C\u5931\u8D25 ${failed} \u4E2A`);
-    this.state.selectedIds.clear();
-    this.renderStatus(`\u5171 ${this.state.collections.length} \u6761\u6536\u85CF\uFF0C${this.state.localSubjects.size} \u6761\u5DF2\u540C\u6B65`);
-    this.renderTable();
-    this.renderActionBar();
+    );
+    modal.open();
   }
   /**
    * 打开批量编辑器
@@ -5048,6 +5128,31 @@ var ControlPanel = class extends import_obsidian14.Modal {
         row.removeClass("focused");
       }
     });
+  }
+};
+var ConfirmModal = class extends import_obsidian14.Modal {
+  constructor(app, message, onConfirm) {
+    super(app);
+    this.message = message;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("p", { text: this.message });
+    const buttonDiv = contentEl.createDiv({ cls: "modal-button-container" });
+    const confirmBtn = buttonDiv.createEl("button", { text: "\u786E\u5B9A", cls: "mod-cta" });
+    confirmBtn.addEventListener("click", () => {
+      this.onConfirm();
+      this.close();
+    });
+    const cancelBtn = buttonDiv.createEl("button", { text: "\u53D6\u6D88" });
+    cancelBtn.addEventListener("click", () => {
+      this.close();
+    });
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
   }
 };
 

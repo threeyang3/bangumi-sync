@@ -76,7 +76,17 @@ function getInfoboxValue(infobox: InfoboxItem[] | undefined, key: string, altern
 			if (item.value.length > 0 && typeof item.value[0] === 'object' && 'v' in item.value[0]) {
 				return item.value.map(v => (v as { k: string; v: string }).v).join('、');
 			}
-			return item.value.join('、');
+			// 如果数组元素是字符串或数字，直接 join
+			if (item.value.every(v => typeof v === 'string' || typeof v === 'number')) {
+				return item.value.join('、');
+			}
+			// 其他情况，尝试提取 v 属性
+			return item.value.map(v => {
+				if (typeof v === 'object' && v !== null && 'v' in v) {
+					return (v as { k: string; v: string }).v;
+				}
+				return String(v);
+			}).join('、');
 		}
 	}
 

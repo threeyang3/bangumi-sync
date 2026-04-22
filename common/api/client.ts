@@ -3,7 +3,7 @@
  * 处理与 Bangumi API 的所有通信
  */
 
-import { requestUrl, RequestUrlParam, Notice } from 'obsidian';
+import { requestUrl, RequestUrlParam } from 'obsidian';
 import {
 	Subject,
 	SubjectType,
@@ -363,29 +363,35 @@ export class BangumiClient {
 		let total = 0;
 		const allCollections: UserCollection[] = [];
 
-		do {
+		// 首次请求获取 total
+		const firstResult = await this.getUserCollections(username, {
+			...options,
+			limit,
+			offset,
+		});
+		total = firstResult.total;
+		allCollections.push(...firstResult.data);
+
+		if (options?.onProgress) {
+			options.onProgress(allCollections.length, total);
+		}
+
+		// 继续获取剩余数据
+		while (allCollections.length < total) {
+			offset += limit;
+			await new Promise(resolve => setTimeout(resolve, 100));
+
 			const result = await this.getUserCollections(username, {
 				...options,
 				limit,
 				offset,
 			});
-
-			total = result.total;
 			allCollections.push(...result.data);
-			offset += limit;
 
 			if (options?.onProgress) {
 				options.onProgress(allCollections.length, total);
 			}
-
-			// 如果已经获取了所有数据，退出循环
-			if (allCollections.length >= total) {
-				break;
-			}
-
-			// 添加小延迟避免请求过快
-			await new Promise(resolve => setTimeout(resolve, 100));
-		} while (true);
+		}
 
 		return allCollections;
 	}

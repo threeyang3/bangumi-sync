@@ -7,6 +7,11 @@
 	font-family: monospace;
 }
 
+/* 路径输入框 */
+.bangumi-path-input {
+	width: 100%;
+}
+
 /* 同步状态 */
 .bangumi-sync-status {
 	padding: 10px;
