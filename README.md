@@ -25,7 +25,7 @@
 - **默认值**：`{{director|未知}}`
 - **模板来源**：标准模板 / 作者自用模板 / 从文件选择 / 自定义内容
 
-![模板设置](demo_pic/模板设置.png)
+![模板设置](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/模板设置.png)
 
 📖 详细模板设计文档：[docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md)
 
@@ -33,7 +33,7 @@
 
 生成的笔记包含美观的信息表格，配合 Dataview 插件实现动态显示：
 
-![本地条目完整示意](demo_pic/本地条目完整示意.png)
+![本地条目完整示意](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/本地条目完整示意.png)
 
 - **封面图片**：可选下载到本地，支持多种质量
 - **角色信息**：最多 9 个角色及其声优、头像
@@ -134,7 +134,7 @@ npm run build
 
 ### 基本设置
 
-![路径设置](demo_pic/路径设置.png)
+![路径设置](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/路径设置.png)
 
 | 设置项 | 说明 |
 |--------|------|
@@ -156,7 +156,7 @@ npm run build
 
 ### 手动同步
 
-![同步选项设置](demo_pic/同步选项设置.png)
+![同步选项设置](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/同步选项设置.png)
 
 1. 使用命令 "同步 Bangumi 收藏"
 2. 选择条目类型、收藏状态、同步数量
@@ -173,11 +173,11 @@ npm run build
 
 ### 漫画类型模板
 
-![漫画类型模板](demo_pic/漫画类型模板.png)
+![漫画类型模板](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/漫画类型模板.png)
 
 ### 轻小说类型模板
 
-![轻小说类型模板](demo_pic/轻小说类型模板.png)
+![轻小说类型模板](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/轻小说类型模板.png)
 
 ## 模板变量
 
@@ -244,7 +244,7 @@ rating: {{rating|未评分}}
 
 如果这个插件对你有帮助，欢迎赞助支持开发者：
 
-![赞助二维码](demo_pic/赞助二维码.jpg)
+![赞助二维码](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/赞助二维码.jpg)
 
 ## 许可证
 
