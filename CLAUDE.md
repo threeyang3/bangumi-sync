@@ -537,14 +537,67 @@ director: {{director|未知}}
 
 ## 发布说明
 
+### Obsidian 社区插件发布要求
+
+发布到 Obsidian 官方插件市场需满足以下要求：
+
+#### 必要文件
+
+1. **manifest.json** - 插件清单，包含：
+   - `id` - 插件唯一标识（必须与 community-plugins.json 中一致）
+   - `name` - 插件名称
+   - `version` - 版本号
+   - `minAppVersion` - 最低 Obsidian 版本
+   - `description` - 插件描述（**不能包含 "Obsidian"**）
+   - `author` - 作者名
+
+2. **LICENSE** - 开源许可证文件（必需）
+
+3. **README.md** - 插件说明文档
+
+#### GitHub Release 要求
+
+- **Release tag 必须与 manifest.json 版本号完全一致**，不带 `v` 前缀
+  - 正确：`4.3.0`
+  - 错误：`v4.3.0`
+
+- **Release 资产必须是单独文件**，不能只上传 zip
+  - 必需：`main.js`、`manifest.json`
+  - 可选：`styles.css`
+
+#### 发布命令
+
+```bash
+# 创建 Release（注意 tag 不带 v 前缀）
+gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css \
+  --title "v{版本号}" --notes "更新内容说明"
+```
+
+#### 提交到社区插件仓库
+
+插件信息提交到 `obsidianmd/obsidian-releases` 仓库的 `community-plugins.json`：
+
+```json
+{
+  "id": "bangumi-sync",
+  "name": "Bangumi Sync",
+  "author": "threeyang",
+  "description": "Sync your Bangumi collections to notes with episode tracking...",
+  "repo": "threeyang3/bangumi-sync"
+}
+```
+
+**PR 必须使用官方模板**：https://raw.githubusercontent.com/obsidianmd/obsidian-releases/master/.github/PULL_REQUEST_TEMPLATE/plugin.md
+
 ### 发布流程
 
 1. 更新 `package.json` 和 `manifest.json` 中的版本号
 2. 构建插件：`npm run build`
 3. 在 `release/` 下创建版本号命名的子目录（如 `release/v4.1.0/`）
 4. 复制 `main.js`、`manifest.json`、`styles.css` 到该目录
-5. 打包为 zip 文件放入 `archives/`
-6. 使用 GitHub CLI 创建 Release 并上传 zip 文件
+5. 打包为 zip 文件放入 `archives/`（可选，用于备份）
+6. 使用 GitHub CLI 创建 Release 并上传单独文件（**tag 不带 v 前缀**）
+7. 如需更新插件信息，提交 PR 到 `obsidianmd/obsidian-releases`
 
 ### 已发布版本
 
@@ -580,6 +633,12 @@ director: {{director|未知}}
   - 控制面板数据缓存 10 分钟，减少加载延迟
   - 新增默认属性值设置，批量同步时自动填充
   - README 添加 Dataview 插件依赖说明
+- **v4.3.1**: 模板细节优化版本
+  - 移除所有模板中的"别名"属性
+  - 优化属性顺序：用户个人数据移到 Bangumi 评分和链接前面
+  - 漫画模板移除冗余的"连载状态"属性
+  - 小说、漫画、游戏、画集模板添加 ##记录、##感想 部分
+  - 扩展"动画公司"字段备选名称，提高获取成功率
 
 ## 集数追踪功能
 
@@ -644,7 +703,27 @@ director: {{director|未知}}
 
 ## 开发计划
 
-### v4.4.0 待办事项
+### v4.4.0 相关条目自动关联
 
-（待规划）
+**功能描述**：同步条目时，自动获取相关条目并建立双向链接。
+
+**应用场景**：
+- 同步《间谍过家家》漫画时，自动关联《间谍过家家 第一季》动画
+- 在漫画条目的"相关"属性中添加动画链接，同时在动画条目中添加漫画链接
+
+**技术方案**：
+- 使用 Bangumi API `/v0/subjects/{id}/subjects` 端点获取相关条目
+- 采用"两阶段同步"解决时序依赖问题
+- 阶段一：正常同步条目
+- 阶段二：遍历已同步条目，建立双向链接
+
+**关键修改**：
+- `common/api/types.ts`：添加 `RelatedSubject` 接口
+- `src/api/client.ts`：添加 `getSubjectRelations()` 方法
+- `src/sync/incrementalSync.ts`：扩展本地条目索引（ID → 路径映射）
+- `src/sync/syncManager.ts`：添加相关链接处理逻辑
+- `src/file/fileManager.ts`：添加 frontmatter 更新方法
+- `src/settings/settings.ts`：添加配置项
+
+**详细计划**：`C:\Users\threeyang\.claude\plans\sorted-leaping-gray.md`
 
