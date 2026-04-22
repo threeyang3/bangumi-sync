@@ -653,6 +653,20 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
   - 新增笔记路径模板设置，支持自定义笔记链接路径
   - 改进动画公司字段获取，支持从 Copyright 字段提取
   - 更新模板文档，添加自定义变量说明
+- **v4.3.4**: 代码质量修复版本
+  - 修复 while(true) 常量条件，重构分页循环
+  - 移除 confirm() 调用，使用自定义 ConfirmModal
+  - 清理未使用的导入（Notice, User, Episode, SubjectType, CollectionType, CharacterInfo）
+  - 修复 join() 用于对象数组的问题
+  - 移除内联样式，改用 CSS 类
+  - 评分明细拆分为独立属性（音乐评分、人设评分等）
+  - 动画模板正文表格"制作"改为"精彩片段"
+  - 小说、漫画模板新增"精彩片段"属性
+  - 模板设置新增"复制当前模板"按钮
+  - 修复枚举类型比较问题：使用 SubjectType 枚举代替数字字面量
+  - 修复 case 块词法声明：用花括号包裹 case 块
+  - 修复 Promise 处理：为异步回调添加 void 操作符
+  - 修复异步事件监听器：使用 void IIFE 模式包装
 
 ## 集数追踪功能
 
