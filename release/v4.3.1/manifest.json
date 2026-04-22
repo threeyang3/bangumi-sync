@@ -1,7 +1,7 @@
 {
 	"id": "bangumi-sync",
 	"name": "Bangumi Sync",
-	"version": "4.3.0",
+	"version": "4.3.1",
 	"minAppVersion": "0.15.0",
 	"description": "Sync your Bangumi collections to notes with episode tracking, control panel, and batch editing.",
 	"author": "threeyang",

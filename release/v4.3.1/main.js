@@ -363,7 +363,7 @@ Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 | \u4F5C\u8005 |\`= this.\u4F5C\u8005\` |{{#if staff}}
 | \u4F5C\u753B |\`= this.\u4F5C\u753B\`|{{/if}}
 | \u6742\u5FD7 |\`= this.\u6742\u5FD7\`|
-| \u8FDB\u5EA6 |\`= this.\u8FDB\u5EA6\`|
+| \u8FDB\u5EA6 |\`= this.\u8FDE\u8F7D\u72B6\u6001\` - \`= this.\u8FDB\u5EA6\`|
 | \u7248\u672C | \`= this.\u7248\u672C\`|
 | \u683C\u5F0F | \`= this.\u683C\u5F0F\` |
 | \u76F8\u5173 | \`= this.\u76F8\u5173\` |
