@@ -13,6 +13,10 @@ v2/
 # Reference files (local only)
 参考/
 
+# Release archives (local only)
+archives/
+release/
+
 # Claude Code (local only)
 .claude/
 CLAUDE.md
