@@ -30,7 +30,7 @@ tags:
 短评: "{{my_comment}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
-封面: "![]({{cover}})"
+封面: "{{cover}}"
 开播时间: "{{year}} 年 {{month}} 月"
 集数: "{{episode}}"
 动画公司: "{{animeMake}}"
@@ -100,7 +100,7 @@ Bangumi链接: "{{bangumi_url}}"
 书系: "{{series}}"
 进度: "{{progress}}"
 册数: "{{volumes}}"
-封面: "![]({{cover}})"
+封面: "{{cover}}"
 发行日期: "{{date}}"
 出版社: "{{publish}}"
 官网: "{{website}}"
@@ -160,7 +160,7 @@ Bangumi链接: "{{bangumi_url}}"
 杂志: "{{journal}}"
 作者: "{{author}}"{{#if staff}}
 作画: "{{staff}}"{{/if}}
-封面: "![]({{cover}})"
+封面: "{{cover}}"
 出版社: "{{publish}}"
 ---
 
@@ -217,7 +217,7 @@ Bangumi链接: "{{bangumi_url}}"
 发行日期: "{{date}}"
 游玩人数: "{{playerNum}}"
 官网: "{{website}}"
-封面: "![]({{cover}})"
+封面: "{{cover}}"
 ---
 
 > [!bangumi-info]+ 🎮 **{{name}}**
@@ -270,7 +270,7 @@ Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 页数: "{{pages}}"
 ISBN: "{{isbn}}"
-封面: "![]({{cover}})"
+封面: "{{cover}}"
 发行日期: "{{date}}"
 出版社: "{{publish}}"
 ---
@@ -314,7 +314,7 @@ tags:
 短评: "{{my_comment}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
-封面: "![]({{cover}})"
+封面: "{{cover}}"
 发行日期: "{{date}}"
 ---
 
@@ -348,7 +348,7 @@ tags:
 短评: "{{my_comment}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
-封面: "![]({{cover}})"
+封面: "{{cover}}"
 上映日期: "{{date}}"
 ---
 
@@ -397,7 +397,7 @@ tags:
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
-封面: "![]({{cover}})"
+封面: "{{cover}}"
 开播时间: "{{year}} 年 {{month}} 月"
 集数: "{{episode}}"
 动画公司: "{{animeMake}}"
@@ -488,7 +488,7 @@ Bangumi链接: "{{bangumi_url}}"
 书系: "{{series}}"
 进度: "{{progress}}"
 册数: "{{volumes}}"
-封面: "![]({{cover}})"
+封面: "{{cover}}"
 开始:
 发行日期: "{{date}}"
 出版社: "{{publish}}"
@@ -568,7 +568,7 @@ Bangumi链接: "{{bangumi_url}}"
 杂志: "{{journal}}"
 作者: "[[{{author}}]]"{{#if staff}}
 作画: "[[{{staff}}]]"{{/if}}
-封面: "![]({{cover}})"
+封面: "{{cover}}"
 出版社: "{{publish}}"
 ---
 
@@ -643,7 +643,7 @@ Bangumi链接: "{{bangumi_url}}"
 发行日期: "{{date}}"
 游玩人数: "{{playerNum}}"
 官网: "{{website}}"
-封面: "![]({{cover}})"
+封面: "{{cover}}"
 ---
 
 > [!bangumi-info]+ 🎮 **{{name}}**
@@ -709,7 +709,7 @@ Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 页数: "{{pages}}"
 ISBN: "{{isbn}}"
-封面: "![]({{cover}})"
+封面: "{{cover}}"
 发行日期: "{{date}}"
 出版社: "{{publish}}"
 ---

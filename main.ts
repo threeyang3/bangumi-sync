@@ -192,6 +192,7 @@ export class BangumiPlugin extends Plugin {
 			notePathTemplate: this.settings.notePathTemplate,
 			downloadImages: this.settings.downloadImages,
 			scanFolderPath: this.settings.scanFolderPath,
+			coverLinkType: this.settings.coverLinkType,
 			customTemplates: templates,
 			defaultPropertyValues: this.settings.defaultPropertyValues,
 		};

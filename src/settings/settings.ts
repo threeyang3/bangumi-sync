@@ -68,6 +68,13 @@ export interface DefaultPropertyValues {
 }
 
 /**
+ * 封面链接类型
+ * - network: 网络链接（Bangumi CDN 地址）
+ * - local: 本地链接（下载到本地的相对路径）
+ */
+export type CoverLinkType = 'network' | 'local';
+
+/**
  * 插件设置
  */
 export interface BangumiPluginSettings {
@@ -83,6 +90,7 @@ export interface BangumiPluginSettings {
 	// 图片设置
 	imageQuality: ImageQuality;
 	imageUpdateExisting: boolean;
+	coverLinkType: CoverLinkType; // 封面链接类型
 
 	// 扫描文件夹路径
 	scanFolderPath: string;
@@ -146,6 +154,7 @@ export const DEFAULT_SETTINGS: BangumiPluginSettings = {
 	// 图片设置
 	imageQuality: 'large',
 	imageUpdateExisting: false,
+	coverLinkType: 'network',
 
 	scanFolderPath: 'ACGN',
 

@@ -21,7 +21,7 @@ import { generateFilePath } from '../../common/template/pathTemplate';
 import { generateContentByType } from '../template/contentTemplate';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { SyncPreviewItem, RatingDetails } from '../ui/syncPreviewModal';
-import { DefaultPropertyValues } from '../settings/settings';
+import { DefaultPropertyValues, CoverLinkType } from '../settings/settings';
 
 /**
  * 同步管理器配置
@@ -33,6 +33,7 @@ export interface SyncManagerConfig {
 	notePathTemplate?: string;  // 笔记链接路径模板
 	downloadImages: boolean;
 	scanFolderPath: string;  // 扫描本地文件夹的路径
+	coverLinkType?: CoverLinkType;  // 封面链接类型
 	customTemplates?: {
 		anime?: string;
 		novel?: string;

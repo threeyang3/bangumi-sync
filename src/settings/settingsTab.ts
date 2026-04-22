@@ -3,7 +3,7 @@
  */
 
 import { App, PluginSettingTab, Setting, Notice, Modal, TextAreaComponent, TFile, FuzzySuggestModal, Plugin } from 'obsidian';
-import { BangumiPluginSettings, TemplateConfig, TemplateSource } from './settings';
+import { BangumiPluginSettings, TemplateConfig, TemplateSource, CoverLinkType } from './settings';
 import { SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName } from '../../common/api/types';
 import {
 	ANIME_TEMPLATE,
@@ -150,6 +150,19 @@ export class BangumiSettingTab extends PluginSettingTab {
 				.setValue(this.settings.imageUpdateExisting || false)
 				.onChange(async (value) => {
 					this.settings.imageUpdateExisting = value;
+					await this.onSave();
+				}));
+
+		// 封面链接类型
+		new Setting(containerEl)
+			.setName('封面链接类型')
+			.setDesc('选择封面属性和正文表格中使用的链接类型（需开启"下载封面图片"才能使用本地链接）')
+			.addDropdown(dropdown => dropdown
+				.addOption('network', '网络链接')
+				.addOption('local', '本地链接')
+				.setValue(this.settings.coverLinkType || 'network')
+				.onChange(async (value: CoverLinkType) => {
+					this.settings.coverLinkType = value;
 					await this.onSave();
 				}));
 
@@ -430,20 +443,20 @@ export class BangumiSettingTab extends PluginSettingTab {
 				dropdown
 					.addOption('standard', '标准模板')
 						.addOption('author', '作者自用模板')
-					.addOption('file', '从文件选择')
-					.addOption('custom', '自定义内容')
-						.setValue(['standard', 'author', 'file', 'custom'].includes(config.source) ? config.source : 'author')
-					.onChange(async (value: TemplateSource) => {
-						const newConfig: TemplateConfig = { source: value };
-						if (value === 'file' && config.filePath) {
-							newConfig.filePath = config.filePath;
-						} else if (value === 'custom' && config.customContent) {
-							newConfig.customContent = config.customContent;
-						}
-						(this.settings[templateType.key] as TemplateConfig) = newConfig;
-						await this.onSave();
-						this.display();
-					});
+						.addOption('file', '从文件选择')
+						.addOption('custom', '自定义内容')
+							.setValue(['standard', 'author', 'file', 'custom'].includes(config.source) ? config.source : 'author')
+							.onChange(async (value: TemplateSource) => {
+								const newConfig: TemplateConfig = { source: value };
+								if (value === 'file' && config.filePath) {
+									newConfig.filePath = config.filePath;
+								} else if (value === 'custom' && config.customContent) {
+									newConfig.customContent = config.customContent;
+								}
+								(this.settings[templateType.key] as TemplateConfig) = newConfig;
+								await this.onSave();
+								this.display();
+							});
 			})
 			.addButton(button => {
 				if (config.source === 'file') {

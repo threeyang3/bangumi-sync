@@ -11,7 +11,7 @@ import { parseCharacters, getCharacterTemplateVars, CharacterInfo } from '../../
 import { getDefaultTemplate, getTypeLabel } from '../../common/template/defaultTemplates';
 import { parseEpisodes, createUserStatusMap } from '../../common/parser/episodeParser';
 import { RatingDetails } from '../ui/syncPreviewModal';
-import { DefaultPropertyValues } from '../settings/settings';
+import { DefaultPropertyValues, CoverLinkType } from '../settings/settings';
 
 /**
  * 内容模板变量
@@ -33,7 +33,9 @@ export function extractTemplateVars(
 	ratingDetails?: RatingDetails,
 	episodes?: Episode[],
 	userEpisodeStatus?: UserEpisodeCollection[],
-	notePathTemplate?: string
+	notePathTemplate?: string,
+	coverLinkType?: CoverLinkType,
+	localCoverPath?: string
 ): ContentTemplateVars {
 	// 解析 infobox 获取详细信息
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
@@ -50,8 +52,16 @@ export function extractTemplateVars(
 		? collection.tags
 		: [];
 
-	// 获取封面
-	const cover = subject.images?.large || subject.images?.common || '';
+		// 获取封面链接
+		// 根据 coverLinkType 决定使用网络链接还是本地链接
+		let cover = '';
+		if (coverLinkType === 'local' && localCoverPath) {
+		// 使用本地链接
+		cover = localCoverPath;
+		} else {
+		// 使用网络链接（默认）
+		cover = subject.images?.large || subject.images?.common || '';
+		}
 
 	// 收藏信息
 	const my_rate = collection?.rate ? String(collection.rate) : '';
@@ -210,9 +220,11 @@ export function generateContent(
 	ratingDetails?: RatingDetails,
 	episodes?: Episode[],
 	userEpisodeStatus?: UserEpisodeCollection[],
-	notePathTemplate?: string
+	notePathTemplate?: string,
+	coverLinkType?: CoverLinkType,
+	localCoverPath?: string
 ): string {
-	const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate);
+	const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath);
 	return renderContentTemplate(template, vars);
 }
 
@@ -236,7 +248,9 @@ export function generateContentByType(
 	episodes?: Episode[],
 	userEpisodeStatus?: UserEpisodeCollection[],
 	defaultPropertyValues?: DefaultPropertyValues,
-	notePathTemplate?: string
+	notePathTemplate?: string,
+	coverLinkType?: CoverLinkType,
+	localCoverPath?: string
 ): string {
 	// 解析 infobox 获取详细信息以确定细分类别
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
@@ -277,7 +291,7 @@ export function generateContentByType(
 		template = getDefaultTemplate(subject.type, category);
 	}
 
-	let content = generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate);
+	let content = generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath);
 
 	// 应用默认属性值
 	if (defaultPropertyValues) {
