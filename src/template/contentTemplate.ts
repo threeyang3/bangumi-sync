@@ -5,7 +5,7 @@
  * 支持章节显示
  */
 
-import { Subject, UserCollection, getCollectionStatusEmoji, Tag, Episode, UserEpisodeCollection } from '../../common/api/types';
+import { Subject, UserCollection, getCollectionStatusEmoji, Tag, Episode, UserEpisodeCollection, SubjectType } from '../../common/api/types';
 import { parseInfoByType, parseDate, cleanSummary, cleanMultilineText } from '../../common/parser/infoboxParser';
 import { parseCharacters, getCharacterTemplateVars, CharacterInfo } from '../../common/parser/characterParser';
 import { getDefaultTemplate, getTypeLabel } from '../../common/template/defaultTemplates';
@@ -67,7 +67,7 @@ export function extractTemplateVars(
 	if (episodes && episodes.length > 0) {
 		const statusMap = userEpisodeStatus ? createUserStatusMap(userEpisodeStatus) : undefined;
 		// 根据条目类型决定显示标题
-		if (subject.type === 2) {  // 动画
+		if (subject.type === SubjectType.Anime) {  // 动画
 			episodesContent = parseEpisodes(episodes, statusMap);
 		} else if (parsedInfo.category?.includes('小说')) {
 			volumesContent = parseEpisodes(episodes, statusMap);
@@ -255,19 +255,19 @@ export function generateContentByType(
 			template = customTemplates.album;
 		} else {
 			switch (subject.type) {
-				case 2: // Anime
+				case SubjectType.Anime:
 					template = customTemplates.anime || getDefaultTemplate(subject.type, category);
 					break;
-				case 4: // Game
+				case SubjectType.Game:
 					template = customTemplates.game || getDefaultTemplate(subject.type, category);
 					break;
-				case 3: // Music
+				case SubjectType.Music:
 					template = customTemplates.music || getDefaultTemplate(subject.type, category);
 					break;
-				case 6: // Real
+				case SubjectType.Real:
 					template = customTemplates.real || getDefaultTemplate(subject.type, category);
 					break;
-				case 1: // Book
+				case SubjectType.Book:
 				default:
 					template = customTemplates.novel || getDefaultTemplate(subject.type, category);
 					break;

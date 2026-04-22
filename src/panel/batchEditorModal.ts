@@ -116,14 +116,16 @@ export class BatchEditorModal extends Modal {
 		});
 
 		buttonDiv.createEl('button', { text: '确认执行', cls: 'mod-cta' }, btn => {
-			btn.addEventListener('click', async () => {
-				if (this.operations.length === 0) {
-					new Notice('请至少添加一个操作');
-					return;
-				}
+			btn.addEventListener('click', () => {
+				void (async () => {
+					if (this.operations.length === 0) {
+						new Notice('请至少添加一个操作');
+						return;
+					}
 
-				await this.onConfirm(this.operations);
-				this.close();
+					await this.onConfirm(this.operations);
+					this.close();
+				})();
 			});
 		});
 	}

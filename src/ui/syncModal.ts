@@ -67,10 +67,11 @@ export class SyncModal extends Modal {
 				case 'scanning':
 					this.updateStatus(`扫描本地文件... (${progress.current}/${progress.total})`);
 					break;
-				case 'processing':
+				case 'processing': {
 					const itemText = progress.currentItem ? ` - ${progress.currentItem}` : '';
 					this.updateStatus(`处理条目... (${progress.current}/${progress.total})${itemText}`);
 					break;
+				}
 				case 'completed':
 					this.updateStatus('同步完成！');
 					break;

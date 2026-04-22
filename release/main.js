@@ -2596,7 +2596,7 @@ function generateFilePath(template, subject, collection) {
 
 // common/parser/episodeParser.ts
 function generateEpisodeBox(episode, status) {
-  if (episode.type !== 0 /* Main */) {
+  if (episode.type !== 0) {
     return "";
   }
   const titleParts = [];
@@ -2617,7 +2617,7 @@ function generateEpisodeBox(episode, status) {
   return `<span class="${cssClass}" title="${tooltip}" data-ep="${epNum}" data-id="${episode.id}">${epNum}</span>`;
 }
 function parseEpisodes(episodes, userStatusMap) {
-  const mainEpisodes = episodes.filter((ep) => ep.type === 0 /* Main */);
+  const mainEpisodes = episodes.filter((ep) => ep.type === 0);
   if (mainEpisodes.length === 0) {
     return "";
   }
@@ -2655,7 +2655,7 @@ function extractTemplateVars(subject, collection, characters, ratingDetails, epi
   let volumesContent = "";
   if (episodes && episodes.length > 0) {
     const statusMap = userEpisodeStatus ? createUserStatusMap(userEpisodeStatus) : void 0;
-    if (subject.type === 2) {
+    if (subject.type === 2 /* Anime */) {
       episodesContent = parseEpisodes(episodes, statusMap);
     } else if ((_c = parsedInfo.category) == null ? void 0 : _c.includes("\u5C0F\u8BF4")) {
       volumesContent = parseEpisodes(episodes, statusMap);
@@ -2776,19 +2776,19 @@ function generateContentByType(subject, collection, characters, customTemplates,
       template = customTemplates.album;
     } else {
       switch (subject.type) {
-        case 2:
+        case 2 /* Anime */:
           template = customTemplates.anime || getDefaultTemplate(subject.type, category);
           break;
-        case 4:
+        case 4 /* Game */:
           template = customTemplates.game || getDefaultTemplate(subject.type, category);
           break;
-        case 3:
+        case 3 /* Music */:
           template = customTemplates.music || getDefaultTemplate(subject.type, category);
           break;
-        case 6:
+        case 6 /* Real */:
           template = customTemplates.real || getDefaultTemplate(subject.type, category);
           break;
-        case 1:
+        case 1 /* Book */:
         default:
           template = customTemplates.novel || getDefaultTemplate(subject.type, category);
           break;
@@ -3035,7 +3035,7 @@ var SyncManager = class {
    * 仅对动画、小说、漫画类型获取
    */
   async fetchEpisodeData(subject) {
-    if (subject.type !== 2 && subject.type !== 1) {
+    if (subject.type !== 2 /* Anime */ && subject.type !== 1 /* Book */) {
       return null;
     }
     try {
@@ -3388,10 +3388,11 @@ var SyncModal = class extends import_obsidian7.Modal {
         case "scanning":
           this.updateStatus(`\u626B\u63CF\u672C\u5730\u6587\u4EF6... (${progress.current}/${progress.total})`);
           break;
-        case "processing":
+        case "processing": {
           const itemText = progress.currentItem ? ` - ${progress.currentItem}` : "";
           this.updateStatus(`\u5904\u7406\u6761\u76EE... (${progress.current}/${progress.total})${itemText}`);
           break;
+        }
         case "completed":
           this.updateStatus("\u540C\u6B65\u5B8C\u6210\uFF01");
           break;
@@ -3759,13 +3760,15 @@ var BatchEditorModal = class extends import_obsidian10.Modal {
       btn.addEventListener("click", () => this.close());
     });
     buttonDiv.createEl("button", { text: "\u786E\u8BA4\u6267\u884C", cls: "mod-cta" }, (btn) => {
-      btn.addEventListener("click", async () => {
-        if (this.operations.length === 0) {
-          new import_obsidian10.Notice("\u8BF7\u81F3\u5C11\u6DFB\u52A0\u4E00\u4E2A\u64CD\u4F5C");
-          return;
-        }
-        await this.onConfirm(this.operations);
-        this.close();
+      btn.addEventListener("click", () => {
+        void (async () => {
+          if (this.operations.length === 0) {
+            new import_obsidian10.Notice("\u8BF7\u81F3\u5C11\u6DFB\u52A0\u4E00\u4E2A\u64CD\u4F5C");
+            return;
+          }
+          await this.onConfirm(this.operations);
+          this.close();
+        })();
       });
     });
   }
@@ -4438,7 +4441,7 @@ var ControlPanel = class extends import_obsidian14.Modal {
       this.renderStatus(`\u5DF2\u52A0\u8F7D\u7F13\u5B58\u6570\u636E\uFF0C\u5171 ${this.state.collections.length} \u6761\u6536\u85CF`);
       this.applyFilters();
     } else {
-      this.loadData();
+      void void this.loadData();
     }
   }
   onClose() {
@@ -4985,7 +4988,7 @@ var ControlPanel = class extends import_obsidian14.Modal {
         this.incrementalSync,
         diffs,
         () => {
-          this.loadData();
+          void this.loadData();
         }
       );
       modal.open();
@@ -5050,7 +5053,7 @@ var ControlPanel = class extends import_obsidian14.Modal {
         this.incrementalSync,
         diffs,
         () => {
-          this.loadData();
+          void this.loadData();
         }
       );
       modal.open();
@@ -5142,7 +5145,7 @@ var ConfirmModal = class extends import_obsidian14.Modal {
     const buttonDiv = contentEl.createDiv({ cls: "modal-button-container" });
     const confirmBtn = buttonDiv.createEl("button", { text: "\u786E\u5B9A", cls: "mod-cta" });
     confirmBtn.addEventListener("click", () => {
-      this.onConfirm();
+      void this.onConfirm();
       this.close();
     });
     const cancelBtn = buttonDiv.createEl("button", { text: "\u53D6\u6D88" });

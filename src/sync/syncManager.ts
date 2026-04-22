@@ -11,7 +11,7 @@
 
 import { Notice, App } from 'obsidian';
 import { BangumiClient } from '../api/client';
-import { Subject, UserCollection, Episode, UserEpisodeCollection } from '../../common/api/types';
+import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType } from '../../common/api/types';
 import { FileManager } from '../file/fileManager';
 import { ImageHandler } from '../../common/file/imageHandler';
 import { IncrementalSync } from './incrementalSync';
@@ -303,7 +303,7 @@ export class SyncManager {
 		// 判断是否需要获取章节
 		// 动画（type=2）始终获取
 		// 书籍（type=1）需要检查 category 是否为小说或漫画
-		if (subject.type !== 2 && subject.type !== 1) {
+		if (subject.type !== SubjectType.Anime && subject.type !== SubjectType.Book) {
 			return null;
 		}
 

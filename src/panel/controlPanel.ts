@@ -145,7 +145,7 @@ export class ControlPanel extends Modal {
 			this.applyFilters();
 		} else {
 			// 无缓存，加载数据
-			this.loadData();
+			void void this.loadData();
 		}
 	}
 
@@ -847,7 +847,7 @@ export class ControlPanel extends Modal {
 				diffs,
 				() => {
 					// 同步完成后刷新
-					this.loadData();
+					void this.loadData();
 				}
 			);
 			modal.open();
@@ -931,7 +931,7 @@ export class ControlPanel extends Modal {
 				diffs,
 				() => {
 					// 同步完成后刷新
-					this.loadData();
+					void this.loadData();
 				}
 			);
 			modal.open();
@@ -1026,9 +1026,9 @@ export class ControlPanel extends Modal {
  */
 class ConfirmModal extends Modal {
 	private message: string;
-	private onConfirm: () => void;
+	private onConfirm: () => void | Promise<void>;
 
-	constructor(app: App, message: string, onConfirm: () => void) {
+	constructor(app: App, message: string, onConfirm: () => void | Promise<void>) {
 		super(app);
 		this.message = message;
 		this.onConfirm = onConfirm;
@@ -1043,7 +1043,7 @@ class ConfirmModal extends Modal {
 
 		const confirmBtn = buttonDiv.createEl('button', { text: '确定', cls: 'mod-cta' });
 		confirmBtn.addEventListener('click', () => {
-			this.onConfirm();
+			void this.onConfirm();
 			this.close();
 		});
 

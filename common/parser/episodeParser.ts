@@ -3,7 +3,7 @@
  * 用于生成集数显示的 Markdown 内容
  */
 
-import { Episode, EpisodeType } from '../api/types';
+import { Episode } from '../api/types';
 
 /**
  * 生成单个集数框的 HTML
@@ -12,7 +12,7 @@ import { Episode, EpisodeType } from '../api/types';
  */
 export function generateEpisodeBox(episode: Episode, status?: number): string {
 	// 只处理本篇（type=0）
-	if (episode.type !== EpisodeType.Main) {
+	if (episode.type !== 0) {
 		return '';
 	}
 
@@ -56,7 +56,7 @@ export function parseEpisodes(
 	userStatusMap?: Map<number, number>
 ): string {
 	// 过滤出本篇章节
-	const mainEpisodes = episodes.filter(ep => ep.type === EpisodeType.Main);
+	const mainEpisodes = episodes.filter(ep => ep.type === 0);
 
 	if (mainEpisodes.length === 0) {
 		return '';
