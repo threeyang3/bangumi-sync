@@ -10,7 +10,7 @@
  * 5. 支持相关条目双向链接
  */
 
-import { Notice, App } from 'obsidian';
+import { Notice, App, TFile } from 'obsidian';
 import { BangumiClient } from '../api/client';
 import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType } from '../../common/api/types';
 import { FileManager } from '../../common/file/fileManager';
@@ -283,24 +283,24 @@ export class SyncManager {
 	 * 返回已同步条目的链接（包括本批次已同步的）
 	 */
 	private generateRelatedLinks(relations: { id: number; name_cn: string; name: string }[]): string[] {
-		console.log(`[Bangumi Sync] 处理 ${relations?.length || 0} 个相关条目`);
+		console.debug(`[Bangumi Sync] 处理 ${relations?.length || 0} 个相关条目`);
 		if (!relations || relations.length === 0) {
-			console.log(`[Bangumi Sync] 无相关条目数据`);
+			console.debug(`[Bangumi Sync] 无相关条目数据`);
 			return [];
 		}
 		const links: string[] = [];
 		for (const relation of relations) {
-			console.log(`[Bangumi Sync] 检查相关条目: ${relation.name_cn || relation.name} (ID: ${relation.id})`);
+			console.debug(`[Bangumi Sync] 检查相关条目: ${relation.name_cn || relation.name} (ID: ${relation.id})`);
 			const localPath = this.incrementalSync.getLocalPath(relation.id);
-			console.log(`[Bangumi Sync] 本地路径: ${localPath || '未同步'}`);
+			console.debug(`[Bangumi Sync] 本地路径: ${localPath || '未同步'}`);
 			if (localPath) {
 				// 使用 Obsidian 内部链接格式
 				const link = `[[${localPath}|${relation.name_cn || relation.name}]]`;
 				links.push(link);
-				console.log(`[Bangumi Sync] 相关条目已同步: ${relation.name_cn} -> ${link}`);
+				console.debug(`[Bangumi Sync] 相关条目已同步: ${relation.name_cn} -> ${link}`);
 			}
 		}
-		console.log(`[Bangumi Sync] 生成了 ${links.length} 个相关链接`);
+		console.debug(`[Bangumi Sync] 生成了 ${links.length} 个相关链接`);
 		return links;
 	}
 
@@ -571,12 +571,12 @@ export class SyncManager {
 	 * 3. 更新已同步相关条目的链接（双向）
 	 */
 	private async processCollectionWithBidirectionalLinks(collection: UserCollection): Promise<void> {
-		console.log(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
 		const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
-		console.log(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
-		console.log(`[Bangumi Sync] API返回的相关条目数量: ${relations?.length || 0}`);
+		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
+		console.debug(`[Bangumi Sync] API返回的相关条目数量: ${relations?.length || 0}`);
 
 		// 解析角色信息
 		const characters = parseCharacters(relatedCharacters, 9);
@@ -636,7 +636,7 @@ export class SyncManager {
 		await this.fileManager.createOrUpdateFile(filePath, content, {
 			overwrite: false,
 		});
-		console.log(`[Bangumi Sync] 文件创建完成: ${filePath}`);
+		console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
 
 		// 添加到批次已同步列表
 		this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name);
@@ -651,11 +651,11 @@ export class SyncManager {
 	 * 处理单个收藏（带双向链接更新，支持覆盖）
 	 */
 	private async processCollectionWithBidirectionalLinksAndOverwrite(collection: UserCollection, overwrite: boolean): Promise<void> {
-		console.log(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
 		const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
-		console.log(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
+		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
 
 		// 解析角色信息
 		const characters = parseCharacters(relatedCharacters, 9);
@@ -714,7 +714,7 @@ export class SyncManager {
 			overwrite: overwrite,
 		});
 
-		console.log(`[Bangumi Sync] 文件创建完成: ${filePath}`);
+		console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
 
 		// 添加到批次已同步列表
 		this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name);
@@ -732,11 +732,11 @@ export class SyncManager {
 		collection: UserCollection,
 		ratingDetails: RatingDetails
 	): Promise<void> {
-		console.log(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
 		const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
-		console.log(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
+		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
 
 		// 解析角色信息
 		const characters = parseCharacters(relatedCharacters, 9);
@@ -796,7 +796,7 @@ export class SyncManager {
 		await this.fileManager.createOrUpdateFile(filePath, content, {
 			overwrite: false,
 		});
-		console.log(`[Bangumi Sync] 文件创建完成: ${filePath}`);
+		console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
 
 		// 添加到批次已同步列表
 		this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name);
@@ -823,17 +823,17 @@ export class SyncManager {
 			// 获取相关条目的本地路径（包括本批次同步的）
 			const relatedPath = this.incrementalSync.getLocalPath(relation.id);
 			if (relatedPath) {
-				console.log(`[Bangumi Sync] 更新相关条目的链接: ${relation.name_cn} -> ${currentLink}`);
+				console.debug(`[Bangumi Sync] 更新相关条目的链接: ${relation.name_cn} -> ${currentLink}`);
 				try {
 					// 读取相关条目文件
 					const file = this.app.vault.getAbstractFileByPath(relatedPath);
-					if (file) {
-						const content = await this.app.vault.read(file as any);
+					if (file instanceof TFile) {
+						const content = await this.app.vault.read(file);
 						// 在相关条目中添加当前条目的链接
 						const updatedContent = this.incrementalSync.updateRelated(content, [currentLink]);
 						if (updatedContent !== content) {
-							await this.app.vault.modify(file as any, updatedContent);
-							console.log(`[Bangumi Sync] 已更新 ${relation.name_cn} 的相关链接`);
+							await this.app.vault.modify(file, updatedContent);
+							console.debug(`[Bangumi Sync] 已更新 ${relation.name_cn} 的相关链接`);
 						}
 					}
 				} catch (error) {

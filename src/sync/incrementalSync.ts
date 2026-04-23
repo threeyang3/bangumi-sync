@@ -222,7 +222,7 @@ export class IncrementalSync {
 	 */
 	startBatch(): void {
 		this.batchSyncedItems.clear();
-		console.log(`[Bangumi Sync] 开始新的同步批次`);
+		console.debug(`[Bangumi Sync] 开始新的同步批次`);
 	}
 
 	/**
@@ -235,7 +235,7 @@ export class IncrementalSync {
 		this.batchSyncedItems.set(subjectId, { id: subjectId, path, name_cn });
 		// 同时添加到 localSubjects，以便后续条目能找到
 		this.localSubjects.set(subjectId, { id: subjectId, path, name_cn });
-		console.log(`[Bangumi Sync] 本批次已同步: ${name_cn} (ID: ${subjectId}) -> ${path}`);
+		console.debug(`[Bangumi Sync] 本批次已同步: ${name_cn} (ID: ${subjectId}) -> ${path}`);
 	}
 
 	/**
@@ -510,9 +510,9 @@ export class IncrementalSync {
 			if (!allLinksSet.has(link)) {
 				allLinksSet.add(link);
 				allLinks.push(link);
-				console.log(`[Bangumi Sync] 添加新相关链接: ${link}`);
+				console.debug(`[Bangumi Sync] 添加新相关链接: ${link}`);
 			} else {
-				console.log(`[Bangumi Sync] 跳过重复链接: ${link}`);
+				console.debug(`[Bangumi Sync] 跳过重复链接: ${link}`);
 			}
 		}
 
