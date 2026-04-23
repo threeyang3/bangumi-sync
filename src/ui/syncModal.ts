@@ -4,6 +4,7 @@
 
 import { App, Modal, Setting } from 'obsidian';
 import { SyncProgress } from '../sync/syncStatus';
+import { tn } from '../i18n';
 
 export class SyncModal extends Modal {
 	private progress: SyncProgress;
@@ -22,7 +23,7 @@ export class SyncModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		new Setting(contentEl).setName('Sync Bangumi collections').setHeading();
+		new Setting(contentEl).setName(tn('syncModal', 'title')).setHeading();
 
 		// 进度条容器
 		this.progressBar = contentEl.createDiv({ cls: 'bangumi-progress-bar' });
@@ -30,7 +31,7 @@ export class SyncModal extends Modal {
 
 		// 状态文本
 		this.statusText = contentEl.createDiv({ cls: 'bangumi-sync-status' });
-		this.updateStatus('准备同步...');
+		this.updateStatus(tn('syncModal', 'preparing'));
 	}
 
 	onClose(): void {
@@ -59,24 +60,24 @@ export class SyncModal extends Modal {
 		} else {
 			switch (progress.status) {
 				case 'preparing':
-					this.updateStatus('准备同步...');
+					this.updateStatus(tn('syncModal', 'preparing'));
 					break;
 				case 'fetching':
-					this.updateStatus(`获取收藏列表... (${progress.current}/${progress.total})`);
+					this.updateStatus(`${tn('syncModal', 'fetchingCollections')} (${progress.current}/${progress.total})`);
 					break;
 				case 'scanning':
-					this.updateStatus(`扫描本地文件... (${progress.current}/${progress.total})`);
+					this.updateStatus(`${tn('syncModal', 'scanningLocal')} (${progress.current}/${progress.total})`);
 					break;
 				case 'processing': {
 					const itemText = progress.currentItem ? ` - ${progress.currentItem}` : '';
-					this.updateStatus(`处理条目... (${progress.current}/${progress.total})${itemText}`);
+					this.updateStatus(`${tn('syncModal', 'processing')} (${progress.current}/${progress.total})${itemText}`);
 					break;
 				}
 				case 'completed':
-					this.updateStatus('同步完成！');
+					this.updateStatus(tn('syncModal', 'completed'));
 					break;
 				case 'error':
-					this.updateStatus(`同步出错: ${progress.message || '未知错误'}`);
+					this.updateStatus(`${tn('syncModal', 'error')}: ${progress.message || ''}`);
 					break;
 			}
 		}

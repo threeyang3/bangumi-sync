@@ -5,6 +5,7 @@
 
 import { App, Modal, Setting } from 'obsidian';
 import { SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName } from '../../common/api/types';
+import { tn } from '../i18n';
 
 /**
  * 同步选项输入
@@ -47,10 +48,10 @@ export class SyncOptionsModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		new Setting(contentEl).setName('Sync options').setHeading();
+		new Setting(contentEl).setName(tn('syncOptions', 'title')).setHeading();
 
 		// ==================== 条目类型选择 ====================
-		new Setting(contentEl).setName('Subject types').setHeading();
+		new Setting(contentEl).setName(tn('syncOptions', 'subjectTypes')).setHeading();
 
 		const subjectTypesDiv = contentEl.createDiv({ cls: 'bangumi-checkbox-group' });
 		const subjectTypes: SubjectType[] = [
@@ -77,13 +78,13 @@ export class SyncOptionsModal extends Modal {
 
 		// 快捷选择按钮
 		const subjectQuickDiv = contentEl.createDiv({ cls: 'bangumi-quick-select' });
-		subjectQuickDiv.createEl('button', { text: 'Select all', cls: 'bangumi-quick-btn' }, (btn) => {
+		subjectQuickDiv.createEl('button', { text: tn('syncOptions', 'selectAll'), cls: 'bangumi-quick-btn' }, (btn) => {
 			btn.addEventListener('click', () => {
 				subjectTypes.forEach(t => this.selectedSubjectTypes.add(t));
 				this.redraw();
 			});
 		});
-		subjectQuickDiv.createEl('button', { text: 'Deselect all', cls: 'bangumi-quick-btn' }, (btn) => {
+		subjectQuickDiv.createEl('button', { text: tn('syncOptions', 'deselectAll'), cls: 'bangumi-quick-btn' }, (btn) => {
 			btn.addEventListener('click', () => {
 				this.selectedSubjectTypes.clear();
 				this.redraw();
@@ -91,7 +92,7 @@ export class SyncOptionsModal extends Modal {
 		});
 
 		// ==================== 收藏状态选择 ====================
-		new Setting(contentEl).setName('Collection types').setHeading();
+		new Setting(contentEl).setName(tn('syncOptions', 'collectionTypes')).setHeading();
 
 		const collectionTypesDiv = contentEl.createDiv({ cls: 'bangumi-checkbox-group' });
 		const collectionTypes: CollectionType[] = [
@@ -118,13 +119,13 @@ export class SyncOptionsModal extends Modal {
 
 		// 快捷选择按钮
 		const collectionQuickDiv = contentEl.createDiv({ cls: 'bangumi-quick-select' });
-		collectionQuickDiv.createEl('button', { text: 'Select all', cls: 'bangumi-quick-btn' }, (btn) => {
+		collectionQuickDiv.createEl('button', { text: tn('syncOptions', 'selectAll'), cls: 'bangumi-quick-btn' }, (btn) => {
 			btn.addEventListener('click', () => {
 				collectionTypes.forEach(t => this.selectedCollectionTypes.add(t));
 				this.redraw();
 			});
 		});
-		collectionQuickDiv.createEl('button', { text: 'Deselect all', cls: 'bangumi-quick-btn' }, (btn) => {
+		collectionQuickDiv.createEl('button', { text: tn('syncOptions', 'deselectAll'), cls: 'bangumi-quick-btn' }, (btn) => {
 			btn.addEventListener('click', () => {
 				this.selectedCollectionTypes.clear();
 				this.redraw();
@@ -132,11 +133,11 @@ export class SyncOptionsModal extends Modal {
 		});
 
 		// ==================== 同步数量 ====================
-		new Setting(contentEl).setName('Sync limit').setHeading();
+		new Setting(contentEl).setName(tn('syncOptions', 'syncLimit')).setHeading();
 
 		new Setting(contentEl)
-			.setName('Sync limit')
-			.setDesc('If unsynced count is less than limit, sync all unsynced items')
+			.setName(tn('syncOptions', 'syncLimit'))
+			.setDesc(tn('syncOptions', 'syncLimitDesc'))
 			.addText(text => text
 				.setPlaceholder('50')
 				.setValue(String(this.limitValue))
@@ -149,8 +150,8 @@ export class SyncOptionsModal extends Modal {
 
 		// ==================== 强制同步选项 ====================
 		new Setting(contentEl)
-			.setName('Force sync')
-			.setDesc('Ignore existing items and re-sync all selected items')
+			.setName(tn('syncOptions', 'forceSync'))
+			.setDesc(tn('syncOptions', 'forceSyncDesc'))
 			.addToggle(toggle => toggle
 				.setValue(this.forceValue)
 				.onChange((value) => {
@@ -160,7 +161,7 @@ export class SyncOptionsModal extends Modal {
 		// ==================== 操作按钮 ====================
 		const buttonDiv = contentEl.createDiv({ cls: 'bangumi-modal-buttons' });
 
-		const syncBtn = buttonDiv.createEl('button', { text: 'Start sync', cls: 'mod-cta' });
+		const syncBtn = buttonDiv.createEl('button', { text: tn('syncOptions', 'startSync'), cls: 'mod-cta' });
 		syncBtn.addEventListener('click', () => {
 			this.onSave({
 				subjectTypes: Array.from(this.selectedSubjectTypes),
@@ -171,7 +172,7 @@ export class SyncOptionsModal extends Modal {
 			this.close();
 		});
 
-		const cancelBtn = buttonDiv.createEl('button', { text: 'Cancel' });
+		const cancelBtn = buttonDiv.createEl('button', { text: tn('syncOptions', 'cancel') });
 		cancelBtn.addEventListener('click', () => {
 			this.close();
 		});

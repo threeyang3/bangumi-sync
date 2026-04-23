@@ -5,6 +5,7 @@
 import { App, PluginSettingTab, Setting, Notice, Modal, TextAreaComponent, TFile, FuzzySuggestModal, Plugin } from 'obsidian';
 import { BangumiPluginSettings, TemplateConfig, TemplateSource, CoverLinkType } from './settings';
 import { SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName } from '../../common/api/types';
+import { tn } from '../i18n';
 import {
 	ANIME_TEMPLATE,
 	NOVEL_TEMPLATE,
@@ -64,16 +65,16 @@ export class BangumiSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		// 标题
-		new Setting(containerEl).setName('Settings').setHeading();
+		new Setting(containerEl).setName(tn('settings', 'heading')).setHeading();
 
 		// ==================== 认证设置 ====================
-		new Setting(containerEl).setName('Authentication').setHeading();
+		new Setting(containerEl).setName(tn('settings', 'authentication')).setHeading();
 
 		new Setting(containerEl)
-			.setName('Access Token')
-			.setDesc('Generate Access Token at https://next.bgm.tv/demo/access-token')
+			.setName(tn('settings', 'accessToken'))
+			.setDesc(tn('settings', 'accessTokenDesc'))
 			.addText(text => text
-				.setPlaceholder('Enter Access Token')
+				.setPlaceholder(tn('settings', 'enterAccessToken'))
 				.setValue(this.settings.accessToken)
 				.onChange(async (value) => {
 					this.settings.accessToken = value;

@@ -18,6 +18,7 @@ import { SyncPreviewModal, SyncPreviewResult } from './src/ui/syncPreviewModal';
 import { ControlPanel } from './src/panel/controlPanel';
 import { SyncProgress } from './src/sync/syncStatus';
 import { UserCollection } from './common/api/types';
+import { tn } from './src/i18n';
 import {
 	ANIME_TEMPLATE_STANDARD,
 	NOVEL_TEMPLATE_STANDARD,
@@ -100,26 +101,26 @@ export class BangumiPlugin extends Plugin {
 		// 添加命令：打开控制面板
 		this.addCommand({
 			id: 'open-control-panel',
-			name: '打开收藏管理面板',
+			name: tn('commands', 'openControlPanel'),
 			callback: () => this.openControlPanel(),
 		});
 
 		// 添加命令：同步收藏
 		this.addCommand({
 			id: 'sync-collections',
-			name: 'Sync Bangumi collections',
+			name: tn('commands', 'syncCollections'),
 			callback: () => this.openSyncOptions(),
 		});
 
 		// 添加命令：快速同步
 		this.addCommand({
 			id: 'quick-sync-collections',
-			name: 'Quick sync (use default settings)',
+			name: tn('commands', 'quickSync'),
 			callback: () => this.syncCollections(),
 		});
 
 		// 添加 Ribbon 图标
-		this.addRibbonIcon('database', 'Bangumi collection manager', () => {
+		this.addRibbonIcon('database', tn('ribbon', 'collectionManager'), () => {
 			this.openControlPanel();
 		});
 
@@ -277,7 +278,7 @@ export class BangumiPlugin extends Plugin {
 	 */
 	openControlPanel() {
 		if (!this.settings.accessToken) {
-			new Notice('Please configure Access Token in settings first');
+			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
 		}
 
@@ -319,7 +320,7 @@ export class BangumiPlugin extends Plugin {
 	 */
 	openSyncOptions() {
 		if (!this.settings.accessToken) {
-			new Notice('Please configure Access Token in settings first');
+			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
 		}
 
@@ -355,22 +356,22 @@ export class BangumiPlugin extends Plugin {
 	 */
 	async syncCollectionsWithOptions(options: SyncOptionsInput, showPreview: boolean = true) {
 		if (!this.settings.accessToken) {
-			new Notice('Please configure Access Token in settings first');
+			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
 		}
 
 		if (options.subjectTypes.length === 0) {
-			new Notice('Please select at least one subject type');
+			new Notice(tn('notices', 'selectSubjectType'));
 			return;
 		}
 
 		if (options.collectionTypes.length === 0) {
-			new Notice('Please select at least one collection type');
+			new Notice(tn('notices', 'selectCollectionType'));
 			return;
 		}
 
 		if (!this.syncManager) {
-			new Notice('Sync manager not initialized');
+			new Notice(tn('notices', 'syncManagerNotInit'));
 			return;
 		}
 

@@ -6,6 +6,7 @@
 import { App, Modal, Setting } from 'obsidian';
 import { SubjectType, UserCollection } from '../../common/api/types';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
+import { tn, t } from '../i18n';
 
 /**
  * 评分明细
@@ -48,26 +49,25 @@ export interface SyncPreviewResult {
 /**
  * 各类型条目的评分明细字段配置
  */
-const RATING_DETAIL_FIELDS: Record<number, { key: keyof RatingDetails; label: string }[]> = {
+const RATING_DETAIL_FIELDS: Record<number, { key: keyof RatingDetails; labelKey: string }[]> = {
 	[SubjectType.Anime]: [
-		{ key: 'music', label: 'Music' },
-		{ key: 'character', label: 'Character' },
-		{ key: 'story', label: 'Story' },
-		{ key: 'art', label: 'Art' },
+		{ key: 'music', labelKey: 'music' },
+		{ key: 'character', labelKey: 'character' },
+		{ key: 'story', labelKey: 'story' },
+		{ key: 'art', labelKey: 'art' },
 	],
 	[SubjectType.Book]: [
-		{ key: 'story', label: 'Story' },
-		{ key: 'illustration', label: 'Illustration' },
-		{ key: 'writing', label: 'Writing' },
-		{ key: 'character', label: 'Character' },
+		{ key: 'story', labelKey: 'story' },
+		{ key: 'illustration', labelKey: 'illustration' },
+		{ key: 'writing', labelKey: 'writing' },
+		{ key: 'character', labelKey: 'character' },
 	],
-	// 漫画使用 Book 类型但字段不同，通过 category 判断
 	[SubjectType.Music]: [],
 	[SubjectType.Game]: [
-		{ key: 'story', label: 'Story' },
-		{ key: 'fun', label: 'Fun' },
-		{ key: 'music', label: 'Music' },
-		{ key: 'art', label: 'Art' },
+		{ key: 'story', labelKey: 'story' },
+		{ key: 'fun', labelKey: 'fun' },
+		{ key: 'music', labelKey: 'music' },
+		{ key: 'art', labelKey: 'art' },
 	],
 	[SubjectType.Real]: [],
 };
@@ -76,15 +76,17 @@ const RATING_DETAIL_FIELDS: Record<number, { key: keyof RatingDetails; label: st
  * 获取条目的评分明细字段
  */
 function getRatingFields(type: SubjectType, category?: string): { key: keyof RatingDetails; label: string }[] {
+	const ratingLabels = t('ratingFields');
 	// 漫画特殊处理
 	if (type === SubjectType.Book && category?.includes('漫画')) {
 		return [
-			{ key: 'story', label: 'Story' },
-			{ key: 'drawing', label: 'Drawing' },
-			{ key: 'character', label: 'Character' },
+			{ key: 'story', label: String(ratingLabels.story) },
+			{ key: 'drawing', label: String(ratingLabels.drawing) },
+			{ key: 'character', label: String(ratingLabels.character) },
 		];
 	}
-	return RATING_DETAIL_FIELDS[type] || [];
+	const fields = RATING_DETAIL_FIELDS[type] || [];
+	return fields.map(f => ({ key: f.key, label: String(ratingLabels[f.labelKey as keyof typeof ratingLabels]) }));
 }
 
 /**
@@ -108,11 +110,11 @@ export class SyncPreviewModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		new Setting(contentEl).setName('Sync preview').setHeading();
+		new Setting(contentEl).setName(tn('syncPreview', 'title')).setHeading();
 
 		// 统计信息
 		contentEl.createEl('p', {
-			text: `${this.items.length} items to sync. Confirm items and fill in rating details.`,
+			text: `${this.items.length} ${tn('syncPreview', 'itemsToSync')}`,
 			cls: 'bangumi-preview-info'
 		});
 
@@ -125,32 +127,32 @@ export class SyncPreviewModal extends Modal {
 
 		// 快捷选择按钮
 		const quickDiv = contentEl.createDiv({ cls: 'bangumi-preview-quick' });
-		quickDiv.createEl('button', { text: 'Select all', cls: 'bangumi-quick-btn' }, btn => {
+		quickDiv.createEl('button', { text: tn('syncPreview', 'selectAll'), cls: 'bangumi-quick-btn' }, btn => {
 			btn.addEventListener('click', () => this.selectAll(true));
 		});
-		quickDiv.createEl('button', { text: 'Deselect all', cls: 'bangumi-quick-btn' }, btn => {
+		quickDiv.createEl('button', { text: tn('syncPreview', 'deselectAll'), cls: 'bangumi-quick-btn' }, btn => {
 			btn.addEventListener('click', () => this.selectAll(false));
 		});
-		quickDiv.createEl('button', { text: 'Invert', cls: 'bangumi-quick-btn' }, btn => {
+		quickDiv.createEl('button', { text: tn('syncPreview', 'invert'), cls: 'bangumi-quick-btn' }, btn => {
 			btn.addEventListener('click', () => this.invertSelection());
 		});
 
 		// 操作按钮
 		const buttonDiv = contentEl.createDiv({ cls: 'bangumi-modal-buttons' });
 
-		buttonDiv.createEl('button', { text: 'Import all', cls: 'mod-cta' }, btn => {
+		buttonDiv.createEl('button', { text: tn('syncPreview', 'importAll'), cls: 'mod-cta' }, btn => {
 			btn.addEventListener('click', () => this.confirm('all'));
 		});
 
-		buttonDiv.createEl('button', { text: 'Import selected', cls: 'mod-cta' }, btn => {
+		buttonDiv.createEl('button', { text: tn('syncPreview', 'importSelected'), cls: 'mod-cta' }, btn => {
 			btn.addEventListener('click', () => this.confirm('selected'));
 		});
 
-		buttonDiv.createEl('button', { text: 'Import unselected' }, btn => {
+		buttonDiv.createEl('button', { text: tn('syncPreview', 'importUnselected') }, btn => {
 			btn.addEventListener('click', () => this.confirm('unselected'));
 		});
 
-		buttonDiv.createEl('button', { text: 'Cancel' }, btn => {
+		buttonDiv.createEl('button', { text: tn('syncPreview', 'cancel') }, btn => {
 			btn.addEventListener('click', () => this.confirm('cancel'));
 		});
 	}
@@ -179,14 +181,14 @@ export class SyncPreviewModal extends Modal {
 
 		if (item.my_rate) {
 			const myRateSpan = headerDiv.createSpan({ cls: 'bangumi-preview-my-rate' });
-			myRateSpan.setText(`[My rating: ${item.my_rate}]`);
+			myRateSpan.setText(`[${tn('syncPreview', 'myRating')}: ${item.my_rate}]`);
 		}
 
 		// 评分明细输入
 		const fields = getRatingFields(item.type);
 		if (fields.length > 0) {
 			const detailsDiv = itemDiv.createDiv({ cls: 'bangumi-preview-details' });
-			detailsDiv.createSpan({ text: 'Rating details: ', cls: 'bangumi-preview-details-label' });
+			detailsDiv.createSpan({ text: `${tn('syncPreview', 'ratingDetails')}: `, cls: 'bangumi-preview-details-label' });
 
 			const detailInputs = new Map<keyof RatingDetails, HTMLInputElement>();
 
