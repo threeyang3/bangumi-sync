@@ -701,7 +701,10 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
   - 双向链接：同步条目时自动更新相关条目的链接属性
   - 相关链接用双引号包围，确保 YAML 格式正确
   - 自动去重：避免重复添加相同链接
-  - 修复 UI 文本大小写问题，符合 Obsidian 插件规范
+  - 修复 Obsidian 插件审核问题：
+    - UI placeholder 文本使用 sentence case
+    - `console.log` 改为 `console.debug`（仅允许 warn, error, debug）
+    - 移除 `as any` 类型断言，使用 `instanceof TFile` 检查
 
 - **v4.5.2**: 相关条目自动关联版本
   - 新增相关条目自动关联功能，同步时自动获取相关条目并建立双向链接
