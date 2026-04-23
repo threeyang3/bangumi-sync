@@ -777,7 +777,38 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 
 ## 开发计划
 
-### v4.5.1 相关条目自动关联（已完成）
+### v4.5.3 相关条目双向链接优化（已完成）
+
+**功能描述**：优化相关条目双向链接功能，解决同批次同步时相关条目无法关联的问题。
+
+**问题分析**：
+- 同批次同步时，相关条目还未被标记为已同步
+- 导致 `generateRelatedLinks()` 无法找到已同步的相关条目
+
+**解决方案**：
+1. **批次同步机制**：在 `IncrementalSync` 中添加 `batchSyncedItems` 跟踪本批次已同步的条目
+2. **实时更新**：每同步完一个条目，立即添加到批次已同步列表
+3. **双向链接更新**：同步条目后，更新已同步相关条目的链接属性
+4. **链接格式优化**：相关链接用双引号包围，确保 YAML 格式正确
+5. **自动去重**：避免重复添加相同链接
+
+**已完成的修改**：
+- `src/sync/incrementalSync.ts`：
+  - 添加 `batchSyncedItems` 私有属性
+  - 添加 `startBatch()`、`addBatchSyncedItem()` 方法
+  - 更新 `getLocalPath()` 方法，同时检查本批次和之前同步的条目
+  - 添加 `normalizeLink()` 方法规范化链接格式
+  - 优化 `updateRelated()` 方法，支持去重和引号包围
+- `src/sync/syncManager.ts`：
+  - 添加 `processCollectionWithBidirectionalLinks()` 方法
+  - 添加 `processCollectionWithBidirectionalLinksAndOverwrite()` 方法
+  - 添加 `processCollectionWithRatingDetailsAndBidirectionalLinks()` 方法
+  - 添加 `updateRelatedItemsBidirectional()` 方法
+  - 更新 `sync()`、`syncByCollections()`、`executeSync()` 方法使用批次同步
+- `src/template/contentTemplate.ts`：相关链接用双引号包围
+- `src/settings/settingsTab.ts`：修复 UI 文本大小写问题
+
+### v4.5.2 相关条目自动关联（已完成）
 
 **功能描述**：同步条目时，自动获取相关条目并建立双向链接。
 
@@ -799,5 +830,4 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 - `src/settings/settingsTab.ts`：添加设置 UI
 - `src/i18n/translations.ts`：添加新设置的翻译
 - `src/sync/syncManager.ts`：添加 `generateRelatedLinks()` 方法，更新同步流程
-
 
