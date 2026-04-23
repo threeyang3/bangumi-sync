@@ -831,3 +831,56 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 - `src/i18n/translations.ts`：添加新设置的翻译
 - `src/sync/syncManager.ts`：添加 `generateRelatedLinks()` 方法，更新同步流程
 
+## 未来改进方向
+
+### 用户数据保护机制
+
+**核心目标**：保护用户自主填写的数据，即使在强制同步时也不应被覆盖。
+
+**需要保护的数据类型**：
+
+1. **用户自主填写的属性值**
+   - 评分明细（音乐评分、人设评分、剧情评分、美术评分等）
+   - 自定义属性（标语、存储、资源属性、版本、格式等）
+   - 笔记链接
+
+2. **正文中的用户内容**
+   - `## 记录` 部分的内容
+   - `## 感想` 部分的内容
+   - 用户自行添加的其他正文内容
+
+3. **短评**
+   - 用户在本地修改的短评内容
+
+**实现方案**：
+
+1. **数据提取**：强制同步前，从现有文件中提取用户数据
+   - 解析 frontmatter，识别用户填写的属性（非模板默认值）
+   - 提取正文中的 `## 记录` 和 `## 感想` 部分
+   - 提取短评内容
+
+2. **数据迁移**：将用户数据合并到新生成的内容中
+   - 用户填写的属性值优先于模板默认值
+   - 保留正文中的用户内容区域
+   - 短评内容迁移到新文件的对应位置
+
+3. **冲突处理**：
+   - 用户属性 vs API 数据：优先保留用户属性
+   - 用户正文 vs 模板正文：保留用户正文，追加模板新增内容
+
+**技术实现要点**：
+
+- 在 `IncrementalSync` 中添加方法：
+  - `extractUserProperties(content: string): Record<string, string>` - 提取用户填写的属性
+  - `extractUserContent(content: string): { records: string; thoughts: string }` - 提取记录和感想
+  - `mergeUserContent(newContent: string, userData: UserContentData): string` - 合并用户数据到新内容
+
+- 在 `SyncManager` 中更新强制同步逻辑：
+  - 覆盖前先提取用户数据
+  - 生成新内容后合并用户数据
+
+**应用场景**：
+- 用户在本地填写了评分明细，重新同步时保留这些评分
+- 用户在 `## 感想` 部分写了长评，强制同步时不应丢失
+- 用户修改了短评，同步时保留本地版本
+
