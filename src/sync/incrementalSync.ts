@@ -3,7 +3,7 @@
  * 通过扫描本地文件夹来检验是否已经同步
  */
 
-import { App, TFile, TFolder, normalizePath } from 'obsidian';
+import { App, TFolder, normalizePath } from 'obsidian';
 
 /**
  * 本地条目信息

@@ -296,10 +296,10 @@ export class BangumiPlugin extends Plugin {
 			this.app,
 			this.settings,
 			this.syncManager!,
-			async (filters: PanelFilters) => {
+			(filters: PanelFilters) => {
 				// 保存筛选条件
 				this.settings.panelFilters = filters;
-				await this.saveSettings();
+				void this.saveSettings();
 			},
 			cachedPanelData,
 			(data) => {
@@ -411,37 +411,39 @@ export class BangumiPlugin extends Plugin {
 			const previewModal = new SyncPreviewModal(
 				this.app,
 				prepareResult.previewItems,
-				async (result: SyncPreviewResult) => {
-					if (result.action === 'cancel') {
-						new Notice('已取消同步');
-						return;
-					}
-
-					this.syncModal = new SyncModal(this.app);
-					this.syncModal.open();
-
-					this.syncManager!.setProgressCallback((progress: SyncProgress) => {
-						if (this.syncModal) {
-							this.syncModal.updateProgress(progress);
+				(result: SyncPreviewResult) => {
+					void (async () => {
+						if (result.action === 'cancel') {
+							new Notice('已取消同步');
+							return;
 						}
-					});
 
-					const syncResult = await this.syncManager!.executeSync(result.items, result.action);
+						this.syncModal = new SyncModal(this.app);
+						this.syncModal.open();
 
-					this.settings.lastSyncTime = new Date().toISOString();
-					this.settings.lastSyncCount = syncResult.added + syncResult.skipped;
-					await this.saveSettings();
+						this.syncManager!.setProgressCallback((progress: SyncProgress) => {
+							if (this.syncModal) {
+								this.syncModal.updateProgress(progress);
+							}
+						});
 
-					new Notice(
-						`同步完成！新增: ${syncResult.added}, 跳过: ${prepareResult.skipped}, 错误: ${syncResult.errors}`
-					);
+						const syncResult = await this.syncManager!.executeSync(result.items, result.action);
 
-					setTimeout(() => {
-						if (this.syncModal) {
-							this.syncModal.close();
-							this.syncModal = null;
-						}
-					}, 1000);
+						this.settings.lastSyncTime = new Date().toISOString();
+						this.settings.lastSyncCount = syncResult.added + syncResult.skipped;
+						await this.saveSettings();
+
+						new Notice(
+							`同步完成！新增: ${syncResult.added}, 跳过: ${prepareResult.skipped}, 错误: ${syncResult.errors}`
+						);
+
+						setTimeout(() => {
+							if (this.syncModal) {
+								this.syncModal.close();
+								this.syncModal = null;
+							}
+						}, 1000);
+					})();
 				}
 			);
 			previewModal.open();

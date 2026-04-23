@@ -84,7 +84,7 @@ export class CommentSyncModal extends Modal {
 		// 底部按钮
 		const footer = contentEl.createDiv({ cls: 'bangumi-comment-sync-footer' });
 		footer.createEl('button', { text: '执行同步', cls: 'mod-cta' }, btn => {
-			btn.addEventListener('click', () => this.executeSync());
+			btn.addEventListener('click', () => { void this.executeSync(); });
 		});
 		footer.createEl('button', { text: '取消' }, btn => {
 			btn.addEventListener('click', () => this.close());

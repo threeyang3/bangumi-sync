@@ -11,7 +11,6 @@ import {
 	PagedResult,
 	RelatedCharacter,
 	RelatedPerson,
-	Episode,
 	PagedEpisodes,
 	User,
 	SearchParams,

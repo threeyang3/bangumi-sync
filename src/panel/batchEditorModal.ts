@@ -3,7 +3,7 @@
  * 批量新增/修改/删除 frontmatter 属性
  */
 
-import { App, Modal, Notice } from 'obsidian';
+import { App, Modal, Notice, TFile } from 'obsidian';
 
 /**
  * 批量编辑操作类型
@@ -192,24 +192,24 @@ export class FrontmatterEditor {
 	/**
 	 * 读取文件的 frontmatter
 	 */
-	async readFrontmatter(filePath: string): Promise<Record<string, any> | null> {
+	async readFrontmatter(filePath: string): Promise<Record<string, unknown> | null> {
 		const file = this.app.vault.getAbstractFileByPath(filePath);
-		if (!file) return null;
+		if (!(file instanceof TFile)) return null;
 
-		const content = await this.app.vault.read(file as any);
+		const content = await this.app.vault.read(file);
 
 		// 解析 frontmatter
 		const match = content.match(/^---\n([\s\S]*?)\n---/);
 		if (!match) return null;
 
-		const frontmatter: Record<string, any> = {};
+		const frontmatter: Record<string, unknown> = {};
 		const lines = match[1].split('\n');
 
 		for (const line of lines) {
 			const colonIndex = line.indexOf(':');
 			if (colonIndex > 0) {
 				const key = line.substring(0, colonIndex).trim();
-				let value: any = line.substring(colonIndex + 1).trim();
+				let value: string = line.substring(colonIndex + 1).trim();
 
 				// 移除引号
 				if ((value.startsWith('"') && value.endsWith('"')) ||
@@ -232,9 +232,9 @@ export class FrontmatterEditor {
 		operations: BatchEditOperation[]
 	): Promise<boolean> {
 		const file = this.app.vault.getAbstractFileByPath(filePath);
-		if (!file) return false;
+		if (!(file instanceof TFile)) return false;
 
-		const content = await this.app.vault.read(file as any);
+		const content = await this.app.vault.read(file);
 
 		// 匹配 frontmatter
 		const match = content.match(/^(---\n)([\s\S]*?)(\n---)/);
@@ -244,9 +244,6 @@ export class FrontmatterEditor {
 		let frontmatterStr = match[2];
 		const suffix = match[3];
 
-		// 保存原始内容用于撤销
-		const originalContent = content;
-
 		// 应用操作
 		for (const op of operations) {
 			frontmatterStr = this.applyOperation(frontmatterStr, op);
@@ -255,7 +252,7 @@ export class FrontmatterEditor {
 		// 重建文件内容
 		const newContent = prefix + frontmatterStr + suffix + content.substring(match[0].length);
 
-		await this.app.vault.modify(file as any, newContent);
+		await this.app.vault.modify(file, newContent);
 
 		return true;
 	}
@@ -309,8 +306,8 @@ export class FrontmatterEditor {
 		// 保存原始内容
 		for (const path of filePaths) {
 			const file = this.app.vault.getAbstractFileByPath(path);
-			if (file) {
-				const content = await this.app.vault.read(file as any);
+			if (file instanceof TFile) {
+				const content = await this.app.vault.read(file);
 				originalContents.set(path, content);
 			}
 		}
@@ -357,8 +354,8 @@ export class FrontmatterEditor {
 
 		for (const [path, content] of lastOperation.originalContent) {
 			const file = this.app.vault.getAbstractFileByPath(path);
-			if (file && lastOperation.affectedFiles.includes(path)) {
-				await this.app.vault.modify(file as any, content);
+			if (file instanceof TFile && lastOperation.affectedFiles.includes(path)) {
+				await this.app.vault.modify(file, content);
 				restored++;
 			}
 		}

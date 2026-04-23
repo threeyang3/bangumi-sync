@@ -5,7 +5,6 @@
 
 import { App, Modal, Setting } from 'obsidian';
 import { SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName } from '../../common/api/types';
-import { SyncOptions } from '../sync/syncStatus';
 
 /**
  * 同步选项输入
@@ -48,10 +47,10 @@ export class SyncOptionsModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		contentEl.createEl('h2', { text: '同步选项' });
+		new Setting(contentEl).setName('同步选项').setHeading();
 
 		// ==================== 条目类型选择 ====================
-		contentEl.createEl('h3', { text: '条目类型' });
+		new Setting(contentEl).setName('条目类型').setHeading();
 
 		const subjectTypesDiv = contentEl.createDiv({ cls: 'bangumi-checkbox-group' });
 		const subjectTypes: SubjectType[] = [
@@ -92,7 +91,7 @@ export class SyncOptionsModal extends Modal {
 		});
 
 		// ==================== 收藏状态选择 ====================
-		contentEl.createEl('h3', { text: '收藏状态' });
+		new Setting(contentEl).setName('收藏状态').setHeading();
 
 		const collectionTypesDiv = contentEl.createDiv({ cls: 'bangumi-checkbox-group' });
 		const collectionTypes: CollectionType[] = [
@@ -133,7 +132,7 @@ export class SyncOptionsModal extends Modal {
 		});
 
 		// ==================== 同步数量 ====================
-		contentEl.createEl('h3', { text: '同步数量' });
+		new Setting(contentEl).setName('同步数量').setHeading();
 
 		new Setting(contentEl)
 			.setName('同步数量限制')

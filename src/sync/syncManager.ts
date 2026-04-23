@@ -12,7 +12,7 @@
 import { Notice, App } from 'obsidian';
 import { BangumiClient } from '../api/client';
 import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType } from '../../common/api/types';
-import { FileManager } from '../file/fileManager';
+import { FileManager } from '../../common/file/fileManager';
 import { ImageHandler } from '../../common/file/imageHandler';
 import { IncrementalSync } from './incrementalSync';
 import { SyncOptions, SyncResult, SyncProgress } from './syncStatus';
@@ -63,7 +63,7 @@ export class SyncManager {
 		this.config = config;
 		this.client = new BangumiClient(config.accessToken);
 		this.fileManager = new FileManager(app);
-		this.imageHandler = new ImageHandler(app, this.fileManager as any);
+		this.imageHandler = new ImageHandler(app, this.fileManager);
 		this.imageHandler.setDownloadEnabled(config.downloadImages);
 		this.incrementalSync = new IncrementalSync(app);
 	}
@@ -324,7 +324,7 @@ export class SyncManager {
 			let userStatus: UserEpisodeCollection[] = [];
 			try {
 				userStatus = await this.client.getUserEpisodeStatus(subject.id);
-			} catch (error) {
+			} catch {
 				console.debug(`[Bangumi Sync] 获取用户章节状态失败，可能未收藏此条目`);
 			}
 

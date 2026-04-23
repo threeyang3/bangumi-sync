@@ -2,7 +2,7 @@
  * 同步进度弹窗
  */
 
-import { App, Modal } from 'obsidian';
+import { App, Modal, Setting } from 'obsidian';
 import { SyncProgress } from '../sync/syncStatus';
 
 export class SyncModal extends Modal {
@@ -22,7 +22,7 @@ export class SyncModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		contentEl.createEl('h2', { text: '同步 Bangumi 收藏' });
+		new Setting(contentEl).setName('同步 Bangumi 收藏').setHeading();
 
 		// 进度条容器
 		this.progressBar = contentEl.createDiv({ cls: 'bangumi-progress-bar' });

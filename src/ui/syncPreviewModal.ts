@@ -3,7 +3,7 @@
  * 在导入前让用户确认每个条目并填写评分明细
  */
 
-import { App, Modal } from 'obsidian';
+import { App, Modal, Setting } from 'obsidian';
 import { SubjectType, UserCollection } from '../../common/api/types';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 
@@ -108,7 +108,7 @@ export class SyncPreviewModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		contentEl.createEl('h2', { text: '同步预览' });
+		new Setting(contentEl).setName('同步预览').setHeading();
 
 		// 统计信息
 		contentEl.createEl('p', {

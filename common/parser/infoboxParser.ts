@@ -103,7 +103,16 @@ function getInfoboxValue(infobox: InfoboxItem[] | undefined, key: string, altern
 					if (altItem.value.length > 0 && typeof altItem.value[0] === 'object' && 'v' in altItem.value[0]) {
 						return altItem.value.map(v => (v as { k: string; v: string }).v).join('、');
 					}
-					return altItem.value.join('、');
+					// Handle array of objects without 'v' property
+					if (altItem.value.length > 0 && typeof altItem.value[0] === 'object') {
+						return altItem.value.map(v => {
+							if (typeof v === 'object' && v !== null && 'v' in v) {
+								return (v as { k: string; v: string }).v;
+							}
+							return JSON.stringify(v);
+						}).join('、');
+					}
+					return altItem.value.map(v => String(v)).join('、');
 				}
 			}
 		}

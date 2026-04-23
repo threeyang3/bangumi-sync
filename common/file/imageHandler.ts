@@ -3,7 +3,7 @@
  * 下载封面图片到本地
  */
 
-import { App, requestUrl, normalizePath, TFile, Notice } from 'obsidian';
+import { App, requestUrl, normalizePath, Notice } from 'obsidian';
 import { FileManager } from './fileManager';
 
 /**

@@ -308,7 +308,6 @@ export class ConflictDetector {
 	 */
 	async extractLocalData(file: TFile): Promise<LocalItemData | null> {
 		try {
-			const content = await this.app.vault.read(file);
 			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 
 			if (!frontmatter) return null;

@@ -28,7 +28,7 @@ export class FileManager {
 				await this.ensureDirectory(dirPath);
 				try {
 					await this.app.vault.createFolder(dirPath);
-				} catch (error) {
+				} catch {
 					// 目录可能已存在（并发创建）
 				}
 			}

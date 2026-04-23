@@ -5,7 +5,7 @@
 
 import { App, Modal, Notice, TFile } from 'obsidian';
 import { UserCollection, SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName, getCollectionStatusEmoji } from '../../common/api/types';
-import { BangumiPluginSettings, PanelFilters, DEFAULT_PANEL_FILTERS } from '../settings/settings';
+import { BangumiPluginSettings, PanelFilters } from '../settings/settings';
 import { SyncManager } from '../sync/syncManager';
 import { IncrementalSync } from '../sync/incrementalSync';
 import { BangumiClient } from '../api/client';
@@ -13,7 +13,7 @@ import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { BatchEditorModal, BatchEditOperation, FrontmatterEditor } from './batchEditorModal';
 import { CommentSyncModal, CommentDiff } from './commentSyncModal';
 import { TagSyncModal, TagDiff } from './tagSyncModal';
-import { ConflictDetector, ConflictResolverModal, LocalItemData } from './conflictResolver';
+import { ConflictDetector, ConflictResolverModal } from './conflictResolver';
 
 /**
  * 本地条目信息
@@ -145,7 +145,7 @@ export class ControlPanel extends Modal {
 			this.applyFilters();
 		} else {
 			// 无缓存，加载数据
-			void void this.loadData();
+			void this.loadData();
 		}
 	}
 
@@ -234,17 +234,17 @@ export class ControlPanel extends Modal {
 
 		// 刷新按钮
 		this.actionBarEl.createEl('button', { text: '刷新', cls: 'bangumi-action-btn' }, btn => {
-			btn.addEventListener('click', () => this.loadData());
+			btn.addEventListener('click', () => { void this.loadData(); });
 		});
 
 		// 同步选中按钮
 		this.actionBarEl.createEl('button', { text: '同步选中', cls: 'bangumi-action-btn' }, btn => {
-			btn.addEventListener('click', () => this.syncSelected(false));
+			btn.addEventListener('click', () => { void this.syncSelected(false); });
 		});
 
 		// 强制同步按钮
 		this.actionBarEl.createEl('button', { text: '强制同步', cls: 'bangumi-action-btn' }, btn => {
-			btn.addEventListener('click', () => this.syncSelected(true));
+			btn.addEventListener('click', () => { void this.syncSelected(true); });
 		});
 
 		// 删除选中按钮
@@ -259,17 +259,17 @@ export class ControlPanel extends Modal {
 
 		// 同步短评按钮
 		this.actionBarEl.createEl('button', { text: '同步短评', cls: 'bangumi-action-btn' }, btn => {
-			btn.addEventListener('click', () => this.syncComments());
+			btn.addEventListener('click', () => { void this.syncComments(); });
 		});
 
 		// 同步标签按钮
 		this.actionBarEl.createEl('button', { text: '同步标签', cls: 'bangumi-action-btn' }, btn => {
-			btn.addEventListener('click', () => this.syncTags());
+			btn.addEventListener('click', () => { void this.syncTags(); });
 		});
 
 		// 撤销按钮
 		const undoBtn = this.actionBarEl.createEl('button', { text: '撤销', cls: 'bangumi-action-btn' }, btn => {
-			btn.addEventListener('click', () => this.undoLastEdit());
+			btn.addEventListener('click', () => { void this.undoLastEdit(); });
 		});
 		undoBtn.disabled = !this.frontmatterEditor.canUndo();
 
@@ -587,7 +587,7 @@ export class ControlPanel extends Modal {
 	private openFile(path: string): void {
 		const file = this.app.vault.getAbstractFileByPath(path);
 		if (file instanceof TFile) {
-			this.app.workspace.openLinkText(file.path, '', true);
+			void this.app.workspace.openLinkText(file.path, '', true);
 		} else {
 			new Notice('文件不存在');
 		}
@@ -678,7 +678,7 @@ export class ControlPanel extends Modal {
 	/**
 	 * 删除选中的本地条目
 	 */
-	private async deleteSelected(): Promise<void> {
+	private deleteSelected(): void {
 		if (this.state.selectedIds.size === 0) {
 			new Notice('请先选择要删除的条目');
 			return;
@@ -698,36 +698,38 @@ export class ControlPanel extends Modal {
 		const modal = new ConfirmModal(
 			this.app,
 			`确定要删除 ${syncedCollections.length} 个本地文件吗？此操作将移动到系统回收站。`,
-			async () => {
-				let deleted = 0;
-				let failed = 0;
+			() => {
+				void (async () => {
+					let deleted = 0;
+					let failed = 0;
 
-				for (const collection of syncedCollections) {
-					const localInfo = this.state.localSubjects.get(collection.subject_id);
-					if (localInfo) {
-						try {
-							const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-							if (file instanceof TFile) {
-								await this.app.fileManager.trashFile(file);
-								this.state.localSubjects.delete(collection.subject_id);
-								deleted++;
+					for (const collection of syncedCollections) {
+						const localInfo = this.state.localSubjects.get(collection.subject_id);
+						if (localInfo) {
+							try {
+								const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+								if (file instanceof TFile) {
+									await this.app.fileManager.trashFile(file);
+									this.state.localSubjects.delete(collection.subject_id);
+									deleted++;
+								}
+							} catch (error) {
+								console.error(`删除文件失败: ${localInfo.path}`, error);
+								failed++;
 							}
-						} catch (error) {
-							console.error(`删除文件失败: ${localInfo.path}`, error);
-							failed++;
 						}
 					}
-				}
 
-				new Notice(`删除完成：成功 ${deleted} 个，失败 ${failed} 个`);
+					new Notice(`删除完成：成功 ${deleted} 个，失败 ${failed} 个`);
 
-				// 清空选中状态
-				this.state.selectedIds.clear();
+					// 清空选中状态
+					this.state.selectedIds.clear();
 
-				// 刷新表格
-				this.renderStatus(`共 ${this.state.collections.length} 条收藏，${this.state.localSubjects.size} 条已同步`);
-				this.renderTable();
-				this.renderActionBar();
+					// 刷新表格
+					this.renderStatus(`共 ${this.state.collections.length} 条收藏，${this.state.localSubjects.size} 条已同步`);
+					this.renderTable();
+					this.renderActionBar();
+				})();
 			}
 		);
 		modal.open();
