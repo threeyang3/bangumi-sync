@@ -250,6 +250,7 @@ export class SyncManager {
 
 		// 下载封面图片
 		let coverUrl = subject.images?.large || subject.images?.common || '';
+		let localCoverPath = '';
 		if (this.config.downloadImages && coverUrl) {
 			console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
 			const localPath = await this.imageHandler.downloadCover(
@@ -263,7 +264,7 @@ export class SyncManager {
 				}
 			);
 			if (localPath && !localPath.startsWith('http')) {
-				coverUrl = localPath;
+				localCoverPath = localPath;
 			}
 		}
 
@@ -291,7 +292,7 @@ export class SyncManager {
 			this.config.defaultPropertyValues,
 			this.config.notePathTemplate,
 				this.config.coverLinkType,
-				undefined,  // localCoverPath
+				localCoverPath,
 				relatedLinks
 			);
 
@@ -425,22 +426,23 @@ export class SyncManager {
 					const typeLabel = getTypeLabel(subject.type);
 
 					// 下载封面图片
-					let coverUrl = subject.images?.large || subject.images?.common || '';
-					if (this.config.downloadImages && coverUrl) {
-						const localPath = await this.imageHandler.downloadCover(
-							coverUrl,
-							subject.id,
-							this.config.imagePathTemplate,
-							{
-								name_cn: subject.name_cn,
-								name: subject.name,
-								typeLabel,
+						let coverUrl = subject.images?.large || subject.images?.common || '';
+						let localCoverPath = '';
+						if (this.config.downloadImages && coverUrl) {
+							const localPath = await this.imageHandler.downloadCover(
+								coverUrl,
+								subject.id,
+								this.config.imagePathTemplate,
+								{
+									name_cn: subject.name_cn,
+									name: subject.name,
+									typeLabel,
+								}
+							);
+							if (localPath && !localPath.startsWith('http')) {
+								localCoverPath = localPath;
 							}
-						);
-						if (localPath && !localPath.startsWith('http')) {
-							coverUrl = localPath;
 						}
-					}
 
 					// 生成文件路径
 					const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
@@ -465,7 +467,7 @@ export class SyncManager {
 						this.config.defaultPropertyValues,
 						this.config.notePathTemplate,
 				this.config.coverLinkType,
-				undefined,  // localCoverPath
+				localCoverPath,
 				relatedLinks
 			);
 
@@ -697,6 +699,7 @@ export class SyncManager {
 
 		// 下载封面图片
 		let coverUrl = subject.images?.large || subject.images?.common || '';
+		let localCoverPath = '';
 		if (this.config.downloadImages && coverUrl) {
 			console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
 			const localPath = await this.imageHandler.downloadCover(
@@ -710,7 +713,7 @@ export class SyncManager {
 				}
 			);
 			if (localPath && !localPath.startsWith('http')) {
-				coverUrl = localPath;
+				localCoverPath = localPath;
 			}
 		}
 
@@ -738,7 +741,7 @@ export class SyncManager {
 			this.config.defaultPropertyValues,
 			this.config.notePathTemplate,
 				this.config.coverLinkType,
-				undefined,  // localCoverPath
+				localCoverPath,
 				relatedLinks
 			);
 
