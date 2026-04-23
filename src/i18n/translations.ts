@@ -83,6 +83,9 @@ export interface TranslationStrings {
 		enableAutoSyncDesc: string;
 		syncInterval: string;
 		syncIntervalDesc: string;
+			relatedLinks: string;
+			enableRelatedLinks: string;
+			enableRelatedLinksDesc: string;
 		syncStatus: string;
 		lastSync: string;
 		notSyncedYet: string;
@@ -295,9 +298,9 @@ const en: TranslationStrings = {
 	settings: {
 		heading: 'Settings',
 		authentication: 'Authentication',
-		accessToken: 'Access Token',
+		accessToken: 'Access token',
 		accessTokenDesc: 'Generate Access Token at https://next.bgm.tv/demo/access-token',
-		enterAccessToken: 'Enter Access Token',
+		enterAccessToken: 'Enter Access token',
 		pathSettings: 'Path settings',
 		filePathTemplate: 'File path template',
 		filePathTemplateDesc: 'Supported variables: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}',
@@ -334,6 +337,9 @@ const en: TranslationStrings = {
 		enableAutoSyncDesc: 'Automatically sync Bangumi collections periodically',
 		syncInterval: 'Sync interval (minutes)',
 		syncIntervalDesc: 'Time interval for auto sync',
+			relatedLinks: 'Related links',
+			enableRelatedLinks: 'Enable related links',
+			enableRelatedLinksDesc: 'Automatically fetch related subjects and create bidirectional links during sync',
 		syncStatus: 'Sync status',
 		lastSync: 'Last sync',
 		notSyncedYet: 'Not synced yet',
@@ -405,7 +411,7 @@ const en: TranslationStrings = {
 	syncModal: {
 		title: 'Sync Bangumi collections',
 		preparing: 'Preparing...',
-		validatingToken: 'Validating Access Token...',
+		validatingToken: 'Validating Access token...',
 		fetchingCollections: 'Fetching collections...',
 		scanningLocal: 'Scanning local folder...',
 		computingDiff: 'Computing sync diff...',
@@ -423,7 +429,7 @@ const en: TranslationStrings = {
 	},
 
 	controlPanel: {
-		title: 'Bangumi Collection Manager',
+		title: 'Bangumi collection manager',
 		refresh: 'Refresh',
 		syncSelected: 'Sync selected',
 		forceSync: 'Force sync',
@@ -573,6 +579,9 @@ const zhCN: TranslationStrings = {
 		enableAutoSyncDesc: '定期自动同步 Bangumi 收藏',
 		syncInterval: '同步间隔（分钟）',
 		syncIntervalDesc: '自动同步的时间间隔',
+			relatedLinks: '相关条目链接',
+			enableRelatedLinks: '启用相关条目链接',
+			enableRelatedLinksDesc: '同步时自动获取相关条目并建立双向链接',
 		syncStatus: '同步状态',
 		lastSync: '上次同步',
 		notSyncedYet: '尚未同步',

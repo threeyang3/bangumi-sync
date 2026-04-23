@@ -34,6 +34,7 @@ export interface SyncManagerConfig {
 	downloadImages: boolean;
 	scanFolderPath: string;  // 扫描本地文件夹的路径
 	coverLinkType?: CoverLinkType;  // 封面链接类型
+	enableRelatedLinks?: boolean;  // 是否自动处理关联条目链接
 	customTemplates?: {
 		anime?: string;
 		novel?: string;
@@ -238,7 +239,7 @@ export class SyncManager {
 		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
-		const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
+		const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
 		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
 
 		// 解析角色信息
@@ -269,7 +270,12 @@ export class SyncManager {
 		// V4: 获取章节信息
 		const episodeData = await this.fetchEpisodeData(subject);
 
-		// 生成文件路径
+			// 生成相关条目链接（仅已同步的条目）
+			const relatedLinks = this.config.enableRelatedLinks !== false
+				? this.generateRelatedLinks(relations)
+				: [];
+
+			// 生成文件路径
 		const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
 		console.debug(`[Bangumi Sync] 生成文件路径: ${filePath}`);
 
@@ -283,8 +289,11 @@ export class SyncManager {
 			episodeData?.episodes,
 			episodeData?.userStatus,
 			this.config.defaultPropertyValues,
-			this.config.notePathTemplate
-		);
+			this.config.notePathTemplate,
+				this.config.coverLinkType,
+				undefined,  // localCoverPath
+				relatedLinks
+			);
 
 		// 创建文件
 		await this.fileManager.createOrUpdateFile(filePath, content, {
@@ -333,6 +342,24 @@ export class SyncManager {
 			console.error(`[Bangumi Sync] 获取章节信息失败:`, error);
 			return null;
 		}
+	}
+
+	/**
+	 * 生成相关条目链接
+	 * 仅返回已同步条目的链接
+	 */
+	private generateRelatedLinks(relations: { id: number; name_cn: string; name: string }[]): string[] {
+		const links: string[] = [];
+		for (const relation of relations) {
+			const localPath = this.incrementalSync.getLocalPath(relation.id);
+			if (localPath) {
+				// 使用 Obsidian 内部链接格式
+				const link = `[[${localPath}|${relation.name_cn || relation.name}]]`;
+				links.push(link);
+				console.debug(`[Bangumi Sync] 相关条目已同步: ${relation.name_cn} -> ${link}`);
+			}
+		}
+		return links;
 	}
 
 	/**
@@ -389,7 +416,7 @@ export class SyncManager {
 
 				try {
 					// 获取条目完整信息
-					const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
+					const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
 
 					// 解析角色信息
 					const characters = parseCharacters(relatedCharacters, 9);
@@ -421,7 +448,12 @@ export class SyncManager {
 					// V4: 获取章节信息
 					const episodeData = await this.fetchEpisodeData(subject);
 
-					// 生成文件内容（使用原始 collection 对象，保留用户数据）
+						// 生成相关条目链接（仅已同步的条目）
+						const relatedLinks = this.config.enableRelatedLinks !== false
+							? this.generateRelatedLinks(relations)
+							: [];
+
+						// 生成文件内容（使用原始 collection 对象，保留用户数据）
 					const content = generateContentByType(
 						subject,
 						collection,
@@ -431,8 +463,11 @@ export class SyncManager {
 						episodeData?.episodes,
 						episodeData?.userStatus,
 						this.config.defaultPropertyValues,
-						this.config.notePathTemplate
-					);
+						this.config.notePathTemplate,
+				this.config.coverLinkType,
+				undefined,  // localCoverPath
+				relatedLinks
+			);
 
 					// 创建文件
 					await this.fileManager.createOrUpdateFile(filePath, content, {
@@ -651,7 +686,7 @@ export class SyncManager {
 		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
-		const { subject, characters: relatedCharacters } = await this.client.getFullSubjectInfo(collection.subject_id);
+		const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
 		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
 
 		// 解析角色信息
@@ -686,7 +721,12 @@ export class SyncManager {
 		// V4: 获取章节信息
 		const episodeData = await this.fetchEpisodeData(subject);
 
-		// 生成文件内容（使用 V3 版本，包含用户自己的标签和评分明细）
+						// 生成相关条目链接（仅已同步的条目）
+						const relatedLinks = this.config.enableRelatedLinks !== false
+							? this.generateRelatedLinks(relations)
+							: [];
+
+						// 生成文件内容（使用 V3 版本，包含用户自己的标签和评分明细）
 		const content = generateContentByType(
 			subject,
 			collection,
@@ -696,8 +736,11 @@ export class SyncManager {
 			episodeData?.episodes,
 			episodeData?.userStatus,
 			this.config.defaultPropertyValues,
-			this.config.notePathTemplate
-		);
+			this.config.notePathTemplate,
+				this.config.coverLinkType,
+				undefined,  // localCoverPath
+				relatedLinks
+			);
 
 		// 创建文件
 		await this.fileManager.createOrUpdateFile(filePath, content, {

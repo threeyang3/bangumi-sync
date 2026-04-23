@@ -11,6 +11,7 @@ import {
 	PagedResult,
 	RelatedCharacter,
 	RelatedPerson,
+	RelatedSubject,
 	APIError,
 	PagedEpisodes,
 	UserEpisodeCollection,
@@ -151,6 +152,13 @@ export class BangumiClient {
 	}
 
 	/**
+	 * 获取条目关联的其他条目
+	 */
+	async getSubjectRelations(subjectId: number): Promise<RelatedSubject[]> {
+		return this.request<RelatedSubject[]>('GET', ENDPOINTS.SUBJECT_RELATIONS(subjectId));
+	}
+
+	/**
 	 * 获取用户收藏列表
 	 */
 	async getUserCollections(
@@ -195,20 +203,22 @@ export class BangumiClient {
 	}
 
 	/**
-	 * 获取完整的条目信息（包括角色和人物）
+	 * 获取完整的条目信息（包括角色、人物和关联条目）
 	 */
 	async getFullSubjectInfo(subjectId: number): Promise<{
 		subject: Subject;
 		characters: RelatedCharacter[];
 		persons: RelatedPerson[];
+		relations: RelatedSubject[];
 	}> {
-		const [subject, characters, persons] = await Promise.all([
+		const [subject, characters, persons, relations] = await Promise.all([
 			this.getSubject(subjectId),
 			this.getSubjectCharacters(subjectId),
 			this.getSubjectPersons(subjectId),
+			this.getSubjectRelations(subjectId),
 		]);
 
-		return { subject, characters, persons };
+		return { subject, characters, persons, relations };
 	}
 
 	/**

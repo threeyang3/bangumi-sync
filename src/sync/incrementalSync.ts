@@ -360,6 +360,91 @@ export class IncrementalSync {
 
 		return prefix + frontmatter + suffix;
 	}
+
+	/**
+	 * 从 frontmatter 中提取相关链接
+	 * 支持两种格式：
+	 * 1. YAML 数组格式: 相关:\n  - [[link1]]\n  - [[link2]]
+	 * 2. 逗号分隔格式: 相关: [[link1]], [[link2]]
+	 */
+	extractRelated(content: string): string[] | null {
+		// 匹配 frontmatter 中的 相关 字段
+		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+		if (!frontmatterMatch) {
+			return null;
+		}
+
+		const frontmatter = frontmatterMatch[1];
+
+		// 方式1: YAML 数组格式
+		const arrayMatch = frontmatter.match(/^相关:\s*\n((?:\s+- .+\n?)+)/m);
+		if (arrayMatch) {
+			const links = arrayMatch[1]
+				.split('\n')
+				.map(line => line.replace(/^\s+- /, '').trim())
+				.filter(line => line.length > 0);
+			return links.length > 0 ? links : null;
+		}
+
+		// 方式2: 逗号分隔格式
+		const inlineMatch = frontmatter.match(/^相关:\s*(.+)$/m);
+		if (inlineMatch) {
+			const linkStr = inlineMatch[1].trim();
+			// 移除可能的引号
+			const cleanStr = linkStr.replace(/^["']|["']$/g, '');
+			const links = cleanStr.split(',').map(l => l.trim()).filter(l => l.length > 0);
+			return links.length > 0 ? links : null;
+		}
+
+		return null;
+	}
+
+	/**
+	 * 更新 frontmatter 中的相关链接
+	 * 使用 YAML 数组格式，合并现有链接和新链接
+	 */
+	updateRelated(content: string, newLinks: string[]): string {
+		// 匹配 frontmatter
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
+		if (!frontmatterMatch) {
+			return content;
+		}
+
+		const prefix = frontmatterMatch[1];
+		let frontmatter = frontmatterMatch[2];
+		const suffix = frontmatterMatch[3];
+
+		// 获取现有链接
+		const existingLinks = this.extractRelated(content) || [];
+
+		// 合并链接，去重
+		const allLinks = [...new Set([...existingLinks, ...newLinks])];
+
+		// 构建新的相关链接 YAML 数组
+		const newLinksYaml = allLinks.length > 0
+			? `相关:\n${allLinks.map(l => `  - ${l}`).join('\n')}`
+			: '相关:';
+
+		// 检查是否已有 相关 字段
+		const existingRelatedMatch = frontmatter.match(/^相关:.*(\n\s+- .+)*/m);
+		if (existingRelatedMatch) {
+			// 替换现有相关链接
+			frontmatter = frontmatter.replace(/^相关:.*(\n\s+- .+)*/m, newLinksYaml);
+		} else {
+			// 在 frontmatter 末尾添加相关链接
+			frontmatter = frontmatter + '\n' + newLinksYaml;
+		}
+
+		return prefix + frontmatter + suffix;
+	}
+
+	/**
+	 * 获取本地条目路径（通过 ID）
+	 */
+	getLocalPath(subjectId: number): string | undefined {
+		const info = this.localSubjects.get(subjectId);
+		return info?.path;
+	}
 }
 
 // 兼容旧版本的类型别名

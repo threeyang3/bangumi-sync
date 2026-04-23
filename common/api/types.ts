@@ -163,6 +163,19 @@ export interface RelatedPerson {
 	career: string[];
 }
 
+/**
+ * 关联条目
+ * 从 /v0/subjects/{id}/subjects 返回
+ */
+export interface RelatedSubject {
+	id: number;
+	type: SubjectType;
+	name: string;
+	name_cn: string;
+	relation: string;  // 关系类型：前传、续集、衍生、改编等
+	images?: Images;
+}
+
 // ==================== 章节相关类型 ====================
 
 /**

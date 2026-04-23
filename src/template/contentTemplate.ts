@@ -25,6 +25,7 @@ interface ContentTemplateVars {
  * 使用用户自己的标签
  * 支持用户填写的评分明细
  * 支持章节显示
+ * 支持相关条目链接
  */
 export function extractTemplateVars(
 	subject: Subject,
@@ -35,7 +36,8 @@ export function extractTemplateVars(
 	userEpisodeStatus?: UserEpisodeCollection[],
 	notePathTemplate?: string,
 	coverLinkType?: CoverLinkType,
-	localCoverPath?: string
+	localCoverPath?: string,
+	relatedLinks?: string[]
 ): ContentTemplateVars {
 	// 解析 infobox 获取详细信息
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
@@ -90,6 +92,11 @@ export function extractTemplateVars(
 	const name_cn = subject.name_cn || '';
 	const noteLink = notePathTemplate
 		? `[[${notePathTemplate}/《${name_cn}》笔记|《${name_cn}》笔记]]`
+		: '';
+
+	// 相关条目链接（YAML 数组格式）
+	const related = relatedLinks && relatedLinks.length > 0
+		? relatedLinks.map(l => `  - ${l}`).join('\n')
 		: '';
 
 	// 构建变量对象
@@ -160,6 +167,9 @@ export function extractTemplateVars(
 
 		// 笔记链接
 		note_link: noteLink,
+
+		// 相关条目
+		related,
 	};
 
 	// 添加角色变量
@@ -222,9 +232,10 @@ export function generateContent(
 	userEpisodeStatus?: UserEpisodeCollection[],
 	notePathTemplate?: string,
 	coverLinkType?: CoverLinkType,
-	localCoverPath?: string
+	localCoverPath?: string,
+	relatedLinks?: string[]
 ): string {
-	const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath);
+	const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks);
 	return renderContentTemplate(template, vars);
 }
 
@@ -250,7 +261,8 @@ export function generateContentByType(
 	defaultPropertyValues?: DefaultPropertyValues,
 	notePathTemplate?: string,
 	coverLinkType?: CoverLinkType,
-	localCoverPath?: string
+	localCoverPath?: string,
+	relatedLinks?: string[]
 ): string {
 	// 解析 infobox 获取详细信息以确定细分类别
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
@@ -291,7 +303,7 @@ export function generateContentByType(
 		template = getDefaultTemplate(subject.type, category);
 	}
 
-	let content = generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath);
+	let content = generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks);
 
 	// 应用默认属性值
 	if (defaultPropertyValues) {

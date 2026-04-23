@@ -306,6 +306,19 @@ export class BangumiSettingTab extends PluginSettingTab {
 					}
 				}));
 
+
+			// ==================== 相关条目链接 ====================
+			new Setting(containerEl).setName(tn('settings', 'relatedLinks')).setHeading();
+
+			new Setting(containerEl)
+				.setName(tn('settings', 'enableRelatedLinks'))
+				.setDesc(tn('settings', 'enableRelatedLinksDesc'))
+				.addToggle(toggle => toggle
+					.setValue(this.settings.enableRelatedLinks)
+					.onChange(async (value) => {
+						this.settings.enableRelatedLinks = value;
+						await this.onSave();
+					}));
 		// ==================== 同步状态 ====================
 		new Setting(containerEl).setName(tn('settings', 'syncStatus')).setHeading();
 

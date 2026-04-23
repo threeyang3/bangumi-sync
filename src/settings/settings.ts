@@ -122,6 +122,9 @@ export interface BangumiPluginSettings {
 
 	// 默认属性值配置
 	defaultPropertyValues: DefaultPropertyValues;
+
+	// 相关条目链接
+	enableRelatedLinks: boolean;  // 是否自动处理关联条目链接
 }
 
 /**
@@ -182,6 +185,9 @@ export const DEFAULT_SETTINGS: BangumiPluginSettings = {
 
 	// 默认属性值
 	defaultPropertyValues: {},
+
+	// 相关条目链接
+	enableRelatedLinks: true,
 };
 
 // 兼容旧版本的类型别名

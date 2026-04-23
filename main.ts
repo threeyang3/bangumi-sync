@@ -9,7 +9,7 @@
  */
 
 import { Plugin, Notice, TFile } from 'obsidian';
-import { BangumiPluginSettings, DEFAULT_SETTINGS, TemplateConfig, PanelFilters } from './src/settings/settings';
+import { BangumiPluginSettings, DEFAULT_SETTINGS, PanelFilters } from './src/settings/settings';
 import { BangumiSettingTab } from './src/settings/settingsTab';
 import { SyncManager, SyncManagerConfig } from './src/sync/syncManager';
 import { SyncModal } from './src/ui/syncModal';
