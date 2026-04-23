@@ -114,6 +114,14 @@ export interface TranslationStrings {
 		templateSourceFile: string;
 		templateSourceFileEmpty: string;
 		templateSourceCustom: string;
+		// 模板类型名称
+		animeTemplate: string;
+		novelTemplate: string;
+		comicTemplate: string;
+		gameTemplate: string;
+		albumTemplate: string;
+		musicTemplate: string;
+		realTemplate: string;
 	};
 
 	// 同步选项弹窗
@@ -170,6 +178,7 @@ export interface TranslationStrings {
 
 	// 控制面板
 	controlPanel: {
+		title: string;
 		refresh: string;
 		syncSelected: string;
 		forceSync: string;
@@ -189,6 +198,55 @@ export interface TranslationStrings {
 		confirmDelete: string;
 		deleteConfirm: string;
 		open: string;
+		// 筛选
+		allTypes: string;
+		allStatus: string;
+		allSyncStatus: string;
+		synced: string;
+		unsynced: string;
+		searchPlaceholder: string;
+		// 表格
+		name: string;
+		type: string;
+		status: string;
+		rating: string;
+		comment: string;
+		tags: string;
+		sync: string;
+		action: string;
+		// 状态消息
+		cachedDataLoaded: string;
+		loadingCollections: string;
+		fetchingCollections: string;
+		scanningLocal: string;
+		scanningFiles: string;
+		loadComplete: string;
+		loadFailed: string;
+		syncingItems: string;
+		syncComplete: string;
+		syncFailed: string;
+		syncError: string;
+		comparingComments: string;
+		comparingTags: string;
+		noCommentDiff: string;
+		noTagDiff: string;
+		compareCommentFailed: string;
+		compareTagFailed: string;
+		deleteComplete: string;
+		selectedCount: string;
+		// 分页
+		totalItems: string;
+		prevPage: string;
+		nextPage: string;
+		// 其他
+		fileNotFound: string;
+		unknown: string;
+		selectToDelete: string;
+		selectToSync: string;
+		alreadySynced: string;
+		selectSyncedToEdit: string;
+		selectSyncedToDelete: string;
+		confirmDeleteMessage: string;
 	};
 
 	// 评分明细
@@ -307,6 +365,13 @@ const en: TranslationStrings = {
 		templateSourceFile: 'Using file',
 		templateSourceFileEmpty: 'Please select a template file',
 		templateSourceCustom: 'Use custom edited template content',
+		animeTemplate: 'Anime template',
+		novelTemplate: 'Novel template',
+		comicTemplate: 'Comic template',
+		gameTemplate: 'Game template',
+		albumTemplate: 'Album template',
+		musicTemplate: 'Music template',
+		realTemplate: 'Real template',
 	},
 
 	syncOptions: {
@@ -358,6 +423,7 @@ const en: TranslationStrings = {
 	},
 
 	controlPanel: {
+		title: 'Bangumi Collection Manager',
 		refresh: 'Refresh',
 		syncSelected: 'Sync selected',
 		forceSync: 'Force sync',
@@ -377,6 +443,50 @@ const en: TranslationStrings = {
 		confirmDelete: 'Confirm delete',
 		deleteConfirm: 'Move selected files to trash?',
 		open: 'Open',
+		allTypes: 'All types',
+		allStatus: 'All status',
+		allSyncStatus: 'All sync status',
+		synced: 'Synced',
+		unsynced: 'Unsynced',
+		searchPlaceholder: 'Search by name...',
+		name: 'Name',
+		type: 'Type',
+		status: 'Status',
+		rating: 'Rating',
+		comment: 'Comment',
+		tags: 'Tags',
+		sync: 'Sync',
+		action: 'Action',
+		cachedDataLoaded: 'Loaded cached data, total',
+		loadingCollections: 'Loading collections...',
+		fetchingCollections: 'Fetching collections...',
+		scanningLocal: 'Scanning local folder...',
+		scanningFiles: 'Scanning local files...',
+		loadComplete: 'Load complete',
+		loadFailed: 'Load failed',
+		syncingItems: 'Syncing items...',
+		syncComplete: 'Sync complete',
+		syncFailed: 'Sync failed',
+		syncError: 'Sync error',
+		comparingComments: 'Comparing comments...',
+		comparingTags: 'Comparing tags...',
+		noCommentDiff: 'No comment differences',
+		noTagDiff: 'No tag differences',
+		compareCommentFailed: 'Compare comments failed',
+		compareTagFailed: 'Compare tags failed',
+		deleteComplete: 'Delete complete',
+		selectedCount: 'Selected',
+		totalItems: 'Total',
+		prevPage: 'Previous',
+		nextPage: 'Next',
+		fileNotFound: 'File not found',
+		unknown: 'Unknown',
+		selectToDelete: 'Please select items to delete',
+		selectToSync: 'Please select items to sync',
+		alreadySynced: 'Selected items are already synced',
+		selectSyncedToEdit: 'Please select synced items to edit',
+		selectSyncedToDelete: 'Selected items are not synced, cannot delete',
+		confirmDeleteMessage: 'Delete selected local files? This will move them to trash.',
 	},
 
 	ratingFields: {
@@ -494,6 +604,13 @@ const zhCN: TranslationStrings = {
 		templateSourceFile: '使用文件',
 		templateSourceFileEmpty: '请选择模板文件',
 		templateSourceCustom: '使用自定义编辑的模板内容',
+		animeTemplate: '动画模板',
+		novelTemplate: '小说模板',
+		comicTemplate: '漫画模板',
+		gameTemplate: '游戏模板',
+		albumTemplate: '画集模板',
+		musicTemplate: '音乐模板',
+		realTemplate: '三次元模板',
 	},
 
 	syncOptions: {
@@ -545,6 +662,7 @@ const zhCN: TranslationStrings = {
 	},
 
 	controlPanel: {
+		title: 'Bangumi 收藏管理面板',
 		refresh: '刷新',
 		syncSelected: '同步选中',
 		forceSync: '强制同步',
@@ -564,6 +682,50 @@ const zhCN: TranslationStrings = {
 		confirmDelete: '确认删除',
 		deleteConfirm: '将选中的文件移动到回收站？',
 		open: '打开',
+		allTypes: '全部类型',
+		allStatus: '全部状态',
+		allSyncStatus: '全部同步状态',
+		synced: '已同步',
+		unsynced: '未同步',
+		searchPlaceholder: '搜索条目名称...',
+		name: '名称',
+		type: '类型',
+		status: '状态',
+		rating: '评分',
+		comment: '短评',
+		tags: '标签',
+		sync: '同步',
+		action: '操作',
+		cachedDataLoaded: '已加载缓存数据，共',
+		loadingCollections: '正在加载收藏数据...',
+		fetchingCollections: '正在获取收藏列表...',
+		scanningLocal: '正在扫描本地文件夹...',
+		scanningFiles: '正在扫描本地文件...',
+		loadComplete: '加载完成',
+		loadFailed: '加载失败',
+		syncingItems: '正在同步条目...',
+		syncComplete: '同步完成',
+		syncFailed: '同步失败',
+		syncError: '同步出错',
+		comparingComments: '正在对比短评差异...',
+		comparingTags: '正在对比标签差异...',
+		noCommentDiff: '没有短评差异',
+		noTagDiff: '没有标签差异',
+		compareCommentFailed: '对比短评失败',
+		compareTagFailed: '对比标签失败',
+		deleteComplete: '删除完成',
+		selectedCount: '已选',
+		totalItems: '共',
+		prevPage: '上一页',
+		nextPage: '下一页',
+		fileNotFound: '文件不存在',
+		unknown: '未知',
+		selectToDelete: '请先选择要删除的条目',
+		selectToSync: '请先选择要同步的条目',
+		alreadySynced: '选中的条目都已同步',
+		selectSyncedToEdit: '请先选择已同步的条目进行编辑',
+		selectSyncedToDelete: '选中的条目都未同步，无法删除',
+		confirmDeleteMessage: '确定要删除选中的本地文件吗？此操作将移动到系统回收站。',
 	},
 
 	ratingFields: {

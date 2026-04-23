@@ -14,6 +14,7 @@ import { BatchEditorModal, BatchEditOperation, FrontmatterEditor } from './batch
 import { CommentSyncModal, CommentDiff } from './commentSyncModal';
 import { TagSyncModal, TagDiff } from './tagSyncModal';
 import { ConflictDetector } from './conflictResolver';
+import { tn } from '../i18n';
 
 /**
  * 本地条目信息
@@ -96,7 +97,7 @@ export class ControlPanel extends Modal {
 		this.client = new BangumiClient(settings.accessToken);
 		this.incrementalSync = new IncrementalSync(app);
 		this.frontmatterEditor = new FrontmatterEditor(app);
-			this.conflictDetector = new ConflictDetector(app);
+		this.conflictDetector = new ConflictDetector(app);
 
 		this.filters = { ...settings.panelFilters };
 		this.state = {
@@ -115,7 +116,7 @@ export class ControlPanel extends Modal {
 		contentEl.addClass('bangumi-control-panel');
 
 		// 标题
-		contentEl.createEl('h2', { text: 'Bangumi 收藏管理面板' });
+		contentEl.createEl('h2', { text: tn('controlPanel', 'title') });
 
 		// 筛选栏
 		this.filterBarEl = contentEl.createDiv({ cls: 'bangumi-panel-filter-bar' });
@@ -141,7 +142,7 @@ export class ControlPanel extends Modal {
 		// 检查是否有缓存数据
 		if (this.cachedData && this.cachedData.collections.length > 0) {
 			// 使用缓存数据，直接显示
-			this.renderStatus(`已加载缓存数据，共 ${this.state.collections.length} 条收藏`);
+			this.renderStatus(`${tn('controlPanel', 'cachedDataLoaded')} ${this.state.collections.length} ${tn('controlPanel', 'totalItems')}`);
 			this.applyFilters();
 		} else {
 			// 无缓存，加载数据
@@ -162,7 +163,7 @@ export class ControlPanel extends Modal {
 
 		// 类型筛选
 		const typeSelect = this.filterBarEl.createEl('select', { cls: 'bangumi-filter-select' });
-		typeSelect.createEl('option', { value: 'all', text: '全部类型' });
+		typeSelect.createEl('option', { value: 'all', text: tn('controlPanel', 'allTypes') });
 		Object.values(SubjectType).forEach(type => {
 			if (typeof type === 'number') {
 				const option = typeSelect.createEl('option', {
@@ -182,7 +183,7 @@ export class ControlPanel extends Modal {
 
 		// 状态筛选
 		const statusSelect = this.filterBarEl.createEl('select', { cls: 'bangumi-filter-select' });
-		statusSelect.createEl('option', { value: 'all', text: '全部状态' });
+		statusSelect.createEl('option', { value: 'all', text: tn('controlPanel', 'allStatus') });
 		Object.values(CollectionType).forEach(type => {
 			if (typeof type === 'number') {
 				const option = statusSelect.createEl('option', {
@@ -202,9 +203,9 @@ export class ControlPanel extends Modal {
 
 		// 同步状态筛选
 		const syncSelect = this.filterBarEl.createEl('select', { cls: 'bangumi-filter-select' });
-		syncSelect.createEl('option', { value: 'all', text: '全部同步状态' });
-		syncSelect.createEl('option', { value: 'synced', text: '已同步' });
-		syncSelect.createEl('option', { value: 'unsynced', text: '未同步' });
+		syncSelect.createEl('option', { value: 'all', text: tn('controlPanel', 'allSyncStatus') });
+		syncSelect.createEl('option', { value: 'synced', text: tn('controlPanel', 'synced') });
+		syncSelect.createEl('option', { value: 'unsynced', text: tn('controlPanel', 'unsynced') });
 		syncSelect.value = this.filters.syncStatus;
 		syncSelect.addEventListener('change', () => {
 			this.filters.syncStatus = syncSelect.value as 'synced' | 'unsynced' | 'all';
@@ -215,7 +216,7 @@ export class ControlPanel extends Modal {
 		// 搜索框
 		const searchInput = this.filterBarEl.createEl('input', {
 			type: 'text',
-			placeholder: '搜索条目名称...',
+			placeholder: tn('controlPanel', 'searchPlaceholder'),
 			cls: 'bangumi-filter-search'
 		});
 		searchInput.value = this.filters.keyword;
@@ -233,49 +234,49 @@ export class ControlPanel extends Modal {
 		this.actionBarEl.empty();
 
 		// 刷新按钮
-		this.actionBarEl.createEl('button', { text: '刷新', cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'refresh'), cls: 'bangumi-action-btn' }, btn => {
 			btn.addEventListener('click', () => { void this.loadData(); });
 		});
 
 		// 同步选中按钮
-		this.actionBarEl.createEl('button', { text: '同步选中', cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncSelected'), cls: 'bangumi-action-btn' }, btn => {
 			btn.addEventListener('click', () => { void this.syncSelected(false); });
 		});
 
 		// 强制同步按钮
-		this.actionBarEl.createEl('button', { text: '强制同步', cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'forceSync'), cls: 'bangumi-action-btn' }, btn => {
 			btn.addEventListener('click', () => { void this.syncSelected(true); });
 		});
 
 		// 删除选中按钮
-		this.actionBarEl.createEl('button', { text: '删除选中', cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'deleteSelected'), cls: 'bangumi-action-btn' }, btn => {
 			btn.addEventListener('click', () => this.deleteSelected());
 		});
 
 		// 批量编辑按钮
-		this.actionBarEl.createEl('button', { text: '批量编辑', cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'batchEdit'), cls: 'bangumi-action-btn' }, btn => {
 			btn.addEventListener('click', () => this.openBatchEditor());
 		});
 
 		// 同步短评按钮
-		this.actionBarEl.createEl('button', { text: '同步短评', cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncComments'), cls: 'bangumi-action-btn' }, btn => {
 			btn.addEventListener('click', () => { void this.syncComments(); });
 		});
 
 		// 同步标签按钮
-		this.actionBarEl.createEl('button', { text: '同步标签', cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncTags'), cls: 'bangumi-action-btn' }, btn => {
 			btn.addEventListener('click', () => { void this.syncTags(); });
 		});
 
 		// 撤销按钮
-		const undoBtn = this.actionBarEl.createEl('button', { text: '撤销', cls: 'bangumi-action-btn' }, btn => {
+		const undoBtn = this.actionBarEl.createEl('button', { text: tn('controlPanel', 'undo'), cls: 'bangumi-action-btn' }, btn => {
 			btn.addEventListener('click', () => { void this.undoLastEdit(); });
 		});
 		undoBtn.disabled = !this.frontmatterEditor.canUndo();
 
 		// 已选数量
 		const selectedCount = this.actionBarEl.createSpan({ cls: 'bangumi-selected-count' });
-		selectedCount.setText(`已选: ${this.state.selectedIds.size} 项`);
+		selectedCount.setText(`${tn('controlPanel', 'selectedCount')}: ${this.state.selectedIds.size}`);
 	}
 
 	/**
@@ -284,32 +285,32 @@ export class ControlPanel extends Modal {
 	private async loadData(): Promise<void> {
 		this.state.loading = true;
 		this.state.error = null;
-		this.renderStatus('正在加载收藏数据...');
+		this.renderStatus(tn('controlPanel', 'loadingCollections'));
 		this.renderTable();
 
 		try {
 			// 1. 验证 Token 并获取用户名
 			const validateResult = await this.client.validateToken();
 			if (!validateResult.valid || !validateResult.username) {
-				throw new Error(validateResult.error || 'Token 验证失败');
+				throw new Error(validateResult.error || 'Token validation failed');
 			}
 
 			// 2. 获取所有收藏
-			this.renderStatus('正在获取收藏列表...');
+			this.renderStatus(tn('controlPanel', 'fetchingCollections'));
 			const collections = await this.client.getAllUserCollections(validateResult.username, {
 				onProgress: (current, total) => {
 					this.state.loadingProgress = { current, total };
-					this.renderStatus(`正在获取收藏列表... (${current}/${total})`);
+					this.renderStatus(`${tn('controlPanel', 'fetchingCollections')} (${current}/${total})`);
 				}
 			});
 
 			this.state.collections = collections;
 
 			// 3. 扫描本地文件夹
-			this.renderStatus('正在扫描本地文件夹...');
+			this.renderStatus(tn('controlPanel', 'scanningLocal'));
 			const scanPath = this.settings.scanFolderPath || 'ACGN';
 			await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
-				this.renderStatus(`正在扫描本地文件... (${current}/${total})`);
+				this.renderStatus(`${tn('controlPanel', 'scanningFiles')} (${current}/${total})`);
 			});
 
 			// 获取本地条目映射
@@ -323,7 +324,7 @@ export class ControlPanel extends Modal {
 			}
 
 			this.state.loading = false;
-			this.renderStatus(`加载完成，共 ${collections.length} 条收藏，${syncedIds.size} 条已同步`);
+			this.renderStatus(`${tn('controlPanel', 'loadComplete')}, ${tn('controlPanel', 'totalItems')} ${collections.length}, ${tn('controlPanel', 'synced')} ${syncedIds.size}`);
 
 			// 更新缓存
 			this.onCacheUpdate({
@@ -336,7 +337,7 @@ export class ControlPanel extends Modal {
 		} catch (error) {
 			this.state.loading = false;
 			this.state.error = error instanceof Error ? error.message : String(error);
-			this.renderStatus(`加载失败: ${this.state.error}`);
+			this.renderStatus(`${tn('controlPanel', 'loadFailed')}: ${this.state.error}`);
 		}
 	}
 
@@ -405,12 +406,12 @@ export class ControlPanel extends Modal {
 		this.tableEl.empty();
 
 		if (this.state.loading) {
-			this.tableEl.createDiv({ cls: 'bangumi-table-loading', text: '加载中...' });
+			this.tableEl.createDiv({ cls: 'bangumi-table-loading', text: tn('controlPanel', 'loading') });
 			return;
 		}
 
 		if (this.state.error) {
-			this.tableEl.createDiv({ cls: 'bangumi-table-error', text: `错误: ${this.state.error}` });
+			this.tableEl.createDiv({ cls: 'bangumi-table-error', text: `${tn('controlPanel', 'loadFailed')}: ${this.state.error}` });
 			return;
 		}
 
@@ -420,7 +421,7 @@ export class ControlPanel extends Modal {
 		const pageCollections = filteredCollections.slice(startIndex, endIndex);
 
 		if (pageCollections.length === 0) {
-			this.tableEl.createDiv({ cls: 'bangumi-table-empty', text: '没有符合条件的条目' });
+			this.tableEl.createDiv({ cls: 'bangumi-table-empty', text: 'No items' });
 			return;
 		}
 
@@ -444,14 +445,14 @@ export class ControlPanel extends Modal {
 			});
 		});
 
-		headerRow.createEl('th', { text: '名称' });
-		headerRow.createEl('th', { text: '类型' });
-		headerRow.createEl('th', { text: '状态' });
-		headerRow.createEl('th', { text: '评分' });
-		headerRow.createEl('th', { text: '短评' });
-		headerRow.createEl('th', { text: '标签' });
-		headerRow.createEl('th', { text: '同步' });
-		headerRow.createEl('th', { text: '操作' });
+		headerRow.createEl('th', { text: tn('controlPanel', 'name') });
+		headerRow.createEl('th', { text: tn('controlPanel', 'type') });
+		headerRow.createEl('th', { text: tn('controlPanel', 'status') });
+		headerRow.createEl('th', { text: tn('controlPanel', 'rating') });
+		headerRow.createEl('th', { text: tn('controlPanel', 'comment') });
+		headerRow.createEl('th', { text: tn('controlPanel', 'tags') });
+		headerRow.createEl('th', { text: tn('controlPanel', 'sync') });
+		headerRow.createEl('th', { text: tn('controlPanel', 'action') });
 
 		// 表体
 		const tbody = table.createEl('tbody');
@@ -480,7 +481,7 @@ export class ControlPanel extends Modal {
 
 			// 名称
 			const nameCell = row.createEl('td', { cls: 'bangumi-name-cell' });
-			nameCell.createSpan({ text: collection.subject.name_cn || collection.subject.name || '未知' });
+			nameCell.createSpan({ text: collection.subject.name_cn || collection.subject.name || tn('controlPanel', 'unknown') });
 			if (collection.subject.name && collection.subject.name_cn && collection.subject.name !== collection.subject.name_cn) {
 				nameCell.createEl('br');
 				nameCell.createSpan({ cls: 'bangumi-name-original', text: collection.subject.name });
@@ -525,15 +526,15 @@ export class ControlPanel extends Modal {
 			// 同步状态
 			const syncCell = row.createEl('td', { cls: 'bangumi-sync-status' });
 			if (isSynced) {
-				syncCell.createSpan({ text: '✓ 已同步', cls: 'synced' });
+				syncCell.createSpan({ text: `✓ ${tn('controlPanel', 'synced')}`, cls: 'synced' });
 			} else {
-				syncCell.createSpan({ text: '✗ 未同步', cls: 'unsynced' });
+				syncCell.createSpan({ text: `✗ ${tn('controlPanel', 'unsynced')}`, cls: 'unsynced' });
 			}
 
 			// 操作
 			const actionCell = row.createEl('td', { cls: 'bangumi-action-cell' });
 			if (isSynced && localInfo) {
-				actionCell.createEl('button', { text: '打开', cls: 'bangumi-action-btn-small' }, btn => {
+				actionCell.createEl('button', { text: tn('controlPanel', 'open'), cls: 'bangumi-action-btn-small' }, btn => {
 					btn.addEventListener('click', () => this.openFile(localInfo.path));
 				});
 			}
@@ -554,11 +555,11 @@ export class ControlPanel extends Modal {
 		}
 
 		const info = this.paginationEl.createSpan({ cls: 'bangumi-pagination-info' });
-		info.setText(`共 ${filteredCollections.length} 条，当前 ${this.currentPage}/${totalPages} 页`);
+		info.setText(`${tn('controlPanel', 'totalItems')} ${filteredCollections.length}, ${this.currentPage}/${totalPages}`);
 
 		const buttons = this.paginationEl.createDiv({ cls: 'bangumi-pagination-buttons' });
 
-		buttons.createEl('button', { text: '上一页' }, btn => {
+		buttons.createEl('button', { text: tn('controlPanel', 'prevPage') }, btn => {
 			btn.disabled = this.currentPage <= 1;
 			btn.addEventListener('click', () => {
 				if (this.currentPage > 1) {
@@ -569,7 +570,7 @@ export class ControlPanel extends Modal {
 			});
 		});
 
-		buttons.createEl('button', { text: '下一页' }, btn => {
+		buttons.createEl('button', { text: tn('controlPanel', 'nextPage') }, btn => {
 			btn.disabled = this.currentPage >= totalPages;
 			btn.addEventListener('click', () => {
 				if (this.currentPage < totalPages) {
@@ -589,7 +590,7 @@ export class ControlPanel extends Modal {
 		if (file instanceof TFile) {
 			void this.app.workspace.openLinkText(file.path, '', true);
 		} else {
-			new Notice('文件不存在');
+			new Notice(tn('controlPanel', 'fileNotFound'));
 		}
 	}
 
@@ -599,7 +600,7 @@ export class ControlPanel extends Modal {
 	 */
 	private async syncSelected(overwrite: boolean = false): Promise<void> {
 		if (this.state.selectedIds.size === 0) {
-			new Notice('请先选择要同步的条目');
+			new Notice(tn('controlPanel', 'selectToSync'));
 			return;
 		}
 
@@ -618,13 +619,13 @@ export class ControlPanel extends Modal {
 		}
 
 		if (selectedCollections.length === 0) {
-			new Notice(overwrite ? '请选择要同步的条目' : '选中的条目都已同步');
+			new Notice(overwrite ? tn('controlPanel', 'selectToSync') : tn('controlPanel', 'alreadySynced'));
 			return;
 		}
 
 		// 显示同步进度
 		this.state.loading = true;
-		this.renderStatus(`正在同步 ${selectedCollections.length} 个条目...`);
+		this.renderStatus(`${tn('controlPanel', 'syncingItems')} ${selectedCollections.length}...`);
 
 		try {
 			const result = await this.syncManager.syncByCollections(
@@ -638,7 +639,7 @@ export class ControlPanel extends Modal {
 			this.state.loading = false;
 
 			if (result.success) {
-				new Notice(`同步完成！成功: ${result.added}, 失败: ${result.errors}`);
+				new Notice(`${tn('controlPanel', 'syncComplete')}! ${result.added}, ${result.errors}`);
 
 				// 重新扫描本地文件夹以更新同步状态
 				const scanPath = this.settings.scanFolderPath || 'ACGN';
@@ -658,20 +659,20 @@ export class ControlPanel extends Modal {
 				this.state.selectedIds.clear();
 
 				// 刷新表格
-				this.renderStatus(`同步完成，共 ${this.state.collections.length} 条收藏，${syncedIds.size} 条已同步`);
+				this.renderStatus(`${tn('controlPanel', 'syncComplete')}, ${tn('controlPanel', 'totalItems')} ${this.state.collections.length}, ${tn('controlPanel', 'synced')} ${syncedIds.size}`);
 				this.renderTable();
 				this.renderActionBar();
 				this.renderPagination();
 			} else {
-				new Notice('同步失败');
-				this.renderStatus('同步失败');
+				new Notice(tn('controlPanel', 'syncFailed'));
+				this.renderStatus(tn('controlPanel', 'syncFailed'));
 			}
 
 		} catch (error) {
 			this.state.loading = false;
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			new Notice(`同步出错: ${errorMsg}`);
-			this.renderStatus(`同步出错: ${errorMsg}`);
+			new Notice(`${tn('controlPanel', 'syncError')}: ${errorMsg}`);
+			this.renderStatus(`${tn('controlPanel', 'syncError')}: ${errorMsg}`);
 		}
 	}
 
@@ -680,7 +681,7 @@ export class ControlPanel extends Modal {
 	 */
 	private deleteSelected(): void {
 		if (this.state.selectedIds.size === 0) {
-			new Notice('请先选择要删除的条目');
+			new Notice(tn('controlPanel', 'selectToDelete'));
 			return;
 		}
 
@@ -690,14 +691,14 @@ export class ControlPanel extends Modal {
 		);
 
 		if (syncedCollections.length === 0) {
-			new Notice('选中的条目都未同步，无法删除');
+			new Notice(tn('controlPanel', 'selectSyncedToDelete'));
 			return;
 		}
 
 		// 确认删除
 		const modal = new ConfirmModal(
 			this.app,
-			`确定要删除 ${syncedCollections.length} 个本地文件吗？此操作将移动到系统回收站。`,
+			tn('controlPanel', 'confirmDeleteMessage'),
 			() => {
 				void (async () => {
 					let deleted = 0;
@@ -714,19 +715,19 @@ export class ControlPanel extends Modal {
 									deleted++;
 								}
 							} catch (error) {
-								console.error(`删除文件失败: ${localInfo.path}`, error);
+								console.error(`Delete file failed: ${localInfo.path}`, error);
 								failed++;
 							}
 						}
 					}
 
-					new Notice(`删除完成：成功 ${deleted} 个，失败 ${failed} 个`);
+					new Notice(`${tn('controlPanel', 'deleteComplete')}: ${deleted}, ${failed}`);
 
 					// 清空选中状态
 					this.state.selectedIds.clear();
 
 					// 刷新表格
-					this.renderStatus(`共 ${this.state.collections.length} 条收藏，${this.state.localSubjects.size} 条已同步`);
+					this.renderStatus(`${tn('controlPanel', 'totalItems')} ${this.state.collections.length}, ${tn('controlPanel', 'synced')} ${this.state.localSubjects.size}`);
 					this.renderTable();
 					this.renderActionBar();
 				})();
@@ -744,7 +745,7 @@ export class ControlPanel extends Modal {
 		);
 
 		if (selectedCollections.length === 0) {
-			new Notice('请先选择已同步的条目进行编辑');
+			new Notice(tn('controlPanel', 'selectSyncedToEdit'));
 			return;
 		}
 
@@ -757,7 +758,7 @@ export class ControlPanel extends Modal {
 			filePaths,
 			async (operations: BatchEditOperation[]) => {
 				const result = await this.frontmatterEditor.batchModify(filePaths, operations);
-				new Notice(`批量编辑完成：成功 ${result.success} 个，失败 ${result.failed} 个`);
+				new Notice(`${tn('controlPanel', 'batchEdit')}: ${result.success}, ${result.failed}`);
 				this.renderActionBar(); // 更新撤销按钮状态
 			}
 		);
@@ -769,16 +770,16 @@ export class ControlPanel extends Modal {
 	 */
 	private async undoLastEdit(): Promise<void> {
 		if (!this.frontmatterEditor.canUndo()) {
-			new Notice('没有可撤销的操作');
+			new Notice(tn('controlPanel', 'noUndo'));
 			return;
 		}
 
 		const success = await this.frontmatterEditor.undo();
 		if (success) {
-			new Notice('撤销成功');
+			new Notice(tn('controlPanel', 'undoSuccess'));
 			this.renderActionBar();
 		} else {
-			new Notice('撤销失败');
+			new Notice(tn('controlPanel', 'undoFailed'));
 		}
 	}
 
@@ -793,12 +794,12 @@ export class ControlPanel extends Modal {
 		);
 
 		if (syncedCollections.length === 0) {
-			new Notice('没有已同步的条目，无法对比短评');
+			new Notice(tn('controlPanel', 'noSyncedItemsComment'));
 			return;
 		}
 
 		this.state.loading = true;
-		this.renderStatus('正在对比短评差异...');
+		this.renderStatus(tn('controlPanel', 'comparingComments'));
 
 		try {
 			const diffs: CommentDiff[] = [];
@@ -836,8 +837,8 @@ export class ControlPanel extends Modal {
 			this.state.loading = false;
 
 			if (diffs.length === 0) {
-				new Notice('没有短评差异');
-				this.renderStatus('没有短评差异');
+				new Notice(tn('controlPanel', 'noCommentDiff'));
+				this.renderStatus(tn('controlPanel', 'noCommentDiff'));
 				return;
 			}
 
@@ -857,8 +858,8 @@ export class ControlPanel extends Modal {
 		} catch (error) {
 			this.state.loading = false;
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			new Notice(`对比短评失败: ${errorMsg}`);
-			this.renderStatus(`对比短评失败: ${errorMsg}`);
+			new Notice(`${tn('controlPanel', 'compareCommentFailed')}: ${errorMsg}`);
+			this.renderStatus(`${tn('controlPanel', 'compareCommentFailed')}: ${errorMsg}`);
 		}
 	}
 
@@ -873,12 +874,12 @@ export class ControlPanel extends Modal {
 		);
 
 		if (syncedCollections.length === 0) {
-			new Notice('没有已同步的条目，无法对比标签');
+			new Notice(tn('controlPanel', 'noSyncedItemsTag'));
 			return;
 		}
 
 		this.state.loading = true;
-		this.renderStatus('正在对比标签差异...');
+		this.renderStatus(tn('controlPanel', 'comparingTags'));
 
 		try {
 			const diffs: TagDiff[] = [];
@@ -920,8 +921,8 @@ export class ControlPanel extends Modal {
 			this.state.loading = false;
 
 			if (diffs.length === 0) {
-				new Notice('没有标签差异');
-				this.renderStatus('没有标签差异');
+				new Notice(tn('controlPanel', 'noTagDiff'));
+				this.renderStatus(tn('controlPanel', 'noTagDiff'));
 				return;
 			}
 
@@ -941,8 +942,8 @@ export class ControlPanel extends Modal {
 		} catch (error) {
 			this.state.loading = false;
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			new Notice(`对比标签失败: ${errorMsg}`);
-			this.renderStatus(`对比标签失败: ${errorMsg}`);
+			new Notice(`${tn('controlPanel', 'compareTagFailed')}: ${errorMsg}`);
+			this.renderStatus(`${tn('controlPanel', 'compareTagFailed')}: ${errorMsg}`);
 		}
 	}
 
@@ -1043,13 +1044,13 @@ class ConfirmModal extends Modal {
 
 		const buttonDiv = contentEl.createDiv({ cls: 'modal-button-container' });
 
-		const confirmBtn = buttonDiv.createEl('button', { text: '确定', cls: 'mod-cta' });
+		const confirmBtn = buttonDiv.createEl('button', { text: tn('controlPanel', 'confirmDelete'), cls: 'mod-cta' });
 		confirmBtn.addEventListener('click', () => {
 			void this.onConfirm();
 			this.close();
 		});
 
-		const cancelBtn = buttonDiv.createEl('button', { text: '取消' });
+		const cancelBtn = buttonDiv.createEl('button', { text: tn('syncOptions', 'cancel') });
 		cancelBtn.addEventListener('click', () => {
 			this.close();
 		});
