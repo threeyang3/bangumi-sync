@@ -306,7 +306,7 @@ export class ConflictDetector {
 	/**
 	 * 从本地文件提取数据
 	 */
-	async extractLocalData(file: TFile): Promise<LocalItemData | null> {
+	extractLocalData(file: TFile): LocalItemData | null {
 		try {
 			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 

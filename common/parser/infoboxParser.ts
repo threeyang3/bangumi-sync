@@ -112,7 +112,12 @@ function getInfoboxValue(infobox: InfoboxItem[] | undefined, key: string, altern
 							return JSON.stringify(v);
 						}).join('、');
 					}
-					return altItem.value.map(v => String(v)).join('、');
+					return altItem.value.map(v => {
+						if (typeof v === 'object' && v !== null) {
+							return JSON.stringify(v);
+						}
+						return String(v);
+					}).join('、');
 				}
 			}
 		}

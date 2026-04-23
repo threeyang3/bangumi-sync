@@ -22,7 +22,7 @@ export class SyncModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		new Setting(contentEl).setName('同步 Bangumi 收藏').setHeading();
+		new Setting(contentEl).setName('Sync Bangumi collections').setHeading();
 
 		// 进度条容器
 		this.progressBar = contentEl.createDiv({ cls: 'bangumi-progress-bar' });

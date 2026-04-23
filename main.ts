@@ -107,19 +107,19 @@ export class BangumiPlugin extends Plugin {
 		// 添加命令：同步收藏
 		this.addCommand({
 			id: 'sync-collections',
-			name: '同步 Bangumi 收藏',
+			name: 'Sync Bangumi collections',
 			callback: () => this.openSyncOptions(),
 		});
 
 		// 添加命令：快速同步
 		this.addCommand({
 			id: 'quick-sync-collections',
-			name: '快速同步（使用默认设置）',
+			name: 'Quick sync (use default settings)',
 			callback: () => this.syncCollections(),
 		});
 
 		// 添加 Ribbon 图标
-		this.addRibbonIcon('database', 'Bangumi 收藏管理', () => {
+		this.addRibbonIcon('database', 'Bangumi collection manager', () => {
 			this.openControlPanel();
 		});
 
@@ -241,7 +241,7 @@ export class BangumiPlugin extends Plugin {
 	 * 解析单个模板配置
 	 */
 	private async resolveTemplate(configKey: TemplateKey): Promise<string> {
-		const config = this.settings[configKey] as TemplateConfig;
+		const config = this.settings[configKey];
 
 		switch (config.source) {
 			case 'standard':
@@ -277,7 +277,7 @@ export class BangumiPlugin extends Plugin {
 	 */
 	openControlPanel() {
 		if (!this.settings.accessToken) {
-			new Notice('请先在设置中配置 Access Token');
+			new Notice('Please configure Access Token in settings first');
 			return;
 		}
 
@@ -319,7 +319,7 @@ export class BangumiPlugin extends Plugin {
 	 */
 	openSyncOptions() {
 		if (!this.settings.accessToken) {
-			new Notice('请先在设置中配置 Access Token');
+			new Notice('Please configure Access Token in settings first');
 			return;
 		}
 
@@ -355,22 +355,22 @@ export class BangumiPlugin extends Plugin {
 	 */
 	async syncCollectionsWithOptions(options: SyncOptionsInput, showPreview: boolean = true) {
 		if (!this.settings.accessToken) {
-			new Notice('请先在设置中配置 Access Token');
+			new Notice('Please configure Access Token in settings first');
 			return;
 		}
 
 		if (options.subjectTypes.length === 0) {
-			new Notice('请至少选择一种条目类型');
+			new Notice('Please select at least one subject type');
 			return;
 		}
 
 		if (options.collectionTypes.length === 0) {
-			new Notice('请至少选择一种收藏状态');
+			new Notice('Please select at least one collection type');
 			return;
 		}
 
 		if (!this.syncManager) {
-			new Notice('同步管理器未初始化');
+			new Notice('Sync manager not initialized');
 			return;
 		}
 

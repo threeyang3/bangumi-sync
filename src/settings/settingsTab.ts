@@ -37,13 +37,13 @@ interface TemplateTypeOption {
 }
 
 const TEMPLATE_TYPES: TemplateTypeOption[] = [
-	{ key: 'animeTemplateConfig', name: '动画模板', defaultTemplate: ANIME_TEMPLATE },
-	{ key: 'novelTemplateConfig', name: '小说模板', defaultTemplate: NOVEL_TEMPLATE },
-	{ key: 'comicTemplateConfig', name: '漫画模板', defaultTemplate: COMIC_TEMPLATE },
-	{ key: 'gameTemplateConfig', name: '游戏模板', defaultTemplate: GAME_TEMPLATE },
-	{ key: 'albumTemplateConfig', name: '画集模板', defaultTemplate: ALBUM_TEMPLATE },
-	{ key: 'musicTemplateConfig', name: '音乐模板', defaultTemplate: MUSIC_TEMPLATE },
-	{ key: 'realTemplateConfig', name: '三次元模板', defaultTemplate: REAL_TEMPLATE },
+	{ key: 'animeTemplateConfig', name: 'Anime template', defaultTemplate: ANIME_TEMPLATE },
+	{ key: 'novelTemplateConfig', name: 'Novel template', defaultTemplate: NOVEL_TEMPLATE },
+	{ key: 'comicTemplateConfig', name: 'Comic template', defaultTemplate: COMIC_TEMPLATE },
+	{ key: 'gameTemplateConfig', name: 'Game template', defaultTemplate: GAME_TEMPLATE },
+	{ key: 'albumTemplateConfig', name: 'Album template', defaultTemplate: ALBUM_TEMPLATE },
+	{ key: 'musicTemplateConfig', name: 'Music template', defaultTemplate: MUSIC_TEMPLATE },
+	{ key: 'realTemplateConfig', name: 'Real template', defaultTemplate: REAL_TEMPLATE },
 ];
 
 /**
@@ -64,16 +64,16 @@ export class BangumiSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		// 标题
-		new Setting(containerEl).setName('Bangumi Sync 设置').setHeading();
+		new Setting(containerEl).setName('Settings').setHeading();
 
 		// ==================== 认证设置 ====================
-		new Setting(containerEl).setName('认证设置').setHeading();
+		new Setting(containerEl).setName('Authentication').setHeading();
 
 		new Setting(containerEl)
 			.setName('Access Token')
-			.setDesc('在 https://next.bgm.tv/demo/access-token 生成 Access Token')
+			.setDesc('Generate Access Token at https://next.bgm.tv/demo/access-token')
 			.addText(text => text
-				.setPlaceholder('输入 Access Token')
+				.setPlaceholder('Enter Access Token')
 				.setValue(this.settings.accessToken)
 				.onChange(async (value) => {
 					this.settings.accessToken = value;
@@ -81,12 +81,12 @@ export class BangumiSettingTab extends PluginSettingTab {
 				}));
 
 		// ==================== 路径设置 ====================
-		new Setting(containerEl).setName('路径设置').setHeading();
+		new Setting(containerEl).setName('Path settings').setHeading();
 
 		// 文件路径模板
 		new Setting(containerEl)
-			.setName('文件路径模板')
-			.setDesc('支持变量: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}');
+			.setName('File path template')
+			.setDesc('Supported variables: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}');
 
 		const pathTemplateDiv = containerEl.createDiv({ cls: 'bangumi-path-template-setting' });
 		new Setting(pathTemplateDiv)
@@ -107,8 +107,8 @@ export class BangumiSettingTab extends PluginSettingTab {
 
 		// 扫描文件夹路径
 		new Setting(containerEl)
-			.setName('扫描文件夹路径')
-			.setDesc('用于检测已同步条目的文件夹路径（留空则使用文件路径模板的基础路径）')
+			.setName('Scan folder path')
+			.setDesc('Folder path for detecting synced items (leave empty to use base path from file path template)')
 			.addText(text => text
 				.setPlaceholder('ACGN')
 				.setValue(this.settings.scanFolderPath)
@@ -119,8 +119,8 @@ export class BangumiSettingTab extends PluginSettingTab {
 
 		// 图片设置
 		new Setting(containerEl)
-			.setName('下载封面图片')
-			.setDesc('是否下载条目封面到本地')
+			.setName('Download cover images')
+			.setDesc('Download cover images to local storage')
 			.addToggle(toggle => toggle
 				.setValue(this.settings.downloadImages)
 				.onChange(async (value) => {
@@ -130,12 +130,12 @@ export class BangumiSettingTab extends PluginSettingTab {
 
 		// 图片质量选择
 		new Setting(containerEl)
-			.setName('图片质量')
-			.setDesc('选择下载的图片质量')
+			.setName('Image quality')
+			.setDesc('Select the quality of downloaded images')
 			.addDropdown(dropdown => dropdown
-				.addOption('small', '小 (small)')
-				.addOption('medium', '中 (medium)')
-				.addOption('large', '大 (large)')
+				.addOption('small', 'Small')
+				.addOption('medium', 'Medium')
+				.addOption('large', 'Large')
 				.setValue(this.settings.imageQuality || 'large')
 				.onChange(async (value: 'small' | 'medium' | 'large') => {
 					this.settings.imageQuality = value;
@@ -144,8 +144,8 @@ export class BangumiSettingTab extends PluginSettingTab {
 
 		// 更新已存在的图片
 		new Setting(containerEl)
-			.setName('更新已存在的图片')
-			.setDesc('同步时是否更新已存在的封面图片')
+			.setName('Update existing images')
+			.setDesc('Update existing cover images during sync')
 			.addToggle(toggle => toggle
 				.setValue(this.settings.imageUpdateExisting || false)
 				.onChange(async (value) => {
@@ -155,11 +155,11 @@ export class BangumiSettingTab extends PluginSettingTab {
 
 		// 封面链接类型
 		new Setting(containerEl)
-			.setName('封面链接类型')
-			.setDesc('选择封面属性和正文表格中使用的链接类型（需开启"下载封面图片"才能使用本地链接）')
+			.setName('Cover link type')
+			.setDesc('Link type for cover property (local link requires "Download cover images" enabled)')
 			.addDropdown(dropdown => dropdown
-				.addOption('network', '网络链接')
-				.addOption('local', '本地链接')
+				.addOption('network', 'Network URL')
+				.addOption('local', 'Local path')
 				.setValue(this.settings.coverLinkType || 'network')
 				.onChange(async (value: CoverLinkType) => {
 					this.settings.coverLinkType = value;
@@ -167,8 +167,8 @@ export class BangumiSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('图片路径模板')
-			.setDesc('支持变量: {{id}}, {{name_cn}}, {{name}}, {{typeLabel}} (如: ACGN/assets/{{name_cn}}_{{typeLabel}}.jpg)')
+			.setName('Image path template')
+			.setDesc('Supported variables: {{id}}, {{name_cn}}, {{name}}, {{typeLabel}} (e.g., ACGN/assets/{{name_cn}}_{{typeLabel}}.jpg)')
 			.addText(text => text
 				.setPlaceholder('ACGN/assets/{{name_cn}}_{{typeLabel}}.jpg')
 				.setValue(this.settings.imagePathTemplate)
@@ -178,10 +178,10 @@ export class BangumiSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('笔记路径模板')
-			.setDesc('笔记链接的基础路径，生成格式: [[路径/《中文名》笔记|《中文名》笔记]]')
+			.setName('Note path template')
+			.setDesc('Base path for note links, format: [[path/《name_cn》note|《name_cn》note]]')
 			.addText(text => text
-				.setPlaceholder('收集箱/笔记/ACGN')
+				.setPlaceholder('Inbox/Notes/ACGN')
 				.setValue(this.settings.notePathTemplate)
 				.onChange(async (value) => {
 					this.settings.notePathTemplate = value;
@@ -189,11 +189,11 @@ export class BangumiSettingTab extends PluginSettingTab {
 				}));
 
 		// ==================== 模板设置 ====================
-		new Setting(containerEl).setName('模板设置').setHeading();
+		new Setting(containerEl).setName('Template settings').setHeading();
 
 		// 模板变量帮助
 		const helpDiv = containerEl.createDiv({ cls: 'bangumi-template-help' });
-		helpDiv.createEl('p', { text: '模板变量提示：{{tags}} 使用用户自己的标签，如果没有则留空' });
+		helpDiv.createEl('p', { text: 'Template variable tip: {{tags}} uses your own tags, empty if none' });
 		const vars = [
 			'{{name}}', '{{name_cn}}', '{{alias}}',
 			'{{rating}}', '{{rank}}', '{{summary}}',
@@ -209,18 +209,18 @@ export class BangumiSettingTab extends PluginSettingTab {
 		});
 
 		// ==================== 同步选项 ====================
-		new Setting(containerEl).setName('同步选项').setHeading();
+		new Setting(containerEl).setName('Sync options').setHeading();
 
 		// 条目类型选择
 		new Setting(containerEl)
-			.setName('同步的条目类型')
-			.setDesc('选择要同步的条目类型');
+			.setName('Subject types to sync')
+			.setDesc('Select subject types to sync');
 
 		const subjectTypesDiv = containerEl.createDiv({ cls: 'bangumi-checkbox-group' });
 		const subjectTypes = [SubjectType.Anime, SubjectType.Game, SubjectType.Book, SubjectType.Music, SubjectType.Real];
 		subjectTypes.forEach(type => {
 			const label = subjectTypesDiv.createEl('label', { cls: 'bangumi-checkbox-label' });
-			const checkbox = label.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
+			const checkbox = label.createEl('input', { type: 'checkbox' });
 			checkbox.checked = this.settings.defaultSubjectTypes.includes(type);
 			checkbox.addEventListener('change', () => {
 				void (async () => {
@@ -239,14 +239,14 @@ export class BangumiSettingTab extends PluginSettingTab {
 
 		// 收藏类型选择
 		new Setting(containerEl)
-			.setName('同步的收藏类型')
-			.setDesc('选择要同步的收藏状态');
+			.setName('Collection types to sync')
+			.setDesc('Select collection types to sync');
 
 		const collectionTypesDiv = containerEl.createDiv({ cls: 'bangumi-checkbox-group' });
 		const collectionTypes = [CollectionType.Wish, CollectionType.Doing, CollectionType.Done, CollectionType.OnHold, CollectionType.Dropped];
 		collectionTypes.forEach(type => {
 			const label = collectionTypesDiv.createEl('label', { cls: 'bangumi-checkbox-label' });
-			const checkbox = label.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
+			const checkbox = label.createEl('input', { type: 'checkbox' });
 			checkbox.checked = this.settings.defaultCollectionTypes.includes(type);
 			checkbox.addEventListener('change', () => {
 				void (async () => {
@@ -264,8 +264,8 @@ export class BangumiSettingTab extends PluginSettingTab {
 		});
 
 		new Setting(containerEl)
-			.setName('同步数量限制')
-			.setDesc('每次同步的最大条目数量（0 表示不限制，会智能处理：如果未同步数量不够，同步所有未同步的）')
+			.setName('Sync limit')
+			.setDesc('Maximum items per sync (0 for unlimited, smart handling: sync all if unsynced count is less than limit)')
 			.addText(text => text
 				.setPlaceholder('50')
 				.setValue(String(this.settings.syncLimit))
@@ -278,11 +278,11 @@ export class BangumiSettingTab extends PluginSettingTab {
 				}));
 
 		// ==================== 自动同步 ====================
-		new Setting(containerEl).setName('自动同步').setHeading();
+		new Setting(containerEl).setName('Auto sync').setHeading();
 
 		new Setting(containerEl)
-			.setName('启用自动同步')
-			.setDesc('定期自动同步 Bangumi 收藏')
+			.setName('Enable auto sync')
+			.setDesc('Automatically sync Bangumi collections periodically')
 			.addToggle(toggle => toggle
 				.setValue(this.settings.autoSync)
 				.onChange(async (value) => {
@@ -291,8 +291,8 @@ export class BangumiSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('同步间隔（分钟）')
-			.setDesc('自动同步的时间间隔')
+			.setName('Sync interval (minutes)')
+			.setDesc('Time interval for auto sync')
 			.addText(text => text
 				.setPlaceholder('60')
 				.setValue(String(this.settings.autoSyncInterval))
@@ -305,42 +305,42 @@ export class BangumiSettingTab extends PluginSettingTab {
 				}));
 
 		// ==================== 同步状态 ====================
-		new Setting(containerEl).setName('同步状态').setHeading();
+		new Setting(containerEl).setName('Sync status').setHeading();
 
 		const statusText = this.settings.lastSyncTime
-			? `上次同步: ${new Date(this.settings.lastSyncTime).toLocaleString()} (共 ${this.settings.lastSyncCount} 条)`
-			: '尚未同步';
+			? `Last sync: ${new Date(this.settings.lastSyncTime).toLocaleString()} (${this.settings.lastSyncCount} items)`
+			: 'Not synced yet';
 
 		new Setting(containerEl)
-			.setName('同步状态')
+			.setName('Sync status')
 			.setDesc(statusText);
 
 		// ==================== 默认属性值 ====================
-		new Setting(containerEl).setName('默认属性值').setHeading();
-		containerEl.createEl('p', { text: '批量同步时，自动填充这些属性的默认值（留空则不填充）', cls: 'bangumi-setting-desc' });
+		new Setting(containerEl).setName('Default property values').setHeading();
+		containerEl.createEl('p', { text: 'Auto-fill these properties during batch sync (leave empty to skip)', cls: 'bangumi-setting-desc' });
 
 		// 动画默认值
-		new Setting(containerEl).setName('动画').setHeading();
+		new Setting(containerEl).setName('Anime').setHeading();
 		new Setting(containerEl)
-			.setName('存储')
+			.setName('Storage')
 			.addText(text => text
-				.setPlaceholder('如：本地')
+				.setPlaceholder('e.g., Local')
 				.setValue(this.settings.defaultPropertyValues.anime_storage || '')
 				.onChange(async (value) => {
 					this.settings.defaultPropertyValues.anime_storage = value || undefined;
 					await this.onSave();
 				}));
 		new Setting(containerEl)
-			.setName('资源属性')
+			.setName('Resource attribute')
 			.addText(text => text
-				.setPlaceholder('如：1080p')
+				.setPlaceholder('e.g., 1080p')
 				.setValue(this.settings.defaultPropertyValues.anime_resourceAttr || '')
 				.onChange(async (value) => {
 					this.settings.defaultPropertyValues.anime_resourceAttr = value || undefined;
 					await this.onSave();
 				}));
 		new Setting(containerEl)
-			.setName('标语')
+			.setName('Slogan')
 			.addText(text => text
 				.setValue(this.settings.defaultPropertyValues.anime_slogan || '')
 				.onChange(async (value) => {
@@ -349,9 +349,9 @@ export class BangumiSettingTab extends PluginSettingTab {
 				}));
 
 		// 小说默认值
-		new Setting(containerEl).setName('小说').setHeading();
+		new Setting(containerEl).setName('Novel').setHeading();
 		new Setting(containerEl)
-			.setName('版本')
+			.setName('Version')
 			.addText(text => text
 				.setValue(this.settings.defaultPropertyValues.novel_version || '')
 				.onChange(async (value) => {
@@ -367,7 +367,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 					await this.onSave();
 				}));
 		new Setting(containerEl)
-			.setName('保存')
+			.setName('Saved')
 			.addToggle(toggle => toggle
 				.setValue(this.settings.defaultPropertyValues.novel_saved || false)
 				.onChange(async (value) => {
@@ -376,9 +376,9 @@ export class BangumiSettingTab extends PluginSettingTab {
 				}));
 
 		// 漫画默认值
-		new Setting(containerEl).setName('漫画').setHeading();
+		new Setting(containerEl).setName('Comic').setHeading();
 		new Setting(containerEl)
-			.setName('版本')
+			.setName('Version')
 			.addText(text => text
 				.setValue(this.settings.defaultPropertyValues.comic_version || '')
 				.onChange(async (value) => {
@@ -386,7 +386,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 					await this.onSave();
 				}));
 		new Setting(containerEl)
-			.setName('格式')
+			.setName('Format')
 			.addText(text => text
 				.setValue(this.settings.defaultPropertyValues.comic_format || '')
 				.onChange(async (value) => {
@@ -395,18 +395,18 @@ export class BangumiSettingTab extends PluginSettingTab {
 				}));
 
 		// 游戏默认值
-		new Setting(containerEl).setName('游戏').setHeading();
+		new Setting(containerEl).setName('Game').setHeading();
 		new Setting(containerEl)
-			.setName('平台')
+			.setName('Platform')
 			.addText(text => text
-				.setPlaceholder('如：Steam')
+				.setPlaceholder('e.g., Steam')
 				.setValue(this.settings.defaultPropertyValues.game_platform || '')
 				.onChange(async (value) => {
 					this.settings.defaultPropertyValues.game_platform = value || undefined;
 					await this.onSave();
 				}));
 		new Setting(containerEl)
-			.setName('存储')
+			.setName('Storage')
 			.addText(text => text
 				.setValue(this.settings.defaultPropertyValues.game_storage || '')
 				.onChange(async (value) => {
@@ -420,12 +420,12 @@ export class BangumiSettingTab extends PluginSettingTab {
 	 */
 	private updatePathPreview(el: HTMLElement, template: string): void {
 		el.empty();
-		el.createEl('span', { text: '预览: ', cls: 'bangumi-preview-label' });
+		el.createEl('span', { text: 'Preview: ', cls: 'bangumi-preview-label' });
 
 		let preview = template
 			.replace(/\{\{type\}\}/g, 'anime')
 			.replace(/\{\{category\}\}/g, 'TV')
-			.replace(/\{\{name\}\}/g, '进撃の巨人')
+			.replace(/\{\{name\}\}/g, '進撃の巨人')
 			.replace(/\{\{name_cn\}\}/g, '进击的巨人')
 			.replace(/\{\{year\}\}/g, '2013')
 			.replace(/\{\{author\}\}/g, '谏山创')
@@ -438,46 +438,46 @@ export class BangumiSettingTab extends PluginSettingTab {
 	 * 添加模板文件选择设置
 	 */
 	private addTemplateFileSetting(containerEl: HTMLElement, templateType: TemplateTypeOption): void {
-		const config = this.settings[templateType.key] as TemplateConfig;
+		const config = this.settings[templateType.key];
 
 		new Setting(containerEl)
 			.setName(templateType.name)
 			.setDesc(this.getTemplateSourceDesc(config))
 			.addDropdown(dropdown => {
 				dropdown
-					.addOption('standard', '标准模板')
-						.addOption('author', '作者自用模板')
-						.addOption('file', '从文件选择')
-						.addOption('custom', '自定义内容')
-							.setValue(['standard', 'author', 'file', 'custom'].includes(config.source) ? config.source : 'author')
-							.onChange(async (value: TemplateSource) => {
-								const newConfig: TemplateConfig = { source: value };
-								if (value === 'file' && config.filePath) {
-									newConfig.filePath = config.filePath;
-								} else if (value === 'custom' && config.customContent) {
-									newConfig.customContent = config.customContent;
-								}
-								(this.settings[templateType.key] as TemplateConfig) = newConfig;
-								await this.onSave();
-								this.display();
-							});
+					.addOption('standard', 'Standard template')
+					.addOption('author', 'Author template')
+					.addOption('file', 'From file')
+					.addOption('custom', 'Custom content')
+					.setValue(['standard', 'author', 'file', 'custom'].includes(config.source) ? config.source : 'author')
+					.onChange(async (value: TemplateSource) => {
+						const newConfig: TemplateConfig = { source: value };
+						if (value === 'file' && config.filePath) {
+							newConfig.filePath = config.filePath;
+						} else if (value === 'custom' && config.customContent) {
+							newConfig.customContent = config.customContent;
+						}
+						this.settings[templateType.key] = newConfig;
+						await this.onSave();
+						this.display();
+					});
 			})
 			.addButton(button => {
 				if (config.source === 'file') {
 					button
-						.setButtonText(config.filePath || '选择文件')
+						.setButtonText(config.filePath || 'Select file')
 						.onClick(() => {
 							this.openFileSuggest(templateType);
 						});
 				} else if (config.source === 'custom') {
 					button
-						.setButtonText('编辑')
+						.setButtonText('Edit')
 						.onClick(() => {
 							this.openTemplateEditor(templateType);
 						});
 				} else {
 					button
-						.setButtonText('预览')
+						.setButtonText('Preview')
 						.onClick(() => {
 							this.openTemplatePreview(templateType);
 						});
@@ -485,10 +485,10 @@ export class BangumiSettingTab extends PluginSettingTab {
 			})
 			.addButton(button => {
 				button
-					.setButtonText('复制')
-					.setTooltip('复制当前模板到自定义内容')
-					.onClick(async () => {
-						await this.copyCurrentTemplate(templateType);
+					.setButtonText('Copy')
+					.setTooltip('Copy current template to custom content')
+					.onClick(() => {
+						void this.copyCurrentTemplate(templateType);
 					});
 			});
 	}
@@ -497,7 +497,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 	 * 复制当前模板到自定义内容
 	 */
 	private async copyCurrentTemplate(templateType: TemplateTypeOption): Promise<void> {
-		const config = this.settings[templateType.key] as TemplateConfig;
+		const config = this.settings[templateType.key];
 		let templateContent: string;
 
 		// 根据当前配置获取模板内容
@@ -515,15 +515,15 @@ export class BangumiSettingTab extends PluginSettingTab {
 						if (file instanceof TFile) {
 							templateContent = await this.app.vault.read(file);
 						} else {
-							new Notice('模板文件不存在');
+							new Notice('Template file not found');
 							return;
 						}
 					} catch {
-						new Notice('读取模板文件失败');
+						new Notice('Failed to read template file');
 						return;
 					}
 				} else {
-					new Notice('请先选择模板文件');
+					new Notice('Please select a template file first');
 					return;
 				}
 				break;
@@ -539,10 +539,10 @@ export class BangumiSettingTab extends PluginSettingTab {
 			source: 'custom',
 			customContent: templateContent,
 		};
-		(this.settings[templateType.key] as TemplateConfig) = newConfig;
+		this.settings[templateType.key] = newConfig;
 		await this.onSave();
 
-		new Notice('已复制到自定义内容，可以开始编辑');
+		new Notice('Copied to custom content, ready to edit');
 		this.display();
 	}
 
@@ -568,13 +568,13 @@ export class BangumiSettingTab extends PluginSettingTab {
 	private getTemplateSourceDesc(config: TemplateConfig): string {
 		switch (config.source) {
 			case 'standard':
-				return '使用标准模板（只含 Bangumi 数据）';
+				return 'Use standard template (Bangumi data only)';
 			case 'author':
-				return '使用作者自用模板（含自定义变量）';
+				return 'Use author template (with custom variables)';
 			case 'file':
-				return config.filePath ? `使用文件: ${config.filePath}` : '请选择模板文件';
+				return config.filePath ? `Using file: ${config.filePath}` : 'Please select a template file';
 			case 'custom':
-				return '使用自定义编辑的模板内容';
+				return 'Use custom edited template content';
 			default:
 				return '';
 		}
@@ -588,10 +588,10 @@ export class BangumiSettingTab extends PluginSettingTab {
 			this.app,
 			(file: TFile) => {
 				void (async () => {
-					const config = this.settings[templateType.key] as TemplateConfig;
+					const config = this.settings[templateType.key];
 					config.filePath = file.path;
 					await this.onSave();
-					new Notice(`已选择模板文件: ${file.path}`);
+					new Notice(`Template file selected: ${file.path}`);
 					this.display();
 				})();
 			}
@@ -603,7 +603,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 	 * 打开模板编辑器
 	 */
 	private openTemplateEditor(templateType: TemplateTypeOption): void {
-		const config = this.settings[templateType.key] as TemplateConfig;
+		const config = this.settings[templateType.key];
 		const initialContent = config.customContent || templateType.defaultTemplate;
 
 		const modal = new TemplateEditorModal(
@@ -626,8 +626,8 @@ export class BangumiSettingTab extends PluginSettingTab {
 		const modal = new TemplateEditorModal(
 			this.app,
 			templateType.defaultTemplate,
-			async () => {
-				// 预览模式不保存
+			() => {
+				// Preview mode, no save
 			}
 		);
 		modal.open();
@@ -674,17 +674,17 @@ class TemplateEditorModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		contentEl.createEl('h2', { text: '编辑模板' });
+		new Setting(contentEl).setName('Edit template').setHeading();
 
 		// 模板变量说明
 		const helpDiv = contentEl.createDiv({ cls: 'bangumi-template-help' });
-		helpDiv.createEl('p', { text: '模板变量提示：{{tags}} 使用用户自己的标签，如果没有则留空' });
+		helpDiv.createEl('p', { text: 'Template variable tip: {{tags}} uses your own tags, empty if none' });
 		const vars = [
-			'{{name}} - 原名', '{{name_cn}} - 中文名', '{{alias}} - 别名',
-			'{{rating}} - 评分', '{{rank}} - 排名', '{{summary}} - 简介',
-			'{{cover}} - 封面', '{{date}} - 日期', '{{year}} - 年份', '{{month}} - 月份',
-			'{{my_rate}} - 我的评分', '{{my_comment}} - 我的短评', '{{my_status}} - 收藏状态',
-			'{{my_tags}} - 我的标签', '{{tags}} - 我的标签',
+			'{{name}} - Original name', '{{name_cn}} - Chinese name', '{{alias}} - Alias',
+			'{{rating}} - Rating', '{{rank}} - Rank', '{{summary}} - Summary',
+			'{{cover}} - Cover', '{{date}} - Date', '{{year}} - Year', '{{month}} - Month',
+			'{{my_rate}} - My rating', '{{my_comment}} - My comment', '{{my_status}} - Collection status',
+			'{{my_tags}} - My tags', '{{tags}} - My tags',
 		];
 		vars.forEach(v => helpDiv.createEl('span', { text: v, cls: 'bangumi-var-tag' }));
 
@@ -692,19 +692,19 @@ class TemplateEditorModal extends Modal {
 		const textArea = new TextAreaComponent(contentEl);
 		textArea
 			.setValue(this.template)
-			.setPlaceholder('输入模板内容...');
+			.setPlaceholder('Enter template content...');
 		textArea.inputEl.addClass('bangumi-template-textarea');
 
 		// 按钮
 		const buttonDiv = contentEl.createDiv({ cls: 'bangumi-modal-buttons' });
 
-		const saveBtn = buttonDiv.createEl('button', { text: '保存' });
+		const saveBtn = buttonDiv.createEl('button', { text: 'Save' });
 		saveBtn.addEventListener('click', () => {
 			this.onSave(textArea.getValue());
 			this.close();
 		});
 
-		const cancelBtn = buttonDiv.createEl('button', { text: '取消' });
+		const cancelBtn = buttonDiv.createEl('button', { text: 'Cancel' });
 		cancelBtn.addEventListener('click', () => {
 			this.close();
 		});

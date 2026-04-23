@@ -7,7 +7,7 @@
 
 import { Subject, UserCollection, getCollectionStatusEmoji, Episode, UserEpisodeCollection, SubjectType } from '../../common/api/types';
 import { parseInfoByType, parseDate, cleanSummary } from '../../common/parser/infoboxParser';
-import { parseCharacters, getCharacterTemplateVars, CharacterInfo } from '../../common/parser/characterParser';
+import { getCharacterTemplateVars, CharacterInfo } from '../../common/parser/characterParser';
 import { getDefaultTemplate, getTypeLabel } from '../../common/template/defaultTemplates';
 import { parseEpisodes, createUserStatusMap } from '../../common/parser/episodeParser';
 import { RatingDetails } from '../ui/syncPreviewModal';

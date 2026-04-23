@@ -47,10 +47,10 @@ export class SyncOptionsModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		new Setting(contentEl).setName('同步选项').setHeading();
+		new Setting(contentEl).setName('Sync options').setHeading();
 
 		// ==================== 条目类型选择 ====================
-		new Setting(contentEl).setName('条目类型').setHeading();
+		new Setting(contentEl).setName('Subject types').setHeading();
 
 		const subjectTypesDiv = contentEl.createDiv({ cls: 'bangumi-checkbox-group' });
 		const subjectTypes: SubjectType[] = [
@@ -63,7 +63,7 @@ export class SyncOptionsModal extends Modal {
 
 		subjectTypes.forEach(type => {
 			const label = subjectTypesDiv.createEl('label', { cls: 'bangumi-checkbox-label' });
-			const checkbox = label.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
+			const checkbox = label.createEl('input', { type: 'checkbox' });
 			checkbox.checked = this.selectedSubjectTypes.has(type);
 			checkbox.addEventListener('change', () => {
 				if (checkbox.checked) {
@@ -77,13 +77,13 @@ export class SyncOptionsModal extends Modal {
 
 		// 快捷选择按钮
 		const subjectQuickDiv = contentEl.createDiv({ cls: 'bangumi-quick-select' });
-		subjectQuickDiv.createEl('button', { text: '全选', cls: 'bangumi-quick-btn' }, (btn) => {
+		subjectQuickDiv.createEl('button', { text: 'Select all', cls: 'bangumi-quick-btn' }, (btn) => {
 			btn.addEventListener('click', () => {
 				subjectTypes.forEach(t => this.selectedSubjectTypes.add(t));
 				this.redraw();
 			});
 		});
-		subjectQuickDiv.createEl('button', { text: '全不选', cls: 'bangumi-quick-btn' }, (btn) => {
+		subjectQuickDiv.createEl('button', { text: 'Deselect all', cls: 'bangumi-quick-btn' }, (btn) => {
 			btn.addEventListener('click', () => {
 				this.selectedSubjectTypes.clear();
 				this.redraw();
@@ -91,7 +91,7 @@ export class SyncOptionsModal extends Modal {
 		});
 
 		// ==================== 收藏状态选择 ====================
-		new Setting(contentEl).setName('收藏状态').setHeading();
+		new Setting(contentEl).setName('Collection types').setHeading();
 
 		const collectionTypesDiv = contentEl.createDiv({ cls: 'bangumi-checkbox-group' });
 		const collectionTypes: CollectionType[] = [
@@ -104,7 +104,7 @@ export class SyncOptionsModal extends Modal {
 
 		collectionTypes.forEach(type => {
 			const label = collectionTypesDiv.createEl('label', { cls: 'bangumi-checkbox-label' });
-			const checkbox = label.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
+			const checkbox = label.createEl('input', { type: 'checkbox' });
 			checkbox.checked = this.selectedCollectionTypes.has(type);
 			checkbox.addEventListener('change', () => {
 				if (checkbox.checked) {
@@ -118,13 +118,13 @@ export class SyncOptionsModal extends Modal {
 
 		// 快捷选择按钮
 		const collectionQuickDiv = contentEl.createDiv({ cls: 'bangumi-quick-select' });
-		collectionQuickDiv.createEl('button', { text: '全选', cls: 'bangumi-quick-btn' }, (btn) => {
+		collectionQuickDiv.createEl('button', { text: 'Select all', cls: 'bangumi-quick-btn' }, (btn) => {
 			btn.addEventListener('click', () => {
 				collectionTypes.forEach(t => this.selectedCollectionTypes.add(t));
 				this.redraw();
 			});
 		});
-		collectionQuickDiv.createEl('button', { text: '全不选', cls: 'bangumi-quick-btn' }, (btn) => {
+		collectionQuickDiv.createEl('button', { text: 'Deselect all', cls: 'bangumi-quick-btn' }, (btn) => {
 			btn.addEventListener('click', () => {
 				this.selectedCollectionTypes.clear();
 				this.redraw();
@@ -132,11 +132,11 @@ export class SyncOptionsModal extends Modal {
 		});
 
 		// ==================== 同步数量 ====================
-		new Setting(contentEl).setName('同步数量').setHeading();
+		new Setting(contentEl).setName('Sync limit').setHeading();
 
 		new Setting(contentEl)
-			.setName('同步数量限制')
-			.setDesc('如果未同步数量不够，同步所有未同步的条目')
+			.setName('Sync limit')
+			.setDesc('If unsynced count is less than limit, sync all unsynced items')
 			.addText(text => text
 				.setPlaceholder('50')
 				.setValue(String(this.limitValue))
@@ -149,8 +149,8 @@ export class SyncOptionsModal extends Modal {
 
 		// ==================== 强制同步选项 ====================
 		new Setting(contentEl)
-			.setName('强制同步')
-			.setDesc('忽略已存在的条目，重新同步所有选中的条目')
+			.setName('Force sync')
+			.setDesc('Ignore existing items and re-sync all selected items')
 			.addToggle(toggle => toggle
 				.setValue(this.forceValue)
 				.onChange((value) => {
@@ -160,7 +160,7 @@ export class SyncOptionsModal extends Modal {
 		// ==================== 操作按钮 ====================
 		const buttonDiv = contentEl.createDiv({ cls: 'bangumi-modal-buttons' });
 
-		const syncBtn = buttonDiv.createEl('button', { text: '开始同步', cls: 'mod-cta' });
+		const syncBtn = buttonDiv.createEl('button', { text: 'Start sync', cls: 'mod-cta' });
 		syncBtn.addEventListener('click', () => {
 			this.onSave({
 				subjectTypes: Array.from(this.selectedSubjectTypes),
@@ -171,7 +171,7 @@ export class SyncOptionsModal extends Modal {
 			this.close();
 		});
 
-		const cancelBtn = buttonDiv.createEl('button', { text: '取消' });
+		const cancelBtn = buttonDiv.createEl('button', { text: 'Cancel' });
 		cancelBtn.addEventListener('click', () => {
 			this.close();
 		});

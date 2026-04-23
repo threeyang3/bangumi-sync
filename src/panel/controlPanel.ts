@@ -13,7 +13,7 @@ import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { BatchEditorModal, BatchEditOperation, FrontmatterEditor } from './batchEditorModal';
 import { CommentSyncModal, CommentDiff } from './commentSyncModal';
 import { TagSyncModal, TagDiff } from './tagSyncModal';
-import { ConflictDetector, ConflictResolverModal } from './conflictResolver';
+import { ConflictDetector } from './conflictResolver';
 
 /**
  * 本地条目信息

@@ -11,14 +11,14 @@ import { getTypeLabel } from '../../common/template/defaultTemplates';
  * 评分明细
  */
 export interface RatingDetails {
-	music?: string;      // 音乐
-	character?: string;  // 人设
-	story?: string;      // 剧情
-	art?: string;        // 美术
-	illustration?: string; // 插画
-	writing?: string;    // 文笔
-	drawing?: string;    // 画工
-	fun?: string;        // 趣味
+	music?: string;
+	character?: string;
+	story?: string;
+	art?: string;
+	illustration?: string;
+	writing?: string;
+	drawing?: string;
+	fun?: string;
 }
 
 /**
@@ -50,24 +50,24 @@ export interface SyncPreviewResult {
  */
 const RATING_DETAIL_FIELDS: Record<number, { key: keyof RatingDetails; label: string }[]> = {
 	[SubjectType.Anime]: [
-		{ key: 'music', label: '音乐' },
-		{ key: 'character', label: '人设' },
-		{ key: 'story', label: '剧情' },
-		{ key: 'art', label: '美术' },
+		{ key: 'music', label: 'Music' },
+		{ key: 'character', label: 'Character' },
+		{ key: 'story', label: 'Story' },
+		{ key: 'art', label: 'Art' },
 	],
 	[SubjectType.Book]: [
-		{ key: 'story', label: '剧情' },
-		{ key: 'illustration', label: '插画' },
-		{ key: 'writing', label: '文笔' },
-		{ key: 'character', label: '人设' },
+		{ key: 'story', label: 'Story' },
+		{ key: 'illustration', label: 'Illustration' },
+		{ key: 'writing', label: 'Writing' },
+		{ key: 'character', label: 'Character' },
 	],
 	// 漫画使用 Book 类型但字段不同，通过 category 判断
 	[SubjectType.Music]: [],
 	[SubjectType.Game]: [
-		{ key: 'story', label: '剧情' },
-		{ key: 'fun', label: '趣味' },
-		{ key: 'music', label: '音乐' },
-		{ key: 'art', label: '美术' },
+		{ key: 'story', label: 'Story' },
+		{ key: 'fun', label: 'Fun' },
+		{ key: 'music', label: 'Music' },
+		{ key: 'art', label: 'Art' },
 	],
 	[SubjectType.Real]: [],
 };
@@ -79,9 +79,9 @@ function getRatingFields(type: SubjectType, category?: string): { key: keyof Rat
 	// 漫画特殊处理
 	if (type === SubjectType.Book && category?.includes('漫画')) {
 		return [
-			{ key: 'story', label: '剧情' },
-			{ key: 'drawing', label: '画工' },
-			{ key: 'character', label: '人设' },
+			{ key: 'story', label: 'Story' },
+			{ key: 'drawing', label: 'Drawing' },
+			{ key: 'character', label: 'Character' },
 		];
 	}
 	return RATING_DETAIL_FIELDS[type] || [];
@@ -108,11 +108,11 @@ export class SyncPreviewModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 
-		new Setting(contentEl).setName('同步预览').setHeading();
+		new Setting(contentEl).setName('Sync preview').setHeading();
 
 		// 统计信息
 		contentEl.createEl('p', {
-			text: `共 ${this.items.length} 个条目待同步，请确认要导入的条目并填写评分明细`,
+			text: `${this.items.length} items to sync. Confirm items and fill in rating details.`,
 			cls: 'bangumi-preview-info'
 		});
 
@@ -125,32 +125,32 @@ export class SyncPreviewModal extends Modal {
 
 		// 快捷选择按钮
 		const quickDiv = contentEl.createDiv({ cls: 'bangumi-preview-quick' });
-		quickDiv.createEl('button', { text: '全选', cls: 'bangumi-quick-btn' }, btn => {
+		quickDiv.createEl('button', { text: 'Select all', cls: 'bangumi-quick-btn' }, btn => {
 			btn.addEventListener('click', () => this.selectAll(true));
 		});
-		quickDiv.createEl('button', { text: '全不选', cls: 'bangumi-quick-btn' }, btn => {
+		quickDiv.createEl('button', { text: 'Deselect all', cls: 'bangumi-quick-btn' }, btn => {
 			btn.addEventListener('click', () => this.selectAll(false));
 		});
-		quickDiv.createEl('button', { text: '反选', cls: 'bangumi-quick-btn' }, btn => {
+		quickDiv.createEl('button', { text: 'Invert', cls: 'bangumi-quick-btn' }, btn => {
 			btn.addEventListener('click', () => this.invertSelection());
 		});
 
 		// 操作按钮
 		const buttonDiv = contentEl.createDiv({ cls: 'bangumi-modal-buttons' });
 
-		buttonDiv.createEl('button', { text: '全部导入', cls: 'mod-cta' }, btn => {
+		buttonDiv.createEl('button', { text: 'Import all', cls: 'mod-cta' }, btn => {
 			btn.addEventListener('click', () => this.confirm('all'));
 		});
 
-		buttonDiv.createEl('button', { text: '只导入选中的', cls: 'mod-cta' }, btn => {
+		buttonDiv.createEl('button', { text: 'Import selected', cls: 'mod-cta' }, btn => {
 			btn.addEventListener('click', () => this.confirm('selected'));
 		});
 
-		buttonDiv.createEl('button', { text: '只导入未选中的' }, btn => {
+		buttonDiv.createEl('button', { text: 'Import unselected' }, btn => {
 			btn.addEventListener('click', () => this.confirm('unselected'));
 		});
 
-		buttonDiv.createEl('button', { text: '取消' }, btn => {
+		buttonDiv.createEl('button', { text: 'Cancel' }, btn => {
 			btn.addEventListener('click', () => this.confirm('cancel'));
 		});
 	}
@@ -164,7 +164,7 @@ export class SyncPreviewModal extends Modal {
 		// 第一行：勾选框 + 名称 + 类型 + 评分
 		const headerDiv = itemDiv.createDiv({ cls: 'bangumi-preview-item-header' });
 
-		const checkbox = headerDiv.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
+		const checkbox = headerDiv.createEl('input', { type: 'checkbox' });
 		checkbox.checked = item.selected;
 		checkbox.addClass('bangumi-preview-checkbox');
 
@@ -179,14 +179,14 @@ export class SyncPreviewModal extends Modal {
 
 		if (item.my_rate) {
 			const myRateSpan = headerDiv.createSpan({ cls: 'bangumi-preview-my-rate' });
-			myRateSpan.setText(`[我的评分: ${item.my_rate}]`);
+			myRateSpan.setText(`[My rating: ${item.my_rate}]`);
 		}
 
 		// 评分明细输入
 		const fields = getRatingFields(item.type);
 		if (fields.length > 0) {
 			const detailsDiv = itemDiv.createDiv({ cls: 'bangumi-preview-details' });
-			detailsDiv.createSpan({ text: '评分明细: ', cls: 'bangumi-preview-details-label' });
+			detailsDiv.createSpan({ text: 'Rating details: ', cls: 'bangumi-preview-details-label' });
 
 			const detailInputs = new Map<keyof RatingDetails, HTMLInputElement>();
 
@@ -194,7 +194,7 @@ export class SyncPreviewModal extends Modal {
 				const fieldSpan = detailsDiv.createSpan({ cls: 'bangumi-preview-detail-field' });
 				fieldSpan.createSpan({ text: `${field.label}: ` });
 
-				const input = fieldSpan.createEl('input', { type: 'text' }) as HTMLInputElement;
+				const input = fieldSpan.createEl('input', { type: 'text' });
 				input.value = item.ratingDetails[field.key] || '';
 				input.addClass('bangumi-preview-detail-input');
 				input.setAttribute('placeholder', '0-10');
