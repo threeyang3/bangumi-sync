@@ -7,6 +7,7 @@
  * 2. 通过扫描本地文件夹检测已同步条目
  * 3. 智能数量限制：如果未同步数量不够，同步所有未同步的
  * 4. 支持预览确认（手动同步）和直接同步（自动同步）
+ * 5. 支持相关条目双向链接
  */
 
 import { Notice, App } from 'obsidian';
@@ -169,7 +170,10 @@ export class SyncManager {
 
 			console.debug(`[Bangumi Sync] 需要同步: ${result.total}，已存在跳过: ${result.skipped}`);
 
-			// 5. 处理每个条目
+			// 5. 开始批次同步
+			this.incrementalSync.startBatch();
+
+			// 6. 处理每个条目
 			for (let i = 0; i < diff.toAdd.length; i++) {
 				const collection = diff.toAdd[i];
 
@@ -182,7 +186,7 @@ export class SyncManager {
 				});
 
 				try {
-					await this.processCollection(collection);
+					await this.processCollectionWithBidirectionalLinks(collection);
 					result.added++;
 				} catch (error) {
 					console.error(`[Bangumi Sync] 处理条目失败: ${collection.subject.name_cn}`, error);
@@ -233,77 +237,6 @@ export class SyncManager {
 	}
 
 	/**
-	 * 处理单个收藏
-	 */
-	private async processCollection(collection: UserCollection): Promise<void> {
-		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
-
-		// 获取完整条目信息
-		const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
-		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
-
-		// 解析角色信息
-		const characters = parseCharacters(relatedCharacters, 9);
-
-		// 获取类型标签（用于图片命名）
-		const typeLabel = getTypeLabel(subject.type);
-
-		// 下载封面图片
-		let coverUrl = subject.images?.large || subject.images?.common || '';
-		let localCoverPath = '';
-		if (this.config.downloadImages && coverUrl) {
-			console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
-			const localPath = await this.imageHandler.downloadCover(
-				coverUrl,
-				subject.id,
-				this.config.imagePathTemplate,
-				{
-					name_cn: subject.name_cn,
-					name: subject.name,
-					typeLabel,
-				}
-			);
-			if (localPath && !localPath.startsWith('http')) {
-				localCoverPath = localPath;
-			}
-		}
-
-		// V4: 获取章节信息
-		const episodeData = await this.fetchEpisodeData(subject);
-
-			// 生成相关条目链接（仅已同步的条目）
-			const relatedLinks = this.config.enableRelatedLinks !== false
-				? this.generateRelatedLinks(relations)
-				: [];
-
-			// 生成文件路径
-		const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
-		console.debug(`[Bangumi Sync] 生成文件路径: ${filePath}`);
-
-		// 生成文件内容（使用 V3 版本，包含用户自己的标签）
-		const content = generateContentByType(
-			subject,
-			collection,
-			characters,
-			this.config.customTemplates,
-			undefined,  // ratingDetails
-			episodeData?.episodes,
-			episodeData?.userStatus,
-			this.config.defaultPropertyValues,
-			this.config.notePathTemplate,
-				this.config.coverLinkType,
-				localCoverPath,
-				relatedLinks
-			);
-
-		// 创建文件
-		await this.fileManager.createOrUpdateFile(filePath, content, {
-			overwrite: false,
-		});
-		console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
-	}
-
-	/**
 	 * V4: 获取章节数据
 	 * 仅对动画、小说、漫画类型获取
 	 */
@@ -347,19 +280,27 @@ export class SyncManager {
 
 	/**
 	 * 生成相关条目链接
-	 * 仅返回已同步条目的链接
+	 * 返回已同步条目的链接（包括本批次已同步的）
 	 */
 	private generateRelatedLinks(relations: { id: number; name_cn: string; name: string }[]): string[] {
+		console.log(`[Bangumi Sync] 处理 ${relations?.length || 0} 个相关条目`);
+		if (!relations || relations.length === 0) {
+			console.log(`[Bangumi Sync] 无相关条目数据`);
+			return [];
+		}
 		const links: string[] = [];
 		for (const relation of relations) {
+			console.log(`[Bangumi Sync] 检查相关条目: ${relation.name_cn || relation.name} (ID: ${relation.id})`);
 			const localPath = this.incrementalSync.getLocalPath(relation.id);
+			console.log(`[Bangumi Sync] 本地路径: ${localPath || '未同步'}`);
 			if (localPath) {
 				// 使用 Obsidian 内部链接格式
 				const link = `[[${localPath}|${relation.name_cn || relation.name}]]`;
 				links.push(link);
-				console.debug(`[Bangumi Sync] 相关条目已同步: ${relation.name_cn} -> ${link}`);
+				console.log(`[Bangumi Sync] 相关条目已同步: ${relation.name_cn} -> ${link}`);
 			}
 		}
+		console.log(`[Bangumi Sync] 生成了 ${links.length} 个相关链接`);
 		return links;
 	}
 
@@ -401,6 +342,9 @@ export class SyncManager {
 		try {
 			console.debug(`[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}`);
 
+			// 开始批次同步
+			this.incrementalSync.startBatch();
+
 			for (let i = 0; i < collections.length; i++) {
 				const collection = collections[i];
 
@@ -416,69 +360,8 @@ export class SyncManager {
 				});
 
 				try {
-					// 获取条目完整信息
-					const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
-
-					// 解析角色信息
-					const characters = parseCharacters(relatedCharacters, 9);
-
-					// 获取类型标签
-					const typeLabel = getTypeLabel(subject.type);
-
-					// 下载封面图片
-						let coverUrl = subject.images?.large || subject.images?.common || '';
-						let localCoverPath = '';
-						if (this.config.downloadImages && coverUrl) {
-							const localPath = await this.imageHandler.downloadCover(
-								coverUrl,
-								subject.id,
-								this.config.imagePathTemplate,
-								{
-									name_cn: subject.name_cn,
-									name: subject.name,
-									typeLabel,
-								}
-							);
-							if (localPath && !localPath.startsWith('http')) {
-								localCoverPath = localPath;
-							}
-						}
-
-					// 生成文件路径
-					const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
-
-					// V4: 获取章节信息
-					const episodeData = await this.fetchEpisodeData(subject);
-
-						// 生成相关条目链接（仅已同步的条目）
-						const relatedLinks = this.config.enableRelatedLinks !== false
-							? this.generateRelatedLinks(relations)
-							: [];
-
-						// 生成文件内容（使用原始 collection 对象，保留用户数据）
-					const content = generateContentByType(
-						subject,
-						collection,
-						characters,
-						this.config.customTemplates,
-						undefined,  // ratingDetails
-						episodeData?.episodes,
-						episodeData?.userStatus,
-						this.config.defaultPropertyValues,
-						this.config.notePathTemplate,
-				this.config.coverLinkType,
-				localCoverPath,
-				relatedLinks
-			);
-
-					// 创建文件
-					await this.fileManager.createOrUpdateFile(filePath, content, {
-						overwrite: overwrite,
-					});
-
+					await this.processCollectionWithBidirectionalLinksAndOverwrite(collection, overwrite);
 					result.added++;
-					console.debug(`[Bangumi Sync] 同步完成: ${subject.name_cn || subject.name}`);
-
 				} catch (error) {
 					console.error(`[Bangumi Sync] 同步条目失败 (ID: ${collection.subject_id}):`, error);
 					result.errors++;
@@ -644,6 +527,9 @@ export class SyncManager {
 			result.total = itemsToSync.length;
 			console.debug(`[Bangumi Sync] 开始同步 ${itemsToSync.length} 个条目`);
 
+			// 开始批次同步
+			this.incrementalSync.startBatch();
+
 			// 处理每个条目
 			for (let i = 0; i < itemsToSync.length; i++) {
 				const item = itemsToSync[i];
@@ -657,7 +543,7 @@ export class SyncManager {
 				});
 
 				try {
-					await this.processCollectionWithRatingDetails(item.collection, item.ratingDetails);
+					await this.processCollectionWithRatingDetailsAndBidirectionalLinks(item.collection, item.ratingDetails);
 					result.added++;
 				} catch (error) {
 					console.error(`[Bangumi Sync] 处理条目失败: ${item.name_cn}`, error);
@@ -679,17 +565,178 @@ export class SyncManager {
 	}
 
 	/**
-	 * 处理单个收藏（带评分明细）
+	 * 处理单个收藏（带双向链接更新）
+	 * 1. 同步当前条目
+	 * 2. 添加到批次已同步列表
+	 * 3. 更新已同步相关条目的链接（双向）
 	 */
-	private async processCollectionWithRatingDetails(
-		collection: UserCollection,
-		ratingDetails: RatingDetails
-	): Promise<void> {
-		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+	private async processCollectionWithBidirectionalLinks(collection: UserCollection): Promise<void> {
+		console.log(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
 		const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
-		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
+		console.log(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
+		console.log(`[Bangumi Sync] API返回的相关条目数量: ${relations?.length || 0}`);
+
+		// 解析角色信息
+		const characters = parseCharacters(relatedCharacters, 9);
+
+		// 获取类型标签（用于图片命名）
+		const typeLabel = getTypeLabel(subject.type);
+
+		// 下载封面图片
+		let coverUrl = subject.images?.large || subject.images?.common || '';
+		let localCoverPath = '';
+		if (this.config.downloadImages && coverUrl) {
+			console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
+			const localPath = await this.imageHandler.downloadCover(
+				coverUrl,
+				subject.id,
+				this.config.imagePathTemplate,
+				{
+					name_cn: subject.name_cn,
+					name: subject.name,
+					typeLabel,
+				}
+			);
+			if (localPath && !localPath.startsWith('http')) {
+				localCoverPath = localPath;
+			}
+		}
+
+		// V4: 获取章节信息
+		const episodeData = await this.fetchEpisodeData(subject);
+
+		// 生成相关条目链接（已同步的条目，包括本批次已同步的）
+		const relatedLinks = this.config.enableRelatedLinks !== false
+			? this.generateRelatedLinks(relations)
+			: [];
+
+		// 生成文件路径
+		const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
+		console.debug(`[Bangumi Sync] 生成文件路径: ${filePath}`);
+
+		// 生成文件内容
+		const content = generateContentByType(
+			subject,
+			collection,
+			characters,
+			this.config.customTemplates,
+			undefined,  // ratingDetails
+			episodeData?.episodes,
+			episodeData?.userStatus,
+			this.config.defaultPropertyValues,
+			this.config.notePathTemplate,
+			this.config.coverLinkType,
+			localCoverPath,
+			relatedLinks
+		);
+
+		// 创建文件
+		await this.fileManager.createOrUpdateFile(filePath, content, {
+			overwrite: false,
+		});
+		console.log(`[Bangumi Sync] 文件创建完成: ${filePath}`);
+
+		// 添加到批次已同步列表
+		this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name);
+
+		// 更新已同步相关条目的链接（双向链接）
+		if (this.config.enableRelatedLinks !== false && relations && relations.length > 0) {
+			await this.updateRelatedItemsBidirectional(subject.id, filePath, subject.name_cn || subject.name, relations);
+		}
+	}
+
+	/**
+	 * 处理单个收藏（带双向链接更新，支持覆盖）
+	 */
+	private async processCollectionWithBidirectionalLinksAndOverwrite(collection: UserCollection, overwrite: boolean): Promise<void> {
+		console.log(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+
+		// 获取完整条目信息
+		const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
+		console.log(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
+
+		// 解析角色信息
+		const characters = parseCharacters(relatedCharacters, 9);
+
+		// 获取类型标签
+		const typeLabel = getTypeLabel(subject.type);
+
+		// 下载封面图片
+		let coverUrl = subject.images?.large || subject.images?.common || '';
+		let localCoverPath = '';
+		if (this.config.downloadImages && coverUrl) {
+			const localPath = await this.imageHandler.downloadCover(
+				coverUrl,
+				subject.id,
+				this.config.imagePathTemplate,
+				{
+					name_cn: subject.name_cn,
+					name: subject.name,
+					typeLabel,
+				}
+			);
+			if (localPath && !localPath.startsWith('http')) {
+				localCoverPath = localPath;
+			}
+		}
+
+		// 生成文件路径
+		const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
+
+		// V4: 获取章节信息
+		const episodeData = await this.fetchEpisodeData(subject);
+
+		// 生成相关条目链接（已同步的条目，包括本批次已同步的）
+		const relatedLinks = this.config.enableRelatedLinks !== false
+			? this.generateRelatedLinks(relations)
+			: [];
+
+		// 生成文件内容（使用原始 collection 对象，保留用户数据）
+		const content = generateContentByType(
+			subject,
+			collection,
+			characters,
+			this.config.customTemplates,
+			undefined,  // ratingDetails
+			episodeData?.episodes,
+			episodeData?.userStatus,
+			this.config.defaultPropertyValues,
+			this.config.notePathTemplate,
+			this.config.coverLinkType,
+			localCoverPath,
+			relatedLinks
+		);
+
+		// 创建文件
+		await this.fileManager.createOrUpdateFile(filePath, content, {
+			overwrite: overwrite,
+		});
+
+		console.log(`[Bangumi Sync] 文件创建完成: ${filePath}`);
+
+		// 添加到批次已同步列表
+		this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name);
+
+		// 更新已同步相关条目的链接（双向链接）
+		if (this.config.enableRelatedLinks !== false && relations && relations.length > 0) {
+			await this.updateRelatedItemsBidirectional(subject.id, filePath, subject.name_cn || subject.name, relations);
+		}
+	}
+
+	/**
+	 * 处理单个收藏（带评分明细和双向链接更新）
+	 */
+	private async processCollectionWithRatingDetailsAndBidirectionalLinks(
+		collection: UserCollection,
+		ratingDetails: RatingDetails
+	): Promise<void> {
+		console.log(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+
+		// 获取完整条目信息
+		const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
+		console.log(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
 
 		// 解析角色信息
 		const characters = parseCharacters(relatedCharacters, 9);
@@ -724,12 +771,12 @@ export class SyncManager {
 		// V4: 获取章节信息
 		const episodeData = await this.fetchEpisodeData(subject);
 
-						// 生成相关条目链接（仅已同步的条目）
-						const relatedLinks = this.config.enableRelatedLinks !== false
-							? this.generateRelatedLinks(relations)
-							: [];
+		// 生成相关条目链接（已同步的条目，包括本批次已同步的）
+		const relatedLinks = this.config.enableRelatedLinks !== false
+			? this.generateRelatedLinks(relations)
+			: [];
 
-						// 生成文件内容（使用 V3 版本，包含用户自己的标签和评分明细）
+		// 生成文件内容（使用 V3 版本，包含用户自己的标签和评分明细）
 		const content = generateContentByType(
 			subject,
 			collection,
@@ -740,15 +787,59 @@ export class SyncManager {
 			episodeData?.userStatus,
 			this.config.defaultPropertyValues,
 			this.config.notePathTemplate,
-				this.config.coverLinkType,
-				localCoverPath,
-				relatedLinks
-			);
+			this.config.coverLinkType,
+			localCoverPath,
+			relatedLinks
+		);
 
 		// 创建文件
 		await this.fileManager.createOrUpdateFile(filePath, content, {
 			overwrite: false,
 		});
-		console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
+		console.log(`[Bangumi Sync] 文件创建完成: ${filePath}`);
+
+		// 添加到批次已同步列表
+		this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name);
+
+		// 更新已同步相关条目的链接（双向链接）
+		if (this.config.enableRelatedLinks !== false && relations && relations.length > 0) {
+			await this.updateRelatedItemsBidirectional(subject.id, filePath, subject.name_cn || subject.name, relations);
+		}
+	}
+
+	/**
+	 * 更新已同步相关条目的链接（双向链接）
+	 * 在当前条目的相关条目文件中添加当前条目的链接
+	 */
+	private async updateRelatedItemsBidirectional(
+		currentId: number,
+		currentPath: string,
+		currentName: string,
+		relations: { id: number; name_cn: string; name: string }[]
+	): Promise<void> {
+		const currentLink = `[[${currentPath}|${currentName}]]`;
+
+		for (const relation of relations) {
+			// 获取相关条目的本地路径（包括本批次同步的）
+			const relatedPath = this.incrementalSync.getLocalPath(relation.id);
+			if (relatedPath) {
+				console.log(`[Bangumi Sync] 更新相关条目的链接: ${relation.name_cn} -> ${currentLink}`);
+				try {
+					// 读取相关条目文件
+					const file = this.app.vault.getAbstractFileByPath(relatedPath);
+					if (file) {
+						const content = await this.app.vault.read(file as any);
+						// 在相关条目中添加当前条目的链接
+						const updatedContent = this.incrementalSync.updateRelated(content, [currentLink]);
+						if (updatedContent !== content) {
+							await this.app.vault.modify(file as any, updatedContent);
+							console.log(`[Bangumi Sync] 已更新 ${relation.name_cn} 的相关链接`);
+						}
+					}
+				} catch (error) {
+					console.error(`[Bangumi Sync] 更新相关条目链接失败: ${relation.name_cn}`, error);
+				}
+			}
+		}
 	}
 }

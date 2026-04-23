@@ -22,6 +22,8 @@ export class IncrementalSync {
 	private app: App;
 	private localSubjects: Map<number, LocalSubjectInfo> = new Map();
 	private lastScanPath: string = '';
+	// 本批次同步的条目（用于同批次内的相关条目关联）
+	private batchSyncedItems: Map<number, LocalSubjectInfo> = new Map();
 
 	constructor(app: App) {
 		this.app = app;
@@ -215,6 +217,62 @@ export class IncrementalSync {
 	}
 
 	/**
+	 * 开始新的同步批次
+	 * 清空本批次已同步的条目记录
+	 */
+	startBatch(): void {
+		this.batchSyncedItems.clear();
+		console.log(`[Bangumi Sync] 开始新的同步批次`);
+	}
+
+	/**
+	 * 添加本批次已同步的条目
+	 * @param subjectId 条目 ID
+	 * @param path 本地文件路径
+	 * @param name_cn 中文名
+	 */
+	addBatchSyncedItem(subjectId: number, path: string, name_cn: string): void {
+		this.batchSyncedItems.set(subjectId, { id: subjectId, path, name_cn });
+		// 同时添加到 localSubjects，以便后续条目能找到
+		this.localSubjects.set(subjectId, { id: subjectId, path, name_cn });
+		console.log(`[Bangumi Sync] 本批次已同步: ${name_cn} (ID: ${subjectId}) -> ${path}`);
+	}
+
+	/**
+	 * 检查条目是否已同步（包括本批次同步的）
+	 */
+	isSyncedIncludingBatch(subjectId: number): boolean {
+		return this.localSubjects.has(subjectId) || this.batchSyncedItems.has(subjectId);
+	}
+
+	/**
+	 * 获取本地条目路径（包括本批次同步的）
+	 */
+	getLocalPath(subjectId: number): string | undefined {
+		// 先检查本批次同步的
+		const batchItem = this.batchSyncedItems.get(subjectId);
+		if (batchItem) {
+			return batchItem.path;
+		}
+		// 再检查之前同步的
+		const info = this.localSubjects.get(subjectId);
+		return info?.path;
+	}
+
+	/**
+	 * 获取本地条目信息（包括本批次同步的）
+	 */
+	getLocalSubjectIncludingBatch(subjectId: number): LocalSubjectInfo | undefined {
+		// 先检查本批次同步的
+		const batchItem = this.batchSyncedItems.get(subjectId);
+		if (batchItem) {
+			return batchItem;
+		}
+		// 再检查之前同步的
+		return this.localSubjects.get(subjectId);
+	}
+
+	/**
 	 * 从正文内容中提取短评
 	 * 短评格式: > [!abstract]+ **短评**\n> {comment}
 	 */
@@ -364,7 +422,7 @@ export class IncrementalSync {
 	/**
 	 * 从 frontmatter 中提取相关链接
 	 * 支持两种格式：
-	 * 1. YAML 数组格式: 相关:\n  - [[link1]]\n  - [[link2]]
+	 * 1. YAML 数组格式: 相关:\n  - "[[link1]]"\n  - "[[link2]]"
 	 * 2. 逗号分隔格式: 相关: [[link1]], [[link2]]
 	 */
 	extractRelated(content: string): string[] | null {
@@ -381,7 +439,11 @@ export class IncrementalSync {
 		if (arrayMatch) {
 			const links = arrayMatch[1]
 				.split('\n')
-				.map(line => line.replace(/^\s+- /, '').trim())
+				.map(line => {
+					// 提取链接，移除引号
+					const match = line.match(/^\s+- ["']?(.+?)["']?$/);
+					return match ? match[1].trim() : '';
+				})
 				.filter(line => line.length > 0);
 			return links.length > 0 ? links : null;
 		}
@@ -400,8 +462,19 @@ export class IncrementalSync {
 	}
 
 	/**
+	 * 规范化链接格式，用于去重比较
+	 * 移除引号，确保格式一致
+	 */
+	private normalizeLink(link: string): string {
+		// 移除首尾引号
+		return link.replace(/^["']|["']$/g, '').trim();
+	}
+
+	/**
 	 * 更新 frontmatter 中的相关链接
 	 * 使用 YAML 数组格式，合并现有链接和新链接
+	 * 链接值用双引号包围以正确处理特殊字符
+	 * 自动去重，避免重复添加相同链接
 	 */
 	updateRelated(content: string, newLinks: string[]): string {
 		// 匹配 frontmatter
@@ -414,15 +487,47 @@ export class IncrementalSync {
 		let frontmatter = frontmatterMatch[2];
 		const suffix = frontmatterMatch[3];
 
-		// 获取现有链接
-		const existingLinks = this.extractRelated(content) || [];
+		// 获取现有链接并规范化
+		const existingLinks = (this.extractRelated(content) || []).map(l => this.normalizeLink(l));
 
-		// 合并链接，去重
-		const allLinks = [...new Set([...existingLinks, ...newLinks])];
+		// 规范化新链接
+		const normalizedNewLinks = newLinks.map(l => this.normalizeLink(l));
 
-		// 构建新的相关链接 YAML 数组
+		// 合并链接，使用规范化格式去重
+		const allLinksSet = new Set<string>();
+		const allLinks: string[] = [];
+
+		// 先添加现有链接
+		for (const link of existingLinks) {
+			if (!allLinksSet.has(link)) {
+				allLinksSet.add(link);
+				allLinks.push(link);
+			}
+		}
+
+		// 再添加新链接（仅添加不存在的）
+		for (const link of normalizedNewLinks) {
+			if (!allLinksSet.has(link)) {
+				allLinksSet.add(link);
+				allLinks.push(link);
+				console.log(`[Bangumi Sync] 添加新相关链接: ${link}`);
+			} else {
+				console.log(`[Bangumi Sync] 跳过重复链接: ${link}`);
+			}
+		}
+
+		// 如果没有变化，直接返回原内容
+		if (allLinks.length === existingLinks.length && normalizedNewLinks.every(l => allLinksSet.has(l))) {
+			// 检查是否真的没有新增
+			const hasNew = normalizedNewLinks.some(l => !existingLinks.includes(l));
+			if (!hasNew) {
+				return content;
+			}
+		}
+
+		// 构建新的相关链接 YAML 数组（用双引号包围链接）
 		const newLinksYaml = allLinks.length > 0
-			? `相关:\n${allLinks.map(l => `  - ${l}`).join('\n')}`
+			? `相关:\n${allLinks.map(l => `  - "${l}"`).join('\n')}`
 			: '相关:';
 
 		// 检查是否已有 相关 字段
@@ -436,14 +541,6 @@ export class IncrementalSync {
 		}
 
 		return prefix + frontmatter + suffix;
-	}
-
-	/**
-	 * 获取本地条目路径（通过 ID）
-	 */
-	getLocalPath(subjectId: number): string | undefined {
-		const info = this.localSubjects.get(subjectId);
-		return info?.path;
 	}
 }
 

@@ -183,7 +183,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 			.setName(tn('settings', 'notePathTemplate'))
 			.setDesc(tn('settings', 'notePathTemplateDesc'))
 			.addText(text => text
-				.setPlaceholder('Inbox/Notes/ACGN')
+				.setPlaceholder('inbox/notes/acgn')
 				.setValue(this.settings.notePathTemplate)
 				.onChange(async (value) => {
 					this.settings.notePathTemplate = value;
@@ -339,7 +339,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(tn('settings', 'storage'))
 			.addText(text => text
-				.setPlaceholder('e.g., Local')
+				.setPlaceholder('e.g. local')
 				.setValue(this.settings.defaultPropertyValues.anime_storage || '')
 				.onChange(async (value) => {
 					this.settings.defaultPropertyValues.anime_storage = value || undefined;
@@ -348,7 +348,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(tn('settings', 'resourceAttr'))
 			.addText(text => text
-				.setPlaceholder('e.g., 1080p')
+				.setPlaceholder('e.g. 1080p')
 				.setValue(this.settings.defaultPropertyValues.anime_resourceAttr || '')
 				.onChange(async (value) => {
 					this.settings.defaultPropertyValues.anime_resourceAttr = value || undefined;
@@ -414,7 +414,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(tn('settings', 'platform'))
 			.addText(text => text
-				.setPlaceholder('e.g., Steam')
+				.setPlaceholder('e.g. steam')
 				.setValue(this.settings.defaultPropertyValues.game_platform || '')
 				.onChange(async (value) => {
 					this.settings.defaultPropertyValues.game_platform = value || undefined;

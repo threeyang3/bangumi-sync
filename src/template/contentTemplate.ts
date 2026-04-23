@@ -94,9 +94,9 @@ export function extractTemplateVars(
 		? `[[${notePathTemplate}/《${name_cn}》笔记|《${name_cn}》笔记]]`
 		: '';
 
-	// 相关条目链接（YAML 数组格式）
+	// 相关条目链接（YAML 数组格式，用双引号包围）
 	const related = relatedLinks && relatedLinks.length > 0
-		? relatedLinks.map(l => `  - ${l}`).join('\n')
+		? relatedLinks.map(l => `  - "${l}"`).join('\n')
 		: '';
 
 	// 构建变量对象
