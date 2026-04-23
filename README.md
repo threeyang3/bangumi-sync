@@ -5,6 +5,18 @@
 ![GitHub release](https://img.shields.io/github/v/release/threeyang3/bangumi-sync)
 ![GitHub downloads](https://img.shields.io/github/downloads/threeyang3/bangumi-sync/total)
 
+## 目录
+
+- [核心功能](#核心功能)
+- [使用前准备](#使用前准备)
+- [快速开始](#快速开始)
+- [安装](#安装)
+- [配置](#配置)
+- [使用方法](#使用方法)
+- [模板变量](#模板变量)
+- [常见问题](#常见问题)
+- [支持开发](#支持开发)
+
 ## 核心功能
 
 ### 🔄 同步 Bangumi 用户个人数据
@@ -65,27 +77,15 @@
 
 ### 其他
 
-- **快捷键支持**：默认快捷键，控制面板键盘导航
+- **键盘导航**：控制面板支持方向键、PageUp/PageDown、Enter、Escape
 - **数据缓存**：控制面板数据缓存 10 分钟
 - **默认属性值**：批量同步时自动填充预设值
 
-## 最新更新 (v4.4.0)
+## 使用前准备
 
-### 封面链接优化
-- 封面属性改为纯链接格式，不再包含 Markdown 图片语法
-- 新增"封面链接类型"设置，可选择网络链接或本地链接
-- 选择本地链接时，封面属性使用下载到本地的图片相对路径
+### 1. 安装 Dataview 插件（必需）
 
-### 其他改进
-- 优化封面图片处理逻辑，支持按设置选择链接类型
-
-## 推荐插件
-
-本插件的模板使用了 `\`= this.属性\`` 语法在表格中显示属性值，需要安装以下插件：
-
-### Dataview（必需）
-
-[Dataview](https://blacksmithgu.github.io/obsidian-dataview/) 是一个强大的数据查询插件，本插件使用其内联查询功能。
+本插件的模板使用了 Dataview 的内联查询语法 `\`= this.属性\``，需要先安装 Dataview 插件。
 
 **安装方法**：
 1. 在 Obsidian 设置中进入"社区插件"
@@ -96,12 +96,55 @@
 - 模板表格中的 `\`= this.评分\`` 会显示当前笔记的"评分"属性
 - `\`= this.观看状态\`` 会显示"观看状态"属性
 
-如果不安装 Dataview，表格中会显示原始的 `\`= this.属性\`` 文本，而非属性值。
+> ⚠️ 如果不安装 Dataview，表格中会显示原始的 `\`= this.属性\`` 文本，而非属性值。
+
+### 2. 获取 Bangumi Access Token
+
+1. 访问 [Bangumi Access Token 生成页面](https://next.bgm.tv/demo/access-token)
+2. 点击生成 Token
+3. 复制生成的 Token，稍后在插件设置中粘贴
+
+## 快速开始
+
+### 第一步：安装插件
+
+选择以下任一方式安装：
+
+**方式一：从 GitHub Release 安装（推荐）**
+
+1. 访问 [Releases](https://github.com/threeyang3/bangumi-sync/releases) 页面
+2. 下载最新版本的 `main.js`、`manifest.json` 和 `styles.css`
+3. 复制到 `你的Vault/.obsidian/plugins/bangumi-sync/` 目录
+
+**方式二：手动构建**
+
+```bash
+git clone https://github.com/threeyang3/bangumi-sync.git
+cd bangumi-sync
+npm install
+npm run build
+```
+
+### 第二步：配置插件
+
+1. 在 Obsidian 设置中找到 "Bangumi Sync"
+2. 粘贴之前获取的 Access Token
+3. 设置文件保存路径（如 `ACGN/{{type}}/{{name_cn}}.md`）
+
+### 第三步：同步收藏
+
+1. 点击左侧 Ribbon 的数据库图标，或使用命令面板执行"同步 Bangumi 收藏"
+2. 选择要同步的条目类型和收藏状态
+3. 在预览弹窗中勾选条目，可选择填写评分明细
+4. 点击"只导入选中的"开始同步
 
 ## 安装
 
-### 从社区插件市场安装（推荐）
+### 从社区插件市场安装
 
+> ⏳ **待审核**：插件已提交至 Obsidian 社区插件市场，目前正在审核中。审核通过后可直接搜索安装。
+
+审核通过后的安装方法：
 1. 在 Obsidian 设置中进入"社区插件"
 2. 搜索 "Bangumi Sync" 并安装
 
@@ -122,14 +165,6 @@ npm run build
 
 ## 配置
 
-### 获取 Access Token
-
-1. 访问 [Bangumi Access Token 生成页面](https://next.bgm.tv/demo/access-token)
-2. 点击生成 Token
-3. 在 Obsidian 设置中找到 "Bangumi Sync"，粘贴 Token
-
-### 基本设置
-
 ![路径设置](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/路径设置.png)
 
 | 设置项 | 说明 |
@@ -143,14 +178,6 @@ npm run build
 
 ## 使用方法
 
-### 快捷键
-
-| 功能 | 快捷键 |
-|------|--------|
-| 打开控制面板 | `Ctrl+Shift+B` |
-| 同步收藏 | `Ctrl+Shift+S` |
-| 快速同步 | `Ctrl+Shift+Q` |
-
 ### 手动同步
 
 ![同步选项设置](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/同步选项设置.png)
@@ -162,9 +189,15 @@ npm run build
 
 ### 控制面板
 
-1. 点击左侧 Ribbon 图标或使用快捷键 `Ctrl+Shift+B`
+1. 点击左侧 Ribbon 图标（数据库图标）
 2. 查看所有收藏条目，按类型/状态筛选
 3. 同步选中的未同步条目，或批量编辑已同步条目
+
+**键盘导航**：
+- `↑/↓` - 上下移动选中行
+- `PageUp/PageDown` - 翻页
+- `Enter/Space` - 打开选中的已同步文件
+- `Escape` - 关闭面板
 
 ## 模板示例
 
@@ -231,6 +264,13 @@ rating: {{rating|未评分}}
 ### Q: 图片下载失败怎么办？
 
 检查图片路径模板是否正确，确保目标目录存在。
+
+## 最新更新 (v4.4.1)
+
+### 代码质量修复
+- 修复 Promise 处理问题：事件监听器中的 async 调用添加 void 操作符
+- 移除不必要的类型断言
+- 新增代码规范参考文档
 
 ## 相关链接
 
