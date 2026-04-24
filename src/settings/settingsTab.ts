@@ -183,7 +183,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 			.setName(tn('settings', 'notePathTemplate'))
 			.setDesc(tn('settings', 'notePathTemplateDesc'))
 			.addText(text => text
-				.setPlaceholder('Inbox/Notes/ACGN')
+				.setPlaceholder('Inbox/notes/ACGN')
 				.setValue(this.settings.notePathTemplate)
 				.onChange(async (value) => {
 					this.settings.notePathTemplate = value;
