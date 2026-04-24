@@ -183,7 +183,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 			.setName(tn('settings', 'notePathTemplate'))
 			.setDesc(tn('settings', 'notePathTemplateDesc'))
 			.addText(text => text
-				.setPlaceholder('Inbox/notes/ACGN')
+				.setPlaceholder('inbox/notes/acgn')
 				.setValue(this.settings.notePathTemplate)
 				.onChange(async (value) => {
 					this.settings.notePathTemplate = value;
@@ -339,7 +339,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(tn('settings', 'storage'))
 			.addText(text => text
-				.setPlaceholder('Local')
+				.setPlaceholder('local')
 				.setValue(this.settings.defaultPropertyValues.anime_storage || '')
 				.onChange(async (value) => {
 					this.settings.defaultPropertyValues.anime_storage = value || undefined;
