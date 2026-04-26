@@ -737,10 +737,11 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
   - 修复 popout window 兼容性：使用 `activeWindow` 的定时器
   - 新增 CSS `:focus-visible` 样式，提升键盘导航体验
 
-- **v4.6.1**: Bug 修复版本
+- **v4.6.1**: Bug 修复版本（已发布）
   - 修复双向链接更新时正文内容丢失的问题（`updateRelated`、`updateTags`、`removeTags` 方法）
   - 修复模板中 `相关` 字段为空时 YAML 解析错误的问题（使用条件渲染）
   - 修复作者自用模板中 `相关` 字段的 YAML 格式问题
+  - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.6.1
 
 ## 集数追踪功能
 
@@ -863,6 +864,22 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 - `src/sync/syncManager.ts`：添加 `generateRelatedLinks()` 方法，更新同步流程
 
 ## 已完成功能
+
+### v4.6.1 Bug 修复（已完成）
+
+**修复的问题**：
+
+1. **正文内容丢失 bug**
+   - 问题：更新相关条目链接时，`updateRelated`、`updateTags`、`removeTags` 方法只返回 frontmatter 部分，丢失正文内容
+   - 修复：正则表达式现在正确捕获 frontmatter 之后的正文内容
+
+2. **YAML 解析错误**
+   - 问题：模板中 `相关:` 字段为空时，下一行 `作品大类: Anime` 被错误解析为 `相关` 的值
+   - 修复：使用条件渲染 `{{#if related}}`，当 `related` 为空时整个字段不输出
+
+**已修改的文件**：
+- `src/sync/incrementalSync.ts`：修复 `updateRelated`、`updateTags`、`removeTags` 方法
+- `common/template/defaultTemplates.ts`：修复作者自用模板中 `相关` 字段的 YAML 格式
 
 ### v4.6.0 用户数据保护机制（已完成）
 
