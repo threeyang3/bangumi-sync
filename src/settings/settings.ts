@@ -4,6 +4,7 @@
 
 import { SubjectType, CollectionType } from '../../common/api/types';
 import { ImageQuality } from '../../common/file/imageHandler';
+import { DataProtectionSettings, DEFAULT_DATA_PROTECTION_SETTINGS } from '../userData/types';
 
 /**
  * 模板来源类型
@@ -125,6 +126,9 @@ export interface BangumiPluginSettings {
 
 	// 相关条目链接
 	enableRelatedLinks: boolean;  // 是否自动处理关联条目链接
+
+	// 数据保护设置
+	dataProtection: DataProtectionSettings;
 }
 
 /**
@@ -188,6 +192,9 @@ export const DEFAULT_SETTINGS: BangumiPluginSettings = {
 
 	// 相关条目链接
 	enableRelatedLinks: true,
+
+	// 数据保护设置
+	dataProtection: { ...DEFAULT_DATA_PROTECTION_SETTINGS },
 };
 
 // 兼容旧版本的类型别名

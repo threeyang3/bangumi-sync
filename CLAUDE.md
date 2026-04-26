@@ -10,7 +10,7 @@
 
 ## 版本说明
 
-当前版本 (v4.5.3) 集成了以下功能：
+当前版本 (v4.6.1) 集成了以下功能：
 
 - **集数追踪**：自动获取并显示动画集数、小说卷数、漫画话数
 - **紧凑显示**：集数以数字框形式显示，节省空间
@@ -38,6 +38,9 @@
 - **手动同步预览**：导入前可预览条目列表，勾选要导入的条目
 - **评分明细输入**：手动同步时可在弹窗中填写评分明细
 - **相关条目双向链接**：同步时自动获取相关条目并建立双向链接，支持同批次同步时实时关联
+- **用户数据保护**：强制同步时保留用户自定义数据（评分明细、自定义属性、记录、感想）
+- **用户数据导出**：将本地用户数据导出为 JSON 文件，按条目类型分别导出
+- **用户数据导入**：从备份文件导入用户数据，支持缺失字段处理
 
 ## 技术栈
 
@@ -89,6 +92,14 @@ bangumi/
 │   ├── settings/              # 设置层
 │   │   ├── settings.ts        # 设置数据结构
 │   │   └── settingsTab.ts     # 设置面板 UI
+│   ├── userData/              # 用户数据保护层
+│   │   ├── types.ts           # 用户数据类型定义
+│   │   ├── userDataExtractor.ts # 用户数据提取器
+│   │   ├── userDataMerger.ts  # 用户数据合并器
+│   │   ├── userDataExporter.ts # 用户数据导出器
+│   │   ├── userDataImporter.ts # 用户数据导入器
+│   │   ├── userDataModal.ts   # 用户数据弹窗 UI
+│   │   └── index.ts           # 模块导出
 │   └── ui/                    # UI 层
 │       ├── syncModal.ts       # 同步进度弹窗
 │       ├── syncOptionsModal.ts # 同步选项弹窗
@@ -181,6 +192,8 @@ bangumi/
 | 同步 Bangumi 收藏 | `Ctrl+Shift+S` | 打开同步选项弹窗 |
 | 快速同步（使用默认设置） | `Ctrl+Shift+Q` | 自动同步模式 |
 | 打开控制面板 | `Ctrl+Shift+B` | 打开收藏管理控制面板 |
+| 导出用户数据 | - | 导出本地用户自定义数据 |
+| 导入用户数据 | - | 从备份文件导入用户数据 |
 
 ### 6. 控制面板
 
@@ -714,6 +727,21 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
   - 修复 UI 文本大小写问题，符合 Obsidian 插件规范
   - 移除未使用的导入
 
+- **v4.6.0**: 用户数据保护版本
+  - 新增用户数据保护机制，强制同步时保留用户自定义数据
+  - 新增用户数据导出功能，按条目类型分别导出 JSON 文件
+  - 新增用户数据导入功能，支持缺失字段处理
+  - 新增数据保护设置：保留评分明细、自定义属性、记录、感想
+  - 新增命令：导出用户数据、导入用户数据
+  - 新增 `BANGUMI_FIELDS` 白名单，区分平台数据与用户数据
+  - 修复 popout window 兼容性：使用 `activeWindow` 的定时器
+  - 新增 CSS `:focus-visible` 样式，提升键盘导航体验
+
+- **v4.6.1**: Bug 修复版本
+  - 修复双向链接更新时正文内容丢失的问题（`updateRelated`、`updateTags`、`removeTags` 方法）
+  - 修复模板中 `相关` 字段为空时 YAML 解析错误的问题（使用条件渲染）
+  - 修复作者自用模板中 `相关` 字段的 YAML 格式问题
+
 ## 集数追踪功能
 
 ### 集数追踪
@@ -834,56 +862,43 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 - `src/i18n/translations.ts`：添加新设置的翻译
 - `src/sync/syncManager.ts`：添加 `generateRelatedLinks()` 方法，更新同步流程
 
-## 未来改进方向
+## 已完成功能
 
-### 用户数据保护机制
+### v4.6.0 用户数据保护机制（已完成）
 
 **核心目标**：保护用户自主填写的数据，即使在强制同步时也不应被覆盖。
 
-**需要保护的数据类型**：
+**已实现的功能**：
 
-1. **用户自主填写的属性值**
-   - 评分明细（音乐评分、人设评分、剧情评分、美术评分等）
-   - 自定义属性（标语、存储、资源属性、版本、格式等）
-   - 笔记链接
+1. **强制同步数据保护**
+   - 从现有文件中提取用户自定义数据
+   - 合并用户数据到新生成的内容中
+   - 用户属性优先于模板默认值
 
-2. **正文中的用户内容**
-   - `## 记录` 部分的内容
-   - `## 感想` 部分的内容
-   - 用户自行添加的其他正文内容
+2. **用户数据导出**
+   - 按条目类型分别导出 JSON 文件
+   - 文件名格式：`bangumi-user-data-anime.json` 等
+   - 只导出用户自定义数据（不含平台数据）
 
-3. **短评**
-   - 用户在本地修改的短评内容
+3. **用户数据导入**
+   - 支持从备份文件导入
+   - 缺失字段逐项询问用户处理方式
+   - 导入完成后显示结果摘要
 
-**实现方案**：
+**已完成的修改**：
+- `src/userData/types.ts`：用户数据类型定义，`BANGUMI_FIELDS` 白名单
+- `src/userData/userDataExtractor.ts`：从本地文件提取用户数据
+- `src/userData/userDataMerger.ts`：合并用户数据到新内容
+- `src/userData/userDataExporter.ts`：按类型导出用户数据
+- `src/userData/userDataImporter.ts`：导入用户数据
+- `src/userData/userDataModal.ts`：导出/导入/缺失字段处理弹窗
+- `src/settings/settings.ts`：添加 `DataProtectionSettings`
+- `src/settings/settingsTab.ts`：数据保护设置 UI
+- `src/sync/syncManager.ts`：集成数据保护到强制同步流程
+- `main.ts`：添加导出/导入命令
+- `src/i18n/translations.ts`：添加翻译文本
 
-1. **数据提取**：强制同步前，从现有文件中提取用户数据
-   - 解析 frontmatter，识别用户填写的属性（非模板默认值）
-   - 提取正文中的 `## 记录` 和 `## 感想` 部分
-   - 提取短评内容
+## 未来改进方向
 
-2. **数据迁移**：将用户数据合并到新生成的内容中
-   - 用户填写的属性值优先于模板默认值
-   - 保留正文中的用户内容区域
-   - 短评内容迁移到新文件的对应位置
-
-3. **冲突处理**：
-   - 用户属性 vs API 数据：优先保留用户属性
-   - 用户正文 vs 模板正文：保留用户正文，追加模板新增内容
-
-**技术实现要点**：
-
-- 在 `IncrementalSync` 中添加方法：
-  - `extractUserProperties(content: string): Record<string, string>` - 提取用户填写的属性
-  - `extractUserContent(content: string): { records: string; thoughts: string }` - 提取记录和感想
-  - `mergeUserContent(newContent: string, userData: UserContentData): string` - 合并用户数据到新内容
-
-- 在 `SyncManager` 中更新强制同步逻辑：
-  - 覆盖前先提取用户数据
-  - 生成新内容后合并用户数据
-
-**应用场景**：
-- 用户在本地填写了评分明细，重新同步时保留这些评分
-- 用户在 `## 感想` 部分写了长评，强制同步时不应丢失
-- 用户修改了短评，同步时保留本地版本
+### 待开发功能
 

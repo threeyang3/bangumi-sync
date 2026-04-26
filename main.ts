@@ -18,7 +18,7 @@ import { SyncPreviewModal, SyncPreviewResult } from './src/ui/syncPreviewModal';
 import { ControlPanel } from './src/panel/controlPanel';
 import { SyncProgress } from './src/sync/syncStatus';
 import { UserCollection } from './common/api/types';
-import { tn } from './src/i18n';
+import { tn, tnFormat } from './src/i18n';
 import {
 	ANIME_TEMPLATE_STANDARD,
 	NOVEL_TEMPLATE_STANDARD,
@@ -33,6 +33,7 @@ import {
 	GAME_TEMPLATE_AUTHOR,
 	ALBUM_TEMPLATE_AUTHOR,
 } from './common/template/defaultTemplates';
+import { UserDataExportModal, UserDataImportModal, ImportResultModal } from './src/userData';
 
 /**
  * 缓存数据结构
@@ -117,6 +118,20 @@ export class BangumiPlugin extends Plugin {
 			id: 'quick-sync-collections',
 			name: tn('commands', 'quickSync'),
 			callback: () => this.syncCollections(),
+		});
+
+		// 添加命令：导出用户数据
+		this.addCommand({
+			id: 'export-user-data',
+			name: tn('commands', 'exportUserData'),
+			callback: () => this.openExportModal(),
+		});
+
+		// 添加命令：导入用户数据
+		this.addCommand({
+			id: 'import-user-data',
+			name: tn('commands', 'importUserData'),
+			callback: () => this.openImportModal(),
 		});
 
 		// 添加 Ribbon 图标
@@ -271,6 +286,61 @@ export class BangumiPlugin extends Plugin {
 			default:
 				return TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
 		}
+	}
+
+	/**
+	 * 打开导出用户数据弹窗
+	 */
+	openExportModal() {
+		const modal = new UserDataExportModal(
+			this.app,
+			this.settings.scanFolderPath,
+			(files: string[]) => {
+				new Notice(tnFormat('userData', 'exportSuccess', { count: files.length }));
+			}
+		);
+		modal.open();
+	}
+
+	/**
+	 * 打开导入用户数据弹窗
+	 */
+	openImportModal() {
+		// 创建文件选择器
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.accept = '.json';
+		input.multiple = true;
+
+		input.onchange = () => void (async () => {
+			const files = input.files;
+			if (!files || files.length === 0) return;
+
+			const importFiles: Array<{ name: string; content: string }> = [];
+			for (const file of Array.from(files)) {
+				try {
+					importFiles.push({
+						name: file.name,
+						content: await file.text(),
+					});
+				} catch (error) {
+					new Notice(tnFormat('userData', 'importFailed', { error: String(error) }));
+					return;
+				}
+			}
+
+			const modal = new UserDataImportModal(
+				this.app,
+				importFiles,
+				(result) => {
+					const resultModal = new ImportResultModal(this.app, result);
+					resultModal.open();
+				}
+			);
+			modal.open();
+		})();
+
+		input.click();
 	}
 
 	/**
@@ -438,7 +508,7 @@ export class BangumiPlugin extends Plugin {
 							`同步完成！新增: ${syncResult.added}, 跳过: ${prepareResult.skipped}, 错误: ${syncResult.errors}`
 						);
 
-						setTimeout(() => {
+						activeWindow.setTimeout(() => {
 							if (this.syncModal) {
 								this.syncModal.close();
 								this.syncModal = null;
@@ -479,13 +549,13 @@ export class BangumiPlugin extends Plugin {
 	 */
 	setupAutoSync() {
 		if (this.autoSyncIntervalId !== null) {
-			window.clearInterval(this.autoSyncIntervalId);
+			activeWindow.clearInterval(this.autoSyncIntervalId);
 			this.autoSyncIntervalId = null;
 		}
 
 		if (this.settings.autoSync && this.settings.autoSyncInterval > 0) {
 			const intervalMs = this.settings.autoSyncInterval * 60 * 1000;
-			this.autoSyncIntervalId = window.setInterval(() => {
+			this.autoSyncIntervalId = activeWindow.setInterval(() => {
 				void this.syncCollections();
 			}, intervalMs);
 		}

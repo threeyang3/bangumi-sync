@@ -371,8 +371,8 @@ export class IncrementalSync {
 	 * 使用 YAML 数组格式
 	 */
 	updateTags(content: string, newTags: string[]): string {
-		// 匹配 frontmatter
-		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
+		// 匹配 frontmatter 和后续内容
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
 		if (!frontmatterMatch) {
 			return content;
 		}
@@ -380,6 +380,7 @@ export class IncrementalSync {
 		const prefix = frontmatterMatch[1];
 		let frontmatter = frontmatterMatch[2];
 		const suffix = frontmatterMatch[3];
+		const bodyContent = frontmatterMatch[4]; // 保留 frontmatter 之后的正文内容
 
 		// 构建新的标签 YAML 数组
 		const newTagsYaml = newTags.length > 0
@@ -396,15 +397,16 @@ export class IncrementalSync {
 			frontmatter = frontmatter + '\n' + newTagsYaml;
 		}
 
-		return prefix + frontmatter + suffix;
+		// 返回完整内容：frontmatter + 正文
+		return prefix + frontmatter + suffix + bodyContent;
 	}
 
 	/**
 	 * 删除 frontmatter 中的标签字段
 	 */
 	removeTags(content: string): string {
-		// 匹配 frontmatter
-		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
+		// 匹配 frontmatter 和后续内容
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
 		if (!frontmatterMatch) {
 			return content;
 		}
@@ -412,11 +414,13 @@ export class IncrementalSync {
 		const prefix = frontmatterMatch[1];
 		let frontmatter = frontmatterMatch[2];
 		const suffix = frontmatterMatch[3];
+		const bodyContent = frontmatterMatch[4]; // 保留 frontmatter 之后的正文内容
 
 		// 移除 tags 字段（支持数组和内联格式）
 		frontmatter = frontmatter.replace(/^tags:.*(\n\s+- .+)*/m, '').trim();
 
-		return prefix + frontmatter + suffix;
+		// 返回完整内容：frontmatter + 正文
+		return prefix + frontmatter + suffix + bodyContent;
 	}
 
 	/**
@@ -444,7 +448,7 @@ export class IncrementalSync {
 					const match = line.match(/^\s+- ["']?(.+?)["']?$/);
 					return match ? match[1].trim() : '';
 				})
-				.filter(line => line.length > 0);
+				.filter(line => this.isRelatedLink(line));
 			return links.length > 0 ? links : null;
 		}
 
@@ -454,11 +458,15 @@ export class IncrementalSync {
 			const linkStr = inlineMatch[1].trim();
 			// 移除可能的引号
 			const cleanStr = linkStr.replace(/^["']|["']$/g, '');
-			const links = cleanStr.split(',').map(l => l.trim()).filter(l => l.length > 0);
+			const links = cleanStr.split(',').map(l => l.trim()).filter(l => this.isRelatedLink(l));
 			return links.length > 0 ? links : null;
 		}
 
 		return null;
+	}
+
+	private isRelatedLink(value: string): boolean {
+		return value.includes('[[') && value.includes(']]');
 	}
 
 	/**
@@ -477,8 +485,8 @@ export class IncrementalSync {
 	 * 自动去重，避免重复添加相同链接
 	 */
 	updateRelated(content: string, newLinks: string[]): string {
-		// 匹配 frontmatter
-		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
+		// 匹配 frontmatter 和后续内容
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
 		if (!frontmatterMatch) {
 			return content;
 		}
@@ -486,6 +494,7 @@ export class IncrementalSync {
 		const prefix = frontmatterMatch[1];
 		let frontmatter = frontmatterMatch[2];
 		const suffix = frontmatterMatch[3];
+		const bodyContent = frontmatterMatch[4]; // 保留 frontmatter 之后的正文内容
 
 		// 获取现有链接并规范化
 		const existingLinks = (this.extractRelated(content) || []).map(l => this.normalizeLink(l));
@@ -540,7 +549,8 @@ export class IncrementalSync {
 			frontmatter = frontmatter + '\n' + newLinksYaml;
 		}
 
-		return prefix + frontmatter + suffix;
+		// 返回完整内容：frontmatter + 正文
+		return prefix + frontmatter + suffix + bodyContent;
 	}
 }
 

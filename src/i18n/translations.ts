@@ -16,6 +16,8 @@ export interface TranslationStrings {
 		openControlPanel: string;
 		syncCollections: string;
 		quickSync: string;
+		exportUserData: string;
+		importUserData: string;
 	};
 
 	// Ribbon
@@ -125,6 +127,17 @@ export interface TranslationStrings {
 		albumTemplate: string;
 		musicTemplate: string;
 		realTemplate: string;
+		// 数据保护设置
+		dataProtection: string;
+		dataProtectionDesc: string;
+		preserveRatingDetails: string;
+		preserveRatingDetailsDesc: string;
+		preserveCustomProperties: string;
+		preserveCustomPropertiesDesc: string;
+		preserveRecord: string;
+		preserveRecordDesc: string;
+		preserveThoughts: string;
+		preserveThoughtsDesc: string;
 	};
 
 	// 同步选项弹窗
@@ -263,6 +276,41 @@ export interface TranslationStrings {
 		drawing: string;
 		fun: string;
 	};
+
+	// 用户数据
+	userData: {
+		exportTitle: string;
+		exportDesc: string;
+		importTitle: string;
+		importDesc: string;
+		scanFolder: string;
+		scanFolderDesc: string;
+		outputDir: string;
+		outputDirDesc: string;
+		export: string;
+		import: string;
+		cancel: string;
+		exportSuccess: string;
+		exportFailed: string;
+		importSuccess: string;
+		importSkipped: string;
+		importErrors: string;
+		importFailed: string;
+		missingFieldTitle: string;
+		missingFieldDesc: string;
+		addAll: string;
+		skipAll: string;
+		addField: string;
+		skipField: string;
+		confirm: string;
+		importResultTitle: string;
+		missingFieldPrompt: string;
+		handleMissingFields: string;
+		skipMissingFields: string;
+		close: string;
+		missingFieldsApplied: string;
+	};
+
 }
 
 /**
@@ -273,6 +321,8 @@ const en: TranslationStrings = {
 		openControlPanel: 'Open collection manager',
 		syncCollections: 'Sync Bangumi collections',
 		quickSync: 'Quick sync (use default settings)',
+		exportUserData: 'Export user data',
+		importUserData: 'Import user data',
 	},
 
 	ribbon: {
@@ -378,6 +428,16 @@ const en: TranslationStrings = {
 		albumTemplate: 'Album template',
 		musicTemplate: 'Music template',
 		realTemplate: 'Real template',
+		dataProtection: 'Data protection',
+		dataProtectionDesc: 'Settings for protecting user data during force sync',
+		preserveRatingDetails: 'Preserve rating details',
+		preserveRatingDetailsDesc: 'Keep rating details (music, character, story, etc.) when force syncing',
+		preserveCustomProperties: 'Preserve custom properties',
+		preserveCustomPropertiesDesc: 'Keep custom properties (slogan, storage, version, etc.) when force syncing',
+		preserveRecord: 'Preserve records',
+		preserveRecordDesc: 'Keep record section content when force syncing',
+		preserveThoughts: 'Preserve thoughts',
+		preserveThoughtsDesc: 'Keep thoughts section content when force syncing',
 	},
 
 	syncOptions: {
@@ -505,6 +565,39 @@ const en: TranslationStrings = {
 		drawing: 'Drawing',
 		fun: 'Fun',
 	},
+
+	userData: {
+		exportTitle: 'Export user data',
+		exportDesc: 'Export your local user data (rating details, custom properties, records, thoughts) to backup files.',
+		importTitle: 'Import user data',
+		importDesc: 'Import user data from backup files. Missing fields will be highlighted for your decision.',
+		scanFolder: 'Scan folder',
+		scanFolderDesc: 'Folder to scan for user data',
+		outputDir: 'Output directory',
+		outputDirDesc: 'Directory to save export files',
+		export: 'Export',
+		import: 'Import',
+		cancel: 'Cancel',
+		exportSuccess: 'Exported {count} files',
+		exportFailed: 'Export failed: {error}',
+		importSuccess: 'Imported {count} items',
+		importSkipped: 'Skipped {count} items',
+		importErrors: '{count} errors',
+		importFailed: 'Import failed: {error}',
+		missingFieldTitle: 'Missing fields detected',
+		missingFieldDesc: 'Some fields from import file do not exist in current templates. Choose whether to add them.',
+		addAll: 'Add all',
+		skipAll: 'Skip all',
+		addField: 'Add',
+		skipField: 'Skip',
+		confirm: 'Confirm',
+		importResultTitle: 'Import result',
+		missingFieldPrompt: '{count} missing fields need your decision',
+		handleMissingFields: 'Handle missing fields',
+		skipMissingFields: 'Skip missing fields',
+		close: 'Close',
+		missingFieldsApplied: 'Applied {count} missing fields',
+	},
 };
 
 /**
@@ -515,6 +608,8 @@ const zhCN: TranslationStrings = {
 		openControlPanel: '打开收藏管理面板',
 		syncCollections: '同步 Bangumi 收藏',
 		quickSync: '快速同步（使用默认设置）',
+		exportUserData: '导出用户数据',
+		importUserData: '导入用户数据',
 	},
 
 	ribbon: {
@@ -620,6 +715,16 @@ const zhCN: TranslationStrings = {
 		albumTemplate: '画集模板',
 		musicTemplate: '音乐模板',
 		realTemplate: '三次元模板',
+		dataProtection: '数据保护',
+		dataProtectionDesc: '强制同步时保护用户数据的设置',
+		preserveRatingDetails: '保留评分明细',
+		preserveRatingDetailsDesc: '强制同步时保留评分明细（音乐、人设、剧情等）',
+		preserveCustomProperties: '保留自定义属性',
+		preserveCustomPropertiesDesc: '强制同步时保留自定义属性（标语、存储、版本等）',
+		preserveRecord: '保留记录',
+		preserveRecordDesc: '强制同步时保留记录部分内容',
+		preserveThoughts: '保留感想',
+		preserveThoughtsDesc: '强制同步时保留感想部分内容',
 	},
 
 	syncOptions: {
@@ -747,6 +852,40 @@ const zhCN: TranslationStrings = {
 		drawing: '画工',
 		fun: '趣味',
 	},
+
+	userData: {
+		exportTitle: '导出用户数据',
+		exportDesc: '将本地用户数据（评分明细、自定义属性、记录、感想）导出到备份文件。',
+		importTitle: '导入用户数据',
+		importDesc: '从备份文件导入用户数据。缺失的字段将高亮显示供您选择。',
+		scanFolder: '扫描文件夹',
+		scanFolderDesc: '要扫描用户数据的文件夹',
+		outputDir: '输出目录',
+		outputDirDesc: '保存导出文件的目录',
+		export: '导出',
+		import: '导入',
+		cancel: '取消',
+		exportSuccess: '已导出 {count} 个文件',
+		exportFailed: '导出失败: {error}',
+		importSuccess: '已导入 {count} 个条目',
+		importSkipped: '跳过 {count} 个条目',
+		importErrors: '{count} 个错误',
+		importFailed: '导入失败: {error}',
+		missingFieldTitle: '检测到缺失字段',
+		missingFieldDesc: '导入文件中的某些字段在当前模板中不存在。请选择是否添加它们。',
+		addAll: '全部添加',
+		skipAll: '全部跳过',
+		addField: '添加',
+		skipField: '跳过',
+		confirm: '确认',
+		importResultTitle: '导入结果',
+		missingFieldPrompt: '{count} 个缺失字段需要您决定',
+		handleMissingFields: '处理缺失字段',
+		skipMissingFields: '跳过缺失字段',
+		close: '关闭',
+		missingFieldsApplied: '已应用 {count} 个缺失字段',
+	},
+
 };
 
 const translations: Record<Locale, TranslationStrings> = {
@@ -791,4 +930,19 @@ export function tn<K extends keyof TranslationStrings, SK extends keyof Translat
 	subkey: SK
 ): TranslationStrings[K][SK] {
 	return getTranslations()[category][subkey];
+}
+
+/**
+ * 格式化翻译函数（支持变量替换）
+ */
+export function tnFormat<K extends keyof TranslationStrings, SK extends keyof TranslationStrings[K]>(
+	category: K,
+	subkey: SK,
+	params: Record<string, string | number>
+): string {
+	let text = String(getTranslations()[category][subkey]);
+	for (const [key, value] of Object.entries(params)) {
+		text = text.replace(new RegExp(`\\{${key}\\}`, 'g'), String(value));
+	}
+	return text;
 }

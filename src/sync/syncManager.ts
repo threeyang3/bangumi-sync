@@ -23,6 +23,7 @@ import { generateContentByType } from '../template/contentTemplate';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { SyncPreviewItem, RatingDetails } from '../ui/syncPreviewModal';
 import { DefaultPropertyValues, CoverLinkType } from '../settings/settings';
+import { UserDataExtractor, UserDataMerger, DataProtectionSettings, DEFAULT_DATA_PROTECTION_SETTINGS } from '../userData';
 
 /**
  * 同步管理器配置
@@ -46,6 +47,7 @@ export interface SyncManagerConfig {
 		real?: string;
 	};
 	defaultPropertyValues?: DefaultPropertyValues;
+	dataProtection?: DataProtectionSettings;  // 数据保护设置
 }
 
 /**
@@ -57,6 +59,8 @@ export class SyncManager {
 	private fileManager: FileManager;
 	private imageHandler: ImageHandler;
 	private incrementalSync: IncrementalSync;
+	private userDataExtractor: UserDataExtractor;
+	private userDataMerger: UserDataMerger;
 	private config: SyncManagerConfig;
 	private onProgress?: (progress: SyncProgress) => void;
 
@@ -68,6 +72,8 @@ export class SyncManager {
 		this.imageHandler = new ImageHandler(app, this.fileManager);
 		this.imageHandler.setDownloadEnabled(config.downloadImages);
 		this.incrementalSync = new IncrementalSync(app);
+		this.userDataExtractor = new UserDataExtractor(app);
+		this.userDataMerger = new UserDataMerger(app);
 	}
 
 	/**
@@ -694,7 +700,7 @@ export class SyncManager {
 			: [];
 
 		// 生成文件内容（使用原始 collection 对象，保留用户数据）
-		const content = generateContentByType(
+		let content = generateContentByType(
 			subject,
 			collection,
 			characters,
@@ -708,6 +714,21 @@ export class SyncManager {
 			localCoverPath,
 			relatedLinks
 		);
+
+		// 强制同步时保护用户数据
+		if (overwrite) {
+			const existingFile = this.fileManager.getFile(filePath);
+			if (existingFile) {
+				// 提取本地用户数据
+				const localUserData = await this.userDataExtractor.extractFromFileAsync(existingFile);
+				if (localUserData) {
+					// 合并用户数据到新内容
+					const dataProtection = this.config.dataProtection || DEFAULT_DATA_PROTECTION_SETTINGS;
+					content = await this.userDataMerger.mergeUserData(existingFile, content, localUserData, dataProtection);
+					console.debug(`[Bangumi Sync] 已保护用户数据: ${localUserData.name_cn}`);
+				}
+			}
+		}
 
 		// 创建文件
 		await this.fileManager.createOrUpdateFile(filePath, content, {

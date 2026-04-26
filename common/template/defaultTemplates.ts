@@ -62,16 +62,16 @@ Bangumi链接: "{{bangumi_url}}"
 
 > [!tip]- **主要角色**
 >
-|  {{character1}} | {{character2}}   |   {{character3}}  |
-|:------:|:----------------:| :--------------- : |
-|  {{characterCV1}} | {{characterCV2}}   |   {{characterCV3}}  |
-|  {{characterPhoto1}} | {{characterPhoto2}}   |   {{characterPhoto3}}  |
-| {{character4}}  |  {{character5}}  | {{character6}}  |
-|  {{characterCV4}} | {{characterCV5}}   |   {{characterCV6}}  |
-| {{characterPhoto4}}  |  {{characterPhoto5}}  | {{characterPhoto6}}  |
-| {{character7}}  |  {{character8}}  | {{character9}}  |
-|  {{characterCV7}} | {{characterCV8}}   |   {{characterCV9}}  |
-| {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
+> | {{character1}} | {{character2}} | {{character3}} |
+> |:------:|:------:|:------:|
+> | {{characterCV1}} | {{characterCV2}} | {{characterCV3}} |
+> | {{characterPhoto1}} | {{characterPhoto2}} | {{characterPhoto3}} |
+> | {{character4}} | {{character5}} | {{character6}} |
+> | {{characterCV4}} | {{characterCV5}} | {{characterCV6}} |
+> | {{characterPhoto4}} | {{characterPhoto5}} | {{characterPhoto6}} |
+> | {{character7}} | {{character8}} | {{character9}} |
+> | {{characterCV7}} | {{characterCV8}} | {{characterCV9}} |
+> | {{characterPhoto7}} | {{characterPhoto8}} | {{characterPhoto9}} |
 
 ## 集数
 
@@ -129,13 +129,13 @@ Bangumi链接: "{{bangumi_url}}"
 
 > [!tip]- **主要角色**
 >
-|  **{{character1}}**| **{{character2}}**   |   **{{character3}}**  |
-|:------:|:----------------:| :--------------- : |
-|  {{characterPhoto1}} | {{characterPhoto2}}   |   {{characterPhoto3}}  |
-| **{{character4}}**  |  **{{character5}}**  | **{{character6}}**  |
-| {{characterPhoto4}}  |  {{characterPhoto5}}  | {{characterPhoto6}}  |
-| **{{character7}}**  |  **{{character8}}**  | **{{character9}}**  |
-| {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
+> | **{{character1}}** | **{{character2}}** | **{{character3}}** |
+> |:------:|:------:|:------:|
+> | {{characterPhoto1}} | {{characterPhoto2}} | {{characterPhoto3}} |
+> | **{{character4}}** | **{{character5}}** | **{{character6}}** |
+> | {{characterPhoto4}} | {{characterPhoto5}} | {{characterPhoto6}} |
+> | **{{character7}}** | **{{character8}}** | **{{character9}}** |
+> | {{characterPhoto7}} | {{characterPhoto8}} | {{characterPhoto9}} |
 
 ## 记录
 
@@ -186,13 +186,13 @@ Bangumi链接: "{{bangumi_url}}"
 
 > [!tip]- **主要角色**
 >
-|  **{{character1}}**| **{{character2}}**   |   **{{character3}}**  |
-|:------:|:----------------:| :--------------- : |
-|  {{characterPhoto1}} | {{characterPhoto2}}   |   {{characterPhoto3}}  |
-| **{{character4}}**  |  **{{character5}}**  | **{{character6}}**  |
-| {{characterPhoto4}}  |  {{characterPhoto5}}  | {{characterPhoto6}}  |
-| **{{character7}}**  |  **{{character8}}**  | **{{character9}}**  |
-| {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
+> | **{{character1}}** | **{{character2}}** | **{{character3}}** |
+> |:------:|:------:|:------:|
+> | {{characterPhoto1}} | {{characterPhoto2}} | {{characterPhoto3}} |
+> | **{{character4}}** | **{{character5}}** | **{{character6}}** |
+> | {{characterPhoto4}} | {{characterPhoto5}} | {{characterPhoto6}} |
+> | **{{character7}}** | **{{character8}}** | **{{character9}}** |
+> | {{characterPhoto7}} | {{characterPhoto8}} | {{characterPhoto9}} |
 
 ## 记录
 
@@ -241,13 +241,13 @@ Bangumi链接: "{{bangumi_url}}"
 
 > [!tip]- **主要角色**
 >
-|  **{{character1}}**| **{{character2}}**   |   **{{character3}}**  |
-|:------:|:----------------:| :--------------- : |
-|  {{characterPhoto1}} | {{characterPhoto2}}   |   {{characterPhoto3}}  |
-| **{{character4}}**  |  **{{character5}}**  | **{{character6}}**  |
-| {{characterPhoto4}}  |  {{characterPhoto5}}  | {{characterPhoto6}}  |
-| **{{character7}}**  |  **{{character8}}**  | **{{character9}}**  |
-| {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
+> | **{{character1}}** | **{{character2}}** | **{{character3}}** |
+> |:------:|:------:|:------:|
+> | {{characterPhoto1}} | {{characterPhoto2}} | {{characterPhoto3}} |
+> | **{{character4}}** | **{{character5}}** | **{{character6}}** |
+> | {{characterPhoto4}} | {{characterPhoto5}} | {{characterPhoto6}} |
+> | **{{character7}}** | **{{character8}}** | **{{character9}}** |
+> | {{characterPhoto7}} | {{characterPhoto8}} | {{characterPhoto9}} |
 
 ## 记录
 
@@ -391,8 +391,9 @@ tags:
 笔记: "{{note_link}}"
 存储:
 资源属性:
-相关:
+{{#if related}}相关:
 {{related}}
+{{/if}}
 作品大类: Anime
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"
@@ -434,16 +435,16 @@ Bangumi链接: "{{bangumi_url}}"
 
 > [!tip]- **主要角色**
 >
-|  {{character1}} | {{character2}}   |   {{character3}}  |
-|:------:|:----------------:| :--------------- : |
-|  {{characterCV1}} | {{characterCV2}}   |   {{characterCV3}}  |
-|  {{characterPhoto1}} | {{characterPhoto2}}   |   {{characterPhoto3}}  |
-| {{character4}}  |  {{character5}}  | {{character6}}  |
-|  {{characterCV4}} | {{characterCV5}}   |   {{characterCV6}}  |
-| {{characterPhoto4}}  |  {{characterPhoto5}}  | {{characterPhoto6}}  |
-| {{character7}}  |  {{character8}}  | {{character9}}  |
-|  {{characterCV7}} | {{characterCV8}}   |   {{characterCV9}}  |
-| {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
+> | {{character1}} | {{character2}} | {{character3}} |
+> |:------:|:------:|:------:|
+> | {{characterCV1}} | {{characterCV2}} | {{characterCV3}} |
+> | {{characterPhoto1}} | {{characterPhoto2}} | {{characterPhoto3}} |
+> | {{character4}} | {{character5}} | {{character6}} |
+> | {{characterCV4}} | {{characterCV5}} | {{characterCV6}} |
+> | {{characterPhoto4}} | {{characterPhoto5}} | {{characterPhoto6}} |
+> | {{character7}} | {{character8}} | {{character9}} |
+> | {{characterCV7}} | {{characterCV8}} | {{characterCV9}} |
+> | {{characterPhoto7}} | {{characterPhoto8}} | {{characterPhoto9}} |
 
 ## 集数
 
@@ -476,9 +477,9 @@ tags:
 版本:
 Kindle: false
 保存: true
-相关:
+{{#if related}}相关:
 {{related}}
-渠道:
+{{/if}}渠道:
 官网: "{{website}}"
 已购: false
 作品大类: Novel
@@ -523,13 +524,13 @@ Bangumi链接: "{{bangumi_url}}"
 
 > [!tip]- **主要角色**
 >
-|  **{{character1}}**| **{{character2}}**   |   **{{character3}}**  |
-|:------:|:----------------:| :--------------- : |
-|  {{characterPhoto1}} | {{characterPhoto2}}   |   {{characterPhoto3}}  |
-| **{{character4}}**  |  **{{character5}}**  | **{{character6}}**  |
-| {{characterPhoto4}}  |  {{characterPhoto5}}  | {{characterPhoto6}}  |
-| **{{character7}}**  |  **{{character8}}**  | **{{character9}}**  |
-| {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
+> | **{{character1}}** | **{{character2}}** | **{{character3}}** |
+> |:------:|:------:|:------:|
+> | {{characterPhoto1}} | {{characterPhoto2}} | {{characterPhoto3}} |
+> | **{{character4}}** | **{{character5}}** | **{{character6}}** |
+> | {{characterPhoto4}} | {{characterPhoto5}} | {{characterPhoto6}} |
+> | **{{character7}}** | **{{character8}}** | **{{character9}}** |
+> | {{characterPhoto7}} | {{characterPhoto8}} | {{characterPhoto9}} |
 
 ## 记录
 
@@ -555,9 +556,9 @@ tags:
 版本:
 格式:
 Kindle: false
-相关:
+{{#if related}}相关:
 {{related}}
-渠道:
+{{/if}}渠道:
 已购: false
 作品大类: Comic
 具体类型: "{{category}}"
@@ -601,13 +602,13 @@ Bangumi链接: "{{bangumi_url}}"
 
 > [!tip]- **主要角色**
 >
-|  **{{character1}}**| **{{character2}}**   |   **{{character3}}**  |
-|:------:|:----------------:| :--------------- : |
-|  {{characterPhoto1}} | {{characterPhoto2}}   |   {{characterPhoto3}}  |
-| **{{character4}}**  |  **{{character5}}**  | **{{character6}}**  |
-| {{characterPhoto4}}  |  {{characterPhoto5}}  | {{characterPhoto6}}  |
-| **{{character7}}**  |  **{{character8}}**  | **{{character9}}**  |
-| {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
+> | **{{character1}}** | **{{character2}}** | **{{character3}}** |
+> |:------:|:------:|:------:|
+> | {{characterPhoto1}} | {{characterPhoto2}} | {{characterPhoto3}} |
+> | **{{character4}}** | **{{character5}}** | **{{character6}}** |
+> | {{characterPhoto4}} | {{characterPhoto5}} | {{characterPhoto6}} |
+> | **{{character7}}** | **{{character8}}** | **{{character9}}** |
+> | {{characterPhoto7}} | {{characterPhoto8}} | {{characterPhoto9}} |
 
 ## 记录
 
@@ -631,8 +632,9 @@ tags:
 单评: false
 笔记: "{{note_link}}"
 存储:
-相关:
+{{#if related}}相关:
 {{related}}
+{{/if}}
 作品大类: Game
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"
@@ -673,13 +675,13 @@ Bangumi链接: "{{bangumi_url}}"
 
 > [!tip]- **主要角色**
 >
-|  **{{character1}}**| **{{character2}}**   |   **{{character3}}**  |
-|:------:|:----------------:| :--------------- : |
-|  {{characterPhoto1}} | {{characterPhoto2}}   |   {{characterPhoto3}}  |
-| **{{character4}}**  |  **{{character5}}**  | **{{character6}}**  |
-| {{characterPhoto4}}  |  {{characterPhoto5}}  | {{characterPhoto6}}  |
-| **{{character7}}**  |  **{{character8}}**  | **{{character9}}**  |
-| {{characterPhoto7}}  |  {{characterPhoto8}}  | {{characterPhoto9}}  |
+> | **{{character1}}** | **{{character2}}** | **{{character3}}** |
+> |:------:|:------:|:------:|
+> | {{characterPhoto1}} | {{characterPhoto2}} | {{characterPhoto3}} |
+> | **{{character4}}** | **{{character5}}** | **{{character6}}** |
+> | {{characterPhoto4}} | {{characterPhoto5}} | {{characterPhoto6}} |
+> | **{{character7}}** | **{{character8}}** | **{{character9}}** |
+> | {{characterPhoto7}} | {{characterPhoto8}} | {{characterPhoto9}} |
 
 ## 记录
 
@@ -700,9 +702,9 @@ tags:
 笔记: "{{note_link}}"
 版本:
 格式:
-相关:
+{{#if related}}相关:
 {{related}}
-已购: false
+{{/if}}已购: false
 作品大类: Album
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"

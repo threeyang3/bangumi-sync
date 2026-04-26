@@ -7,6 +7,7 @@ export {
 	getTranslations,
 	t,
 	tn,
+	tnFormat,
 	type Locale,
 	type TranslationStrings,
 } from './translations';

@@ -253,7 +253,7 @@ export class BangumiClient {
 		// 继续获取剩余数据
 		while (allCollections.length < total) {
 			offset += limit;
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await new Promise(resolve => activeWindow.setTimeout(resolve, 100));
 
 			const result = await this.getUserCollections(username, {
 				...options,

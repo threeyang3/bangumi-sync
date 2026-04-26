@@ -319,6 +319,62 @@ export class BangumiSettingTab extends PluginSettingTab {
 						this.settings.enableRelatedLinks = value;
 						await this.onSave();
 					}));
+
+			// ==================== 数据保护设置 ====================
+			new Setting(containerEl).setName(tn('settings', 'dataProtection')).setHeading();
+			containerEl.createEl('p', { text: tn('settings', 'dataProtectionDesc'), cls: 'bangumi-setting-desc' });
+
+			new Setting(containerEl)
+				.setName(tn('settings', 'preserveRatingDetails'))
+				.setDesc(tn('settings', 'preserveRatingDetailsDesc'))
+				.addToggle(toggle => toggle
+					.setValue(this.settings.dataProtection?.preserveRatingDetails ?? true)
+					.onChange(async (value) => {
+						this.settings.dataProtection = {
+							...this.settings.dataProtection,
+							preserveRatingDetails: value,
+						};
+						await this.onSave();
+					}));
+
+			new Setting(containerEl)
+				.setName(tn('settings', 'preserveCustomProperties'))
+				.setDesc(tn('settings', 'preserveCustomPropertiesDesc'))
+				.addToggle(toggle => toggle
+					.setValue(this.settings.dataProtection?.preserveCustomProperties ?? true)
+					.onChange(async (value) => {
+						this.settings.dataProtection = {
+							...this.settings.dataProtection,
+							preserveCustomProperties: value,
+						};
+						await this.onSave();
+					}));
+
+			new Setting(containerEl)
+				.setName(tn('settings', 'preserveRecord'))
+				.setDesc(tn('settings', 'preserveRecordDesc'))
+				.addToggle(toggle => toggle
+					.setValue(this.settings.dataProtection?.preserveRecord ?? true)
+					.onChange(async (value) => {
+						this.settings.dataProtection = {
+							...this.settings.dataProtection,
+							preserveRecord: value,
+						};
+						await this.onSave();
+					}));
+
+			new Setting(containerEl)
+				.setName(tn('settings', 'preserveThoughts'))
+				.setDesc(tn('settings', 'preserveThoughtsDesc'))
+				.addToggle(toggle => toggle
+					.setValue(this.settings.dataProtection?.preserveThoughts ?? true)
+					.onChange(async (value) => {
+						this.settings.dataProtection = {
+							...this.settings.dataProtection,
+							preserveThoughts: value,
+						};
+						await this.onSave();
+					}));
 		// ==================== 同步状态 ====================
 		new Setting(containerEl).setName(tn('settings', 'syncStatus')).setHeading();
 

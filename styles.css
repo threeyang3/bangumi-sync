@@ -34,6 +34,26 @@
 	font-weight: bold;
 }
 
+/* 模板中的主要角色表格 */
+.markdown-rendered .callout[data-callout="tip"] table {
+	width: 100%;
+	table-layout: fixed;
+}
+
+.markdown-rendered .callout[data-callout="tip"] table th,
+.markdown-rendered .callout[data-callout="tip"] table td {
+	text-align: center;
+	vertical-align: middle;
+}
+
+.markdown-rendered .callout[data-callout="tip"] table img {
+	display: block;
+	max-width: 100%;
+	max-height: 180px;
+	margin: 0 auto;
+	object-fit: contain;
+}
+
 .bangumi-var-tag {
 	display: inline-block;
 	margin: 2px;
@@ -132,6 +152,11 @@
 .bangumi-quick-btn:hover {
 	background: var(--background-secondary-alt);
 	border-color: var(--interactive-accent);
+}
+
+.bangumi-quick-btn:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
 }
 
 /* 进度条样式 */
@@ -361,6 +386,11 @@
 	opacity: 0.9;
 }
 
+.bangumi-action-btn:focus-visible {
+	outline: 2px solid var(--text-on-accent);
+	outline-offset: 2px;
+}
+
 .bangumi-action-btn-small {
 	padding: 4px 8px;
 	font-size: 11px;
@@ -369,6 +399,11 @@
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 3px;
 	cursor: pointer;
+}
+
+.bangumi-action-btn-small:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
 }
 
 .bangumi-selected-count {
