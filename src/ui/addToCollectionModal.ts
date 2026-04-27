@@ -95,8 +95,8 @@ export class AddToCollectionModal extends Modal {
 	private createLocal: boolean = true;
 
 	// UI 元素
-	private tagsContainer: HTMLElement;
-	private tagInputEl: HTMLInputElement;
+	private tagsContainer!: HTMLElement;
+	private tagInputEl!: HTMLInputElement;
 	private ratingDetailInputs: Map<keyof RatingDetails, HTMLInputElement> = new Map();
 
 	constructor(

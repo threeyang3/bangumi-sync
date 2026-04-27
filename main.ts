@@ -84,7 +84,7 @@ const TEMPLATE_CONFIG_MAP_AUTHOR: Record<TemplateKey, string> = {
 };
 
 export class BangumiPlugin extends Plugin {
-	settings: BangumiPluginSettings;
+	settings!: BangumiPluginSettings;
 	syncManager: SyncManager | null = null;
 	private autoSyncIntervalId: number | null = null;
 	private syncModal: SyncModal | null = null;
@@ -163,7 +163,6 @@ export class BangumiPlugin extends Plugin {
 			this.setupAutoSync();
 		}
 
-		console.debug('[Bangumi Sync] 插件加载完成');
 	}
 
 	onunload() {

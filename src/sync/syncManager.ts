@@ -867,7 +867,7 @@ export class SyncManager {
 						// 在相关条目中添加当前条目的链接
 						const updatedContent = this.incrementalSync.updateRelated(content, [currentLink]);
 						if (updatedContent !== content) {
-							await this.app.vault.modify(file, updatedContent);
+							await this.app.vault.process(file, () => updatedContent);
 							console.debug(`[Bangumi Sync] 已更新 ${relation.name_cn} 的相关链接`);
 						}
 					}

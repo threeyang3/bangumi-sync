@@ -4,6 +4,7 @@
  */
 
 import { App, Modal, Notice, TFile } from 'obsidian';
+import { tn, tnFormat } from '../i18n';
 import { UserCollection } from '../../common/api/types';
 import { BangumiClient } from '../api/client';
 import { IncrementalSync } from '../sync/incrementalSync';
@@ -31,8 +32,8 @@ export class TagSyncModal extends Modal {
 	private incrementalSync: IncrementalSync;
 	private onComplete: () => void;
 
-	private tableEl: HTMLElement;
-	private statusEl: HTMLElement;
+	private tableEl!: HTMLElement;
+	private statusEl!: HTMLElement;
 
 	constructor(
 		app: App,
@@ -54,26 +55,26 @@ export class TagSyncModal extends Modal {
 		contentEl.addClass('bangumi-tag-sync-modal');
 
 		// 标题
-		contentEl.createEl('h2', { text: '标签同步' });
+		contentEl.createEl('h2', { text: tn('tagSync', 'title') });
 
 		// 说明
 		contentEl.createEl('p', {
-			text: `发现 ${this.diffs.length} 个条目的标签存在差异，请选择要保留的版本。`,
+			text: tnFormat('tagSync', 'description', { count: this.diffs.length }),
 			cls: 'bangumi-sync-description'
 		});
 
 		// 操作按钮栏
 		const actionBar = contentEl.createDiv({ cls: 'bangumi-tag-sync-actions' });
-		actionBar.createEl('button', { text: '全部保留本地' }, btn => {
+		actionBar.createEl('button', { text: tn('tagSync', 'allLocal') }, btn => {
 			btn.addEventListener('click', () => this.selectAll('local'));
 		});
-		actionBar.createEl('button', { text: '全部保留云端' }, btn => {
+		actionBar.createEl('button', { text: tn('tagSync', 'allCloud') }, btn => {
 			btn.addEventListener('click', () => this.selectAll('cloud'));
 		});
-		actionBar.createEl('button', { text: '全部合并' }, btn => {
+		actionBar.createEl('button', { text: tn('tagSync', 'allMerge') }, btn => {
 			btn.addEventListener('click', () => this.selectAll('merge'));
 		});
-		actionBar.createEl('button', { text: '全部跳过' }, btn => {
+		actionBar.createEl('button', { text: tn('tagSync', 'allSkip') }, btn => {
 			btn.addEventListener('click', () => this.selectAll('skip'));
 		});
 
@@ -86,10 +87,10 @@ export class TagSyncModal extends Modal {
 
 		// 底部按钮
 		const footer = contentEl.createDiv({ cls: 'bangumi-tag-sync-footer' });
-		footer.createEl('button', { text: '执行同步', cls: 'mod-cta' }, btn => {
+		footer.createEl('button', { text: tn('tagSync', 'execute'), cls: 'mod-cta' }, btn => {
 			btn.addEventListener('click', () => { void this.executeSync(); });
 		});
-		footer.createEl('button', { text: '取消' }, btn => {
+		footer.createEl('button', { text: tn('tagSync', 'cancel') }, btn => {
 			btn.addEventListener('click', () => this.close());
 		});
 	}
@@ -106,7 +107,7 @@ export class TagSyncModal extends Modal {
 		this.tableEl.empty();
 
 		if (this.diffs.length === 0) {
-			this.tableEl.createDiv({ text: '没有需要同步的标签差异', cls: 'bangumi-empty-message' });
+			this.tableEl.createDiv({ text: 'No tag differences to sync', cls: 'bangumi-empty-message' });
 			return;
 		}
 
@@ -115,10 +116,10 @@ export class TagSyncModal extends Modal {
 		// 表头
 		const thead = table.createEl('thead');
 		const headerRow = thead.createEl('tr');
-		headerRow.createEl('th', { text: '条目' });
-		headerRow.createEl('th', { text: '本地标签' });
-		headerRow.createEl('th', { text: '云端标签' });
-		headerRow.createEl('th', { text: '选择' });
+		headerRow.createEl('th', { text: tn('tagSync', 'name') });
+		headerRow.createEl('th', { text: tn('tagSync', 'localTags') });
+		headerRow.createEl('th', { text: tn('tagSync', 'cloudTags') });
+		headerRow.createEl('th', { text: tn('tagSync', 'decision') });
 
 		// 表体
 		const tbody = table.createEl('tbody');
@@ -128,14 +129,14 @@ export class TagSyncModal extends Modal {
 
 			// 条目名称
 			const nameCell = row.createEl('td', { cls: 'bangumi-name-cell' });
-			nameCell.createSpan({ text: diff.name_cn || diff.name || '未知' });
+			nameCell.createSpan({ text: diff.name_cn || diff.name || 'Unknown' });
 
 			// 本地标签
 			const localCell = row.createEl('td', { cls: 'bangumi-tag-local' });
 			if (diff.localTags && diff.localTags.length > 0) {
 				localCell.setText(diff.localTags.join(', '));
 			} else {
-				localCell.createSpan({ text: '(空)', cls: 'bangumi-empty-tag' });
+				localCell.createSpan({ text: tn('tagSync', 'empty'), cls: 'bangumi-empty-tag' });
 			}
 
 			// 云端标签
@@ -143,16 +144,16 @@ export class TagSyncModal extends Modal {
 			if (diff.cloudTags && diff.cloudTags.length > 0) {
 				cloudCell.setText(diff.cloudTags.join(', '));
 			} else {
-				cloudCell.createSpan({ text: '(空)', cls: 'bangumi-empty-tag' });
+				cloudCell.createSpan({ text: tn('tagSync', 'empty'), cls: 'bangumi-empty-tag' });
 			}
 
 			// 选择
 			const selectCell = row.createEl('td');
 			const select = selectCell.createEl('select');
-			select.createEl('option', { value: 'skip', text: '跳过' });
-			select.createEl('option', { value: 'local', text: '保留本地' });
-			select.createEl('option', { value: 'cloud', text: '保留云端' });
-			select.createEl('option', { value: 'merge', text: '合并' });
+			select.createEl('option', { value: 'skip', text: tn('tagSync', 'skipLabel') });
+			select.createEl('option', { value: 'local', text: tn('tagSync', 'keepLocal') });
+			select.createEl('option', { value: 'cloud', text: tn('tagSync', 'keepCloud') });
+			select.createEl('option', { value: 'merge', text: tn('tagSync', 'merge') });
 			select.value = diff.decision;
 			select.addEventListener('change', () => {
 				this.diffs[index].decision = select.value as 'local' | 'cloud' | 'merge' | 'skip';
@@ -179,11 +180,11 @@ export class TagSyncModal extends Modal {
 		const toMerge = this.diffs.filter(d => d.decision === 'merge');
 
 		if (toSyncLocal.length === 0 && toSyncCloud.length === 0 && toMerge.length === 0) {
-			new Notice('没有选择要同步的条目');
+			new Notice(tn('tagSync', 'noSelection'));
 			return;
 		}
 
-		this.statusEl.setText('正在同步...');
+		this.statusEl.setText(tn('tagSync', 'progress'));
 		let successCount = 0;
 		let failCount = 0;
 
@@ -215,7 +216,7 @@ export class TagSyncModal extends Modal {
 						newContent = this.incrementalSync.removeTags(content);
 					}
 
-					await this.app.vault.modify(file, newContent);
+					await this.app.vault.process(file, () => newContent);
 					successCount++;
 					console.debug(`[Bangumi Sync] 已更新本地标签: ${diff.name_cn}`);
 				}
@@ -243,7 +244,7 @@ export class TagSyncModal extends Modal {
 				if (file instanceof TFile) {
 					const content = await this.app.vault.read(file);
 					const newContent = this.incrementalSync.updateTags(content, mergedArray);
-					await this.app.vault.modify(file, newContent);
+					await this.app.vault.process(file, () => newContent);
 				}
 
 				// 更新云端
@@ -259,14 +260,14 @@ export class TagSyncModal extends Modal {
 			}
 		}
 
-		this.statusEl.setText(`同步完成：成功 ${successCount} 个，失败 ${failCount} 个`);
+		this.statusEl.setText(tnFormat('tagSync', 'complete', { success: successCount, failed: failCount }));
 
 		if (successCount > 0) {
-			new Notice(`标签同步完成：成功 ${successCount} 个，失败 ${failCount} 个`);
+			new Notice(tnFormat('tagSync', 'complete', { success: successCount, failed: failCount }));
 			this.onComplete();
 			this.close();
 		} else {
-			new Notice('同步失败，请检查网络连接');
+			new Notice(tn('tagSync', 'failed'));
 		}
 	}
 }

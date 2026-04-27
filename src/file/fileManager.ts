@@ -83,7 +83,7 @@ export class FileManager {
 	 * 更新文件
 	 */
 	async updateFile(file: TFile, content: string): Promise<void> {
-		await this.app.vault.modify(file, content);
+		await this.app.vault.process(file, () => content);
 	}
 
 	/**

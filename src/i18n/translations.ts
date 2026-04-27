@@ -3,7 +3,7 @@
  * 符合 Obsidian 插件规范：默认英文，支持多语言
  */
 
-import { moment } from 'obsidian';
+import { getLanguage } from 'obsidian';
 
 export type Locale = 'en' | 'zh-CN';
 
@@ -393,6 +393,72 @@ export interface TranslationStrings {
 		addError: string;
 	};
 
+	// 批量编辑器
+	batchEditor: {
+		title: string;
+		info: string;
+		typeAdd: string;
+		typeModify: string;
+		typeDelete: string;
+		propertyName: string;
+		propertyValue: string;
+		addOperation: string;
+		execute: string;
+		cancel: string;
+		emptyOperations: string;
+		noticeProperty: string;
+		noticeValue: string;
+		noticeNoOp: string;
+	};
+
+	// 短评同步
+	commentSync: {
+		title: string;
+		description: string;
+		allLocal: string;
+		allCloud: string;
+		allSkip: string;
+		name: string;
+		localComment: string;
+		cloudComment: string;
+		decision: string;
+		skipLabel: string;
+		keepLocal: string;
+		keepCloud: string;
+		empty: string;
+		execute: string;
+		cancel: string;
+		progress: string;
+		complete: string;
+		noSelection: string;
+		failed: string;
+	};
+
+	// 标签同步
+	tagSync: {
+		title: string;
+		description: string;
+		allLocal: string;
+		allCloud: string;
+		allMerge: string;
+		allSkip: string;
+		name: string;
+		localTags: string;
+		cloudTags: string;
+		decision: string;
+		skipLabel: string;
+		keepLocal: string;
+		keepCloud: string;
+		merge: string;
+		empty: string;
+		execute: string;
+		cancel: string;
+		progress: string;
+		complete: string;
+		noSelection: string;
+		failed: string;
+	};
+
 	// 条目类型
 	subjectTypes: {
 		all: string;
@@ -779,6 +845,69 @@ const en: TranslationStrings = {
 		addError: 'Failed to add',
 	},
 
+	batchEditor: {
+		title: 'Batch edit properties',
+		info: 'Editing {count} files',
+		typeAdd: 'Add',
+		typeModify: 'Modify',
+		typeDelete: 'Delete',
+		propertyName: 'Property name',
+		propertyValue: 'Property value',
+		addOperation: 'Add operation',
+		execute: 'Execute',
+		cancel: 'Cancel',
+		emptyOperations: 'No operations yet, please add operations',
+		noticeProperty: 'Please enter property name',
+		noticeValue: 'Add or modify requires a value',
+		noticeNoOp: 'Please add at least one operation',
+	},
+
+	commentSync: {
+		title: 'Sync comments',
+		description: 'Found {count} items with comment differences',
+		allLocal: 'All local',
+		allCloud: 'All cloud',
+		allSkip: 'All skip',
+		name: 'Subject',
+		localComment: 'Local comment',
+		cloudComment: 'Cloud comment',
+		decision: 'Decision',
+		skipLabel: 'Skip',
+		keepLocal: 'Keep local',
+		keepCloud: 'Keep cloud',
+		empty: '(empty)',
+		execute: 'Execute sync',
+		cancel: 'Cancel',
+		progress: 'Syncing...',
+		complete: 'Sync complete: {success} succeeded, {failed} failed',
+		noSelection: 'No items selected for sync',
+		failed: 'Sync failed, please check network connection',
+	},
+
+	tagSync: {
+		title: 'Sync tags',
+		description: 'Found {count} items with tag differences',
+		allLocal: 'All local',
+		allCloud: 'All cloud',
+		allMerge: 'All merge',
+		allSkip: 'All skip',
+		name: 'Subject',
+		localTags: 'Local tags',
+		cloudTags: 'Cloud tags',
+		decision: 'Decision',
+		skipLabel: 'Skip',
+		keepLocal: 'Keep local',
+		keepCloud: 'Keep cloud',
+		merge: 'Merge',
+		empty: '(empty)',
+		execute: 'Execute sync',
+		cancel: 'Cancel',
+		progress: 'Syncing...',
+		complete: 'Sync complete: {success} succeeded, {failed} failed',
+		noSelection: 'No items selected for sync',
+		failed: 'Sync failed, please check network connection',
+	},
+
 	subjectTypes: {
 		all: 'All',
 		anime: 'Anime',
@@ -1162,6 +1291,69 @@ const zhCN: TranslationStrings = {
 		addError: '添加失败',
 	},
 
+	batchEditor: {
+		title: '批量编辑属性',
+		info: '将对 {count} 个文件进行批量编辑',
+		typeAdd: '新增',
+		typeModify: '修改',
+		typeDelete: '删除',
+		propertyName: '属性名',
+		propertyValue: '属性值',
+		addOperation: '添加操作',
+		execute: '确认执行',
+		cancel: '取消',
+		emptyOperations: '暂无操作，请添加要执行的属性操作',
+		noticeProperty: '请输入属性名',
+		noticeValue: '新增或修改属性需要输入属性值',
+		noticeNoOp: '请至少添加一个操作',
+	},
+
+	commentSync: {
+		title: '短评同步',
+		description: '发现 {count} 个条目的短评存在差异',
+		allLocal: '全部保留本地',
+		allCloud: '全部保留云端',
+		allSkip: '全部跳过',
+		name: '条目',
+		localComment: '本地短评',
+		cloudComment: '云端短评',
+		decision: '选择',
+		skipLabel: '跳过',
+		keepLocal: '保留本地',
+		keepCloud: '保留云端',
+		empty: '(空)',
+		execute: '执行同步',
+		cancel: '取消',
+		progress: '正在同步...',
+		complete: '同步完成：成功 {success} 个，失败 {failed} 个',
+		noSelection: '没有选择要同步的条目',
+		failed: '同步失败，请检查网络连接',
+	},
+
+	tagSync: {
+		title: '标签同步',
+		description: '发现 {count} 个条目的标签存在差异',
+		allLocal: '全部保留本地',
+		allCloud: '全部保留云端',
+		allMerge: '全部合并',
+		allSkip: '全部跳过',
+		name: '条目',
+		localTags: '本地标签',
+		cloudTags: '云端标签',
+		decision: '选择',
+		skipLabel: '跳过',
+		keepLocal: '保留本地',
+		keepCloud: '保留云端',
+		merge: '合并',
+		empty: '(空)',
+		execute: '执行同步',
+		cancel: '取消',
+		progress: '正在同步...',
+		complete: '同步完成：成功 {success} 个，失败 {failed} 个',
+		noSelection: '没有选择要同步的条目',
+		failed: '同步失败，请检查网络连接',
+	},
+
 	subjectTypes: {
 		all: '全部',
 		anime: '动画',
@@ -1190,8 +1382,8 @@ const translations: Record<Locale, TranslationStrings> = {
  * 获取当前语言环境
  */
 export function getLocale(): Locale {
-	// 使用 moment 获取 Obsidian 的语言设置
-	const locale = moment.locale();
+	// 使用 Obsidian 的 getLanguage API 获取语言设置
+	const locale = getLanguage();
 	if (locale.startsWith('zh')) {
 		return 'zh-CN';
 	}

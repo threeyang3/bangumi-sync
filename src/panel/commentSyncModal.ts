@@ -4,6 +4,7 @@
  */
 
 import { App, Modal, Notice, TFile } from 'obsidian';
+import { tn, tnFormat } from '../i18n';
 import { UserCollection } from '../../common/api/types';
 import { BangumiClient } from '../api/client';
 import { IncrementalSync } from '../sync/incrementalSync';
@@ -31,8 +32,8 @@ export class CommentSyncModal extends Modal {
 	private incrementalSync: IncrementalSync;
 	private onComplete: () => void;
 
-	private tableEl: HTMLElement;
-	private statusEl: HTMLElement;
+	private tableEl!: HTMLElement;
+	private statusEl!: HTMLElement;
 
 	constructor(
 		app: App,
@@ -54,23 +55,23 @@ export class CommentSyncModal extends Modal {
 		contentEl.addClass('bangumi-comment-sync-modal');
 
 		// 标题
-		contentEl.createEl('h2', { text: '短评同步' });
+		contentEl.createEl('h2', { text: tn('commentSync', 'title') });
 
 		// 说明
 		contentEl.createEl('p', {
-			text: `发现 ${this.diffs.length} 个条目的短评存在差异，请选择要保留的版本。`,
+			text: tnFormat('commentSync', 'description', { count: this.diffs.length }),
 			cls: 'bangumi-sync-description'
 		});
 
 		// 操作按钮栏
 		const actionBar = contentEl.createDiv({ cls: 'bangumi-comment-sync-actions' });
-		actionBar.createEl('button', { text: '全部保留本地' }, btn => {
+		actionBar.createEl('button', { text: tn('commentSync', 'allLocal') }, btn => {
 			btn.addEventListener('click', () => this.selectAll('local'));
 		});
-		actionBar.createEl('button', { text: '全部保留云端' }, btn => {
+		actionBar.createEl('button', { text: tn('commentSync', 'allCloud') }, btn => {
 			btn.addEventListener('click', () => this.selectAll('cloud'));
 		});
-		actionBar.createEl('button', { text: '全部跳过' }, btn => {
+		actionBar.createEl('button', { text: tn('commentSync', 'allSkip') }, btn => {
 			btn.addEventListener('click', () => this.selectAll('skip'));
 		});
 
@@ -83,10 +84,10 @@ export class CommentSyncModal extends Modal {
 
 		// 底部按钮
 		const footer = contentEl.createDiv({ cls: 'bangumi-comment-sync-footer' });
-		footer.createEl('button', { text: '执行同步', cls: 'mod-cta' }, btn => {
+		footer.createEl('button', { text: tn('commentSync', 'execute'), cls: 'mod-cta' }, btn => {
 			btn.addEventListener('click', () => { void this.executeSync(); });
 		});
-		footer.createEl('button', { text: '取消' }, btn => {
+		footer.createEl('button', { text: tn('commentSync', 'cancel') }, btn => {
 			btn.addEventListener('click', () => this.close());
 		});
 	}
@@ -103,7 +104,7 @@ export class CommentSyncModal extends Modal {
 		this.tableEl.empty();
 
 		if (this.diffs.length === 0) {
-			this.tableEl.createDiv({ text: '没有需要同步的短评差异', cls: 'bangumi-empty-message' });
+			this.tableEl.createDiv({ text: 'No comment differences to sync', cls: 'bangumi-empty-message' });
 			return;
 		}
 
@@ -112,10 +113,10 @@ export class CommentSyncModal extends Modal {
 		// 表头
 		const thead = table.createEl('thead');
 		const headerRow = thead.createEl('tr');
-		headerRow.createEl('th', { text: '条目' });
-		headerRow.createEl('th', { text: '本地短评' });
-		headerRow.createEl('th', { text: '云端短评' });
-		headerRow.createEl('th', { text: '选择' });
+		headerRow.createEl('th', { text: tn('commentSync', 'name') });
+		headerRow.createEl('th', { text: tn('commentSync', 'localComment') });
+		headerRow.createEl('th', { text: tn('commentSync', 'cloudComment') });
+		headerRow.createEl('th', { text: tn('commentSync', 'decision') });
 
 		// 表体
 		const tbody = table.createEl('tbody');
@@ -125,7 +126,7 @@ export class CommentSyncModal extends Modal {
 
 			// 条目名称
 			const nameCell = row.createEl('td', { cls: 'bangumi-name-cell' });
-			nameCell.createSpan({ text: diff.name_cn || diff.name || '未知' });
+			nameCell.createSpan({ text: diff.name_cn || diff.name || 'Unknown' });
 
 			// 本地短评
 			const localCell = row.createEl('td', { cls: 'bangumi-comment-local' });
@@ -133,7 +134,7 @@ export class CommentSyncModal extends Modal {
 				localCell.setText(this.truncate(diff.localComment, 50));
 				localCell.setAttribute('title', diff.localComment);
 			} else {
-				localCell.createSpan({ text: '(空)', cls: 'bangumi-empty-comment' });
+				localCell.createSpan({ text: tn('commentSync', 'empty'), cls: 'bangumi-empty-comment' });
 			}
 
 			// 云端短评
@@ -142,15 +143,15 @@ export class CommentSyncModal extends Modal {
 				cloudCell.setText(this.truncate(diff.cloudComment, 50));
 				cloudCell.setAttribute('title', diff.cloudComment);
 			} else {
-				cloudCell.createSpan({ text: '(空)', cls: 'bangumi-empty-comment' });
+				cloudCell.createSpan({ text: tn('commentSync', 'empty'), cls: 'bangumi-empty-comment' });
 			}
 
 			// 选择
 			const selectCell = row.createEl('td');
 			const select = selectCell.createEl('select');
-			select.createEl('option', { value: 'skip', text: '跳过' });
-			select.createEl('option', { value: 'local', text: '保留本地' });
-			select.createEl('option', { value: 'cloud', text: '保留云端' });
+			select.createEl('option', { value: 'skip', text: tn('commentSync', 'skipLabel') });
+			select.createEl('option', { value: 'local', text: tn('commentSync', 'keepLocal') });
+			select.createEl('option', { value: 'cloud', text: tn('commentSync', 'keepCloud') });
 			select.value = diff.decision;
 			select.addEventListener('change', () => {
 				this.diffs[index].decision = select.value as 'local' | 'cloud' | 'skip';
@@ -176,11 +177,11 @@ export class CommentSyncModal extends Modal {
 		const toSyncCloud = this.diffs.filter(d => d.decision === 'cloud');
 
 		if (toSyncLocal.length === 0 && toSyncCloud.length === 0) {
-			new Notice('没有选择要同步的条目');
+			new Notice(tn('commentSync', 'noSelection'));
 			return;
 		}
 
-		this.statusEl.setText('正在同步...');
+		this.statusEl.setText(tn('commentSync', 'progress'));
 		let successCount = 0;
 		let failCount = 0;
 
@@ -212,7 +213,7 @@ export class CommentSyncModal extends Modal {
 						newContent = this.incrementalSync.removeComment(content);
 					}
 
-					await this.app.vault.modify(file, newContent);
+					await this.app.vault.process(file, () => newContent);
 					successCount++;
 					console.debug(`[Bangumi Sync] 已更新本地短评: ${diff.name_cn}`);
 				}
@@ -222,14 +223,14 @@ export class CommentSyncModal extends Modal {
 			}
 		}
 
-		this.statusEl.setText(`同步完成：成功 ${successCount} 个，失败 ${failCount} 个`);
+		this.statusEl.setText(tnFormat('commentSync', 'complete', { success: successCount, failed: failCount }));
 
 		if (successCount > 0) {
-			new Notice(`短评同步完成：成功 ${successCount} 个，失败 ${failCount} 个`);
+			new Notice(tnFormat('commentSync', 'complete', { success: successCount, failed: failCount }));
 			this.onComplete();
 			this.close();
 		} else {
-			new Notice('同步失败，请检查网络连接');
+			new Notice(tn('commentSync', 'failed'));
 		}
 	}
 

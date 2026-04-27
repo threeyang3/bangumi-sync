@@ -139,8 +139,8 @@ export class BangumiSettingTab extends PluginSettingTab {
 				.addOption('medium', imageQuality.imageQualityMedium)
 				.addOption('large', imageQuality.imageQualityLarge)
 				.setValue(this.settings.imageQuality || 'large')
-				.onChange(async (value: 'small' | 'medium' | 'large') => {
-					this.settings.imageQuality = value;
+				.onChange(async (value: string) => {
+					this.settings.imageQuality = value as 'small' | 'medium' | 'large';
 					await this.onSave();
 				}));
 
@@ -163,8 +163,8 @@ export class BangumiSettingTab extends PluginSettingTab {
 				.addOption('network', tn('settings', 'coverLinkNetwork'))
 				.addOption('local', tn('settings', 'coverLinkLocal'))
 				.setValue(this.settings.coverLinkType || 'network')
-				.onChange(async (value: CoverLinkType) => {
-					this.settings.coverLinkType = value;
+				.onChange(async (value: string) => {
+					this.settings.coverLinkType = value as CoverLinkType;
 					await this.onSave();
 				}));
 
@@ -522,8 +522,8 @@ export class BangumiSettingTab extends PluginSettingTab {
 					.addOption('file', tn('settings', 'fromFile'))
 					.addOption('custom', tn('settings', 'customContent'))
 					.setValue(['standard', 'author', 'file', 'custom'].includes(config.source) ? config.source : 'author')
-					.onChange(async (value: TemplateSource) => {
-						const newConfig: TemplateConfig = { source: value };
+					.onChange(async (value: string) => {
+						const newConfig: TemplateConfig = { source: value as TemplateSource };
 						if (value === 'file' && config.filePath) {
 							newConfig.filePath = config.filePath;
 						} else if (value === 'custom' && config.customContent) {

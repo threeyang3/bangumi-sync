@@ -4,6 +4,7 @@
  */
 
 import { App, Modal, Notice, TFile } from 'obsidian';
+import { tn, tnFormat } from '../i18n';
 
 /**
  * 批量编辑操作类型
@@ -32,7 +33,7 @@ export class BatchEditorModal extends Modal {
 	private onConfirm: (operations: BatchEditOperation[]) => Promise<void>;
 
 	private operations: BatchEditOperation[] = [];
-	private operationListEl: HTMLElement;
+	private operationListEl!: HTMLElement;
 
 	constructor(
 		app: App,
@@ -49,9 +50,9 @@ export class BatchEditorModal extends Modal {
 
 		contentEl.addClass('bangumi-batch-editor');
 
-		contentEl.createEl('h2', { text: '批量编辑属性' });
+		contentEl.createEl('h2', { text: tn('batchEditor', 'title') });
 		contentEl.createEl('p', {
-			text: `将对 ${this.filePaths.length} 个文件进行批量编辑`,
+			text: tnFormat('batchEditor', 'info', { count: this.filePaths.length }),
 			cls: 'bangumi-batch-editor-info'
 		});
 
@@ -64,38 +65,38 @@ export class BatchEditorModal extends Modal {
 
 		// 操作类型选择
 		const typeSelect = addOperationDiv.createEl('select');
-		typeSelect.createEl('option', { value: 'add', text: '新增属性' });
-		typeSelect.createEl('option', { value: 'modify', text: '修改属性' });
-		typeSelect.createEl('option', { value: 'delete', text: '删除属性' });
+		typeSelect.createEl('option', { value: 'add', text: tn('batchEditor', 'typeAdd') });
+		typeSelect.createEl('option', { value: 'modify', text: tn('batchEditor', 'typeModify') });
+		typeSelect.createEl('option', { value: 'delete', text: tn('batchEditor', 'typeDelete') });
 
 		// 属性名输入
 		const propertyInput = addOperationDiv.createEl('input', {
 			type: 'text',
-			placeholder: '属性名',
+			placeholder: tn('batchEditor', 'propertyName'),
 			cls: 'bangumi-property-input'
 		});
 
 		// 属性值输入
 		const valueInput = addOperationDiv.createEl('input', {
 			type: 'text',
-			placeholder: '属性值',
+			placeholder: tn('batchEditor', 'propertyValue'),
 			cls: 'bangumi-value-input'
 		});
 
 		// 添加按钮
-		addOperationDiv.createEl('button', { text: '添加操作' }, btn => {
+		addOperationDiv.createEl('button', { text: tn('batchEditor', 'addOperation') }, btn => {
 			btn.addEventListener('click', () => {
 				const type = typeSelect.value as 'add' | 'modify' | 'delete';
 				const property = propertyInput.value.trim();
 				const value = valueInput.value.trim();
 
 				if (!property) {
-					new Notice('请输入属性名');
+					new Notice(tn('batchEditor', 'noticeProperty'));
 					return;
 				}
 
 				if ((type === 'add' || type === 'modify') && !value) {
-					new Notice('新增或修改属性需要输入属性值');
+					new Notice(tn('batchEditor', 'noticeValue'));
 					return;
 				}
 
@@ -111,15 +112,15 @@ export class BatchEditorModal extends Modal {
 		// 操作按钮
 		const buttonDiv = contentEl.createDiv({ cls: 'bangumi-modal-buttons' });
 
-		buttonDiv.createEl('button', { text: '取消' }, btn => {
+		buttonDiv.createEl('button', { text: tn('batchEditor', 'cancel') }, btn => {
 			btn.addEventListener('click', () => this.close());
 		});
 
-		buttonDiv.createEl('button', { text: '确认执行', cls: 'mod-cta' }, btn => {
+		buttonDiv.createEl('button', { text: tn('batchEditor', 'execute'), cls: 'mod-cta' }, btn => {
 			btn.addEventListener('click', () => {
 				void (async () => {
 					if (this.operations.length === 0) {
-						new Notice('请至少添加一个操作');
+						new Notice(tn('batchEditor', 'noticeNoOp'));
 						return;
 					}
 
@@ -144,7 +145,7 @@ export class BatchEditorModal extends Modal {
 		if (this.operations.length === 0) {
 			this.operationListEl.createDiv({
 				cls: 'bangumi-operation-empty',
-				text: '暂无操作，请添加要执行的属性操作'
+				text: tn('batchEditor', 'emptyOperations')
 			});
 			return;
 		}
@@ -154,7 +155,7 @@ export class BatchEditorModal extends Modal {
 		this.operations.forEach((op, index) => {
 			const item = list.createEl('li', { cls: 'bangumi-operation-item' });
 
-			const typeLabel = op.type === 'add' ? '新增' : op.type === 'modify' ? '修改' : '删除';
+			const typeLabel = op.type === 'add' ? tn('batchEditor', 'typeAdd') : op.type === 'modify' ? tn('batchEditor', 'typeModify') : tn('batchEditor', 'typeDelete');
 			const typeClass = `bangumi-operation-type-${op.type}`;
 
 			item.createSpan({ cls: `bangumi-operation-type ${typeClass}`, text: typeLabel });
@@ -252,7 +253,7 @@ export class FrontmatterEditor {
 		// 重建文件内容
 		const newContent = prefix + frontmatterStr + suffix + content.substring(match[0].length);
 
-		await this.app.vault.modify(file, newContent);
+		await this.app.vault.process(file, () => newContent);
 
 		return true;
 	}
@@ -355,7 +356,7 @@ export class FrontmatterEditor {
 		for (const [path, content] of lastOperation.originalContent) {
 			const file = this.app.vault.getAbstractFileByPath(path);
 			if (file instanceof TFile && lastOperation.affectedFiles.includes(path)) {
-				await this.app.vault.modify(file, content);
+				await this.app.vault.process(file, () => content);
 				restored++;
 			}
 		}

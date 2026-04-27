@@ -67,11 +67,11 @@ export class ControlPanel extends Modal {
 	private filters: PanelFilters;
 
 	// UI 元素
-	private filterBarEl: HTMLElement;
-	private actionBarEl: HTMLElement;
-	private tableEl: HTMLElement;
-	private paginationEl: HTMLElement;
-	private statusEl: HTMLElement;
+	private filterBarEl!: HTMLElement;
+	private actionBarEl!: HTMLElement;
+	private tableEl!: HTMLElement;
+	private paginationEl!: HTMLElement;
+	private statusEl!: HTMLElement;
 
 	// 分页
 	private currentPage: number = 1;

@@ -52,8 +52,8 @@ export class StatusSyncModal extends Modal {
 	private incrementalSync: IncrementalSync;
 	private onComplete: () => void;
 
-	private tableEl: HTMLElement;
-	private statusEl: HTMLElement;
+	private tableEl!: HTMLElement;
+	private statusEl!: HTMLElement;
 
 	constructor(
 		app: App,
@@ -462,7 +462,7 @@ export class StatusSyncModal extends Modal {
 		}
 
 		// 更新本地文件
-		await this.app.vault.modify(file, content);
+		await this.app.vault.process(file, () => content);
 
 		// 更新云端
 		if (Object.keys(cloudUpdates).length > 0) {

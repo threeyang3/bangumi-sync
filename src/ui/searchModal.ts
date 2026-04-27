@@ -58,9 +58,9 @@ export class SearchModal extends Modal {
 	private collectionStatuses: Map<number, UserCollection> = new Map();
 
 	// UI 元素
-	private resultsContainer: HTMLElement;
-	private statusEl: HTMLElement;
-	private loadMoreBtn: HTMLButtonElement;
+	private resultsContainer!: HTMLElement;
+	private statusEl!: HTMLElement;
+	private loadMoreBtn!: HTMLButtonElement;
 
 	constructor(
 		app: App,

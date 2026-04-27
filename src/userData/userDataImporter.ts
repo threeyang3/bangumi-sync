@@ -307,7 +307,7 @@ export class UserDataImporter {
 
         // 保存文件
         if (updatedContent !== content) {
-            await this.app.vault.modify(localFile, updatedContent);
+            await this.app.vault.process(localFile, () => updatedContent);
             return { imported: true, missingFields };
         }
 
@@ -349,7 +349,7 @@ export class UserDataImporter {
                 // 'skip' 不做任何操作
             }
 
-            await this.app.vault.modify(localFile, content);
+            await this.app.vault.process(localFile, () => content);
         }
     }
 
