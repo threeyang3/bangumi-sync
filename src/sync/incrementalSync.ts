@@ -4,6 +4,7 @@
  */
 
 import { App, TFolder, normalizePath } from 'obsidian';
+import { SubjectType, CollectionType } from '../../common/api/types';
 
 /**
  * 本地条目信息
@@ -550,6 +551,151 @@ export class IncrementalSync {
 		}
 
 		// 返回完整内容：frontmatter + 正文
+		return prefix + frontmatter + suffix + bodyContent;
+	}
+
+	// ==================== 评分和状态提取/更新方法 ====================
+
+	/**
+	 * 根据条目类型获取状态字段名
+	 */
+	getStatusFieldName(subjectType: SubjectType): string {
+		switch (subjectType) {
+			case SubjectType.Book:
+				return '阅读状态';
+			case SubjectType.Anime:
+			case SubjectType.Real:
+				return '观看状态';
+			case SubjectType.Music:
+				return '收藏状态';
+			case SubjectType.Game:
+				return '游玩状态';
+			default:
+				return '观看状态';
+		}
+	}
+
+	/**
+	 * 从 frontmatter 中提取用户评分
+	 * 字段名: 评分 (范围 1-10)
+	 */
+	extractRate(content: string): number | null {
+		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+		if (!frontmatterMatch) return null;
+
+		const frontmatter = frontmatterMatch[1];
+		const rateMatch = frontmatter.match(/^评分:\s*"?(\d+)"?/m);
+
+		if (rateMatch) {
+			const rate = parseInt(rateMatch[1], 10);
+			return (rate >= 1 && rate <= 10) ? rate : null;
+		}
+		return null;
+	}
+
+	/**
+	 * 从 frontmatter 中提取收藏状态
+	 */
+	extractStatus(content: string, statusFieldName: string): number | null {
+		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+		if (!frontmatterMatch) return null;
+
+		const frontmatter = frontmatterMatch[1];
+		const statusRegex = new RegExp(`^${statusFieldName}:\\s*"?([^"\\n]+)"?`, 'm');
+		const statusMatch = frontmatter.match(statusRegex);
+
+		if (statusMatch) {
+			const statusText = statusMatch[1].trim();
+			return this.parseStatusText(statusText);
+		}
+		return null;
+	}
+
+	/**
+	 * 将状态文本转换为 CollectionType 数字
+	 */
+	private parseStatusText(text: string): number | null {
+		const statusMap: Record<string, number> = {
+			'想看': CollectionType.Wish,
+			'想读': CollectionType.Wish,
+			'想玩': CollectionType.Wish,
+			'想听': CollectionType.Wish,
+			'看过': CollectionType.Done,
+			'读过': CollectionType.Done,
+			'玩过': CollectionType.Done,
+			'听过': CollectionType.Done,
+			'在看': CollectionType.Doing,
+			'在读': CollectionType.Doing,
+			'在玩': CollectionType.Doing,
+			'在听': CollectionType.Doing,
+			'搁置': CollectionType.OnHold,
+			'抛弃': CollectionType.Dropped,
+			'放弃': CollectionType.Dropped,
+		};
+		return statusMap[text] ?? null;
+	}
+
+	/**
+	 * 将 CollectionType 数字转换为状态文本
+	 */
+	private getStatusText(type: CollectionType): string {
+		const textMap: Record<number, string> = {
+			[CollectionType.Wish]: '想看',
+			[CollectionType.Done]: '看过',
+			[CollectionType.Doing]: '在看',
+			[CollectionType.OnHold]: '搁置',
+			[CollectionType.Dropped]: '抛弃',
+		};
+		return textMap[type] ?? '';
+	}
+
+	/**
+	 * 更新 frontmatter 中的评分
+	 */
+	updateRate(content: string, newRate: number | null): string {
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+		if (!frontmatterMatch) return content;
+
+		const prefix = frontmatterMatch[1];
+		let frontmatter = frontmatterMatch[2];
+		const suffix = frontmatterMatch[3];
+		const bodyContent = frontmatterMatch[4];
+
+		if (newRate !== null && newRate >= 1 && newRate <= 10) {
+			const newRateStr = `评分: ${newRate}`;
+			const rateRegex = /^评分:\s*"?(\d+)"?/m;
+			if (rateRegex.test(frontmatter)) {
+				frontmatter = frontmatter.replace(rateRegex, newRateStr);
+			} else {
+				frontmatter = frontmatter + '\n' + newRateStr;
+			}
+		}
+
+		return prefix + frontmatter + suffix + bodyContent;
+	}
+
+	/**
+	 * 更新 frontmatter 中的状态
+	 */
+	updateStatus(content: string, newStatus: CollectionType, statusFieldName: string): string {
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+		if (!frontmatterMatch) return content;
+
+		const prefix = frontmatterMatch[1];
+		let frontmatter = frontmatterMatch[2];
+		const suffix = frontmatterMatch[3];
+		const bodyContent = frontmatterMatch[4];
+
+		const statusText = this.getStatusText(newStatus);
+		const newStatusStr = `${statusFieldName}: ${statusText}`;
+
+		const statusRegex = new RegExp(`^${statusFieldName}:.*$`, 'm');
+		if (statusRegex.test(frontmatter)) {
+			frontmatter = frontmatter.replace(statusRegex, newStatusStr);
+		} else {
+			frontmatter = frontmatter + '\n' + newStatusStr;
+		}
+
 		return prefix + frontmatter + suffix + bodyContent;
 	}
 }

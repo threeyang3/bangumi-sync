@@ -161,7 +161,7 @@ export class BangumiPlugin extends Plugin {
 	onunload() {
 		// 清除自动同步定时器
 		if (this.autoSyncIntervalId !== null) {
-			window.clearInterval(this.autoSyncIntervalId);
+			activeWindow.clearInterval(this.autoSyncIntervalId);
 			this.autoSyncIntervalId = null;
 		}
 
@@ -186,6 +186,18 @@ export class BangumiPlugin extends Plugin {
 	async loadSettings() {
 		const loadedData = await this.loadData();
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+
+		// 迁移：如果路径模板使用 {{name_cn}} 而不是 {{name_cn_with_type}}，自动更新
+		if (this.settings.syncPathTemplate &&
+			this.settings.syncPathTemplate.includes('{{name_cn}}') &&
+			!this.settings.syncPathTemplate.includes('{{name_cn_with_type}}')) {
+			this.settings.syncPathTemplate = this.settings.syncPathTemplate.replace(
+				/{{name_cn}}/g,
+				'{{name_cn_with_type}}'
+			);
+			console.debug('[Bangumi Sync] 已自动更新路径模板，使用带类型后缀的文件名');
+			await this.saveSettings();
+		}
 	}
 
 	/**
@@ -307,7 +319,7 @@ export class BangumiPlugin extends Plugin {
 	 */
 	openImportModal() {
 		// 创建文件选择器
-		const input = document.createElement('input');
+		const input = activeDocument.createElement('input');
 		input.type = 'file';
 		input.accept = '.json';
 		input.multiple = true;
@@ -535,7 +547,7 @@ export class BangumiPlugin extends Plugin {
 				`同步完成！新增: ${result.added}, 跳过: ${result.skipped}, 错误: ${result.errors}`
 			);
 
-			setTimeout(() => {
+			activeWindow.setTimeout(() => {
 				if (this.syncModal) {
 					this.syncModal.close();
 					this.syncModal = null;

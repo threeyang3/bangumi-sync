@@ -13,6 +13,7 @@ import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { BatchEditorModal, BatchEditOperation, FrontmatterEditor } from './batchEditorModal';
 import { CommentSyncModal, CommentDiff } from './commentSyncModal';
 import { TagSyncModal, TagDiff } from './tagSyncModal';
+import { StatusSyncModal, StatusSyncDiff, FieldDiff } from './statusSyncModal';
 import { ConflictDetector } from './conflictResolver';
 import { tn } from '../i18n';
 
@@ -258,14 +259,9 @@ export class ControlPanel extends Modal {
 			btn.addEventListener('click', () => this.openBatchEditor());
 		});
 
-		// 同步短评按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncComments'), cls: 'bangumi-action-btn' }, btn => {
-			btn.addEventListener('click', () => { void this.syncComments(); });
-		});
-
-		// 同步标签按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncTags'), cls: 'bangumi-action-btn' }, btn => {
-			btn.addEventListener('click', () => { void this.syncTags(); });
+		// 同步状态按钮（统一同步评分、短评、标签、状态）
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncStatus'), cls: 'bangumi-action-btn' }, btn => {
+			btn.addEventListener('click', () => { void this.syncStatus(); });
 		});
 
 		// 撤销按钮
@@ -945,6 +941,170 @@ export class ControlPanel extends Modal {
 			new Notice(`${tn('controlPanel', 'compareTagFailed')}: ${errorMsg}`);
 			this.renderStatus(`${tn('controlPanel', 'compareTagFailed')}: ${errorMsg}`);
 		}
+	}
+
+	/**
+	 * 同步状态
+	 * 统一对比本地与云端用户数据（评分、短评、标签、状态）
+	 */
+	private async syncStatus(): Promise<void> {
+		// 获取已同步的条目
+		const syncedCollections = this.state.collections.filter(c =>
+			this.state.localSubjects.has(c.subject_id)
+		);
+
+		if (syncedCollections.length === 0) {
+			new Notice(tn('controlPanel', 'noSyncedItemsStatus'));
+			return;
+		}
+
+		this.state.loading = true;
+		this.renderStatus(tn('controlPanel', 'comparingStatus'));
+
+		try {
+			const diffs: StatusSyncDiff[] = [];
+
+			for (const collection of syncedCollections) {
+				const localInfo = this.state.localSubjects.get(collection.subject_id);
+				if (!localInfo) continue;
+
+				// 读取本地文件
+				const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+				if (!(file instanceof TFile)) continue;
+
+				const content = await this.app.vault.read(file);
+
+				// 获取状态字段名
+				const statusFieldName = this.incrementalSync.getStatusFieldName(collection.subject_type);
+
+				// 提取本地数据
+				const localRate = this.incrementalSync.extractRate(content);
+				const localComment = this.incrementalSync.extractComment(content);
+				const localTags = this.incrementalSync.extractTags(content);
+				const localStatus = this.incrementalSync.extractStatus(content, statusFieldName);
+
+				// 云端数据
+				const cloudRate = collection.rate || null;
+				const cloudComment = collection.comment || null;
+				const cloudTags = collection.tags && collection.tags.length > 0 ? collection.tags : null;
+				const cloudStatus = collection.type || null;
+
+				// 构建差异对象
+				const diff = this.buildStatusSyncDiff(
+					collection,
+					localInfo,
+					statusFieldName,
+					localRate, cloudRate,
+					localComment, cloudComment,
+					localTags, cloudTags,
+					localStatus, cloudStatus
+				);
+
+				if (diff.hasAnyDiff) {
+					diffs.push(diff);
+				}
+			}
+
+			this.state.loading = false;
+
+			if (diffs.length === 0) {
+				new Notice(tn('controlPanel', 'noStatusDiff'));
+				this.renderStatus(tn('controlPanel', 'noStatusDiff'));
+				return;
+			}
+
+			// 打开状态同步弹窗
+			const modal = new StatusSyncModal(
+				this.app,
+				this.client,
+				this.incrementalSync,
+				diffs,
+				() => {
+					// 同步完成后刷新
+					void this.loadData();
+				}
+			);
+			modal.open();
+
+		} catch (error) {
+			this.state.loading = false;
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			new Notice(`${tn('controlPanel', 'compareStatusFailed')}: ${errorMsg}`);
+			this.renderStatus(`${tn('controlPanel', 'compareStatusFailed')}: ${errorMsg}`);
+		}
+	}
+
+	/**
+	 * 构建状态同步差异对象
+	 */
+	private buildStatusSyncDiff(
+		collection: UserCollection,
+		localInfo: LocalSubjectInfo,
+		statusFieldName: string,
+		localRate: number | null,
+		cloudRate: number | null,
+		localComment: string | null,
+		cloudComment: string | null,
+		localTags: string[] | null,
+		cloudTags: string[] | null,
+		localStatus: number | null,
+		cloudStatus: number | null
+	): StatusSyncDiff {
+		// 评分差异
+		const rateDiff: FieldDiff<number> = {
+			localValue: localRate,
+			cloudValue: cloudRate,
+			hasDiff: localRate !== cloudRate,
+			decision: 'skip',
+		};
+
+		// 短评差异（忽略空白差异）
+		const localCommentNormalized = localComment?.trim() || null;
+		const cloudCommentNormalized = cloudComment?.trim() || null;
+		const commentDiff: FieldDiff<string> = {
+			localValue: localCommentNormalized,
+			cloudValue: cloudCommentNormalized,
+			hasDiff: localCommentNormalized !== cloudCommentNormalized,
+			decision: 'skip',
+		};
+
+		// 标签差异（忽略顺序）
+		const localTagSet = localTags ? new Set(localTags.map(t => t.toLowerCase().trim())) : new Set();
+		const cloudTagSet = cloudTags ? new Set(cloudTags.map(t => t.toLowerCase().trim())) : new Set();
+		const tagsHasDiff = localTagSet.size !== cloudTagSet.size ||
+			![...localTagSet].every(t => cloudTagSet.has(t));
+		const tagsDiff: FieldDiff<string[]> = {
+			localValue: localTags,
+			cloudValue: cloudTags,
+			hasDiff: tagsHasDiff,
+			decision: 'skip',
+		};
+
+		// 状态差异
+		const statusDiff: FieldDiff<number> = {
+			localValue: localStatus,
+			cloudValue: cloudStatus,
+			hasDiff: localStatus !== cloudStatus,
+			decision: 'skip',
+		};
+
+		// 是否有任何差异
+		const hasAnyDiff = rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff;
+
+		return {
+			subjectId: collection.subject_id,
+			name_cn: collection.subject.name_cn || '',
+			name: collection.subject.name || '',
+			localPath: localInfo.path,
+			collection,
+			statusFieldName,
+			rate: rateDiff,
+			comment: commentDiff,
+			tags: tagsDiff,
+			status: statusDiff,
+			hasAnyDiff,
+			expanded: false,
+		};
 	}
 
 	/**

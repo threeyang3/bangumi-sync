@@ -202,6 +202,10 @@ export interface TranslationStrings {
 		batchEdit: string;
 		syncComments: string;
 		syncTags: string;
+		syncStatus: string;
+		comparingStatus: string;
+		noStatusDiff: string;
+		compareStatusFailed: string;
 		undo: string;
 		loading: string;
 		noUndo: string;
@@ -210,6 +214,7 @@ export interface TranslationStrings {
 		noSyncedItems: string;
 		noSyncedItemsComment: string;
 		noSyncedItemsTag: string;
+		noSyncedItemsStatus: string;
 		selectFirst: string;
 		confirmDelete: string;
 		deleteConfirm: string;
@@ -309,6 +314,40 @@ export interface TranslationStrings {
 		skipMissingFields: string;
 		close: string;
 		missingFieldsApplied: string;
+	};
+
+	// 状态同步弹窗
+	statusSyncModal: {
+		title: string;
+		description: string;
+		subjectName: string;
+		diffFields: string;
+		action: string;
+		expand: string;
+		collapse: string;
+		field: string;
+		local: string;
+		cloud: string;
+		decision: string;
+		fieldRate: string;
+		fieldComment: string;
+		fieldTags: string;
+		fieldStatus: string;
+		empty: string;
+		keepLocal: string;
+		keepCloud: string;
+		merge: string;
+		skip: string;
+		noDiff: string;
+		allLocal: string;
+		allCloud: string;
+		allSkip: string;
+		smartMerge: string;
+		execute: string;
+		cancel: string;
+		syncProgress: string;
+		syncComplete: string;
+		syncFailed: string;
 	};
 
 }
@@ -497,6 +536,10 @@ const en: TranslationStrings = {
 		batchEdit: 'Batch edit',
 		syncComments: 'Sync comments',
 		syncTags: 'Sync tags',
+		syncStatus: 'Sync status',
+		comparingStatus: 'Comparing status...',
+		noStatusDiff: 'No status differences',
+		compareStatusFailed: 'Compare status failed',
 		undo: 'Undo',
 		loading: 'Loading...',
 		noUndo: 'No operation to undo',
@@ -505,6 +548,7 @@ const en: TranslationStrings = {
 		noSyncedItems: 'No synced items',
 		noSyncedItemsComment: 'No synced items to compare comments',
 		noSyncedItemsTag: 'No synced items to compare tags',
+		noSyncedItemsStatus: 'No synced items to compare status',
 		selectFirst: 'Please select items first',
 		confirmDelete: 'Confirm delete',
 		deleteConfirm: 'Move selected files to trash?',
@@ -597,8 +641,41 @@ const en: TranslationStrings = {
 		skipMissingFields: 'Skip missing fields',
 		close: 'Close',
 		missingFieldsApplied: 'Applied {count} missing fields',
-	},
-};
+		},
+
+		statusSyncModal: {
+			title: 'Status sync',
+			description: 'Found {count} items with differences. Select which version to keep for each field.',
+			subjectName: 'Subject',
+			diffFields: 'Diff fields',
+			action: 'Action',
+			expand: 'Expand',
+			collapse: 'Collapse',
+			field: 'Field',
+			local: 'Local',
+			cloud: 'Cloud',
+			decision: 'Decision',
+			fieldRate: 'Rating',
+			fieldComment: 'Comment',
+			fieldTags: 'Tags',
+			fieldStatus: 'Status',
+			empty: '(empty)',
+			keepLocal: 'Keep local',
+			keepCloud: 'Keep cloud',
+			merge: 'Merge',
+			skip: 'Skip',
+			noDiff: 'No differences',
+			allLocal: 'All local',
+			allCloud: 'All cloud',
+			allSkip: 'All skip',
+			smartMerge: 'Smart merge',
+			execute: 'Execute sync',
+			cancel: 'Cancel',
+			syncProgress: 'Syncing...',
+			syncComplete: 'Sync complete: {success} succeeded, {failed} failed',
+			syncFailed: 'Sync failed, please check network connection',
+		},
+	};
 
 /**
  * 中文翻译
@@ -784,6 +861,10 @@ const zhCN: TranslationStrings = {
 		batchEdit: '批量编辑',
 		syncComments: '同步短评',
 		syncTags: '同步标签',
+		syncStatus: '同步状态',
+		comparingStatus: '正在对比状态差异...',
+		noStatusDiff: '没有状态差异',
+		compareStatusFailed: '对比状态失败',
 		undo: '撤销',
 		loading: '加载中...',
 		noUndo: '没有可撤销的操作',
@@ -792,6 +873,7 @@ const zhCN: TranslationStrings = {
 		noSyncedItems: '没有已同步的条目',
 		noSyncedItemsComment: '没有已同步的条目，无法对比短评',
 		noSyncedItemsTag: '没有已同步的条目，无法对比标签',
+		noSyncedItemsStatus: '没有已同步的条目，无法对比状态',
 		selectFirst: '请先选择条目',
 		confirmDelete: '确认删除',
 		deleteConfirm: '将选中的文件移动到回收站？',
@@ -884,7 +966,40 @@ const zhCN: TranslationStrings = {
 		skipMissingFields: '跳过缺失字段',
 		close: '关闭',
 		missingFieldsApplied: '已应用 {count} 个缺失字段',
-	},
+		},
+
+		statusSyncModal: {
+			title: '状态同步',
+			description: '发现 {count} 个条目存在数据差异，请选择要保留的版本。',
+			subjectName: '条目',
+			diffFields: '差异字段',
+			action: '操作',
+			expand: '展开',
+			collapse: '收起',
+			field: '字段',
+			local: '本地',
+			cloud: '云端',
+			decision: '选择',
+			fieldRate: '评分',
+			fieldComment: '短评',
+			fieldTags: '标签',
+			fieldStatus: '状态',
+			empty: '(空)',
+			keepLocal: '保留本地',
+			keepCloud: '保留云端',
+			merge: '合并',
+			skip: '跳过',
+			noDiff: '没有差异',
+			allLocal: '全部本地',
+			allCloud: '全部云端',
+			allSkip: '全部跳过',
+			smartMerge: '智能合并',
+			execute: '执行同步',
+			cancel: '取消',
+			syncProgress: '正在同步...',
+			syncComplete: '同步完成：成功 {success} 个，失败 {failed} 个',
+			syncFailed: '同步失败，请检查网络连接',
+		},
 
 };
 

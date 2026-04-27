@@ -197,7 +197,7 @@ function getInfoboxNumber(infobox: InfoboxItem[] | undefined, key: string, alter
 /**
  * 解析动画信息
  */
-export function parseAnimeInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
+export function parseAnimeInfo(infobox: InfoboxItem[] | undefined, platform?: string): ParsedInfo {
 	// 首先尝试获取动画制作字段
 	let animeMake = getInfoboxValue(infobox, '动画制作');
 
@@ -206,8 +206,18 @@ export function parseAnimeInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 		animeMake = extractAnimeMakeFromCopyright(infobox);
 	}
 
+	// 获取具体类型：优先使用 platform 字段，其次从 infobox 获取
+	let category = '';
+	if (platform) {
+		// platform 可能是 "TV"、"OVA"、"剧场版"、"WEB" 等
+		category = platform;
+	} else {
+		// 从 infobox 获取类型
+		category = getInfoboxValue(infobox, '类型') || '';
+	}
+
 	return {
-		category: getInfoboxValue(infobox, '类型', ['播放日期']) || 'TV',
+		category,
 		episode: getInfoboxNumber(infobox, '话数'),
 		director: getInfoboxValue(infobox, '导演', ['监督', '总导演']),
 		music: getInfoboxValue(infobox, '音乐', ['音乐制作', '音乐人']),
@@ -371,7 +381,7 @@ export function parseInfoByType(
 	// 先根据条目类型判断
 	switch (subjectType) {
 		case SubjectType.Anime:
-			return parseAnimeInfo(infobox);
+			return parseAnimeInfo(infobox, platform);
 
 		case SubjectType.Game:
 			return parseGameInfo(infobox);

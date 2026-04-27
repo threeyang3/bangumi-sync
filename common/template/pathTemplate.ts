@@ -3,7 +3,7 @@
  * 支持变量替换生成文件路径
  */
 
-import { Subject, UserCollection, getSubjectTypeLabel } from '../api/types';
+import { Subject, UserCollection, SubjectType, getSubjectTypeLabel } from '../api/types';
 import { parseInfoByType } from '../parser/infoboxParser';
 
 /**
@@ -70,16 +70,49 @@ export function extractPathVars(
 		}
 	}
 
+	// 生成带类型后缀的文件名
+	// 对于动画，使用具体类型（TV、OVA、剧场版等）
+	// 对于其他类型，使用大类（小说、漫画等）
+	let nameCnWithType = subject.name_cn || '';
+	if (nameCnWithType) {
+		const typeSuffix = getTypeSuffixForName(subject.type, parsedInfo.category, subject.platform);
+		if (typeSuffix) {
+			nameCnWithType = `${nameCnWithType}(${typeSuffix})`;
+		}
+	}
+
 	return {
 		type: typeLabel,
 		category: parsedInfo.category || '',
 		name: subject.name || '',
 		name_cn: subject.name_cn || '',
-		name_cn_with_type: subject.name_cn ? `${subject.name_cn}(${getTypeLabelChinese(typeLabel)})` : '',
+		name_cn_with_type: nameCnWithType,
 		year,
 		author: parsedInfo.author || '',
 		id: subject.id,
 	};
+}
+
+/**
+ * 获取用于文件名的类型后缀
+ * 动画使用具体类型（TV、OVA、剧场版），其他使用大类
+ */
+function getTypeSuffixForName(subjectType: SubjectType, category: string, platform?: string): string {
+	// 对于动画，优先使用 platform（包含具体类型如 TV、OVA、剧场版）
+	if (subjectType === SubjectType.Anime) {
+		if (platform && platform.trim()) {
+			return platform.trim();
+		}
+		// 如果 platform 为空，使用 category
+		if (category && category.trim()) {
+			return category.trim();
+		}
+		// 默认返回"动画"
+		return '动画';
+	}
+
+	// 对于其他类型，使用大类
+	return getTypeLabelChinese(getSubjectTypeLabel(subjectType));
 }
 
 /**

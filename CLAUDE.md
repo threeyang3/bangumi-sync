@@ -756,6 +756,19 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
     - 移除未使用的变量和导入
   - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.6.2
 
+- **v4.6.3**: 动画类型获取优化版本
+  - 修复动画类型获取问题：使用 `platform` 字段获取具体类型（TV、OVA、剧场版、WEB）
+  - 修复 `parseAnimeInfo` 方法，正确传递 `platform` 参数
+  - 路径模板自动迁移：将 `{{name_cn}}` 替换为 `{{name_cn_with_type}}`
+  - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.6.3
+
+- **v4.6.4**: Popout 窗口兼容性修复版本
+  - 修复 popout 窗口兼容性问题：
+    - `setTimeout` 改为 `activeWindow.setTimeout`
+    - `document.createElement` 改为 `activeDocument.createElement`
+    - `window.clearInterval` 改为 `activeWindow.clearInterval`
+  - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.6.4
+
 ## 集数追踪功能
 
 ### 集数追踪
