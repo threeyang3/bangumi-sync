@@ -750,10 +750,11 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
   - 默认路径模板改为 `ACGN/{{type}}/{{name_cn_with_type}}.md`
   - 相关条目链接显示名称改为文件名（带类型后缀）
   - 修复 Obsidian 插件审核问题：
-    - 修复枚举类型比较问题（userDataExporter.ts）
+    - 修复枚举类型比较问题
     - 修复对象字符串化问题（userDataExtractor.ts、userDataImporter.ts）
     - 修复无 await 的 async 方法（userDataImporter.ts、userDataMerger.ts）
     - 移除未使用的变量和导入
+  - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.6.2
 
 ## 集数追踪功能
 
