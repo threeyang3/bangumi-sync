@@ -10,7 +10,7 @@
 
 ## 版本说明
 
-当前版本 (v4.6.4) 集成了以下功能：
+当前版本 (v4.6.5) 集成了以下功能：
 
 - **集数追踪**：自动获取并显示动画集数、小说卷数、漫画话数
 - **紧凑显示**：集数以数字框形式显示，节省空间
@@ -768,6 +768,11 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
     - `document.createElement` 改为 `activeDocument.createElement`
     - `window.clearInterval` 改为 `activeWindow.clearInterval`
   - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.6.4
+
+- **v4.6.5**: ESLint 问题修复版本
+  - 修复 `safeStringify` 函数中对象字符串化问题
+  - 简化逻辑：所有非基础类型统一使用 `JSON.stringify`
+  - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.6.5
 
 ## 集数追踪功能
 

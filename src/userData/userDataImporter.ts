@@ -28,13 +28,8 @@ function safeStringify(value: unknown): string {
     if (typeof value === 'number' || typeof value === 'boolean') {
         return String(value);
     }
-    if (Array.isArray(value)) {
-        return JSON.stringify(value);
-    }
-    if (typeof value === 'object') {
-        return JSON.stringify(value);
-    }
-    return String(value);
+    // For arrays, objects, and other types, use JSON.stringify
+    return JSON.stringify(value);
 }
 
 /**
