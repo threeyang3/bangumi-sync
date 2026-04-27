@@ -15,6 +15,29 @@ import {
 } from './types';
 
 /**
+ * 安全地将任意值转换为字符串
+ * 避免 [object Object] 问题
+ */
+function safeStringify(value: unknown): string {
+    if (value === null || value === undefined) {
+        return '';
+    }
+    if (typeof value === 'string') {
+        return value;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+    if (Array.isArray(value)) {
+        return JSON.stringify(value);
+    }
+    if (typeof value === 'object') {
+        return JSON.stringify(value);
+    }
+    return String(value);
+}
+
+/**
  * 用户数据导入器
  */
 export class UserDataImporter {
@@ -242,7 +265,7 @@ export class UserDataImporter {
                         updatedContent = this.merger.updateFrontmatterField(
                             updatedContent,
                             key,
-                            typeof value === 'object' ? JSON.stringify(value) : String(value)
+                            safeStringify(value)
                         );
                     } else if (options.mergeStrategy === 'smart') {
                         const localValue = this.merger.getFrontmatterValue(updatedContent, key);
@@ -250,7 +273,7 @@ export class UserDataImporter {
                             updatedContent = this.merger.updateFrontmatterField(
                                 updatedContent,
                                 key,
-                                typeof value === 'object' ? JSON.stringify(value) : String(value)
+                                safeStringify(value)
                             );
                         }
                     }

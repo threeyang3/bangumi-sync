@@ -16,6 +16,29 @@ import {
 } from './types';
 
 /**
+ * 安全地将任意值转换为字符串
+ * 避免 [object Object] 问题
+ */
+function safeStringify(value: unknown): string {
+    if (value === null || value === undefined) {
+        return '';
+    }
+    if (typeof value === 'string') {
+        return value;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+    if (Array.isArray(value)) {
+        return JSON.stringify(value);
+    }
+    if (typeof value === 'object') {
+        return JSON.stringify(value);
+    }
+    return String(value);
+}
+
+/**
  * 用户数据提取器
  */
 export class UserDataExtractor {
@@ -230,12 +253,7 @@ export class UserDataExtractor {
         for (const { key, frontmatterField } of config) {
             const value = frontmatter[frontmatterField];
             if (value !== undefined && value !== '' && value !== null) {
-                // 确保值被正确转换为字符串
-                if (typeof value === 'object') {
-                    details[key] = JSON.stringify(value);
-                } else {
-                    details[key] = String(value);
-                }
+                details[key] = safeStringify(value);
             }
         }
 
