@@ -1,4 +1,310 @@
-/* Bangumi Sync Plugin Styles */
+/* Search Modal Styles */
+.modal:has(.bangumi-search-modal) {
+	width: 800px !important;
+	max-width: 95vw !important;
+}
+
+.bangumi-search-modal {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.bangumi-search-input-container {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 15px;
+}
+
+.bangumi-search-input {
+	flex: 1;
+	padding: 8px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background: var(--background-primary);
+	font-size: 14px;
+}
+
+.bangumi-search-input:focus {
+	border-color: var(--interactive-accent);
+	outline: none;
+}
+
+.bangumi-search-btn {
+	padding: 6px 14px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	transition: all 0.2s;
+}
+
+.bangumi-search-btn:hover {
+	background: var(--background-secondary-alt);
+	border-color: var(--interactive-accent);
+}
+
+.bangumi-search-btn:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.bangumi-search-filter {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: center;
+	padding: 10px;
+	background: var(--background-secondary);
+	border-radius: 6px;
+	margin-bottom: 15px;
+}
+
+.bangumi-search-select {
+	padding: 6px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background: var(--background-primary);
+	font-size: 13px;
+}
+
+.bangumi-search-status {
+	padding: 8px 12px;
+	background: var(--background-secondary-alt);
+	border-radius: 4px;
+	font-size: 13px;
+	color: var(--text-muted);
+	margin-bottom: 10px;
+}
+
+.bangumi-search-results {
+	max-height: 400px;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	margin-bottom: 15px;
+}
+
+.bangumi-search-result-item {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.bangumi-search-result-item:last-child {
+	border-bottom: none;
+}
+
+.bangumi-search-result-item:hover {
+	background: var(--background-secondary);
+}
+
+.bangumi-search-result-cover {
+	flex-shrink: 0;
+	width: 50px;
+	height: 70px;
+}
+
+.bangumi-search-result-cover img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: 3px;
+}
+
+.bangumi-search-result-info {
+	flex: 1;
+	min-width: 0;
+}
+
+.bangumi-search-result-name {
+	font-weight: 500;
+	margin-bottom: 4px;
+}
+
+.bangumi-search-result-name-cn {
+	color: var(--text-normal);
+}
+
+.bangumi-search-result-name-original {
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
+.bangumi-search-result-meta {
+	display: flex;
+	gap: 8px;
+	font-size: 12px;
+}
+
+.bangumi-search-result-type {
+	color: var(--text-muted);
+}
+
+.bangumi-search-result-rating {
+	color: var(--text-accent);
+}
+
+.bangumi-search-result-add-btn {
+	padding: 4px 12px;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 12px;
+	transition: opacity 0.2s;
+}
+
+.bangumi-search-result-add-btn:hover {
+	opacity: 0.9;
+}
+
+.bangumi-search-result-add-btn:focus-visible {
+	outline: 2px solid var(--text-on-accent);
+	outline-offset: 2px;
+}
+
+.bangumi-search-load-more {
+	display: none;
+	width: 100%;
+	padding: 8px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	color: var(--text-muted);
+	transition: all 0.2s;
+}
+
+.bangumi-search-load-more:hover {
+	background: var(--background-secondary-alt);
+}
+
+.bangumi-search-load-more:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.bangumi-search-load-more.visible {
+	display: block;
+}
+
+/* Add to Collection Modal Styles */
+.bangumi-add-collection-modal {
+	width: 500px;
+	max-width: 90vw;
+}
+
+.bangumi-add-collection-type {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+	margin-bottom: 15px;
+}
+
+.bangumi-add-collection-type-btn {
+	padding: 6px 14px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	transition: all 0.2s;
+}
+
+.bangumi-add-collection-type-btn:hover {
+	background: var(--background-secondary-alt);
+}
+
+.bangumi-add-collection-type-btn:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.bangumi-add-collection-type-btn-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.bangumi-add-collection-rate-value {
+	margin-left: 10px;
+	font-weight: 500;
+	color: var(--text-accent);
+}
+
+.bangumi-add-collection-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 8px;
+}
+
+.bangumi-add-collection-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	background: var(--background-secondary);
+	border-radius: 3px;
+	font-size: 12px;
+}
+
+.bangumi-add-collection-tag-remove {
+	padding: 0;
+	background: transparent;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 14px;
+	line-height: 1;
+}
+
+.bangumi-add-collection-tag-remove:hover {
+	color: var(--text-error);
+}
+
+.bangumi-add-collection-section {
+	margin-top: 20px;
+	margin-bottom: 10px;
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--text-muted);
+}
+
+/* Status badges */
+.bangumi-status-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-size: 11px;
+	margin-right: 6px;
+}
+
+.bangumi-status-synced {
+	background: var(--text-success);
+	color: var(--background-primary);
+}
+
+.bangumi-status-collected {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.bangumi-status-not-collected {
+	background: var(--background-secondary-alt);
+	color: var(--text-muted);
+}
+
+.bangumi-search-result-status {
+	margin-top: 6px;
+}
 
 /* 模板编辑器文本区域 */
 .bangumi-template-textarea {

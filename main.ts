@@ -15,6 +15,7 @@ import { SyncManager, SyncManagerConfig } from './src/sync/syncManager';
 import { SyncModal } from './src/ui/syncModal';
 import { SyncOptionsModal, SyncOptionsInput } from './src/ui/syncOptionsModal';
 import { SyncPreviewModal, SyncPreviewResult } from './src/ui/syncPreviewModal';
+import { SearchModal } from './src/ui/searchModal';
 import { ControlPanel } from './src/panel/controlPanel';
 import { SyncProgress } from './src/sync/syncStatus';
 import { UserCollection } from './common/api/types';
@@ -132,6 +133,13 @@ export class BangumiPlugin extends Plugin {
 			id: 'import-user-data',
 			name: tn('commands', 'importUserData'),
 			callback: () => this.openImportModal(),
+		});
+
+		// 添加命令：搜索条目
+		this.addCommand({
+			id: 'search-subjects',
+			name: tn('commands', 'searchSubjects'),
+			callback: () => this.openSearchModal(),
 		});
 
 		// 添加 Ribbon 图标
@@ -353,6 +361,32 @@ export class BangumiPlugin extends Plugin {
 		})();
 
 		input.click();
+	}
+
+	/**
+	 * 打开搜索弹窗
+	 */
+	openSearchModal() {
+		if (!this.settings.accessToken) {
+			new Notice(tn('notices', 'configureTokenFirst'));
+			return;
+		}
+
+		if (!this.syncManager) {
+			new Notice(tn('notices', 'syncManagerNotInit'));
+			return;
+		}
+
+		const modal = new SearchModal(
+			this.app,
+			this.syncManager.client,
+			this.settings,
+			this.syncManager,
+			() => {
+				this.clearCache();
+			}
+		);
+		modal.open();
 	}
 
 	/**

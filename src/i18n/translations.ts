@@ -18,6 +18,7 @@ export interface TranslationStrings {
 		quickSync: string;
 		exportUserData: string;
 		importUserData: string;
+		searchSubjects: string;
 	};
 
 	// Ribbon
@@ -350,6 +351,67 @@ export interface TranslationStrings {
 		syncFailed: string;
 	};
 
+	// 搜索弹窗
+	searchModal: {
+		title: string;
+		searchPlaceholder: string;
+		search: string;
+		clear: string;
+		subjectType: string;
+		sortBy: string;
+		sort_match: string;
+		sort_heat: string;
+		sort_rank: string;
+		sort_score: string;
+		searching: string;
+		resultsCount: string;
+		searchFailed: string;
+		loadMore: string;
+		addToCollection: string;
+		editCollection: string;
+		addedSuccess: string;
+		noResults: string;
+		synced: string;
+		notCollected: string;
+	};
+
+	// 添加到收藏弹窗
+	addToCollection: {
+		title: string;
+		collectionType: string;
+		rating: string;
+		tags: string;
+		tagsPlaceholder: string;
+		comment: string;
+		commentPlaceholder: string;
+		ratingDetails: string;
+		syncOptions: string;
+		syncToCloud: string;
+		createLocal: string;
+		confirm: string;
+		cancel: string;
+		addError: string;
+	};
+
+	// 条目类型
+	subjectTypes: {
+		all: string;
+		anime: string;
+		game: string;
+		book: string;
+		music: string;
+		real: string;
+	};
+
+	// 收藏类型
+	collectionTypes: {
+		wish: string;
+		done: string;
+		doing: string;
+		onHold: string;
+		dropped: string;
+	};
+
 }
 
 /**
@@ -362,6 +424,7 @@ const en: TranslationStrings = {
 		quickSync: 'Quick sync (use default settings)',
 		exportUserData: 'Export user data',
 		importUserData: 'Import user data',
+		searchSubjects: 'Search and add subjects',
 	},
 
 	ribbon: {
@@ -675,7 +738,64 @@ const en: TranslationStrings = {
 			syncComplete: 'Sync complete: {success} succeeded, {failed} failed',
 			syncFailed: 'Sync failed, please check network connection',
 		},
-	};
+
+	searchModal: {
+		title: 'Search subjects',
+		searchPlaceholder: 'Enter keyword to search...',
+		search: 'Search',
+		clear: 'Clear',
+		subjectType: 'Type',
+		sortBy: 'Sort by',
+		sort_match: 'Match',
+		sort_heat: 'Heat',
+		sort_rank: 'Rank',
+		sort_score: 'Score',
+		searching: 'Searching...',
+		resultsCount: 'Found {total} results, showing {count}',
+		searchFailed: 'Search failed',
+		loadMore: 'Load more',
+		addToCollection: 'Add',
+		editCollection: 'Edit',
+		addedSuccess: 'Added {name} successfully',
+		noResults: 'No results found',
+		synced: 'Synced',
+		notCollected: 'Not collected',
+	},
+
+	addToCollection: {
+		title: 'Add to collection',
+		collectionType: 'Collection status',
+		rating: 'Rating',
+		tags: 'Tags',
+		tagsPlaceholder: 'Enter tag and press Enter',
+		comment: 'Comment',
+		commentPlaceholder: 'Write your comment...',
+		ratingDetails: 'Rating details',
+		syncOptions: 'Sync options',
+		syncToCloud: 'Sync to Bangumi cloud',
+		createLocal: 'Create local file',
+		confirm: 'Confirm',
+		cancel: 'Cancel',
+		addError: 'Failed to add',
+	},
+
+	subjectTypes: {
+		all: 'All',
+		anime: 'Anime',
+		game: 'Game',
+		book: 'Book',
+		music: 'Music',
+		real: 'Real',
+	},
+
+	collectionTypes: {
+		wish: 'Wish',
+		done: 'Done',
+		doing: 'Doing',
+		onHold: 'On hold',
+		dropped: 'Dropped',
+	},
+};
 
 /**
  * 中文翻译
@@ -687,6 +807,7 @@ const zhCN: TranslationStrings = {
 		quickSync: '快速同步（使用默认设置）',
 		exportUserData: '导出用户数据',
 		importUserData: '导入用户数据',
+		searchSubjects: '搜索并添加条目',
 	},
 
 	ribbon: {
@@ -1000,6 +1121,63 @@ const zhCN: TranslationStrings = {
 			syncComplete: '同步完成：成功 {success} 个，失败 {failed} 个',
 			syncFailed: '同步失败，请检查网络连接',
 		},
+
+	searchModal: {
+		title: '搜索条目',
+		searchPlaceholder: '输入关键词搜索...',
+		search: '搜索',
+		clear: '清除',
+		subjectType: '条目类型',
+		sortBy: '排序方式',
+		sort_match: '匹配度',
+		sort_heat: '热度',
+		sort_rank: '排名',
+		sort_score: '评分',
+		searching: '搜索中...',
+		resultsCount: '找到 {total} 个结果，已显示 {count} 个',
+		searchFailed: '搜索失败',
+		loadMore: '加载更多',
+		addToCollection: '添加',
+		editCollection: '编辑',
+		addedSuccess: '已添加 {name}',
+		noResults: '未找到相关条目',
+		synced: '已同步',
+		notCollected: '未收藏',
+	},
+
+	addToCollection: {
+		title: '添加到收藏',
+		collectionType: '收藏状态',
+		rating: '评分',
+		tags: '标签',
+		tagsPlaceholder: '输入标签后回车添加',
+		comment: '短评',
+		commentPlaceholder: '写下你的感想...',
+		ratingDetails: '评分明细',
+		syncOptions: '同步选项',
+		syncToCloud: '同步到 Bangumi 云端',
+		createLocal: '创建本地文件',
+		confirm: '确认',
+		cancel: '取消',
+		addError: '添加失败',
+	},
+
+	subjectTypes: {
+		all: '全部',
+		anime: '动画',
+		game: '游戏',
+		book: '书籍',
+		music: '音乐',
+		real: '三次元',
+	},
+
+	collectionTypes: {
+		wish: '想看',
+		done: '看过',
+		doing: '在看',
+		onHold: '搁置',
+		dropped: '抛弃',
+	},
 
 };
 

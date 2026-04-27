@@ -131,6 +131,27 @@ export class BangumiClient {
 	}
 
 	/**
+	 * 获取用户对指定条目的收藏状态
+	 * @param subjectId 条目 ID
+	 * @returns 收藏信息，如果未收藏则返回 null
+	 */
+	async getCollectionStatus(subjectId: number): Promise<UserCollection | null> {
+		const endpoint = ENDPOINTS.MY_COLLECTION_BY_ID(subjectId);
+		console.debug(`[Bangumi Sync] 获取收藏状态: GET ${endpoint}`);
+
+		try {
+			const result = await this.request<UserCollection>('GET', endpoint);
+			return result;
+		} catch (error) {
+			// 404 表示未收藏
+			if (error instanceof Error && error.message.includes('404')) {
+				return null;
+			}
+			throw error;
+		}
+	}
+
+	/**
 	 * 获取条目详情
 	 */
 	async getSubject(subjectId: number): Promise<Subject> {
@@ -271,6 +292,88 @@ export class BangumiClient {
 	}
 
 	/**
+	 * 创建或更新用户收藏
+	 * 如果条目未收藏则创建，已收藏则更新
+	 * @param subjectId 条目 ID
+	 * @param data 要更新的数据
+	 */
+	async createOrUpdateCollection(subjectId: number, data: {
+		type?: number;
+		rate?: number;
+		comment?: string;
+		tags?: string[];
+		private?: boolean;
+	}): Promise<void> {
+		const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
+		console.debug(`[Bangumi Sync] 创建/更新收藏: ${endpoint}`);
+		console.debug(`[Bangumi Sync] 数据:`, data);
+
+		// 先尝试 PATCH 更新
+		try {
+			await this.request('PATCH', endpoint, data);
+			console.debug(`[Bangumi Sync] 收藏更新成功: ${subjectId}`);
+		} catch (error) {
+			// 如果是 404，说明未收藏，尝试 POST 创建
+			if (error instanceof Error && error.message.includes('404')) {
+				console.debug(`[Bangumi Sync] 条目未收藏，尝试创建: ${subjectId}`);
+				await this.createCollection(subjectId, data);
+				console.debug(`[Bangumi Sync] 收藏创建成功: ${subjectId}`);
+			} else {
+				throw error;
+			}
+		}
+	}
+
+	/**
+	 * 创建新收藏（条目未收藏时使用）
+	 * @param subjectId 条目 ID
+	 * @param data 收藏数据
+	 */
+	private async createCollection(subjectId: number, data: {
+		type?: number;
+		rate?: number;
+		comment?: string;
+		tags?: string[];
+		private?: boolean;
+	}): Promise<void> {
+		const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
+		const url = `${this.baseUrl}${endpoint}`;
+
+		const options: RequestUrlParam = {
+			url,
+			method: 'POST',
+			headers: this.getHeaders(),
+			body: JSON.stringify(data),
+		};
+
+		try {
+			console.debug(`[Bangumi Sync] POST ${url}`);
+			const response = await requestUrl(options);
+			console.debug(`[Bangumi Sync] Response status: ${response.status}`);
+
+			// POST 创建收藏可能返回 200、201、202 或 204
+			if (response.status >= 200 && response.status < 300) {
+				return;
+			}
+
+			// 处理错误响应
+			let errorMsg = `HTTP ${response.status}`;
+			try {
+				if (response.json) {
+					const error: APIError = response.json;
+					errorMsg = error.title + (error.description ? `: ${error.description}` : '');
+				}
+			} catch {
+				// JSON 解析失败，使用 HTTP 状态码
+			}
+			throw new Error(errorMsg);
+		} catch (error) {
+			console.error(`[Bangumi Sync] 创建收藏失败:`, error);
+			throw error;
+		}
+	}
+
+	/**
 	 * 更新用户收藏（评分、短评、标签等）
 	 * @param subjectId 条目 ID
 	 * @param data 要更新的数据
@@ -327,6 +430,45 @@ export class BangumiClient {
 
 		await this.request('PUT', endpoint, { type });
 		console.debug(`[Bangumi Sync] 章节状态更新成功: ${episodeId}`);
+	}
+
+	/**
+	 * 搜索条目
+	 * @param keyword 搜索关键词
+	 * @param options 搜索选项
+	 */
+	async searchSubjects(
+		keyword: string,
+		options?: {
+			sort?: 'match' | 'heat' | 'rank' | 'score';
+			filter?: {
+				type?: SubjectType[];
+				tag?: string[];
+				air_date?: string[];
+				rating?: string[];
+				rank?: string[];
+				nsfw?: boolean;
+			};
+			limit?: number;
+			offset?: number;
+		}
+	): Promise<PagedResult<Subject>> {
+		const params = new URLSearchParams();
+		if (options?.limit !== undefined) params.append('limit', String(options.limit));
+		if (options?.offset !== undefined) params.append('offset', String(options.offset));
+
+		const body = {
+			keyword,
+			sort: options?.sort,
+			filter: options?.filter,
+		};
+
+		const endpoint = `${ENDPOINTS.SEARCH_SUBJECTS}?${params.toString()}`;
+		console.debug(`[Bangumi Sync] 搜索条目: POST ${endpoint}`);
+
+		const result = await this.request<PagedResult<Subject>>('POST', endpoint, body);
+		console.debug(`[Bangumi Sync] 搜索到 ${result.data.length}/${result.total} 个条目`);
+		return result;
 	}
 }
 

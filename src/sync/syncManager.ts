@@ -55,7 +55,7 @@ export interface SyncManagerConfig {
  */
 export class SyncManager {
 	private app: App;
-	private client: BangumiClient;
+	public client: BangumiClient;
 	private fileManager: FileManager;
 	private imageHandler: ImageHandler;
 	private incrementalSync: IncrementalSync;
@@ -875,6 +875,141 @@ export class SyncManager {
 					console.error(`[Bangumi Sync] 更新相关条目链接失败: ${relation.name_cn}`, error);
 				}
 			}
+		}
+	}
+
+	/**
+	 * 同步单个条目（用于搜索功能）
+	 * @param subjectId 条目 ID
+	 * @param input 用户输入的收藏信息
+	 * @returns 是否成功
+	 */
+	async syncSingleSubject(
+		subjectId: number,
+		input: {
+			type: number;
+			rate: number;
+			comment: string;
+			tags: string[];
+			private: boolean;
+			ratingDetails: RatingDetails;
+			syncToCloud: boolean;
+			createLocal: boolean;
+		}
+	): Promise<{ success: boolean; filePath?: string; error?: string }> {
+		try {
+			// 1. 同步到云端
+			if (input.syncToCloud) {
+				await this.client.createOrUpdateCollection(subjectId, {
+					type: input.type,
+					rate: input.rate,
+					comment: input.comment,
+					tags: input.tags,
+					private: input.private,
+				});
+				console.debug(`[Bangumi Sync] 已同步到云端: ${subjectId}`);
+			}
+
+			// 2. 创建本地文件
+			if (input.createLocal) {
+				// 获取完整条目信息
+				const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(subjectId);
+
+				// 解析角色信息
+				const characters = parseCharacters(relatedCharacters, 9);
+
+				// 获取类型标签
+				const typeLabel = getTypeLabel(subject.type);
+
+				// 下载封面图片
+				let coverUrl = subject.images?.large || subject.images?.common || '';
+				let localCoverPath = '';
+				if (this.config.downloadImages && coverUrl) {
+					console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
+					const localPath = await this.imageHandler.downloadCover(
+						coverUrl,
+						subject.id,
+						this.config.imagePathTemplate,
+						{
+							name_cn: subject.name_cn,
+							name: subject.name,
+							typeLabel,
+						}
+					);
+					if (localPath && !localPath.startsWith('http')) {
+						localCoverPath = localPath;
+					}
+				}
+
+				// 创建临时 collection 对象
+				const collection: UserCollection = {
+					subject_id: subject.id,
+					subject_type: subject.type,
+					type: input.type,
+					rate: input.rate,
+					comment: input.comment,
+					tags: input.tags,
+					private: input.private,
+					ep_status: 0,
+					vol_status: 0,
+					updated_at: new Date().toISOString(),
+					subject: {
+						id: subject.id,
+						type: subject.type,
+						name: subject.name,
+						name_cn: subject.name_cn,
+						short_summary: subject.summary?.substring(0, 100) || '',
+						date: subject.date,
+						images: subject.images,
+						volumes: subject.volumes,
+						eps: subject.eps,
+						collection_total: subject.collection?.collect || 0,
+						score: subject.rating?.score || 0,
+						rank: subject.rating?.rank || 0,
+						tags: subject.tags,
+					},
+				};
+
+				// 生成文件路径
+				const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
+
+				// V4: 获取章节信息
+				const episodeData = await this.fetchEpisodeData(subject);
+
+				// 生成相关条目链接
+				const relatedLinks = this.config.enableRelatedLinks !== false
+					? this.generateRelatedLinks(relations)
+					: [];
+
+				// 生成文件内容
+				const content = generateContentByType(
+					subject,
+					collection,
+					characters,
+					this.config.customTemplates,
+					input.ratingDetails,
+					episodeData?.episodes,
+					episodeData?.userStatus,
+					this.config.defaultPropertyValues,
+					this.config.notePathTemplate,
+					this.config.coverLinkType,
+					localCoverPath,
+					relatedLinks
+				);
+
+				// 创建文件
+				await this.fileManager.createOrUpdateFile(filePath, content, { overwrite: false });
+				console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
+
+				return { success: true, filePath };
+			}
+
+			return { success: true };
+
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			console.error(`[Bangumi Sync] 同步单个条目失败:`, error);
+			return { success: false, error: errorMsg };
 		}
 	}
 }

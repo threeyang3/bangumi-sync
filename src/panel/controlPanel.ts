@@ -15,6 +15,7 @@ import { CommentSyncModal, CommentDiff } from './commentSyncModal';
 import { TagSyncModal, TagDiff } from './tagSyncModal';
 import { StatusSyncModal, StatusSyncDiff, FieldDiff } from './statusSyncModal';
 import { ConflictDetector } from './conflictResolver';
+import { SearchModal } from '../ui/searchModal';
 import { tn } from '../i18n';
 
 /**
@@ -269,6 +270,11 @@ export class ControlPanel extends Modal {
 			btn.addEventListener('click', () => { void this.undoLastEdit(); });
 		});
 		undoBtn.disabled = !this.frontmatterEditor.canUndo();
+
+		// 搜索按钮
+		this.actionBarEl.createEl('button', { text: tn('searchModal', 'title'), cls: 'bangumi-action-btn' }, btn => {
+			btn.addEventListener('click', () => this.openSearchModal());
+		});
 
 		// 已选数量
 		const selectedCount = this.actionBarEl.createSpan({ cls: 'bangumi-selected-count' });
@@ -756,6 +762,22 @@ export class ControlPanel extends Modal {
 				const result = await this.frontmatterEditor.batchModify(filePaths, operations);
 				new Notice(`${tn('controlPanel', 'batchEdit')}: ${result.success}, ${result.failed}`);
 				this.renderActionBar(); // 更新撤销按钮状态
+			}
+		);
+		modal.open();
+	}
+
+	/**
+	 * 打开搜索弹窗
+	 */
+	private openSearchModal(): void {
+		const modal = new SearchModal(
+			this.app,
+			this.client,
+			this.settings,
+			this.syncManager,
+			() => {
+				void this.loadData();
 			}
 		);
 		modal.open();
