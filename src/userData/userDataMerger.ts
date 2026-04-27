@@ -7,7 +7,6 @@
  */
 
 import { App, TFile } from 'obsidian';
-import { SubjectType } from '../../common/api/types';
 import {
     SubjectUserData,
     RatingDetails,
@@ -29,12 +28,12 @@ export class UserDataMerger {
     /**
      * 合并用户数据到新内容中
      */
-    async mergeUserData(
+    mergeUserData(
         file: TFile,
         newContent: string,
         localUserData: SubjectUserData,
         settings: DataProtectionSettings = DEFAULT_DATA_PROTECTION_SETTINGS
-    ): Promise<string> {
+    ): string {
         let result = newContent;
 
         // 1. 合并评分明细

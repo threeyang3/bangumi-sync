@@ -100,7 +100,7 @@ export class UserDataExporter {
             // 获取类型标签
             let typeLabel = SUBJECT_TYPE_LABELS[userData.type] || 'novel';
 
-            if (userData.type === SubjectType.Book) {
+            if (userData.type === Number(SubjectType.Book)) {
                 const workType = userData.workType?.toLowerCase();
                 if (workType === 'comic') {
                     typeLabel = 'comic';

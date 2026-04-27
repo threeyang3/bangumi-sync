@@ -14,9 +14,27 @@ interface PathTemplateVars {
 	category: string;  // 细分类别
 	name: string;      // 原名
 	name_cn: string;   // 中文名
+	name_cn_with_type: string; // 中文名带类型后缀 (如: 金牌得主(动画))
 	year: string;      // 年份
 	author: string;    // 作者
 	id: number;        // 条目 ID
+}
+
+/**
+ * 获取类型的中文标签
+ */
+function getTypeLabelChinese(type: string): string {
+	const typeLabels: Record<string, string> = {
+		'anime': '动画',
+		'novel': '小说',
+		'comic': '漫画',
+		'album': '画集',
+		'music': '音乐',
+		'game': '游戏',
+		'real': '三次元',
+		'book': '书籍',
+	};
+	return typeLabels[type] || '';
 }
 
 /**
@@ -57,6 +75,7 @@ export function extractPathVars(
 		category: parsedInfo.category || '',
 		name: subject.name || '',
 		name_cn: subject.name_cn || '',
+		name_cn_with_type: subject.name_cn ? `${subject.name_cn}(${getTypeLabelChinese(typeLabel)})` : '',
 		year,
 		author: parsedInfo.author || '',
 		id: subject.id,
@@ -87,6 +106,7 @@ export function renderPathTemplate(template: string, vars: PathTemplateVars): st
 	result = result.replace(/\{\{category\}\}/g, sanitizeFileName(vars.category));
 	result = result.replace(/\{\{name\}\}/g, sanitizeFileName(vars.name));
 	result = result.replace(/\{\{name_cn\}\}/g, sanitizeFileName(vars.name_cn));
+	result = result.replace(/\{\{name_cn_with_type\}\}/g, sanitizeFileName(vars.name_cn_with_type));
 	result = result.replace(/\{\{year\}\}/g, vars.year);
 	result = result.replace(/\{\{author\}\}/g, sanitizeFileName(vars.author));
 	result = result.replace(/\{\{id\}\}/g, String(vars.id));

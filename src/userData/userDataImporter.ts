@@ -214,7 +214,7 @@ export class UserDataImporter {
         missingFields?: MissingFieldDecision[];
     }> {
         // 查找本地文件
-        const localFile = await this.findLocalFile(subjectId);
+        const localFile = this.findLocalFile(subjectId);
 
         if (!localFile) {
             return { imported: false };
@@ -242,7 +242,7 @@ export class UserDataImporter {
                         updatedContent = this.merger.updateFrontmatterField(
                             updatedContent,
                             key,
-                            String(value)
+                            typeof value === 'object' ? JSON.stringify(value) : String(value)
                         );
                     } else if (options.mergeStrategy === 'smart') {
                         const localValue = this.merger.getFrontmatterValue(updatedContent, key);
@@ -250,7 +250,7 @@ export class UserDataImporter {
                             updatedContent = this.merger.updateFrontmatterField(
                                 updatedContent,
                                 key,
-                                String(value)
+                                typeof value === 'object' ? JSON.stringify(value) : String(value)
                             );
                         }
                     }
@@ -315,7 +315,7 @@ export class UserDataImporter {
 
         // 应用决策
         for (const [subjectId, fieldDecisions] of grouped) {
-            const localFile = await this.findLocalFile(subjectId);
+            const localFile = this.findLocalFile(subjectId);
             if (!localFile) continue;
 
             let content = await this.app.vault.read(localFile);
@@ -338,7 +338,7 @@ export class UserDataImporter {
     /**
      * 查找本地文件
      */
-    private async findLocalFile(subjectId: number): Promise<TFile | null> {
+    private findLocalFile(subjectId: number): TFile | null {
         const files = this.app.vault.getMarkdownFiles();
 
         for (const file of files) {

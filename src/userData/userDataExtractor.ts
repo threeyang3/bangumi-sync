@@ -63,10 +63,7 @@ export class UserDataExtractor {
             result.customProperties = customProperties;
         }
 
-        // 提取正文内容
-        const content = this.app.vault.cachedRead(file);
-        // 注意：cachedRead 是异步的，这里需要同步读取
-        // 使用 vault.read 可能会有性能问题，但这是唯一的方式
+        // 提取正文内容（异步版本中处理）
         return result;
     }
 
@@ -233,7 +230,12 @@ export class UserDataExtractor {
         for (const { key, frontmatterField } of config) {
             const value = frontmatter[frontmatterField];
             if (value !== undefined && value !== '' && value !== null) {
-                details[key] = String(value);
+                // 确保值被正确转换为字符串
+                if (typeof value === 'object') {
+                    details[key] = JSON.stringify(value);
+                } else {
+                    details[key] = String(value);
+                }
             }
         }
 

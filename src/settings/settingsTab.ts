@@ -92,7 +92,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 		const pathTemplateDiv = containerEl.createDiv({ cls: 'bangumi-path-template-setting' });
 		new Setting(pathTemplateDiv)
 			.addText(text => {
-				text.setPlaceholder('ACGN/{{type}}/{{name_cn}}.md')
+				text.setPlaceholder('ACGN/{{type}}/{{name_cn_with_type}}.md')
 					.setValue(this.settings.syncPathTemplate)
 					.onChange(async (value) => {
 						this.settings.syncPathTemplate = value;
@@ -498,6 +498,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 			.replace(/\{\{category\}\}/g, 'TV')
 			.replace(/\{\{name\}\}/g, '進撃の巨人')
 			.replace(/\{\{name_cn\}\}/g, '进击的巨人')
+			.replace(/\{\{name_cn_with_type\}\}/g, '进击的巨人(动画)')
 			.replace(/\{\{year\}\}/g, '2013')
 			.replace(/\{\{author\}\}/g, '谏山创')
 			.replace(/\{\{id\}\}/g, '10060');

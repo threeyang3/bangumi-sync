@@ -598,6 +598,7 @@ bangumi: {{bangumi_url}}
 - `{{category}}`: 细分类别
 - `{{name}}`: 原名
 - `{{name_cn}}`: 中文名
+- `{{name_cn_with_type}}`: 中文名带类型后缀，如 `金牌得主(动画)`、`金牌得主(漫画)`，避免同名条目冲突
 - `{{year}}`: 年份
 - `{{author}}`: 作者
 - `{{id}}`: 条目 ID

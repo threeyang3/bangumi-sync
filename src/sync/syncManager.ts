@@ -285,8 +285,18 @@ export class SyncManager {
 	}
 
 	/**
+	 * 从文件路径提取显示名称（不含扩展名）
+	 * 例如: "ACGN/anime/金牌得主(动画).md" -> "金牌得主(动画)"
+	 */
+	private extractDisplayNameFromPath(path: string): string {
+		const fileName = path.split('/').pop() || path;
+		return fileName.replace(/\.md$/, '');
+	}
+
+	/**
 	 * 生成相关条目链接
 	 * 返回已同步条目的链接（包括本批次已同步的）
+	 * 显示名称使用文件名（带类型后缀）
 	 */
 	private generateRelatedLinks(relations: { id: number; name_cn: string; name: string }[]): string[] {
 		console.debug(`[Bangumi Sync] 处理 ${relations?.length || 0} 个相关条目`);
@@ -300,8 +310,9 @@ export class SyncManager {
 			const localPath = this.incrementalSync.getLocalPath(relation.id);
 			console.debug(`[Bangumi Sync] 本地路径: ${localPath || '未同步'}`);
 			if (localPath) {
-				// 使用 Obsidian 内部链接格式
-				const link = `[[${localPath}|${relation.name_cn || relation.name}]]`;
+				// 使用文件名作为显示名称（带类型后缀）
+				const displayName = this.extractDisplayNameFromPath(localPath);
+				const link = `[[${localPath}|${displayName}]]`;
 				links.push(link);
 				console.debug(`[Bangumi Sync] 相关条目已同步: ${relation.name_cn} -> ${link}`);
 			}
@@ -724,7 +735,7 @@ export class SyncManager {
 				if (localUserData) {
 					// 合并用户数据到新内容
 					const dataProtection = this.config.dataProtection || DEFAULT_DATA_PROTECTION_SETTINGS;
-					content = await this.userDataMerger.mergeUserData(existingFile, content, localUserData, dataProtection);
+					content = this.userDataMerger.mergeUserData(existingFile, content, localUserData, dataProtection);
 					console.debug(`[Bangumi Sync] 已保护用户数据: ${localUserData.name_cn}`);
 				}
 			}
@@ -831,6 +842,7 @@ export class SyncManager {
 	/**
 	 * 更新已同步相关条目的链接（双向链接）
 	 * 在当前条目的相关条目文件中添加当前条目的链接
+	 * 显示名称使用文件名（带类型后缀）
 	 */
 	private async updateRelatedItemsBidirectional(
 		currentId: number,
@@ -838,7 +850,9 @@ export class SyncManager {
 		currentName: string,
 		relations: { id: number; name_cn: string; name: string }[]
 	): Promise<void> {
-		const currentLink = `[[${currentPath}|${currentName}]]`;
+		// 使用文件名作为显示名称（带类型后缀）
+		const displayName = this.extractDisplayNameFromPath(currentPath);
+		const currentLink = `[[${currentPath}|${displayName}]]`;
 
 		for (const relation of relations) {
 			// 获取相关条目的本地路径（包括本批次同步的）

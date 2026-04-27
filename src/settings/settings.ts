@@ -153,7 +153,7 @@ export const DEFAULT_PANEL_FILTERS: PanelFilters = {
  */
 export const DEFAULT_SETTINGS: BangumiPluginSettings = {
 	accessToken: '',
-	syncPathTemplate: 'ACGN/{{type}}/{{name_cn}}.md',
+	syncPathTemplate: 'ACGN/{{type}}/{{name_cn_with_type}}.md',
 	downloadImages: true,
 	imagePathTemplate: 'ACGN/assets/{{id}}_cover.jpg',
 	notePathTemplate: '收集箱/笔记/ACGN',

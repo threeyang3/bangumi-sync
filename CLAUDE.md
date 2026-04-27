@@ -244,7 +244,8 @@ bangumi/
 
 在设置面板中可以自定义文件保存路径：
 
-- **文件路径模板**: 支持 `{{type}}`, `{{category}}`, `{{name}}`, `{{name_cn}}`, `{{year}}`, `{{author}}`, `{{id}}` 变量
+- **文件路径模板**: 支持 `{{type}}`, `{{category}}`, `{{name}}`, `{{name_cn}}`, `{{name_cn_with_type}}`, `{{year}}`, `{{author}}`, `{{id}}` 变量
+  - `{{name_cn_with_type}}`: 中文名带类型后缀，如 `金牌得主(动画)`、`金牌得主(漫画)`，避免同名条目冲突
 - 实时预览路径效果
 - **图片路径模板**: 支持 `{{id}}`, `{{name_cn}}`, `{{name}}`, `{{typeLabel}}` 变量
   - 示例：`ACGN/assets/{{name_cn}}_{{typeLabel}}.jpg` → `ACGN/assets/进击的巨人_Anime.jpg`
@@ -361,6 +362,7 @@ npm run build
 - `{{category}}` - 细分类别 (TV/OVA/小说/漫画等)
 - `{{name}}` - 原名
 - `{{name_cn}}` - 中文名
+- `{{name_cn_with_type}}` - 中文名带类型后缀，如 `金牌得主(动画)`、`金牌得主(漫画)`，避免同名条目冲突
 - `{{year}}` - 年份
 - `{{author}}` - 作者
 - `{{id}}` - 条目 ID
@@ -743,6 +745,16 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
   - 修复作者自用模板中 `相关` 字段的 YAML 格式问题
   - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.6.1
 
+- **v4.6.2**: 文件名优化版本
+  - 新增 `{{name_cn_with_type}}` 路径模板变量，生成带类型后缀的文件名（如 `金牌得主(动画)`）
+  - 默认路径模板改为 `ACGN/{{type}}/{{name_cn_with_type}}.md`
+  - 相关条目链接显示名称改为文件名（带类型后缀）
+  - 修复 Obsidian 插件审核问题：
+    - 修复枚举类型比较问题（userDataExporter.ts）
+    - 修复对象字符串化问题（userDataExtractor.ts、userDataImporter.ts）
+    - 修复无 await 的 async 方法（userDataImporter.ts、userDataMerger.ts）
+    - 移除未使用的变量和导入
+
 ## 集数追踪功能
 
 ### 集数追踪
@@ -864,6 +876,36 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 - `src/sync/syncManager.ts`：添加 `generateRelatedLinks()` 方法，更新同步流程
 
 ## 已完成功能
+
+### v4.6.2 文件名优化（已完成）
+
+**功能描述**：优化文件名生成，避免同名条目冲突。
+
+**实现的功能**：
+
+1. **新增路径模板变量**
+   - `{{name_cn_with_type}}`: 中文名带类型后缀，如 `金牌得主(动画)`、`金牌得主(漫画)`
+   - 默认路径模板改为 `ACGN/{{type}}/{{name_cn_with_type}}.md`
+
+2. **相关链接显示优化**
+   - 相关条目链接显示名称改为文件名（带类型后缀）
+   - 例如：`[[ACGN/anime/金牌得主(动画).md|金牌得主(动画)]]`
+
+3. **修复 Obsidian 插件审核问题**
+   - 修复枚举类型比较问题（userDataExporter.ts）
+   - 修复对象字符串化问题（userDataExtractor.ts、userDataImporter.ts）
+   - 修复无 await 的 async 方法（userDataImporter.ts、userDataMerger.ts）
+   - 移除未使用的变量和导入
+
+**已修改的文件**：
+- `common/template/pathTemplate.ts`：新增 `name_cn_with_type` 变量和 `getTypeLabelChinese()` 函数
+- `src/settings/settings.ts`：更新默认路径模板
+- `src/sync/syncManager.ts`：相关链接使用文件名作为显示名称
+- `src/settings/settingsTab.ts`：更新路径预览
+- `src/userData/userDataExporter.ts`：修复枚举类型比较
+- `src/userData/userDataExtractor.ts`：修复对象字符串化、移除未使用变量
+- `src/userData/userDataImporter.ts`：修复对象字符串化、移除不必要的 async
+- `src/userData/userDataMerger.ts`：移除未使用导入、移除不必要的 async
 
 ### v4.6.1 Bug 修复（已完成）
 
