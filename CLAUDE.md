@@ -33,11 +33,13 @@ bangumi/
 │   ├── settings/          # 设置
 │   ├── ui/                # UI 弹窗
 │   ├── userData/          # 用户数据保护
+│   ├── episode/           # 单集功能（评论、状态、右键菜单）
 │   └── i18n/              # 国际化
 └── docs/                   # 文档
     ├── TEMPLATE_GUIDE.md  # 模板设计指南
     ├── VERSION_HISTORY.md # 版本历史
-    └── DEVELOPMENT.md     # 开发指南
+    ├── DEVELOPMENT.md     # 开发指南
+    └── STATUS_SYNC_PITFALLS.md # 状态同步踩坑记录
 ```
 
 ## 编码规范
