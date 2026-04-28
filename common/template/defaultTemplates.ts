@@ -747,10 +747,8 @@ ISBN: "{{isbn}}"
 `;
 
 // 音乐作者自用模板（与标准模板相同）
-export const MUSIC_TEMPLATE_AUTHOR = MUSIC_TEMPLATE_STANDARD;
 
 // 三次元作者自用模板（与标准模板相同）
-export const REAL_TEMPLATE_AUTHOR = REAL_TEMPLATE_STANDARD;
 
 // ==================== 兼容旧版本的导出 ====================
 

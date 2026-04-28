@@ -185,12 +185,6 @@ export interface RelatedSubject {
  * - 2: OP
  * - 3: ED
  */
-export enum EpisodeType {
-	Main = 0,
-	SP = 1,
-	OP = 2,
-	ED = 3
-}
 
 /**
  * 章节收藏类型
@@ -198,11 +192,6 @@ export enum EpisodeType {
  * - 2: 看过 (Done)
  * - 3: 抛弃 (Dropped)
  */
-export enum EpisodeCollectionType {
-	Wish = 1,
-	Done = 2,
-	Dropped = 3
-}
 
 /**
  * 章节信息

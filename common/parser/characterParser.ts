@@ -84,58 +84,7 @@ export function getCharacterTemplateVars(characters: CharacterInfo[]): Record<st
 /**
  * 生成角色表格 Markdown
  */
-export function generateCharacterTable(characters: CharacterInfo[]): string {
-	if (characters.length === 0) {
-		return '';
-	}
-
-	const rows: string[] = [];
-
-	// 表头
-	rows.push('| 角色 | CV |');
-	rows.push('|:------:|:------:|');
-
-	// 角色行
-	for (const char of characters) {
-		const name = char.name || '-';
-		const cv = char.cv || '-';
-		rows.push(`| ${name} | ${cv} |`);
-	}
-
-	return rows.join('\n');
-}
 
 /**
  * 生成带图片的角色表格 Markdown（3列布局）
  */
-export function generateCharacterTableWithImages(characters: CharacterInfo[]): string {
-	if (characters.length === 0) {
-		return '';
-	}
-
-	const rows: string[] = [];
-
-	// 每3个角色一行
-	for (let i = 0; i < characters.length; i += 3) {
-		const chars = [
-			characters[i],
-			characters[i + 1],
-			characters[i + 2],
-		];
-
-		// 角色名行
-		const nameRow = chars.map(c => c ? `**${c.name}**` : '').join(' | ');
-		rows.push(`| ${nameRow} |`);
-		rows.push('|:------:|:------:|:------:|');
-
-		// CV 行
-		const cvRow = chars.map(c => c && c.cv ? `CV: ${c.cv}` : '').join(' | ');
-		rows.push(`| ${cvRow} |`);
-
-		// 图片行
-		const imgRow = chars.map(c => c && c.image ? `![bookcover](${c.image})` : '').join(' | ');
-		rows.push(`| ${imgRow} |`);
-	}
-
-	return rows.join('\n');
-}

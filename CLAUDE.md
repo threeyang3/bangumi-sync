@@ -802,6 +802,14 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
   - 移除已弃用的 baseUrl 配置
   - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.7.2
 
+- **v4.7.3**: 代码清理与功能增强版本
+  - 删除冗余代码（约 1100 行）：未使用的 V3 别名、函数、类型、文件
+  - 合并 `src/file/fileManager.ts` 到 `common/file/fileManager.ts`（使用推荐的 `vault.process` API）
+  - 删除未使用的弹窗：`commentSyncModal.ts`、`tagSyncModal.ts`（功能已被 `statusSyncModal.ts` 整合）
+  - 新增导出模板功能：一键将当前所有模板保存到指定文件夹
+  - 改进控制面板：打开本地文件时自动关闭面板
+  - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.7.3
+
 ## 集数追踪功能
 
 ### 集数追踪

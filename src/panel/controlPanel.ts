@@ -11,8 +11,6 @@ import { IncrementalSync } from '../sync/incrementalSync';
 import { BangumiClient } from '../api/client';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { BatchEditorModal, BatchEditOperation, FrontmatterEditor } from './batchEditorModal';
-import { CommentSyncModal, CommentDiff } from './commentSyncModal';
-import { TagSyncModal, TagDiff } from './tagSyncModal';
 import { StatusSyncModal, StatusSyncDiff, FieldDiff } from './statusSyncModal';
 import { ConflictDetector } from './conflictResolver';
 import { SearchModal } from '../ui/searchModal';
@@ -590,6 +588,7 @@ export class ControlPanel extends Modal {
 	private openFile(path: string): void {
 		const file = this.app.vault.getAbstractFileByPath(path);
 		if (file instanceof TFile) {
+			this.close();
 			void this.app.workspace.openLinkText(file.path, '', true);
 		} else {
 			new Notice(tn('controlPanel', 'fileNotFound'));
@@ -798,170 +797,6 @@ export class ControlPanel extends Modal {
 			this.renderActionBar();
 		} else {
 			new Notice(tn('controlPanel', 'undoFailed'));
-		}
-	}
-
-	/**
-	 * 同步短评
-	 * 对比本地与云端短评差异
-	 */
-	private async syncComments(): Promise<void> {
-		// 获取已同步的条目
-		const syncedCollections = this.state.collections.filter(c =>
-			this.state.localSubjects.has(c.subject_id)
-		);
-
-		if (syncedCollections.length === 0) {
-			new Notice(tn('controlPanel', 'noSyncedItemsComment'));
-			return;
-		}
-
-		this.state.loading = true;
-		this.renderStatus(tn('controlPanel', 'comparingComments'));
-
-		try {
-			const diffs: CommentDiff[] = [];
-
-			for (const collection of syncedCollections) {
-				const localInfo = this.state.localSubjects.get(collection.subject_id);
-				if (!localInfo) continue;
-
-				// 读取本地文件
-				const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-				if (!(file instanceof TFile)) continue;
-
-				const content = await this.app.vault.read(file);
-				const localComment = this.incrementalSync.extractComment(content);
-				const cloudComment = collection.comment || null;
-
-				// 对比差异（忽略空白差异）
-				const localNormalized = localComment?.trim() || null;
-				const cloudNormalized = cloudComment?.trim() || null;
-
-				if (localNormalized !== cloudNormalized) {
-					diffs.push({
-						subjectId: collection.subject_id,
-						name_cn: collection.subject.name_cn || '',
-						name: collection.subject.name || '',
-						localComment: localNormalized,
-						cloudComment: cloudNormalized,
-						localPath: localInfo.path,
-						collection,
-						decision: 'skip',
-					});
-				}
-			}
-
-			this.state.loading = false;
-
-			if (diffs.length === 0) {
-				new Notice(tn('controlPanel', 'noCommentDiff'));
-				this.renderStatus(tn('controlPanel', 'noCommentDiff'));
-				return;
-			}
-
-			// 打开短评同步弹窗
-			const modal = new CommentSyncModal(
-				this.app,
-				this.client,
-				this.incrementalSync,
-				diffs,
-				() => {
-					// 同步完成后刷新
-					void this.loadData();
-				}
-			);
-			modal.open();
-
-		} catch (error) {
-			this.state.loading = false;
-			const errorMsg = error instanceof Error ? error.message : String(error);
-			new Notice(`${tn('controlPanel', 'compareCommentFailed')}: ${errorMsg}`);
-			this.renderStatus(`${tn('controlPanel', 'compareCommentFailed')}: ${errorMsg}`);
-		}
-	}
-
-	/**
-	 * 同步标签
-	 * 对比本地与云端标签差异
-	 */
-	private async syncTags(): Promise<void> {
-		// 获取已同步的条目
-		const syncedCollections = this.state.collections.filter(c =>
-			this.state.localSubjects.has(c.subject_id)
-		);
-
-		if (syncedCollections.length === 0) {
-			new Notice(tn('controlPanel', 'noSyncedItemsTag'));
-			return;
-		}
-
-		this.state.loading = true;
-		this.renderStatus(tn('controlPanel', 'comparingTags'));
-
-		try {
-			const diffs: TagDiff[] = [];
-
-			for (const collection of syncedCollections) {
-				const localInfo = this.state.localSubjects.get(collection.subject_id);
-				if (!localInfo) continue;
-
-				// 读取本地文件
-				const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-				if (!(file instanceof TFile)) continue;
-
-				const content = await this.app.vault.read(file);
-				const localTags = this.incrementalSync.extractTags(content);
-				const cloudTags = collection.tags && collection.tags.length > 0 ? collection.tags : null;
-
-				// 对比差异（忽略顺序）
-				const localSet = localTags ? new Set(localTags.map(t => t.toLowerCase().trim())) : new Set();
-				const cloudSet = cloudTags ? new Set(cloudTags.map(t => t.toLowerCase().trim())) : new Set();
-
-				// 检查是否有差异
-				const hasDiff = localSet.size !== cloudSet.size ||
-					![...localSet].every(t => cloudSet.has(t));
-
-				if (hasDiff) {
-					diffs.push({
-						subjectId: collection.subject_id,
-						name_cn: collection.subject.name_cn || '',
-						name: collection.subject.name || '',
-						localTags,
-						cloudTags,
-						localPath: localInfo.path,
-						collection,
-						decision: 'skip',
-					});
-				}
-			}
-
-			this.state.loading = false;
-
-			if (diffs.length === 0) {
-				new Notice(tn('controlPanel', 'noTagDiff'));
-				this.renderStatus(tn('controlPanel', 'noTagDiff'));
-				return;
-			}
-
-			// 打开标签同步弹窗
-			const modal = new TagSyncModal(
-				this.app,
-				this.client,
-				this.incrementalSync,
-				diffs,
-				() => {
-					// 同步完成后刷新
-					void this.loadData();
-				}
-			);
-			modal.open();
-
-		} catch (error) {
-			this.state.loading = false;
-			const errorMsg = error instanceof Error ? error.message : String(error);
-			new Notice(`${tn('controlPanel', 'compareTagFailed')}: ${errorMsg}`);
-			this.renderStatus(`${tn('controlPanel', 'compareTagFailed')}: ${errorMsg}`);
 		}
 	}
 

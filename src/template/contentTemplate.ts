@@ -372,6 +372,3 @@ function replaceEmptyProperty(content: string, propertyName: string, defaultValu
 }
 
 // 兼容旧版本的类型别名
-export const extractTemplateVarsV3 = extractTemplateVars;
-export const generateContentV3 = generateContent;
-export const generateContentByTypeV3 = generateContentByType;

@@ -194,5 +194,3 @@ export class SyncOptionsModal extends Modal {
 }
 
 // 兼容旧版本的类型别名
-export type SyncOptionsV3Input = SyncOptionsInput;
-export const SyncOptionsModalV3 = SyncOptionsModal;

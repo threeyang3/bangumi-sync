@@ -701,4 +701,3 @@ export class IncrementalSync {
 }
 
 // 兼容旧版本的类型别名
-export const IncrementalSyncV3 = IncrementalSync;

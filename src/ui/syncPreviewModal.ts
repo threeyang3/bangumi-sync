@@ -268,20 +268,5 @@ export class SyncPreviewModal extends Modal {
 /**
  * 创建预览数据
  */
-export function createPreviewItems(collections: UserCollection[]): SyncPreviewItem[] {
-	return collections.map(collection => ({
-		id: collection.subject_id,
-		name_cn: collection.subject.name_cn || '',
-		name: collection.subject.name || '',
-		type: collection.subject_type,
-		typeLabel: getTypeLabel(collection.subject_type),
-		rating: collection.subject.score || 0,
-		my_rate: collection.rate,
-		collection,
-		selected: true,
-		ratingDetails: {},
-	}));
-}
 
 // 兼容旧版本的类型别名
-export const SyncPreviewModalV3 = SyncPreviewModal;

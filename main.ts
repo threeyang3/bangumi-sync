@@ -650,8 +650,3 @@ export class BangumiPlugin extends Plugin {
 		}
 	}
 }
-
-export default BangumiPlugin;
-
-// 兼容旧版本的类型别名
-export const BangumiPluginV3 = BangumiPlugin;

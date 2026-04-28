@@ -85,19 +85,6 @@ export function parseEpisodes(
  * @param userStatusMap 用户章节状态映射
  * @param header 标题（默认"集数"）
  */
-export function generateEpisodeSection(
-	episodes: Episode[],
-	userStatusMap?: Map<number, number>,
-	header: string = '集数'
-): string {
-	const content = parseEpisodes(episodes, userStatusMap);
-
-	if (!content) {
-		return '';
-	}
-
-	return `## ${header}\n\n${content}\n`;
-}
 
 /**
  * 从用户章节收藏列表创建状态映射

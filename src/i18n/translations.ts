@@ -41,6 +41,9 @@ export interface TranslationStrings {
 		selectTemplateFirst: string;
 		copiedToCustom: string;
 		templateFileSelected: string;
+		exportTemplatesSuccess: string;
+		exportTemplatesFailed: string;
+		selectExportFolder: string;
 	};
 
 	// 设置
@@ -115,6 +118,8 @@ export interface TranslationStrings {
 		edit: string;
 		copy: string;
 		copyTooltip: string;
+		exportTemplates: string;
+		exportTemplatesDesc: string;
 		templateSourceStandard: string;
 		templateSourceAuthor: string;
 		templateSourceFile: string;
@@ -511,6 +516,9 @@ const en: TranslationStrings = {
 		selectTemplateFirst: 'Please select a template file first',
 		copiedToCustom: 'Copied to custom content, ready to edit',
 		templateFileSelected: 'Template file selected',
+		exportTemplatesSuccess: 'Templates exported successfully',
+		exportTemplatesFailed: 'Failed to export templates',
+		selectExportFolder: 'Please select a folder to export templates',
 	},
 
 	settings: {
@@ -584,6 +592,8 @@ const en: TranslationStrings = {
 		edit: 'Edit',
 		copy: 'Copy',
 		copyTooltip: 'Copy current template to custom content',
+		exportTemplates: 'Export all templates',
+		exportTemplatesDesc: 'Save all current templates to a folder',
 		templateSourceStandard: 'Use standard template (Bangumi data only)',
 		templateSourceAuthor: 'Use author template (with custom variables)',
 		templateSourceFile: 'Using file',
@@ -957,6 +967,9 @@ const zhCN: TranslationStrings = {
 		selectTemplateFirst: '请先选择模板文件',
 		copiedToCustom: '已复制到自定义内容，可以开始编辑',
 		templateFileSelected: '已选择模板文件',
+		exportTemplatesSuccess: '模板导出成功',
+		exportTemplatesFailed: '模板导出失败',
+		selectExportFolder: '请选择导出文件夹',
 	},
 
 	settings: {
@@ -1030,6 +1043,8 @@ const zhCN: TranslationStrings = {
 		edit: '编辑',
 		copy: '复制',
 		copyTooltip: '复制当前模板到自定义内容',
+		exportTemplates: '导出全部模板',
+		exportTemplatesDesc: '将当前所有模板保存到指定文件夹',
 		templateSourceStandard: '使用标准模板（只含 Bangumi 数据）',
 		templateSourceAuthor: '使用作者自用模板（含自定义变量）',
 		templateSourceFile: '使用文件',

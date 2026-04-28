@@ -472,5 +472,3 @@ export class BangumiClient {
 	}
 }
 
-// 兼容旧版本的类型别名
-export const BangumiClientV3 = BangumiClient;

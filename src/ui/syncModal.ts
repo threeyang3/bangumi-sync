@@ -94,4 +94,3 @@ export class SyncModal extends Modal {
 }
 
 // 兼容旧版本的类型别名
-export const SyncModalV3 = SyncModal;

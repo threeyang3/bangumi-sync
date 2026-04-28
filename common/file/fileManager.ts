@@ -1,9 +1,9 @@
 /**
- * 文件管理器（共享版本）
- * 提供基础的文件操作功能
+ * 文件管理器
+ * 处理 Obsidian 中文件的创建和更新
  */
 
-import { App, TFile, normalizePath } from 'obsidian';
+import { App, TFile, TFolder, normalizePath } from 'obsidian';
 
 export class FileManager {
 	private app: App;
@@ -21,15 +21,18 @@ export class FileManager {
 		const dirPath = lastSlash > 0 ? normalizedPath.substring(0, lastSlash) : '';
 
 		if (dirPath) {
+			console.debug(`[Bangumi Sync] 检查目录: ${dirPath}`);
 			const exists = await this.app.vault.adapter.exists(dirPath);
 
 			if (!exists) {
+				console.debug(`[Bangumi Sync] 创建目录: ${dirPath}`);
 				// 递归创建父目录
 				await this.ensureDirectory(dirPath);
 				try {
 					await this.app.vault.createFolder(dirPath);
-				} catch {
+				} catch (error: unknown) {
 					// 目录可能已存在（并发创建）
+					console.debug(`[Bangumi Sync] 创建目录失败（可能已存在）: ${error}`);
 				}
 			}
 		}
@@ -60,20 +63,27 @@ export class FileManager {
 	 */
 	async createFile(path: string, content: string): Promise<TFile> {
 		const normalizedPath = normalizePath(path);
+		console.debug(`[Bangumi Sync] 创建文件: ${normalizedPath}`);
 
 		// 确保目录存在
 		await this.ensureDirectory(normalizedPath);
 
 		// 创建文件
-		const file = await this.app.vault.create(normalizedPath, content);
-		return file;
+		try {
+			const file = await this.app.vault.create(normalizedPath, content);
+			console.debug(`[Bangumi Sync] 文件创建成功: ${normalizedPath}`);
+			return file;
+		} catch (error) {
+			console.error(`[Bangumi Sync] 创建文件失败: ${normalizedPath}`, error);
+			throw error;
+		}
 	}
 
 	/**
 	 * 更新文件
 	 */
 	async updateFile(file: TFile, content: string): Promise<void> {
-		await this.app.vault.modify(file, content);
+		await this.app.vault.process(file, () => content);
 	}
 
 	/**
@@ -105,5 +115,26 @@ export class FileManager {
 		// 创建新文件
 		const file = await this.createFile(normalizedPath, content);
 		return { file, created: true };
+	}
+
+	/**
+	 * 获取文件夹中的所有 Markdown 文件
+	 */
+	getMarkdownFiles(folderPath: string): TFile[] {
+		const normalizedPath = normalizePath(folderPath);
+		const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
+
+		if (!(folder instanceof TFolder)) {
+			return [];
+		}
+
+		const files: TFile[] = [];
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			if (file.path.startsWith(normalizedPath)) {
+				files.push(file);
+			}
+		}
+
+		return files;
 	}
 }

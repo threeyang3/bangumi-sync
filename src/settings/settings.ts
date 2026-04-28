@@ -198,5 +198,3 @@ export const DEFAULT_SETTINGS: BangumiPluginSettings = {
 };
 
 // 兼容旧版本的类型别名
-export type BangumiPluginSettingsV3 = BangumiPluginSettings;
-export const DEFAULT_SETTINGS_V3 = DEFAULT_SETTINGS;

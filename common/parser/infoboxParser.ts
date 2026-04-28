@@ -495,12 +495,3 @@ export function cleanSummary(summary: string | undefined): string {
  * 清理多行文本，使其适合作为 YAML 字符串值
  * 将换行替换为空格，并移除多余空白
  */
-export function cleanMultilineText(text: string | undefined): string {
-	if (!text) return '';
-
-	return text
-		.replace(/\r\n/g, ' ')  // Windows 换行
-		.replace(/\n/g, ' ')    // Unix 换行
-		.replace(/\s+/g, ' ')   // 多个空格合并为一个
-		.trim();
-}

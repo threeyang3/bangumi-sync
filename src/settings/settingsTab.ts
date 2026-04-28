@@ -210,6 +210,18 @@ export class BangumiSettingTab extends PluginSettingTab {
 			this.addTemplateFileSetting(containerEl, templateType);
 		});
 
+		// 导出模板按钮
+		new Setting(containerEl)
+			.setName(tn('settings', 'exportTemplates'))
+			.setDesc(tn('settings', 'exportTemplatesDesc'))
+			.addButton(button => {
+				button
+					.setButtonText(tn('settings', 'exportTemplates'))
+					.onClick(() => {
+						void this.exportAllTemplates();
+					});
+			});
+
 		// ==================== 同步选项 ====================
 		new Setting(containerEl).setName(tn('settings', 'syncOptions')).setHeading();
 
@@ -619,6 +631,107 @@ export class BangumiSettingTab extends PluginSettingTab {
 	}
 
 	/**
+	 * 导出所有模板到指定文件夹
+	 */
+	private async exportAllTemplates(): Promise<void> {
+		// 使用简单的输入弹窗让用户输入文件夹路径
+		const folderPath = await new Promise<string | null>((resolve) => {
+			const modal = new Modal(this.app);
+			modal.titleEl.setText(tn('settings', 'exportTemplates'));
+
+			const content = modal.contentEl.createDiv();
+			content.createEl('p', { text: tn('settings', 'exportTemplatesDesc') });
+
+			const input = content.createEl('input', {
+				type: 'text',
+				placeholder: 'templates/',
+				attr: { style: 'width: 100%; margin: 10px 0;' }
+			});
+			input.value = 'templates/';
+
+			const buttonDiv = content.createDiv({ attr: { style: 'display: flex; justify-content: flex-end; gap: 10px;' } });
+			buttonDiv.createEl('button', { text: tn('syncOptions', 'cancel') }).addEventListener('click', () => {
+				modal.close();
+				resolve(null);
+			});
+			buttonDiv.createEl('button', { text: tn('statusSyncModal', 'execute'), cls: 'mod-cta' }).addEventListener('click', () => {
+				modal.close();
+				resolve(input.value.trim());
+			});
+
+			modal.open();
+		});
+
+		if (!folderPath) return;
+
+		try {
+			// 确保文件夹存在
+			const normalizedPath = folderPath.replace(/\/+$/, '');
+			if (!await this.app.vault.adapter.exists(normalizedPath)) {
+				await this.app.vault.createFolder(normalizedPath);
+			}
+
+			// 导出每个模板
+			const templateNames: Record<TemplateKey, string> = {
+				animeTemplateConfig: 'anime-template.md',
+				novelTemplateConfig: 'novel-template.md',
+				comicTemplateConfig: 'comic-template.md',
+				gameTemplateConfig: 'game-template.md',
+				albumTemplateConfig: 'album-template.md',
+				musicTemplateConfig: 'music-template.md',
+				realTemplateConfig: 'real-template.md',
+			};
+
+			for (const templateType of TEMPLATE_TYPES) {
+				const content = await this.getTemplateContent(templateType);
+				const fileName = templateNames[templateType.key];
+				const filePath = `${normalizedPath}/${fileName}`;
+
+				// 检查文件是否存在
+				if (await this.app.vault.adapter.exists(filePath)) {
+					const file = this.app.vault.getAbstractFileByPath(filePath);
+					if (file instanceof TFile) {
+						await this.app.vault.modify(file, content);
+					}
+				} else {
+					await this.app.vault.create(filePath, content);
+				}
+			}
+
+			new Notice(tn('notices', 'exportTemplatesSuccess'));
+		} catch (error) {
+			console.error('[Bangumi Sync] Export templates failed:', error);
+			new Notice(tn('notices', 'exportTemplatesFailed'));
+		}
+	}
+
+	/**
+	 * 获取模板内容
+	 */
+	private async getTemplateContent(templateType: TemplateTypeOption): Promise<string> {
+		const config = this.settings[templateType.key];
+
+		switch (config.source) {
+			case 'standard':
+				return this.getStandardTemplate(templateType.key);
+			case 'author':
+				return templateType.defaultTemplate;
+			case 'file':
+				if (config.filePath) {
+					const file = this.app.vault.getAbstractFileByPath(config.filePath);
+					if (file instanceof TFile) {
+						return await this.app.vault.read(file);
+					}
+				}
+				return templateType.defaultTemplate;
+			case 'custom':
+				return config.customContent || templateType.defaultTemplate;
+			default:
+				return templateType.defaultTemplate;
+		}
+	}
+
+	/**
 	 * 获取标准模板内容
 	 */
 	private getStandardTemplate(key: TemplateKey): string {
@@ -789,4 +902,3 @@ class TemplateEditorModal extends Modal {
 }
 
 // 兼容旧版本的类型别名
-export const BangumiSettingTabV3 = BangumiSettingTab;
