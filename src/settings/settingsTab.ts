@@ -416,7 +416,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(tn('settings', 'resourceAttr'))
 			.addText(text => text
-				.setPlaceholder('1080p')
+				.setPlaceholder('例如 1080p')
 				.setValue(this.settings.defaultPropertyValues.anime_resourceAttr || '')
 				.onChange(async (value) => {
 					this.settings.defaultPropertyValues.anime_resourceAttr = value || undefined;
@@ -505,7 +505,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 		el.empty();
 		el.createEl('span', { text: `${tn('settings', 'preview')}: `, cls: 'bangumi-preview-label' });
 
-		let preview = template
+		const preview = template
 			.replace(/\{\{type\}\}/g, 'anime')
 			.replace(/\{\{category\}\}/g, 'TV')
 			.replace(/\{\{name\}\}/g, '進撃の巨人')
@@ -691,7 +691,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 				if (await this.app.vault.adapter.exists(filePath)) {
 					const file = this.app.vault.getAbstractFileByPath(filePath);
 					if (file instanceof TFile) {
-						await this.app.vault.modify(file, content);
+						await this.app.vault.process(file, () => content);
 					}
 				} else {
 					await this.app.vault.create(filePath, content);

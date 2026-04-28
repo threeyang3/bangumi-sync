@@ -42,7 +42,7 @@ function getTypeLabelChinese(type: string): string {
  */
 export function extractPathVars(
 	subject: Subject,
-	collection?: UserCollection
+	_collection?: UserCollection
 ): PathTemplateVars {
 	// 解析 infobox 获取详细信息
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);

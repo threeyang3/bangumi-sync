@@ -162,14 +162,26 @@ export class ConflictDetector {
 
 			if (!frontmatter) return null;
 
+			const title = typeof frontmatter.title === 'string' ? frontmatter.title : '';
+			const nameCn = typeof frontmatter.name_cn === 'string' ? frontmatter.name_cn : '';
+			const rate = typeof frontmatter.my_rate === 'number' ? frontmatter.my_rate : undefined;
+			const comment = typeof frontmatter.comment === 'string' ? frontmatter.comment : undefined;
+			const status = typeof frontmatter.status === 'number' ? frontmatter.status : undefined;
+			const updatedAt = frontmatter.updated_at != null ? String(frontmatter.updated_at) : file.stat.mtime.toString();
+			const tags = Array.isArray(frontmatter.tags)
+				? frontmatter.tags.map(tag => String(tag).trim()).filter(Boolean)
+				: frontmatter.tags != null
+					? String(frontmatter.tags).split(',').map((t: string) => t.trim()).filter(Boolean)
+					: [];
+
 			return {
 				path: file.path,
-				name_cn: frontmatter.title || frontmatter.name_cn || '',
-				rate: frontmatter.my_rate,
-				comment: frontmatter.comment,
-				tags: frontmatter.tags ? String(frontmatter.tags).split(',').map((t: string) => t.trim()) : [],
-				type: frontmatter.status,
-				updated_at: frontmatter.updated_at || file.stat.mtime.toString(),
+				name_cn: title || nameCn,
+				rate,
+				comment,
+				tags,
+				type: status,
+				updated_at: updatedAt,
 			};
 		} catch (error) {
 			console.error('[ConflictDetector] 提取本地数据失败:', error);

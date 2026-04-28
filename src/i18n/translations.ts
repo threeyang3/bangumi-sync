@@ -339,6 +339,7 @@ export interface TranslationStrings {
 		fieldComment: string;
 		fieldTags: string;
 		fieldStatus: string;
+		fieldEpisodeStatus: string;
 		empty: string;
 		keepLocal: string;
 		keepCloud: string;
@@ -798,6 +799,7 @@ const en: TranslationStrings = {
 			fieldComment: 'Comment',
 			fieldTags: 'Tags',
 			fieldStatus: 'Status',
+			fieldEpisodeStatus: 'Episode status',
 			empty: '(empty)',
 			keepLocal: 'Keep local',
 			keepCloud: 'Keep cloud',
@@ -1249,6 +1251,7 @@ const zhCN: TranslationStrings = {
 			fieldComment: '短评',
 			fieldTags: '标签',
 			fieldStatus: '状态',
+			fieldEpisodeStatus: '单集状态',
 			empty: '(空)',
 			keepLocal: '保留本地',
 			keepCloud: '保留云端',

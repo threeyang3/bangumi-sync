@@ -200,6 +200,8 @@ export class ImageHandler {
 		images: Array<{ url: string; path: string }>,
 		onProgress?: (current: number, total: number) => void
 	): Promise<void> {
+		const ownerWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
+
 		for (let i = 0; i < images.length; i++) {
 			const { url, path } = images[i];
 			await this.downloadImage(url, path);
@@ -209,7 +211,7 @@ export class ImageHandler {
 			}
 
 			// 添加小延迟避免请求过快
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await new Promise<void>(resolve => (ownerWindow ?? window).setTimeout(resolve, 100));
 		}
 	}
 

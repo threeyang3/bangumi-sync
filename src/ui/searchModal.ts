@@ -143,7 +143,7 @@ export class SearchModal extends Modal {
 			const keyword = inputEl.value.trim();
 			if (keyword) {
 				this.currentKeyword = keyword;
-				this.currentType = Number(typeSelect.value) as SubjectType | 0;
+				this.currentType = Number(typeSelect.value);
 				this.currentSort = sortSelect.value as 'match' | 'heat' | 'rank' | 'score';
 				void this.search(true);
 			}
@@ -167,7 +167,7 @@ export class SearchModal extends Modal {
 		});
 
 		typeSelect.addEventListener('change', () => {
-			this.currentType = Number(typeSelect.value) as SubjectType | 0;
+			this.currentType = Number(typeSelect.value);
 		});
 
 		sortSelect.addEventListener('change', () => {
@@ -263,7 +263,7 @@ export class SearchModal extends Modal {
 				if (collection) {
 					this.collectionStatuses.set(subject.id, collection);
 				}
-			} catch (error: unknown) {
+			} catch {
 				// 忽略错误，继续检查下一个
 			}
 		}
@@ -283,7 +283,7 @@ export class SearchModal extends Modal {
 			if (file instanceof TFile) {
 				return filePath;
 			}
-		} catch (error: unknown) {
+		} catch {
 			// 忽略错误
 		}
 		return null;

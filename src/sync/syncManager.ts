@@ -602,7 +602,7 @@ export class SyncManager {
 		const typeLabel = getTypeLabel(subject.type);
 
 		// 下载封面图片
-		let coverUrl = subject.images?.large || subject.images?.common || '';
+		const coverUrl = subject.images?.large || subject.images?.common || '';
 		let localCoverPath = '';
 		if (this.config.downloadImages && coverUrl) {
 			console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
@@ -681,7 +681,7 @@ export class SyncManager {
 		const typeLabel = getTypeLabel(subject.type);
 
 		// 下载封面图片
-		let coverUrl = subject.images?.large || subject.images?.common || '';
+		const coverUrl = subject.images?.large || subject.images?.common || '';
 		let localCoverPath = '';
 		if (this.config.downloadImages && coverUrl) {
 			const localPath = await this.imageHandler.downloadCover(
@@ -777,7 +777,7 @@ export class SyncManager {
 		const typeLabel = getTypeLabel(subject.type);
 
 		// 下载封面图片
-		let coverUrl = subject.images?.large || subject.images?.common || '';
+		const coverUrl = subject.images?.large || subject.images?.common || '';
 		let localCoverPath = '';
 		if (this.config.downloadImages && coverUrl) {
 			console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
@@ -922,7 +922,7 @@ export class SyncManager {
 				const typeLabel = getTypeLabel(subject.type);
 
 				// 下载封面图片
-				let coverUrl = subject.images?.large || subject.images?.common || '';
+				const coverUrl = subject.images?.large || subject.images?.common || '';
 				let localCoverPath = '';
 				if (this.config.downloadImages && coverUrl) {
 					console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);

@@ -278,18 +278,19 @@ export class IncrementalSync {
 	 * 短评格式: > [!abstract]+ **短评**\n> {comment}
 	 */
 	extractComment(content: string): string | null {
-		// 匹配短评 callout
-		const commentMatch = content.match(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)/);
-		if (commentMatch) {
-			// 提取 > 后面的内容，合并为一行
-			const lines = commentMatch[1].split('\n');
-			const comment = lines
-				.map(line => line.replace(/^> /, '').trim())
-				.filter(line => line.length > 0)
-				.join(' ');
-			return comment || null;
+		const block = this.findCommentBlock(content);
+		if (!block) {
+			return null;
 		}
-		return null;
+
+		const bodyLines = block.lines.slice(1).map(line => {
+			if (/^>\s?/.test(line)) {
+				return line.replace(/^>\s?/, '');
+			}
+			return line.trim();
+		});
+
+		return this.normalizeComment(bodyLines.join('\n'));
 	}
 
 	/**
@@ -297,36 +298,88 @@ export class IncrementalSync {
 	 * 如果短评不存在，在简介之前插入
 	 */
 	updateComment(content: string, newComment: string): string {
-		const commentMatch = content.match(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)/);
-
-		// 构建新的短评 callout
-		const newCommentLines = newComment.split('\n').map(line => `> ${line}`).join('\n');
-		const newCommentBlock = `> [!abstract]+ **短评**\n${newCommentLines}`;
-
-		if (commentMatch) {
-			// 替换现有短评
-			return content.replace(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)/, newCommentBlock + '\n');
-		} else {
-			// 在简介之前插入短评
-			const introMatch = content.match(/> \[!abstract\]\+\s*\*\*简介\*\*/);
-			if (introMatch) {
-				return content.replace(/> \[!abstract\]\+\s*\*\*简介\*\*/, newCommentBlock + '\n\n> [!abstract]+ **简介**');
-			}
-			// 如果没有简介，在 frontmatter 之后插入
-			const frontmatterEnd = content.indexOf('---', 3);
-			if (frontmatterEnd !== -1) {
-				const afterFrontmatter = content.substring(frontmatterEnd + 3).trimStart();
-				return content.substring(0, frontmatterEnd + 3) + '\n\n' + newCommentBlock + '\n\n' + afterFrontmatter;
-			}
+		const normalizedComment = this.normalizeComment(newComment);
+		if (!normalizedComment) {
+			return this.removeComment(content);
 		}
-		return content;
+
+		const newCommentLines = normalizedComment
+			.split('\n')
+			.map(line => line.length > 0 ? `> ${line}` : '>');
+		const newCommentBlock = ['> [!abstract]+ **短评**', ...newCommentLines].join('\n');
+		const block = this.findCommentBlock(content);
+
+		if (block) {
+			return content.slice(0, block.start) + newCommentBlock + content.slice(block.end);
+		}
+
+		const introMatch = content.match(/^> \[!abstract\]\+\s*\*\*简介\*\*/m);
+		if (introMatch && introMatch.index !== undefined) {
+			return content.slice(0, introMatch.index) + newCommentBlock + '\n\n' + content.slice(introMatch.index);
+		}
+
+		const frontmatterEnd = content.indexOf('---', 3);
+		if (frontmatterEnd !== -1) {
+			const afterFrontmatter = content.substring(frontmatterEnd + 3).trimStart();
+			return content.substring(0, frontmatterEnd + 3) + '\n\n' + newCommentBlock + '\n\n' + afterFrontmatter;
+		}
+
+		return `${newCommentBlock}\n\n${content}`;
 	}
 
 	/**
 	 * 删除正文中的短评 callout
 	 */
 	removeComment(content: string): string {
-		return content.replace(/> \[!abstract\]\+\s*\*\*短评\*\*\n((?:> .+\n?)+)\n?/, '');
+		const block = this.findCommentBlock(content);
+		if (!block) {
+			return content;
+		}
+
+		let updated = content.slice(0, block.start) + content.slice(block.end);
+		updated = updated.replace(/\n{3,}/g, '\n\n');
+		return updated;
+	}
+
+	normalizeComment(comment: string | null | undefined): string | null {
+		if (!comment) {
+			return null;
+		}
+
+		const normalized = comment
+			.replace(/\r\n?/g, '\n')
+			.replace(/\u00a0/g, ' ')
+			.split('\n')
+			.map(line => line.replace(/\s+$/g, '').trim())
+			.join('\n')
+			.replace(/\n{3,}/g, '\n\n')
+			.trim();
+
+		return normalized.length > 0 ? normalized : null;
+	}
+
+	private findCommentBlock(content: string): { start: number; end: number; lines: string[] } | null {
+		const normalizedContent = content.replace(/\r\n?/g, '\n');
+		const lines = normalizedContent.split('\n');
+		const headerIndex = lines.findIndex(line => /^> \[!abstract\]\+\s*\*\*短评\*\*\s*$/.test(line));
+
+		if (headerIndex === -1) {
+			return null;
+		}
+
+		let endIndex = headerIndex + 1;
+		while (endIndex < lines.length && /^> ?/.test(lines[endIndex])) {
+			endIndex++;
+		}
+
+		const start = lines.slice(0, headerIndex).join('\n').length + (headerIndex > 0 ? 1 : 0);
+		const end = lines.slice(0, endIndex).join('\n').length + (endIndex < lines.length ? 1 : 0);
+
+		return {
+			start,
+			end,
+			lines: lines.slice(headerIndex, endIndex),
+		};
 	}
 
 	/**
@@ -336,31 +389,30 @@ export class IncrementalSync {
 	 * 2. 逗号分隔格式: tags: tag1, tag2
 	 */
 	extractTags(content: string): string[] | null {
-		// 匹配 frontmatter 中的 tags 字段
-		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-		if (!frontmatterMatch) {
+		const frontmatter = this.extractFrontmatter(content);
+		if (!frontmatter) {
 			return null;
 		}
 
-		const frontmatter = frontmatterMatch[1];
+		const lines = frontmatter.split('\n');
+		const tagBlock = this.findYamlListBlock(lines, 'tags');
 
-		// 方式1: YAML 数组格式
-		const arrayMatch = frontmatter.match(/^tags:\s*\n((?:\s+- .+\n?)+)/m);
-		if (arrayMatch) {
-			const tags = arrayMatch[1]
-				.split('\n')
-				.map(line => line.replace(/^\s+- /, '').trim())
-				.filter(line => line.length > 0);
+		if (tagBlock) {
+			const tags = this.normalizeTags(lines
+				.slice(tagBlock.start + 1, tagBlock.end)
+				.map(line => line.replace(/^\s*-\s*/, '').trim())
+			);
 			return tags.length > 0 ? tags : null;
 		}
 
-		// 方式2: 逗号分隔格式
-		const inlineMatch = frontmatter.match(/^tags:\s*(.+)$/m);
-		if (inlineMatch) {
-			const tagStr = inlineMatch[1].trim();
-			// 移除可能的引号
+		const inlineLine = lines.find(line => /^tags:\s*\S/.test(line));
+		if (inlineLine) {
+			const tagStr = inlineLine.replace(/^tags:\s*/, '').trim();
 			const cleanStr = tagStr.replace(/^["']|["']$/g, '');
-			const tags = cleanStr.split(',').map(t => t.trim()).filter(t => t.length > 0);
+			const tags = this.normalizeTags(cleanStr
+				.split(',')
+				.map(t => t.trim())
+			);
 			return tags.length > 0 ? tags : null;
 		}
 
@@ -372,56 +424,116 @@ export class IncrementalSync {
 	 * 使用 YAML 数组格式
 	 */
 	updateTags(content: string, newTags: string[]): string {
-		// 匹配 frontmatter 和后续内容
 		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
 		if (!frontmatterMatch) {
 			return content;
 		}
 
 		const prefix = frontmatterMatch[1];
-		let frontmatter = frontmatterMatch[2];
+		const frontmatter = frontmatterMatch[2];
 		const suffix = frontmatterMatch[3];
-		const bodyContent = frontmatterMatch[4]; // 保留 frontmatter 之后的正文内容
+		const bodyContent = frontmatterMatch[4];
 
-		// 构建新的标签 YAML 数组
-		const newTagsYaml = newTags.length > 0
-			? `tags:\n${newTags.map(t => `  - ${t}`).join('\n')}`
-			: 'tags:';
+		const lines = frontmatter.split('\n');
+		const filteredTags = this.normalizeTags(newTags);
+		const newTagLines = ['tags:', ...filteredTags.map(tag => `  - ${tag}`)];
+		const updatedFrontmatter = this.replaceYamlBlock(lines, 'tags', newTagLines).join('\n');
 
-		// 检查是否已有 tags 字段
-		const existingTagsMatch = frontmatter.match(/^tags:.*(\n\s+- .+)*/m);
-		if (existingTagsMatch) {
-			// 替换现有标签
-			frontmatter = frontmatter.replace(/^tags:.*(\n\s+- .+)*/m, newTagsYaml);
-		} else {
-			// 在 frontmatter 末尾添加标签
-			frontmatter = frontmatter + '\n' + newTagsYaml;
-		}
-
-		// 返回完整内容：frontmatter + 正文
-		return prefix + frontmatter + suffix + bodyContent;
+		return prefix + updatedFrontmatter + suffix + bodyContent;
 	}
 
 	/**
 	 * 删除 frontmatter 中的标签字段
 	 */
 	removeTags(content: string): string {
-		// 匹配 frontmatter 和后续内容
 		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
 		if (!frontmatterMatch) {
 			return content;
 		}
 
 		const prefix = frontmatterMatch[1];
-		let frontmatter = frontmatterMatch[2];
+		const frontmatter = frontmatterMatch[2];
 		const suffix = frontmatterMatch[3];
-		const bodyContent = frontmatterMatch[4]; // 保留 frontmatter 之后的正文内容
+		const bodyContent = frontmatterMatch[4];
 
-		// 移除 tags 字段（支持数组和内联格式）
-		frontmatter = frontmatter.replace(/^tags:.*(\n\s+- .+)*/m, '').trim();
+		const lines = frontmatter.split('\n');
+		const updatedFrontmatter = this.removeYamlBlock(lines, 'tags').join('\n').trim();
 
-		// 返回完整内容：frontmatter + 正文
-		return prefix + frontmatter + suffix + bodyContent;
+		return prefix + updatedFrontmatter + suffix + bodyContent;
+	}
+
+	private extractFrontmatter(content: string): string | null {
+		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+		return frontmatterMatch ? frontmatterMatch[1] : null;
+	}
+
+	private findYamlListBlock(lines: string[], key: string): { start: number; end: number } | null {
+		const start = lines.findIndex(line => new RegExp(`^${key}:\\s*$`).test(line));
+		if (start === -1) {
+			return null;
+		}
+
+		let end = start + 1;
+		while (end < lines.length && /^\s*-\s+/.test(lines[end])) {
+			end++;
+		}
+
+		return { start, end };
+	}
+
+	private replaceYamlBlock(lines: string[], key: string, replacement: string[]): string[] {
+		const block = this.findYamlListBlock(lines, key);
+		const inlineIndex = lines.findIndex(line => new RegExp(`^${key}:\\s*.*$`).test(line));
+
+		if (block) {
+			return [...lines.slice(0, block.start), ...replacement, ...lines.slice(block.end)];
+		}
+
+		if (inlineIndex !== -1) {
+			return [...lines.slice(0, inlineIndex), ...replacement, ...lines.slice(inlineIndex + 1)];
+		}
+
+		return [...lines, ...replacement];
+	}
+
+	private removeYamlBlock(lines: string[], key: string): string[] {
+		const block = this.findYamlListBlock(lines, key);
+		if (block) {
+			return [...lines.slice(0, block.start), ...lines.slice(block.end)];
+		}
+
+		const inlineIndex = lines.findIndex(line => new RegExp(`^${key}:\\s*.*$`).test(line));
+		if (inlineIndex !== -1) {
+			return [...lines.slice(0, inlineIndex), ...lines.slice(inlineIndex + 1)];
+		}
+
+		return lines;
+	}
+
+	normalizeTags(tags: string[] | null | undefined): string[] {
+		if (!tags) {
+			return [];
+		}
+
+		return Array.from(new Set(
+			tags
+				.map(tag => tag.trim())
+				.filter(tag => this.isValidTagValue(tag))
+		));
+	}
+
+	private isValidTagValue(value: string): boolean {
+		const normalized = value.trim();
+		if (normalized.length === 0) {
+			return false;
+		}
+
+		// 忽略明显是旧损坏 frontmatter 中混入的键值对，例如“评分: 9”
+		if (/^[^,\[\]]+:\s*.+$/.test(normalized)) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -615,11 +727,16 @@ export class IncrementalSync {
 	 * 将状态文本转换为 CollectionType 数字
 	 */
 	private parseStatusText(text: string): number | null {
+		const normalizedText = text.trim().replace(/[🕒✅▶️⏸️❌\uFE0F\s]/g, '');
 		const statusMap: Record<string, number> = {
 			'想看': CollectionType.Wish,
 			'想读': CollectionType.Wish,
 			'想玩': CollectionType.Wish,
 			'想听': CollectionType.Wish,
+			'已看': CollectionType.Done,
+			'已读': CollectionType.Done,
+			'已玩': CollectionType.Done,
+			'已听': CollectionType.Done,
 			'看过': CollectionType.Done,
 			'读过': CollectionType.Done,
 			'玩过': CollectionType.Done,
@@ -632,7 +749,7 @@ export class IncrementalSync {
 			'抛弃': CollectionType.Dropped,
 			'放弃': CollectionType.Dropped,
 		};
-		return statusMap[text] ?? null;
+		return statusMap[normalizedText] ?? statusMap[text.trim()] ?? null;
 	}
 
 	/**

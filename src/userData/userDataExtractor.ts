@@ -57,7 +57,12 @@ export class UserDataExtractor {
         if (!id) return null;
 
         // 提取中文名
-        const name_cn = frontmatter['中文名'] || frontmatter.name_cn || file.basename;
+        const nameCnFromFrontmatter = typeof frontmatter['中文名'] === 'string'
+            ? frontmatter['中文名']
+            : typeof frontmatter.name_cn === 'string'
+                ? frontmatter.name_cn
+                : '';
+        const name_cn = nameCnFromFrontmatter || file.basename;
 
         // 提取条目类型
         const type = this.determineSubjectType(frontmatter);
@@ -99,7 +104,12 @@ export class UserDataExtractor {
         if (!id) return null;
 
         // 提取中文名
-        const name_cn = frontmatter['中文名'] || frontmatter.name_cn || file.basename;
+        const nameCnFromFrontmatter = typeof frontmatter['中文名'] === 'string'
+            ? frontmatter['中文名']
+            : typeof frontmatter.name_cn === 'string'
+                ? frontmatter.name_cn
+                : '';
+        const name_cn = nameCnFromFrontmatter || file.basename;
 
         // 提取条目类型
         const type = this.determineSubjectType(frontmatter);

@@ -35,6 +35,9 @@ import {
 	ALBUM_TEMPLATE_AUTHOR,
 } from './common/template/defaultTemplates';
 import { UserDataExportModal, UserDataImportModal, ImportResultModal } from './src/userData';
+import { EpisodeContextMenu } from './src/episode/episodeContextMenu';
+import { EpisodeStatusManager } from './src/episode/episodeStatusManager';
+import { EpisodeCommentManager } from './src/episode/episodeCommentManager';
 
 /**
  * 缓存数据结构
@@ -83,12 +86,17 @@ const TEMPLATE_CONFIG_MAP_AUTHOR: Record<TemplateKey, string> = {
 	realTemplateConfig: REAL_TEMPLATE_STANDARD,
 };
 
-export class BangumiPlugin extends Plugin {
+export default class BangumiPlugin extends Plugin {
 	settings!: BangumiPluginSettings;
 	syncManager: SyncManager | null = null;
 	private autoSyncIntervalId: number | null = null;
 	private syncModal: SyncModal | null = null;
 	private controlPanel: ControlPanel | null = null;
+
+	// 单集功能
+	episodeStatusManager: EpisodeStatusManager | null = null;
+	episodeCommentManager: EpisodeCommentManager | null = null;
+	episodeContextMenu: EpisodeContextMenu | null = null;
 
 	// 数据缓存
 	private cachedData: CachedData | null = null;
@@ -99,6 +107,9 @@ export class BangumiPlugin extends Plugin {
 
 		// 初始化同步管理器
 		await this.initSyncManager();
+
+		// 初始化单集功能。这里不能让可选功能阻断整个插件加载，否则样式也不会生效。
+		this.initEpisodeFeatures();
 
 		// 添加命令：打开控制面板
 		this.addCommand({
@@ -191,7 +202,7 @@ export class BangumiPlugin extends Plugin {
 	 * 加载设置
 	 */
 	async loadSettings() {
-		const loadedData = await this.loadData();
+		const loadedData = await this.loadData() as Partial<BangumiPluginSettings>;
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
 
 		// 迁移：如果路径模板使用 {{name_cn}} 而不是 {{name_cn_with_type}}，自动更新
@@ -233,6 +244,38 @@ export class BangumiPlugin extends Plugin {
 		};
 
 		this.syncManager = new SyncManager(this.app, config);
+	}
+
+	/**
+	 * 初始化单集功能
+	 */
+	private initEpisodeFeatures(): void {
+		if (!this.syncManager?.client) return;
+
+		try {
+			this.episodeStatusManager = new EpisodeStatusManager(this.app, this.syncManager.client);
+			this.episodeCommentManager = new EpisodeCommentManager(this.app);
+			this.episodeContextMenu = new EpisodeContextMenu(
+				this.app,
+				this.syncManager.client,
+				this.episodeStatusManager,
+				this.episodeCommentManager
+			);
+
+			// 延后到工作区就绪后再注册，避免启动阶段的文档对象异常影响整个插件加载。
+			this.app.workspace.onLayoutReady(() => {
+				try {
+					this.episodeContextMenu?.registerGlobalListener(this);
+				} catch (error) {
+					console.error('[Bangumi Sync] 注册单集右键菜单失败:', error);
+				}
+			});
+		} catch (error) {
+			this.episodeStatusManager = null;
+			this.episodeCommentManager = null;
+			this.episodeContextMenu = null;
+			console.error('[Bangumi Sync] 初始化单集功能失败，已跳过该功能:', error);
+		}
 	}
 
 	/**
@@ -425,7 +468,8 @@ export class BangumiPlugin extends Plugin {
 					localSubjects: data.localSubjects,
 					timestamp: Date.now(),
 				});
-			}
+			},
+			this.episodeStatusManager
 		);
 		this.controlPanel.open();
 	}

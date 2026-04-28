@@ -15,6 +15,7 @@ import { StatusSyncModal, StatusSyncDiff, FieldDiff } from './statusSyncModal';
 import { ConflictDetector } from './conflictResolver';
 import { SearchModal } from '../ui/searchModal';
 import { tn } from '../i18n';
+import { EpisodeStatusManager } from '../episode/episodeStatusManager';
 
 /**
  * 本地条目信息
@@ -55,6 +56,7 @@ export class ControlPanel extends Modal {
 	private incrementalSync: IncrementalSync;
 	private frontmatterEditor: FrontmatterEditor;
 	private conflictDetector: ConflictDetector;
+	private episodeStatusManager: EpisodeStatusManager | null;
 	private onFiltersChange: (filters: PanelFilters) => void;
 
 	// 缓存相关
@@ -85,11 +87,13 @@ export class ControlPanel extends Modal {
 		syncManager: SyncManager,
 		onFiltersChange: (filters: PanelFilters) => void,
 		cachedData: CachedPanelData | null,
-		onCacheUpdate: (data: CachedPanelData) => void
+		onCacheUpdate: (data: CachedPanelData) => void,
+		episodeStatusManager?: EpisodeStatusManager | null
 	) {
 		super(app);
 		this.settings = settings;
 		this.syncManager = syncManager;
+		this.episodeStatusManager = episodeStatusManager ?? null;
 		this.onFiltersChange = onFiltersChange;
 		this.cachedData = cachedData;
 		this.onCacheUpdate = onCacheUpdate;
@@ -102,7 +106,7 @@ export class ControlPanel extends Modal {
 		this.filters = { ...settings.panelFilters };
 		this.state = {
 			collections: cachedData?.collections || [],
-			localSubjects: cachedData?.localSubjects || new Map(),
+			localSubjects: cachedData?.localSubjects instanceof Map ? cachedData.localSubjects : new Map<number, LocalSubjectInfo>(),
 			selectedIds: new Set(),
 			loading: false,
 			loadingProgress: { current: 0, total: 0 },
@@ -837,14 +841,16 @@ export class ControlPanel extends Modal {
 				// 提取本地数据
 				const localRate = this.incrementalSync.extractRate(content);
 				const localComment = this.incrementalSync.extractComment(content);
-				const localTags = this.incrementalSync.extractTags(content);
+				const localTags = this.incrementalSync.normalizeTags(this.incrementalSync.extractTags(content));
 				const localStatus = this.incrementalSync.extractStatus(content, statusFieldName);
 
 				// 云端数据
 				const cloudRate = collection.rate || null;
 				const cloudComment = collection.comment || null;
-				const cloudTags = collection.tags && collection.tags.length > 0 ? collection.tags : null;
+				const cloudTagsRaw = collection.tags && collection.tags.length > 0 ? collection.tags : null;
+				const cloudTags = this.incrementalSync.normalizeTags(cloudTagsRaw);
 				const cloudStatus = collection.type || null;
+				const episodeStatusDiff = await this.buildEpisodeStatusDiff(file, collection.subject_id, collection.subject_type);
 
 				// 构建差异对象
 				const diff = this.buildStatusSyncDiff(
@@ -854,7 +860,8 @@ export class ControlPanel extends Modal {
 					localRate, cloudRate,
 					localComment, cloudComment,
 					localTags, cloudTags,
-					localStatus, cloudStatus
+					localStatus, cloudStatus,
+					episodeStatusDiff
 				);
 
 				if (diff.hasAnyDiff) {
@@ -879,7 +886,8 @@ export class ControlPanel extends Modal {
 				() => {
 					// 同步完成后刷新
 					void this.loadData();
-				}
+				},
+				this.episodeStatusManager
 			);
 			modal.open();
 
@@ -905,7 +913,8 @@ export class ControlPanel extends Modal {
 		localTags: string[] | null,
 		cloudTags: string[] | null,
 		localStatus: number | null,
-		cloudStatus: number | null
+		cloudStatus: number | null,
+		episodeStatus: FieldDiff<string>
 	): StatusSyncDiff {
 		// 评分差异
 		const rateDiff: FieldDiff<number> = {
@@ -916,8 +925,8 @@ export class ControlPanel extends Modal {
 		};
 
 		// 短评差异（忽略空白差异）
-		const localCommentNormalized = localComment?.trim() || null;
-		const cloudCommentNormalized = cloudComment?.trim() || null;
+		const localCommentNormalized = this.incrementalSync.normalizeComment(localComment);
+		const cloudCommentNormalized = this.incrementalSync.normalizeComment(cloudComment);
 		const commentDiff: FieldDiff<string> = {
 			localValue: localCommentNormalized,
 			cloudValue: cloudCommentNormalized,
@@ -946,7 +955,7 @@ export class ControlPanel extends Modal {
 		};
 
 		// 是否有任何差异
-		const hasAnyDiff = rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff;
+		const hasAnyDiff = rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff || episodeStatus.hasDiff;
 
 		return {
 			subjectId: collection.subject_id,
@@ -959,8 +968,41 @@ export class ControlPanel extends Modal {
 			comment: commentDiff,
 			tags: tagsDiff,
 			status: statusDiff,
+			episodeStatus,
 			hasAnyDiff,
 			expanded: false,
+		};
+	}
+
+	private async buildEpisodeStatusDiff(
+		file: TFile,
+		subjectId: number,
+		subjectType: SubjectType
+	): Promise<FieldDiff<string>> {
+		if (!this.episodeStatusManager || subjectType !== SubjectType.Anime) {
+			return {
+				localValue: null,
+				cloudValue: null,
+				hasDiff: false,
+				decision: 'skip',
+			};
+		}
+
+		const [localMap, cloudMap] = await Promise.all([
+			this.episodeStatusManager.getEpisodeStatusMap(file),
+			this.episodeStatusManager.getCloudEpisodeStatusMap(subjectId),
+		]);
+
+		const localValue = this.episodeStatusManager.summarizeEpisodeStatuses(localMap);
+		const cloudValue = this.episodeStatusManager.summarizeEpisodeStatuses(cloudMap);
+		const hasDiff = this.episodeStatusManager.serializeEpisodeStatuses(localMap) !==
+			this.episodeStatusManager.serializeEpisodeStatuses(cloudMap);
+
+		return {
+			localValue,
+			cloudValue,
+			hasDiff,
+			decision: 'skip',
 		};
 	}
 

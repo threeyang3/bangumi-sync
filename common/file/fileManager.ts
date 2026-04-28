@@ -32,7 +32,8 @@ export class FileManager {
 					await this.app.vault.createFolder(dirPath);
 				} catch (error: unknown) {
 					// 目录可能已存在（并发创建）
-					console.debug(`[Bangumi Sync] 创建目录失败（可能已存在）: ${error}`);
+					const errorMessage = error instanceof Error ? error.message : String(error);
+					console.debug(`[Bangumi Sync] 创建目录失败（可能已存在）: ${errorMessage}`);
 				}
 			}
 		}

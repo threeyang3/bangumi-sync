@@ -43,7 +43,7 @@ export function generateEpisodeBox(episode: Episode, status?: number): string {
 	}
 
 	// 生成 HTML span 元素
-	return `<span class="${cssClass}" title="${tooltip}" data-ep="${epNum}" data-id="${episode.id}">${epNum}</span>`;
+	return `<span class="${cssClass}" title="${tooltip}" data-ep="${epNum}" data-id="${episode.id}" data-status="${status || 0}">${epNum}</span>`;
 }
 
 /**

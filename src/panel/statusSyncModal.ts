@@ -8,6 +8,7 @@ import { App, Modal, Notice, TFile } from 'obsidian';
 import { UserCollection, CollectionType } from '../../common/api/types';
 import { BangumiClient } from '../api/client';
 import { IncrementalSync } from '../sync/incrementalSync';
+import { EpisodeStatusManager } from '../episode/episodeStatusManager';
 import { tn } from '../i18n';
 
 /**
@@ -39,8 +40,9 @@ export interface StatusSyncDiff {
 	comment: FieldDiff<string>;
 	tags: FieldDiff<string[]>;
 	status: FieldDiff<number>;
+	episodeStatus: FieldDiff<string>;
 	hasAnyDiff: boolean;
-	expanded: boolean; // UI 状态：是否展开详情
+	expanded: boolean;
 }
 
 /**
@@ -50,6 +52,7 @@ export class StatusSyncModal extends Modal {
 	private diffs: StatusSyncDiff[];
 	private client: BangumiClient;
 	private incrementalSync: IncrementalSync;
+	private episodeStatusManager: EpisodeStatusManager | null;
 	private onComplete: () => void;
 
 	private tableEl!: HTMLElement;
@@ -60,13 +63,15 @@ export class StatusSyncModal extends Modal {
 		client: BangumiClient,
 		incrementalSync: IncrementalSync,
 		diffs: StatusSyncDiff[],
-		onComplete: () => void
+		onComplete: () => void,
+		episodeStatusManager?: EpisodeStatusManager | null
 	) {
 		super(app);
 		this.client = client;
 		this.incrementalSync = incrementalSync;
 		this.diffs = diffs;
 		this.onComplete = onComplete;
+		this.episodeStatusManager = episodeStatusManager ?? null;
 	}
 
 	onOpen(): void {
@@ -107,6 +112,7 @@ export class StatusSyncModal extends Modal {
 
 		// 底部按钮
 		const footer = contentEl.createDiv({ cls: 'bangumi-status-sync-footer' });
+
 		footer.createEl('button', { text: tn('statusSyncModal', 'execute'), cls: 'mod-cta' }, btn => {
 			btn.addEventListener('click', () => { void this.executeSync(); });
 		});
@@ -188,6 +194,7 @@ export class StatusSyncModal extends Modal {
 		if (diff.comment.hasDiff) icons.push('📝');
 		if (diff.tags.hasDiff) icons.push('🏷️');
 		if (diff.status.hasDiff) icons.push('📊');
+		if (diff.episodeStatus.hasDiff) icons.push('🎞️');
 		if (icons.length > 0) {
 			el.createSpan({ text: ' ' + icons.join(''), cls: 'bangumi-diff-icons' });
 		}
@@ -202,6 +209,7 @@ export class StatusSyncModal extends Modal {
 		if (diff.comment.hasDiff) fields.push(tn('statusSyncModal', 'fieldComment'));
 		if (diff.tags.hasDiff) fields.push(tn('statusSyncModal', 'fieldTags'));
 		if (diff.status.hasDiff) fields.push(tn('statusSyncModal', 'fieldStatus'));
+		if (diff.episodeStatus.hasDiff) fields.push(tn('statusSyncModal', 'fieldEpisodeStatus'));
 		return fields;
 	}
 
@@ -243,7 +251,7 @@ export class StatusSyncModal extends Modal {
 			this.renderFieldRow(tbody, tn('statusSyncModal', 'fieldTags'),
 				diff.tags.localValue ? diff.tags.localValue.join(', ') : tn('statusSyncModal', 'empty'),
 				diff.tags.cloudValue ? diff.tags.cloudValue.join(', ') : tn('statusSyncModal', 'empty'),
-				'tags', index, true); // 标签支持合并
+				'tags', index, true);
 		}
 
 		// 状态行
@@ -252,6 +260,13 @@ export class StatusSyncModal extends Modal {
 				this.getStatusText(diff.status.localValue),
 				this.getStatusText(diff.status.cloudValue),
 				'status', index, false);
+		}
+
+		if (diff.episodeStatus.hasDiff) {
+			this.renderFieldRow(tbody, tn('statusSyncModal', 'fieldEpisodeStatus'),
+				diff.episodeStatus.localValue || tn('statusSyncModal', 'empty'),
+				diff.episodeStatus.cloudValue || tn('statusSyncModal', 'empty'),
+				'episodeStatus', index, false);
 		}
 	}
 
@@ -263,18 +278,18 @@ export class StatusSyncModal extends Modal {
 		fieldName: string,
 		localValue: string,
 		cloudValue: string,
-		fieldKey: 'rate' | 'comment' | 'tags' | 'status',
+		fieldKey: 'rate' | 'comment' | 'tags' | 'status' | 'episodeStatus',
 		diffIndex: number,
 		supportMerge: boolean
 	): void {
 		const row = tbody.createEl('tr');
 
-		row.createEl('td', { text: fieldName });
-		row.createEl('td', { text: localValue, cls: 'bangumi-local-value' });
-		row.createEl('td', { text: cloudValue, cls: 'bangumi-cloud-value' });
+		row.createEl('td', { text: fieldName, cls: 'bangumi-field-name' });
+		row.createEl('td', { text: localValue, cls: 'bangumi-local-value bangumi-sync-value' });
+		row.createEl('td', { text: cloudValue, cls: 'bangumi-cloud-value bangumi-sync-value' });
 
 		const decisionCell = row.createEl('td');
-		const select = decisionCell.createEl('select');
+		const select = decisionCell.createEl('select', { cls: 'bangumi-sync-decision-select' });
 		select.createEl('option', { value: 'skip', text: tn('statusSyncModal', 'skip') });
 		select.createEl('option', { value: 'local', text: tn('statusSyncModal', 'keepLocal') });
 		select.createEl('option', { value: 'cloud', text: tn('statusSyncModal', 'keepCloud') });
@@ -282,7 +297,6 @@ export class StatusSyncModal extends Modal {
 			select.createEl('option', { value: 'merge', text: tn('statusSyncModal', 'merge') });
 		}
 
-		// 设置当前值
 		select.value = this.diffs[diffIndex][fieldKey].decision;
 		select.addEventListener('change', () => {
 			this.diffs[diffIndex][fieldKey].decision = select.value as FieldDecision;
@@ -313,6 +327,7 @@ export class StatusSyncModal extends Modal {
 			diff.comment.decision = decision;
 			diff.tags.decision = decision;
 			diff.status.decision = decision;
+			diff.episodeStatus.decision = decision === 'merge' ? 'skip' : decision;
 		});
 		this.renderTable();
 	}
@@ -322,35 +337,30 @@ export class StatusSyncModal extends Modal {
 	 */
 	private smartMerge(): void {
 		this.diffs.forEach(diff => {
-			// 评分：选择非空值
 			if (diff.rate.hasDiff) {
 				if (diff.rate.localValue && !diff.rate.cloudValue) {
 					diff.rate.decision = 'local';
 				} else if (!diff.rate.localValue && diff.rate.cloudValue) {
 					diff.rate.decision = 'cloud';
 				} else {
-					diff.rate.decision = 'local'; // 都有值时默认保留本地
+					diff.rate.decision = 'local';
 				}
 			}
 
-			// 短评：选择非空值或较长的
 			if (diff.comment.hasDiff) {
 				if (diff.comment.localValue && !diff.comment.cloudValue) {
 					diff.comment.decision = 'local';
 				} else if (!diff.comment.localValue && diff.comment.cloudValue) {
 					diff.comment.decision = 'cloud';
 				} else if (diff.comment.localValue && diff.comment.cloudValue) {
-					// 都有值时选择较长的
 					diff.comment.decision = diff.comment.localValue.length >= diff.comment.cloudValue.length ? 'local' : 'cloud';
 				}
 			}
 
-			// 标签：合并
 			if (diff.tags.hasDiff) {
 				diff.tags.decision = 'merge';
 			}
 
-			// 状态：选择非空值
 			if (diff.status.hasDiff) {
 				if (diff.status.localValue && !diff.status.cloudValue) {
 					diff.status.decision = 'local';
@@ -358,6 +368,16 @@ export class StatusSyncModal extends Modal {
 					diff.status.decision = 'cloud';
 				} else {
 					diff.status.decision = 'local';
+				}
+			}
+
+			if (diff.episodeStatus.hasDiff) {
+				if (diff.episodeStatus.localValue && !diff.episodeStatus.cloudValue) {
+					diff.episodeStatus.decision = 'local';
+				} else if (!diff.episodeStatus.localValue && diff.episodeStatus.cloudValue) {
+					diff.episodeStatus.decision = 'cloud';
+				} else {
+					diff.episodeStatus.decision = 'local';
 				}
 			}
 		});
@@ -406,7 +426,8 @@ export class StatusSyncModal extends Modal {
 			throw new Error('File not found');
 		}
 
-		let content = await this.app.vault.read(file);
+		const originalContent = await this.app.vault.read(file);
+		let content = originalContent;
 		const cloudUpdates: { type?: CollectionType; rate?: number; comment?: string; tags?: string[] } = {};
 
 		// 处理评分
@@ -434,19 +455,18 @@ export class StatusSyncModal extends Modal {
 		// 处理标签
 		if (diff.tags.hasDiff && diff.tags.decision !== 'skip') {
 			if (diff.tags.decision === 'local') {
-				cloudUpdates.tags = diff.tags.localValue || [];
+				cloudUpdates.tags = this.incrementalSync.normalizeTags(diff.tags.localValue);
 			} else if (diff.tags.decision === 'cloud') {
 				if (diff.tags.cloudValue && diff.tags.cloudValue.length > 0) {
-					content = this.incrementalSync.updateTags(content, diff.tags.cloudValue);
+					content = this.incrementalSync.updateTags(content, this.incrementalSync.normalizeTags(diff.tags.cloudValue));
 				} else {
 					content = this.incrementalSync.removeTags(content);
 				}
 			} else if (diff.tags.decision === 'merge') {
-				// 合并标签
 				const mergedTags = new Set<string>();
 				if (diff.tags.localValue) diff.tags.localValue.forEach(t => mergedTags.add(t));
 				if (diff.tags.cloudValue) diff.tags.cloudValue.forEach(t => mergedTags.add(t));
-				const mergedArray = Array.from(mergedTags);
+				const mergedArray = this.incrementalSync.normalizeTags(Array.from(mergedTags));
 				content = this.incrementalSync.updateTags(content, mergedArray);
 				cloudUpdates.tags = mergedArray;
 			}
@@ -455,20 +475,95 @@ export class StatusSyncModal extends Modal {
 		// 处理状态
 		if (diff.status.hasDiff && diff.status.decision !== 'skip') {
 			if (diff.status.decision === 'local') {
-				cloudUpdates.type = diff.status.localValue as CollectionType;
+				const localStatus = this.toValidCollectionType(diff.status.localValue);
+				if (localStatus !== null) {
+					cloudUpdates.type = localStatus;
+				}
 			} else if (diff.status.decision === 'cloud') {
 				content = this.incrementalSync.updateStatus(content, diff.status.cloudValue as CollectionType, diff.statusFieldName);
 			}
 		}
 
 		// 更新本地文件
-		await this.app.vault.process(file, () => content);
+		if (content !== originalContent) {
+			await this.app.vault.process(file, () => content);
+		}
 
 		// 更新云端
 		if (Object.keys(cloudUpdates).length > 0) {
-			await this.client.updateCollection(diff.subjectId, cloudUpdates);
+			const fallbackType = this.toValidCollectionType(diff.collection.type);
+			const finalUpdates = {
+				...cloudUpdates,
+				type: cloudUpdates.type ?? fallbackType ?? undefined,
+			};
+			await this.syncCloudUpdates(diff.subjectId, finalUpdates);
+		}
+
+		if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== 'skip' && this.episodeStatusManager) {
+			if (diff.episodeStatus.decision === 'local') {
+				await this.episodeStatusManager.syncStatusToCloud(file);
+			} else if (diff.episodeStatus.decision === 'cloud') {
+				const synced = await this.episodeStatusManager.syncStatusFromCloud(file, diff.subjectId);
+				if (!synced) {
+					throw new Error('单集状态从云端同步失败');
+				}
+			}
 		}
 
 		console.debug(`[Bangumi Sync] 已同步: ${diff.name_cn}`);
+	}
+
+	private toValidCollectionType(value: number | null | undefined): CollectionType | null {
+		if (value === CollectionType.Wish ||
+			value === CollectionType.Done ||
+			value === CollectionType.Doing ||
+			value === CollectionType.OnHold ||
+			value === CollectionType.Dropped) {
+			return value;
+		}
+		return null;
+	}
+
+	private async syncCloudUpdates(
+		subjectId: number,
+		updates: { type?: CollectionType; rate?: number; comment?: string; tags?: string[] }
+	): Promise<void> {
+		const baseType = updates.type;
+		const errors: string[] = [];
+
+		const operations: Array<{ field: string; payload: { type?: CollectionType; rate?: number; comment?: string; tags?: string[] } }> = [];
+
+		if (updates.rate !== undefined) {
+			operations.push({ field: 'rate', payload: { type: baseType, rate: updates.rate } });
+		}
+
+		if (updates.comment !== undefined) {
+			operations.push({ field: 'comment', payload: { type: baseType, comment: updates.comment } });
+		}
+
+		if (updates.tags !== undefined) {
+			operations.push({ field: 'tags', payload: { type: baseType, tags: updates.tags } });
+		}
+
+		if (operations.length === 0 && baseType !== undefined) {
+			operations.push({ field: 'type', payload: { type: baseType } });
+		}
+
+		for (const operation of operations) {
+			try {
+				await this.client.updateCollection(subjectId, operation.payload);
+			} catch (error) {
+				console.error(`[Bangumi Sync] 云端字段同步失败: ${operation.field}`, {
+					subjectId,
+					payload: operation.payload,
+					error,
+				});
+				errors.push(operation.field);
+			}
+		}
+
+		if (errors.length > 0) {
+			throw new Error(`云端更新失败字段: ${errors.join(', ')}`);
+		}
 	}
 }

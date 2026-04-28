@@ -68,17 +68,16 @@ export class BangumiClient {
 
 			console.debug(`[Bangumi Sync] Response status: ${response.status}`);
 
+			const responseJson = response.json as unknown;
+
 			if (response.status >= 400) {
-				const error: APIError = response.json || {
-					title: 'API Error',
-					description: `HTTP ${response.status}`,
-				};
+				const error = this.toApiError(responseJson, response.status);
 				const errorMsg = error.title + (error.description ? `: ${error.description}` : '');
 				console.error(`[Bangumi Sync] API Error:`, errorMsg);
 				throw new Error(errorMsg);
 			}
 
-			return response.json as T;
+			return responseJson as T;
 		} catch (error) {
 			console.error(`[Bangumi Sync] Request failed:`, error);
 			if (error instanceof Error) {
@@ -86,6 +85,23 @@ export class BangumiClient {
 			}
 			throw new Error(`Request failed: ${String(error)}`);
 		}
+	}
+
+	private toApiError(responseJson: unknown, status: number): APIError {
+		if (typeof responseJson === 'object' && responseJson !== null) {
+			const candidate = responseJson as Partial<APIError>;
+			if (typeof candidate.title === 'string') {
+				return {
+					title: candidate.title,
+					description: typeof candidate.description === 'string' ? candidate.description : `HTTP ${status}`,
+				};
+			}
+		}
+
+		return {
+			title: 'API Error',
+			description: `HTTP ${status}`,
+		};
 	}
 
 	// ==================== 条目相关 API ====================

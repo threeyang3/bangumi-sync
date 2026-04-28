@@ -341,23 +341,33 @@
 }
 
 /* 模板中的主要角色表格 */
-.markdown-rendered .callout[data-callout="tip"] table {
+.markdown-rendered .callout[data-callout="tip"] table,
+.callout[data-callout="tip"] table {
 	width: 100%;
 	table-layout: fixed;
+	margin: 0 auto;
 }
 
 .markdown-rendered .callout[data-callout="tip"] table th,
-.markdown-rendered .callout[data-callout="tip"] table td {
+.markdown-rendered .callout[data-callout="tip"] table td,
+.callout[data-callout="tip"] table th,
+.callout[data-callout="tip"] table td {
 	text-align: center;
 	vertical-align: middle;
 }
 
-.markdown-rendered .callout[data-callout="tip"] table img {
+.markdown-rendered .callout[data-callout="tip"] table img,
+.callout[data-callout="tip"] table img {
 	display: block;
 	max-width: 100%;
 	max-height: 180px;
 	margin: 0 auto;
 	object-fit: contain;
+}
+
+.markdown-rendered .callout[data-callout="tip"] .callout-content > *,
+.callout[data-callout="tip"] .callout-content > * {
+	width: 100%;
 }
 
 .bangumi-var-tag {
@@ -624,6 +634,105 @@
 	width: 1440px !important;
 	max-width: 95vw !important;
 	height: 90vh !important;
+}
+
+.modal:has(.bangumi-status-sync-modal) {
+	width: 1280px !important;
+	max-width: 96vw !important;
+	height: 88vh !important;
+}
+
+.modal:has(.bangumi-status-sync-modal) .modal-content,
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
+	height: 100% !important;
+	min-height: 0 !important;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: 12px;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-actions,
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-footer {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-status {
+	padding: 8px 12px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	color: var(--text-muted);
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 10px;
+	background: var(--background-primary);
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table table,
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table .bangumi-detail-table {
+	width: 100%;
+	border-collapse: collapse;
+	table-layout: fixed;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table th,
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table td {
+	padding: 10px 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	vertical-align: top;
+	text-align: left;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table thead th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: var(--background-secondary);
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-name-cell {
+	width: 28%;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-fields-cell {
+	width: 44%;
+	color: var(--text-muted);
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-action-cell {
+	width: 28%;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-detail-row td {
+	background: color-mix(in srgb, var(--background-secondary) 45%, transparent);
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-sync-value {
+	white-space: pre-wrap;
+	word-break: break-word;
+	line-height: 1.55;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-sync-decision-select {
+	width: 100%;
+	min-width: 120px;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-expand-btn {
+	width: 100%;
 }
 
 .bangumi-control-panel {
@@ -969,6 +1078,8 @@
 }
 
 /* V4 集数框样式 */
+.markdown-rendered .ep-box,
+.callout .ep-box,
 .ep-box {
 	display: inline-flex;
 	align-items: center;
@@ -979,44 +1090,63 @@
 	border-radius: 4px;
 	margin: 2px;
 	font-size: 13px;
+	line-height: 1;
+	box-sizing: border-box;
+	vertical-align: middle;
 	cursor: pointer;
 	transition: all 0.2s ease;
 }
 
+.markdown-rendered .ep-box:hover,
+.callout .ep-box:hover,
 .ep-box:hover {
 	border-color: var(--interactive-accent);
 	background: var(--background-secondary);
 }
 
+.markdown-rendered .ep-box.watched,
+.callout .ep-box.watched,
 .ep-box.watched {
 	background-color: var(--interactive-accent);
 	color: var(--text-on-accent);
 	border-color: var(--interactive-accent);
 }
 
+.markdown-rendered .ep-box.watched:hover,
+.callout .ep-box.watched:hover,
 .ep-box.watched:hover {
 	opacity: 0.9;
 }
 
 /* Bangumi Info Callout 响应式布局 */
-.callout[data-callout="bangumi-info"] {
+.callout[data-callout="bangumi-info"],
+.markdown-rendered .callout[data-callout="bangumi-info"] {
 	--callout-color: var(--text-accent);
 	--callout-icon: lucide-info;
 }
 
-.callout[data-callout="bangumi-info"] .callout-content {
+.callout[data-callout="bangumi-info"] .callout-content,
+.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	gap: 16px;
 }
 
-.callout[data-callout="bangumi-info"] .callout-content > p {
+.callout[data-callout="bangumi-info"] .callout-content > *,
+.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > * {
+	width: 100%;
+	min-width: 0;
+}
+
+.callout[data-callout="bangumi-info"] .callout-content > p,
+.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > p {
 	margin: 0;
 	text-align: center;
 }
 
-.callout[data-callout="bangumi-info"] img {
+.callout[data-callout="bangumi-info"] img,
+.markdown-rendered .callout[data-callout="bangumi-info"] img {
 	width: 400px;
 	max-width: 100%;
 	height: auto;
@@ -1024,35 +1154,65 @@
 	border-radius: 4px;
 }
 
-.callout[data-callout="bangumi-info"] table {
+.callout[data-callout="bangumi-info"] table,
+.markdown-rendered .callout[data-callout="bangumi-info"] table {
 	width: 100%;
 	border-collapse: collapse;
 }
 
 /* 宽屏布局：图片在左，表格在右，高度一致 */
 @media (min-width: 1000px) {
-	.callout[data-callout="bangumi-info"] .callout-content {
+	.callout[data-callout="bangumi-info"] .callout-content,
+	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content {
 		flex-direction: row;
 		align-items: stretch;
 		gap: 16px;
 	}
 
-	.callout[data-callout="bangumi-info"] .callout-content > p {
+	.callout[data-callout="bangumi-info"] .callout-content > :first-child,
+	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :first-child {
+		flex: 0 0 400px;
+		width: 400px;
+		max-width: 100%;
+	}
+
+	.callout[data-callout="bangumi-info"] .callout-content > :last-child,
+	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :last-child {
+		flex: 1 1 0;
+		min-width: 0;
+	}
+
+	.callout[data-callout="bangumi-info"] .callout-content > p,
+	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > p {
 		flex-shrink: 0;
 		text-align: left;
 		display: flex;
 		align-items: stretch;
 	}
 
-	.callout[data-callout="bangumi-info"] img {
+	.callout[data-callout="bangumi-info"] img,
+	.markdown-rendered .callout[data-callout="bangumi-info"] img {
 		flex-shrink: 0;
 		width: 400px;
 		height: 100%;
 		object-fit: cover;
 	}
 
-	.callout[data-callout="bangumi-info"] table {
+	.callout[data-callout="bangumi-info"] table,
+	.markdown-rendered .callout[data-callout="bangumi-info"] table {
 		flex: 1;
 		min-width: 0;
 	}
+}
+
+/* 单集状态同步按钮 */
+.bangumi-episode-sync-btn {
+	background: var(--background-secondary-alt);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.bangumi-episode-sync-btn:hover {
+	background: var(--background-secondary);
+	border-color: var(--interactive-accent);
 }

@@ -49,7 +49,7 @@ export class BangumiClient {
 	 * 发送 API 请求
 	 */
 	private async request<T>(
-		method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
+		method: 'GET' | 'POST' | 'PUT' | 'DELETE',
 		endpoint: string,
 		data?: unknown
 	): Promise<T> {
@@ -64,17 +64,19 @@ export class BangumiClient {
 
 		try {
 			console.debug(`[Bangumi Sync] ${method} ${url}`);
+			if (data !== undefined) {
+				console.debug('[Bangumi Sync] Request payload:', { method, endpoint, data });
+			}
 			const response = await requestUrl(options);
 
 			console.debug(`[Bangumi Sync] Response status: ${response.status}`);
 
+			const responseJson = response.json as unknown;
+
 			if (response.status >= 400) {
-				const error: APIError = response.json || {
-					title: 'API Error',
-					description: `HTTP ${response.status}`,
-				};
+				const error = this.toApiError(responseJson, response.status);
 				const errorMsg = error.title + (error.description ? `: ${error.description}` : '');
-				console.error(`[Bangumi Sync] API Error:`, errorMsg);
+				console.error(`[Bangumi Sync] API Error ${response.status} on ${method} ${endpoint}:`, errorMsg, data);
 				throw new Error(errorMsg);
 			}
 
@@ -83,14 +85,46 @@ export class BangumiClient {
 				return {} as T;
 			}
 
-			return response.json as T;
-		} catch (error) {
-			console.error(`[Bangumi Sync] Request failed:`, error);
-			if (error instanceof Error) {
+			try {
+				return responseJson as T;
+			} catch (error) {
+				// Bangumi 的更新接口偶尔会返回 2xx 但没有响应体。
+				if (error instanceof SyntaxError) {
+					console.debug(`[Bangumi Sync] Empty success response on ${method} ${endpoint}`);
+					return {} as T;
+				}
 				throw error;
 			}
-			throw new Error(`Request failed: ${String(error)}`);
+		} catch (error) {
+			const errorInfo = {
+				method,
+				endpoint,
+				data,
+				error,
+			};
+			console.error(`[Bangumi Sync] Request failed:`, errorInfo);
+			if (error instanceof Error) {
+				throw new Error(`${error.message} | ${method} ${endpoint} | payload=${JSON.stringify(data)}`);
+			}
+			throw new Error(`Request failed: ${String(error)} | ${method} ${endpoint} | payload=${JSON.stringify(data)}`);
 		}
+	}
+
+	private toApiError(responseJson: unknown, status: number): APIError {
+		if (typeof responseJson === 'object' && responseJson !== null) {
+			const candidate = responseJson as Partial<APIError>;
+			if (typeof candidate.title === 'string') {
+				return {
+					title: candidate.title,
+					description: typeof candidate.description === 'string' ? candidate.description : `HTTP ${status}`,
+				};
+			}
+		}
+
+		return {
+			title: 'API Error',
+			description: `HTTP ${status}`,
+		};
 	}
 
 	/**
@@ -304,24 +338,13 @@ export class BangumiClient {
 		tags?: string[];
 		private?: boolean;
 	}): Promise<void> {
+		const payload = this.sanitizeCollectionUpdateData(data);
 		const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
-		console.debug(`[Bangumi Sync] 创建/更新收藏: ${endpoint}`);
-		console.debug(`[Bangumi Sync] 数据:`, data);
+		console.debug(`[Bangumi Sync] 创建/更新收藏: POST ${endpoint}`);
+		console.debug(`[Bangumi Sync] 数据:`, payload);
 
-		// 先尝试 PATCH 更新
-		try {
-			await this.request('PATCH', endpoint, data);
-			console.debug(`[Bangumi Sync] 收藏更新成功: ${subjectId}`);
-		} catch (error) {
-			// 如果是 404，说明未收藏，尝试 POST 创建
-			if (error instanceof Error && error.message.includes('404')) {
-				console.debug(`[Bangumi Sync] 条目未收藏，尝试创建: ${subjectId}`);
-				await this.createCollection(subjectId, data);
-				console.debug(`[Bangumi Sync] 收藏创建成功: ${subjectId}`);
-			} else {
-				throw error;
-			}
-		}
+		await this.request('POST', endpoint, payload);
+		console.debug(`[Bangumi Sync] 收藏更新成功: ${subjectId}`);
 	}
 
 	/**
@@ -329,50 +352,6 @@ export class BangumiClient {
 	 * @param subjectId 条目 ID
 	 * @param data 收藏数据
 	 */
-	private async createCollection(subjectId: number, data: {
-		type?: number;
-		rate?: number;
-		comment?: string;
-		tags?: string[];
-		private?: boolean;
-	}): Promise<void> {
-		const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
-		const url = `${this.baseUrl}${endpoint}`;
-
-		const options: RequestUrlParam = {
-			url,
-			method: 'POST',
-			headers: this.getHeaders(),
-			body: JSON.stringify(data),
-		};
-
-		try {
-			console.debug(`[Bangumi Sync] POST ${url}`);
-			const response = await requestUrl(options);
-			console.debug(`[Bangumi Sync] Response status: ${response.status}`);
-
-			// POST 创建收藏可能返回 200、201、202 或 204
-			if (response.status >= 200 && response.status < 300) {
-				return;
-			}
-
-			// 处理错误响应
-			let errorMsg = `HTTP ${response.status}`;
-			try {
-				if (response.json) {
-					const error: APIError = response.json;
-					errorMsg = error.title + (error.description ? `: ${error.description}` : '');
-				}
-			} catch {
-				// JSON 解析失败，使用 HTTP 状态码
-			}
-			throw new Error(errorMsg);
-		} catch (error) {
-			console.error(`[Bangumi Sync] 创建收藏失败:`, error);
-			throw error;
-		}
-	}
-
 	/**
 	 * 更新用户收藏（评分、短评、标签等）
 	 * @param subjectId 条目 ID
@@ -385,12 +364,87 @@ export class BangumiClient {
 		tags?: string[];
 		private?: boolean;
 	}): Promise<void> {
+		const payload = this.sanitizeCollectionUpdateData(data);
 		const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
-		console.debug(`[Bangumi Sync] 更新收藏: PATCH ${endpoint}`);
-		console.debug(`[Bangumi Sync] 更新数据:`, data);
+		console.debug(`[Bangumi Sync] 更新收藏: POST ${endpoint}`);
+		console.debug(`[Bangumi Sync] 更新数据:`, payload);
 
-		await this.request('PATCH', endpoint, data);
+		await this.request('POST', endpoint, payload);
 		console.debug(`[Bangumi Sync] 收藏更新成功: ${subjectId}`);
+	}
+
+	private sanitizeCollectionUpdateData(data: {
+		type?: number;
+		rate?: number;
+		comment?: string;
+		tags?: string[];
+		private?: boolean;
+	}): {
+		type?: number;
+		rate?: number;
+		comment?: string;
+		tags?: string[];
+		private?: boolean;
+	} {
+		const payload: {
+			type?: number;
+			rate?: number;
+			comment?: string;
+			tags?: string[];
+			private?: boolean;
+		} = {};
+
+		if (data.type !== undefined && data.type >= 1 && data.type <= 5) {
+			payload.type = data.type;
+		}
+
+		if (data.rate !== undefined && data.rate >= 1 && data.rate <= 10) {
+			payload.rate = data.rate;
+		}
+
+		if (data.comment !== undefined) {
+			const comment = data.comment.trim();
+			if (comment.length > 0) {
+				payload.comment = comment;
+			}
+		}
+
+		if (data.tags !== undefined) {
+			const tags = Array.from(new Set(
+				data.tags
+					.map(tag => this.sanitizeTag(tag))
+					.filter((tag): tag is string => tag !== null)
+			)).slice(0, 20);
+			payload.tags = tags;
+		}
+
+		if (data.private !== undefined) {
+			payload.private = data.private;
+		}
+
+		return payload;
+	}
+
+	private sanitizeTag(tag: string): string | null {
+		const normalized = tag
+			.trim()
+			.replace(/\s+/g, ' ')
+			.replace(/^[#\-*]+/, '');
+
+		if (normalized.length === 0 || normalized.length > 24) {
+			return null;
+		}
+
+		// 过滤掉更像本地管理标签/Markdown 结构的值，避免触发 Bangumi 服务端校验错误。
+		if (/[\\[\]{}()<>`"'|]/.test(normalized)) {
+			return null;
+		}
+
+		if (/[:/]/.test(normalized)) {
+			return null;
+		}
+
+		return normalized;
 	}
 
 	/**
@@ -471,4 +525,3 @@ export class BangumiClient {
 		return result;
 	}
 }
-

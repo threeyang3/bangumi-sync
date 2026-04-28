@@ -189,7 +189,7 @@ export function renderContentTemplate(template: string, vars: ContentTemplateVar
 	let result = template;
 
 	// 1. 处理条件渲染 {{#if variable}}...{{/if}}
-	result = result.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (match, key, content) => {
+	result = result.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_match: string, key: string, content: string) => {
 		const value = vars[key];
 		// 变量有值且不为空字符串时显示内容
 		if (value !== undefined && value !== null && value !== '') {
@@ -199,7 +199,7 @@ export function renderContentTemplate(template: string, vars: ContentTemplateVar
 	});
 
 	// 2. 处理默认值 {{variable|default}}
-	result = result.replace(/\{\{(\w+)\|([^}]+)\}\}/g, (match, key, defaultVal) => {
+	result = result.replace(/\{\{(\w+)\|([^}]+)\}\}/g, (_match: string, key: string, defaultVal: string) => {
 		const value = vars[key];
 		if (value !== undefined && value !== null && value !== '') {
 			return String(value);
@@ -208,7 +208,7 @@ export function renderContentTemplate(template: string, vars: ContentTemplateVar
 	});
 
 	// 3. 替换所有 {{variable}} 格式的变量
-	result = result.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+	result = result.replace(/\{\{(\w+)\}\}/g, (_match: string, key: string) => {
 		const value = vars[key];
 		if (value === undefined || value === null) {
 			return '';

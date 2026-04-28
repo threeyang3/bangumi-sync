@@ -34,6 +34,16 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+.eslintcache
+
+# Local test helpers
+tmp/
+temp/
+scratch/
+playground/
+test-output/
+*.local.ts
+*.local.js
 
 # Environment
 .env

@@ -361,7 +361,12 @@ export class UserDataImporter {
 
         for (const file of files) {
             const cache = this.app.metadataCache.getFileCache(file);
-            const id = cache?.frontmatter?.id || cache?.frontmatter?.ID;
+            const frontmatterValue: unknown = cache?.frontmatter;
+            const frontmatter = typeof frontmatterValue === 'object' && frontmatterValue !== null
+                ? frontmatterValue as Record<string, unknown>
+                : undefined;
+            const rawId = frontmatter?.id ?? frontmatter?.ID ?? null;
+            const id = typeof rawId === 'number' || typeof rawId === 'string' ? rawId : null;
 
             if (id === subjectId || parseInt(String(id), 10) === subjectId) {
                 return file;

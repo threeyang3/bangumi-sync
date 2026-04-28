@@ -5,7 +5,6 @@
 
 import { App, Modal, Setting } from 'obsidian';
 import { SubjectType, UserCollection } from '../../common/api/types';
-import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { tn, t } from '../i18n';
 
 /**

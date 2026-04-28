@@ -10,6 +10,7 @@
 npm install      # 安装依赖
 npm run dev      # 开发模式（监听文件变化）
 npm run build    # 生产构建
+npm run lint     # 本地复现 Obsidian 社区扫描
 ```
 
 ## 项目结构
@@ -54,6 +55,9 @@ bangumi/
 - 使用 `requestUrl` 而非 `fetch`
 - 定时器使用 `activeWindow.setTimeout`
 - 创建元素使用 `activeDocument.createElement`
+- 插件入口必须默认导出插件类，避免 `h is not a constructor`
+- 代码使用的 API 必须与 `manifest.json` 的 `minAppVersion` 对齐
+- 跨窗口 DOM 判断优先使用 `.instanceOf(...)`
 
 ### 代码风格
 
@@ -67,6 +71,23 @@ bangumi/
 - 使用 `console.debug()`、`console.warn()`、`console.error()`
 - 不使用 `console.log()`
 - 日志前缀：`[Bangumi Sync]`
+
+## 提交前检查
+
+- 提交前至少运行 `npm run lint` 和 `npm run build`
+- 本地 ESLint 配置用于尽量复现 Obsidian 社区扫描，不要随意删改 `eslint.config.mjs`
+
+## 同步注意事项
+
+- 收藏更新统一使用 `POST /v0/users/-/collections/{subject_id}`
+- 清空云端标签时要显式发送 `tags: []`
+- 短评比较前必须先做换行/空白规范化
+- 标签解析与状态同步合并都必须走同一套净化逻辑
+- 单集状态修改必须同时更新 `ep_statuses` 与正文 `.ep-box`
+- 单集状态从云端覆盖本地前必须先清空旧本地状态
+- `.ep-box` 解析不要依赖固定属性顺序
+
+详细坑点见 [docs/STATUS_SYNC_PITFALLS.md](docs/STATUS_SYNC_PITFALLS.md)
 
 ## 模板变量
 
@@ -125,3 +146,4 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 - [模板设计指南](docs/TEMPLATE_GUIDE.md)
 - [版本历史](docs/VERSION_HISTORY.md)
 - [开发指南](docs/DEVELOPMENT.md)
+- [状态同步踩坑记录](docs/STATUS_SYNC_PITFALLS.md)
