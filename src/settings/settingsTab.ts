@@ -79,7 +79,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 				button
 					.setButtonText(tn('settings', 'templateGuide'))
 					.onClick(() => {
-						window.open('https://github.com/threeyang3/bangumi-sync/blob/main/docs/TEMPLATE_GUIDE.md', '_blank');
+						this.openExternalLink('https://github.com/threeyang3/bangumi-sync/blob/main/docs/TEMPLATE_GUIDE.md');
 					});
 			});
 
@@ -90,7 +90,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 				button
 					.setButtonText(tn('settings', 'githubRepo'))
 					.onClick(() => {
-						window.open('https://github.com/threeyang3/bangumi-sync', '_blank');
+						this.openExternalLink('https://github.com/threeyang3/bangumi-sync');
 					});
 			});
 
@@ -101,7 +101,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 				button
 					.setButtonText(tn('settings', 'getAccessToken'))
 					.onClick(() => {
-						window.open('https://next.bgm.tv/demo/access-token', '_blank');
+						this.openExternalLink('https://next.bgm.tv/demo/access-token');
 					});
 			});
 
@@ -683,11 +683,11 @@ export class BangumiSettingTab extends PluginSettingTab {
 			const input = content.createEl('input', {
 				type: 'text',
 				placeholder: 'templates/',
-				attr: { style: 'width: 100%; margin: 10px 0;' }
+				cls: 'bangumi-export-template-input',
 			});
 			input.value = 'templates/';
 
-			const buttonDiv = content.createDiv({ attr: { style: 'display: flex; justify-content: flex-end; gap: 10px;' } });
+			const buttonDiv = content.createDiv({ cls: 'bangumi-export-template-buttons' });
 			buttonDiv.createEl('button', { text: tn('syncOptions', 'cancel') }).addEventListener('click', () => {
 				modal.close();
 				resolve(null);
@@ -801,6 +801,11 @@ export class BangumiSettingTab extends PluginSettingTab {
 			default:
 				return '';
 		}
+	}
+
+	private openExternalLink(url: string): void {
+		const externalWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
+		externalWindow?.open(url, '_blank', 'noopener,noreferrer');
 	}
 
 	/**

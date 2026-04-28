@@ -340,6 +340,18 @@
 	font-weight: bold;
 }
 
+.bangumi-export-template-input {
+	width: 100%;
+	margin: 10px 0;
+}
+
+.bangumi-export-template-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
 /* 模板中的主要角色表格 */
 .markdown-rendered .callout[data-callout="tip"] table,
 .callout[data-callout="tip"] table {

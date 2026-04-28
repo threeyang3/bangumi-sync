@@ -1,13 +1,13 @@
 {
 	"name": "bangumi-sync",
-	"version": "4.9.0",
+	"version": "4.9.1",
 	"description": "Obsidian plugin to sync Bangumi collections",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"lint": "eslint .",
-		"version": "node version-bump.mjs && git add manifest.json versions.json"
+		"version": "node version-bump.mjs && git add manifest.json package.json versions.json"
 	},
 	"keywords": [
 		"obsidian",

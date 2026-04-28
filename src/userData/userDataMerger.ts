@@ -211,19 +211,30 @@ export class UserDataMerger {
      * 更新章节内容
      */
     updateSection(content: string, sectionName: string, sectionContent: string): string {
-        // 匹配章节
-        const sectionRegex = new RegExp(
-            `(^## ${sectionName}\\s*\\n)([\\s\\S]*?)(?=\\n## |$)`,
-            'm'
-        );
+        const normalizedContent = content.replace(/\r\n/g, '\n');
+        const lines = normalizedContent.split('\n');
+        const heading = `## ${sectionName}`;
+        const startIndex = lines.findIndex(line => line.trim() === heading);
 
-        if (sectionRegex.test(content)) {
-            // 替换现有章节内容
-            return content.replace(sectionRegex, `$1${sectionContent}\n`);
-        } else {
-            // 章节不存在，在文件末尾添加
-            return content + `\n\n## ${sectionName}\n\n${sectionContent}\n`;
+        if (startIndex !== -1) {
+            let endIndex = lines.length;
+            for (let i = startIndex + 1; i < lines.length; i++) {
+                if (/^##\s+/.test(lines[i])) {
+                    endIndex = i;
+                    break;
+                }
+            }
+
+            const replacement = [heading, '', sectionContent.trim()];
+            const nextLines = [
+                ...lines.slice(0, startIndex),
+                ...replacement,
+                ...lines.slice(endIndex),
+            ];
+            return nextLines.join('\n').replace(/\n+$/, '\n');
         }
+
+        return normalizedContent.replace(/\n*$/, '') + `\n\n## ${sectionName}\n\n${sectionContent.trim()}\n`;
     }
 
     /**

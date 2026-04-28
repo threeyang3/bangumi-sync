@@ -8,6 +8,7 @@ import { BangumiClient } from '../api/client';
 import { EpisodeStatusManager } from './episodeStatusManager';
 import { EpisodeCommentManager } from './episodeCommentManager';
 import { EpisodeStatusType, getEpisodeStatusText } from './types';
+import { delay } from '../../common/utils/timing';
 
 /**
  * 集数右键菜单管理器
@@ -260,7 +261,7 @@ export class EpisodeContextMenu {
 		}
 
 		// 等待模式切换完成
-		await new Promise<void>(resolve => (ownerWindow ?? window).setTimeout(resolve, 100));
+		await delay(100, ownerWindow);
 
 		// 定位光标
 		const editor = view.editor;

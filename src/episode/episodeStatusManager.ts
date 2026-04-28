@@ -6,6 +6,7 @@
 import { App, TFile } from 'obsidian';
 import { BangumiClient } from '../api/client';
 import { LocalEpisodeStatus, EpisodeStatusType, getEpisodeStatusText } from './types';
+import { delay } from '../../common/utils/timing';
 
 /**
  * 单集状态管理器
@@ -103,7 +104,7 @@ export class EpisodeStatusManager {
 		status: EpisodeStatusType
 	): Promise<void> {
 		await this.app.vault.process(file, (content) => {
-			return this.updateEpStatusInContent(content, episodeId, epNumber, status);
+			return this.applyEpisodeStatusUpdates(content, [{ episodeId, epNumber, status }]);
 		});
 	}
 
@@ -115,11 +116,7 @@ export class EpisodeStatusManager {
 		episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>
 	): Promise<void> {
 		await this.app.vault.process(file, (content) => {
-			let updatedContent = content;
-			for (const ep of episodes) {
-				updatedContent = this.updateEpStatusInContent(updatedContent, ep.episodeId, ep.epNumber, ep.status);
-			}
-			return updatedContent;
+			return this.applyEpisodeStatusUpdates(content, episodes);
 		});
 	}
 
@@ -183,6 +180,26 @@ export class EpisodeStatusManager {
 		return this.updateEpisodeBoxStatusInContent(updatedContent, episodeId, epNumber, status);
 	}
 
+	private applyEpisodeStatusUpdates(
+		content: string,
+		episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>
+	): string {
+		const withoutOldStatuses = this.clearEpisodeStatusArtifacts(content);
+		return episodes.reduce(
+			(updatedContent, ep) => this.updateEpisodeBoxStatusInContent(updatedContent, ep.episodeId, ep.epNumber, ep.status),
+			withoutOldStatuses
+		);
+	}
+
+	private createLocalEpisodeStatus(episodeId: number, epNumber: number, status: EpisodeStatusType): LocalEpisodeStatus {
+		return {
+			episodeId,
+			epNumber,
+			status,
+			updatedAt: Date.now(),
+		};
+	}
+
 	private extractEpisodeStatusMapFromFrontmatter(content: string): Map<number, LocalEpisodeStatus> {
 		const statusMap = new Map<number, LocalEpisodeStatus>();
 		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
@@ -207,12 +224,7 @@ export class EpisodeStatusManager {
 			const epNumber = parseInt(match[2], 10);
 			const status = parseInt(match[3], 10) as EpisodeStatusType;
 
-			statusMap.set(episodeId, {
-				episodeId,
-				epNumber,
-				status,
-				updatedAt: Date.now(),
-			});
+			statusMap.set(episodeId, this.createLocalEpisodeStatus(episodeId, epNumber, status));
 		}
 
 		return statusMap;
@@ -229,12 +241,7 @@ export class EpisodeStatusManager {
 				continue;
 			}
 
-			statusMap.set(attrs.episodeId, {
-				episodeId: attrs.episodeId,
-				epNumber: attrs.epNumber,
-				status: attrs.status,
-				updatedAt: Date.now(),
-			});
+			statusMap.set(attrs.episodeId, this.createLocalEpisodeStatus(attrs.episodeId, attrs.epNumber, attrs.status));
 		}
 
 		return statusMap;
@@ -279,7 +286,7 @@ export class EpisodeStatusManager {
 		});
 	}
 
-	private clearEpisodeStatusesInContent(content: string): string {
+	private clearEpisodeStatusArtifacts(content: string): string {
 		const withoutFrontmatterStatuses = content.replace(/^ep_statuses:\s*\n(?:\s+- .+\n?)+/m, '').replace(/\n{3,}/g, '\n\n');
 		const episodeBoxRegex = /<span\b[^>]*class="[^"]*\bep-box\b[^"]*"[^>]*>.*?<\/span>/g;
 
@@ -356,7 +363,7 @@ export class EpisodeStatusManager {
 			}
 
 			// 避免 API 限流
-			await new Promise<void>(resolve => (ownerWindow ?? window).setTimeout(resolve, 100));
+			await delay(100, ownerWindow);
 		}
 
 		return { success, failed };
@@ -374,21 +381,15 @@ export class EpisodeStatusManager {
 
 			// 更新本地文件
 			await this.app.vault.process(file, (content) => {
-				let updatedContent = this.clearEpisodeStatusesInContent(content);
+				const episodes = userEpisodes
+					.filter(userEp => userEp.type !== 0)
+					.map(userEp => ({
+						episodeId: userEp.episode.id,
+						epNumber: userEp.episode.ep || userEp.episode.sort || 0,
+						status: userEp.type as EpisodeStatusType,
+					}));
 
-				for (const userEp of userEpisodes) {
-					if (userEp.type !== 0) {
-						const epNumber = userEp.episode.ep || userEp.episode.sort;
-						updatedContent = this.updateEpStatusInContent(
-							updatedContent,
-							userEp.episode.id,
-							epNumber || 0,
-							userEp.type as EpisodeStatusType
-						);
-					}
-				}
-
-				return updatedContent;
+				return this.applyEpisodeStatusUpdates(content, episodes);
 			});
 
 			return true;

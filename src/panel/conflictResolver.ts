@@ -5,6 +5,7 @@
 
 import { App, TFile } from 'obsidian';
 import { UserCollection } from '../../common/api/types';
+import { getFrontmatterNumber, getFrontmatterRecord, getFrontmatterString, getFrontmatterStringArray } from '../../common/utils/frontmatter';
 
 /**
  * 本地条目数据
@@ -158,21 +159,17 @@ export class ConflictDetector {
 	 */
 	extractLocalData(file: TFile): LocalItemData | null {
 		try {
-			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+			const frontmatter = getFrontmatterRecord(this.app.metadataCache.getFileCache(file)?.frontmatter);
 
 			if (!frontmatter) return null;
 
-			const title = typeof frontmatter.title === 'string' ? frontmatter.title : '';
-			const nameCn = typeof frontmatter.name_cn === 'string' ? frontmatter.name_cn : '';
-			const rate = typeof frontmatter.my_rate === 'number' ? frontmatter.my_rate : undefined;
-			const comment = typeof frontmatter.comment === 'string' ? frontmatter.comment : undefined;
-			const status = typeof frontmatter.status === 'number' ? frontmatter.status : undefined;
-			const updatedAt = frontmatter.updated_at != null ? String(frontmatter.updated_at) : file.stat.mtime.toString();
-			const tags = Array.isArray(frontmatter.tags)
-				? frontmatter.tags.map(tag => String(tag).trim()).filter(Boolean)
-				: frontmatter.tags != null
-					? String(frontmatter.tags).split(',').map((t: string) => t.trim()).filter(Boolean)
-					: [];
+			const title = getFrontmatterString(frontmatter, 'title') || '';
+			const nameCn = getFrontmatterString(frontmatter, 'name_cn') || '';
+			const rate = getFrontmatterNumber(frontmatter, 'my_rate');
+			const comment = getFrontmatterString(frontmatter, 'comment');
+			const status = getFrontmatterNumber(frontmatter, 'status');
+			const updatedAt = getFrontmatterString(frontmatter, 'updated_at') || file.stat.mtime.toString();
+			const tags = getFrontmatterStringArray(frontmatter, 'tags');
 
 			return {
 				path: file.path,

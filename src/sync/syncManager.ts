@@ -294,6 +294,30 @@ export class SyncManager {
 	}
 
 	/**
+	 * 下载并解析本地封面路径
+	 */
+	private async resolveLocalCoverPath(subject: Subject, typeLabel: string): Promise<string> {
+		const coverUrl = subject.images?.large || subject.images?.common || '';
+		if (!this.config.downloadImages || !coverUrl) {
+			return '';
+		}
+
+		console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
+		const localPath = await this.imageHandler.downloadCover(
+			coverUrl,
+			subject.id,
+			this.config.imagePathTemplate,
+			{
+				name_cn: subject.name_cn,
+				name: subject.name,
+				typeLabel,
+			}
+		);
+
+		return localPath && !localPath.startsWith('http') ? localPath : '';
+	}
+
+	/**
 	 * 生成相关条目链接
 	 * 返回已同步条目的链接（包括本批次已同步的）
 	 * 显示名称使用文件名（带类型后缀）
@@ -602,24 +626,7 @@ export class SyncManager {
 		const typeLabel = getTypeLabel(subject.type);
 
 		// 下载封面图片
-		const coverUrl = subject.images?.large || subject.images?.common || '';
-		let localCoverPath = '';
-		if (this.config.downloadImages && coverUrl) {
-			console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
-			const localPath = await this.imageHandler.downloadCover(
-				coverUrl,
-				subject.id,
-				this.config.imagePathTemplate,
-				{
-					name_cn: subject.name_cn,
-					name: subject.name,
-					typeLabel,
-				}
-			);
-			if (localPath && !localPath.startsWith('http')) {
-				localCoverPath = localPath;
-			}
-		}
+		const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
 
 		// V4: 获取章节信息
 		const episodeData = await this.fetchEpisodeData(subject);
@@ -681,23 +688,7 @@ export class SyncManager {
 		const typeLabel = getTypeLabel(subject.type);
 
 		// 下载封面图片
-		const coverUrl = subject.images?.large || subject.images?.common || '';
-		let localCoverPath = '';
-		if (this.config.downloadImages && coverUrl) {
-			const localPath = await this.imageHandler.downloadCover(
-				coverUrl,
-				subject.id,
-				this.config.imagePathTemplate,
-				{
-					name_cn: subject.name_cn,
-					name: subject.name,
-					typeLabel,
-				}
-			);
-			if (localPath && !localPath.startsWith('http')) {
-				localCoverPath = localPath;
-			}
-		}
+		const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
 
 		// 生成文件路径
 		const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
@@ -777,24 +768,7 @@ export class SyncManager {
 		const typeLabel = getTypeLabel(subject.type);
 
 		// 下载封面图片
-		const coverUrl = subject.images?.large || subject.images?.common || '';
-		let localCoverPath = '';
-		if (this.config.downloadImages && coverUrl) {
-			console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
-			const localPath = await this.imageHandler.downloadCover(
-				coverUrl,
-				subject.id,
-				this.config.imagePathTemplate,
-				{
-					name_cn: subject.name_cn,
-					name: subject.name,
-					typeLabel,
-				}
-			);
-			if (localPath && !localPath.startsWith('http')) {
-				localCoverPath = localPath;
-			}
-		}
+		const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
 
 		// 生成文件路径
 		const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
@@ -922,24 +896,7 @@ export class SyncManager {
 				const typeLabel = getTypeLabel(subject.type);
 
 				// 下载封面图片
-				const coverUrl = subject.images?.large || subject.images?.common || '';
-				let localCoverPath = '';
-				if (this.config.downloadImages && coverUrl) {
-					console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
-					const localPath = await this.imageHandler.downloadCover(
-						coverUrl,
-						subject.id,
-						this.config.imagePathTemplate,
-						{
-							name_cn: subject.name_cn,
-							name: subject.name,
-							typeLabel,
-						}
-					);
-					if (localPath && !localPath.startsWith('http')) {
-						localCoverPath = localPath;
-					}
-				}
+				const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
 
 				// 创建临时 collection 对象
 				const collection: UserCollection = {

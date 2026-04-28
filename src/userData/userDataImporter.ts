@@ -13,24 +13,8 @@ import {
     ImportResult,
     MissingFieldDecision,
 } from './types';
-
-/**
- * 安全地将任意值转换为字符串
- * 避免 [object Object] 问题
- */
-function safeStringify(value: unknown): string {
-    if (value === null || value === undefined) {
-        return '';
-    }
-    if (typeof value === 'string') {
-        return value;
-    }
-    if (typeof value === 'number' || typeof value === 'boolean') {
-        return String(value);
-    }
-    // For arrays, objects, and other types, use JSON.stringify
-    return JSON.stringify(value);
-}
+import { getFrontmatterNumber, getFrontmatterRecord } from '../../common/utils/frontmatter';
+import { safeStringify } from '../../common/utils/value';
 
 /**
  * 用户数据导入器
@@ -361,14 +345,10 @@ export class UserDataImporter {
 
         for (const file of files) {
             const cache = this.app.metadataCache.getFileCache(file);
-            const frontmatterValue: unknown = cache?.frontmatter;
-            const frontmatter = typeof frontmatterValue === 'object' && frontmatterValue !== null
-                ? frontmatterValue as Record<string, unknown>
-                : undefined;
-            const rawId = frontmatter?.id ?? frontmatter?.ID ?? null;
-            const id = typeof rawId === 'number' || typeof rawId === 'string' ? rawId : null;
+            const frontmatter = getFrontmatterRecord(cache?.frontmatter);
+            const id = getFrontmatterNumber(frontmatter, 'id') ?? getFrontmatterNumber(frontmatter, 'ID');
 
-            if (id === subjectId || parseInt(String(id), 10) === subjectId) {
+            if (id === subjectId) {
                 return file;
             }
         }

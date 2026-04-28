@@ -70,8 +70,7 @@ export class BangumiClient {
 			const response = await requestUrl(options);
 
 			console.debug(`[Bangumi Sync] Response status: ${response.status}`);
-
-			const responseJson = response.json as unknown;
+			const responseJson = this.parseJsonResponse(response);
 
 			if (response.status >= 400) {
 				const error = this.toApiError(responseJson, response.status);
@@ -85,16 +84,12 @@ export class BangumiClient {
 				return {} as T;
 			}
 
-			try {
-				return responseJson as T;
-			} catch (error) {
-				// Bangumi 的更新接口偶尔会返回 2xx 但没有响应体。
-				if (error instanceof SyntaxError) {
-					console.debug(`[Bangumi Sync] Empty success response on ${method} ${endpoint}`);
-					return {} as T;
-				}
-				throw error;
+			if (responseJson instanceof SyntaxError) {
+				console.debug(`[Bangumi Sync] Empty success response on ${method} ${endpoint}`);
+				return {} as T;
 			}
+
+			return responseJson as T;
 		} catch (error) {
 			const errorInfo = {
 				method,
@@ -107,6 +102,17 @@ export class BangumiClient {
 				throw new Error(`${error.message} | ${method} ${endpoint} | payload=${JSON.stringify(data)}`);
 			}
 			throw new Error(`Request failed: ${String(error)} | ${method} ${endpoint} | payload=${JSON.stringify(data)}`);
+		}
+	}
+
+	private parseJsonResponse(response: { json: unknown }): unknown {
+		try {
+			return response.json;
+		} catch (error) {
+			if (error instanceof SyntaxError) {
+				return error;
+			}
+			throw error;
 		}
 	}
 

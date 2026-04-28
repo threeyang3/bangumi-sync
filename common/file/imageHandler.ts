@@ -5,6 +5,7 @@
 
 import { App, requestUrl, normalizePath, Notice } from 'obsidian';
 import { FileManager } from './fileManager';
+import { delay } from '../utils/timing';
 
 /**
  * 图片质量选项
@@ -211,7 +212,7 @@ export class ImageHandler {
 			}
 
 			// 添加小延迟避免请求过快
-			await new Promise<void>(resolve => (ownerWindow ?? window).setTimeout(resolve, 100));
+			await delay(100, ownerWindow);
 		}
 	}
 

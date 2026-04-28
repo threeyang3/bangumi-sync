@@ -8,30 +8,14 @@
 
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
 import { SubjectType } from '../../common/api/types';
+import { getFrontmatterRecord, getFrontmatterString } from '../../common/utils/frontmatter';
+import { safeStringify } from '../../common/utils/value';
 import {
     SubjectUserData,
     RatingDetails,
     BANGUMI_FIELDS,
     RATING_DETAIL_FIELDS,
 } from './types';
-
-/**
- * 安全地将任意值转换为字符串
- * 避免 [object Object] 问题
- */
-function safeStringify(value: unknown): string {
-    if (value === null || value === undefined) {
-        return '';
-    }
-    if (typeof value === 'string') {
-        return value;
-    }
-    if (typeof value === 'number' || typeof value === 'boolean') {
-        return String(value);
-    }
-    // For arrays, objects, and other types, use JSON.stringify
-    return JSON.stringify(value);
-}
 
 /**
  * 用户数据提取器
@@ -48,46 +32,7 @@ export class UserDataExtractor {
      */
     extractFromFile(file: TFile): SubjectUserData | null {
         const cache = this.app.metadataCache.getFileCache(file);
-        if (!cache?.frontmatter) return null;
-
-        const frontmatter = cache.frontmatter;
-
-        // 提取条目 ID
-        const id = this.extractId(frontmatter);
-        if (!id) return null;
-
-        // 提取中文名
-        const nameCnFromFrontmatter = typeof frontmatter['中文名'] === 'string'
-            ? frontmatter['中文名']
-            : typeof frontmatter.name_cn === 'string'
-                ? frontmatter.name_cn
-                : '';
-        const name_cn = nameCnFromFrontmatter || file.basename;
-
-        // 提取条目类型
-        const type = this.determineSubjectType(frontmatter);
-
-        const result: SubjectUserData = {
-            id,
-            name_cn,
-            type,
-            workType: this.extractWorkType(frontmatter),
-        };
-
-        // 提取评分明细
-        const ratingDetails = this.extractRatingDetails(frontmatter, type);
-        if (ratingDetails && Object.keys(ratingDetails).length > 0) {
-            result.ratingDetails = ratingDetails;
-        }
-
-        // 提取自定义属性
-        const customProperties = this.extractCustomProperties(frontmatter);
-        if (Object.keys(customProperties).length > 0) {
-            result.customProperties = customProperties;
-        }
-
-        // 提取正文内容（异步版本中处理）
-        return result;
+        return this.extractFromFrontmatter(file, getFrontmatterRecord(cache?.frontmatter));
     }
 
     /**
@@ -95,43 +40,8 @@ export class UserDataExtractor {
      */
     async extractFromFileAsync(file: TFile): Promise<SubjectUserData | null> {
         const cache = this.app.metadataCache.getFileCache(file);
-        if (!cache?.frontmatter) return null;
-
-        const frontmatter = cache.frontmatter;
-
-        // 提取条目 ID
-        const id = this.extractId(frontmatter);
-        if (!id) return null;
-
-        // 提取中文名
-        const nameCnFromFrontmatter = typeof frontmatter['中文名'] === 'string'
-            ? frontmatter['中文名']
-            : typeof frontmatter.name_cn === 'string'
-                ? frontmatter.name_cn
-                : '';
-        const name_cn = nameCnFromFrontmatter || file.basename;
-
-        // 提取条目类型
-        const type = this.determineSubjectType(frontmatter);
-
-        const result: SubjectUserData = {
-            id,
-            name_cn,
-            type,
-            workType: this.extractWorkType(frontmatter),
-        };
-
-        // 提取评分明细
-        const ratingDetails = this.extractRatingDetails(frontmatter, type);
-        if (ratingDetails && Object.keys(ratingDetails).length > 0) {
-            result.ratingDetails = ratingDetails;
-        }
-
-        // 提取自定义属性
-        const customProperties = this.extractCustomProperties(frontmatter);
-        if (Object.keys(customProperties).length > 0) {
-            result.customProperties = customProperties;
-        }
+        const result = this.extractFromFrontmatter(file, getFrontmatterRecord(cache?.frontmatter));
+        if (!result) return null;
 
         // 提取正文内容
         const content = await this.app.vault.read(file);
@@ -146,6 +56,37 @@ export class UserDataExtractor {
         const thoughtsContent = this.extractSection(content, '感想');
         if (thoughtsContent) {
             result.thoughtsContent = thoughtsContent;
+        }
+
+        return result;
+    }
+
+    private extractFromFrontmatter(file: TFile, frontmatter: Record<string, unknown> | null): SubjectUserData | null {
+        if (!frontmatter) return null;
+
+        const id = this.extractId(frontmatter);
+        if (!id) return null;
+
+        const name_cn = getFrontmatterString(frontmatter, '中文名')
+            || getFrontmatterString(frontmatter, 'name_cn')
+            || file.basename;
+        const type = this.determineSubjectType(frontmatter);
+
+        const result: SubjectUserData = {
+            id,
+            name_cn,
+            type,
+            workType: this.extractWorkType(frontmatter),
+        };
+
+        const ratingDetails = this.extractRatingDetails(frontmatter, type);
+        if (ratingDetails && Object.keys(ratingDetails).length > 0) {
+            result.ratingDetails = ratingDetails;
+        }
+
+        const customProperties = this.extractCustomProperties(frontmatter);
+        if (Object.keys(customProperties).length > 0) {
+            result.customProperties = customProperties;
         }
 
         return result;
@@ -197,7 +138,7 @@ export class UserDataExtractor {
      * 提取条目 ID
      */
     private extractId(frontmatter: Record<string, unknown>): number | null {
-        const id = frontmatter['id'] || frontmatter['ID'];
+        const id = frontmatter['id'] ?? frontmatter['ID'];
         if (typeof id === 'number') return id;
         if (typeof id === 'string') {
             const parsed = parseInt(id, 10);
@@ -217,9 +158,6 @@ export class UserDataExtractor {
             // 跳过 Bangumi 字段
             if (BANGUMI_FIELDS.has(key)) continue;
 
-            // 跳过评分明细字段（单独处理）
-            if (this.isRatingDetailField(key)) continue;
-
             // 跳过空值
             if (value === undefined || value === '' || value === null) continue;
 
@@ -228,17 +166,6 @@ export class UserDataExtractor {
         }
 
         return result;
-    }
-
-    /**
-     * 检查是否为评分明细字段
-     */
-    private isRatingDetailField(key: string): boolean {
-        const ratingFields = [
-            '音乐评分', '人设评分', '剧情评分', '美术评分',
-            '插画评分', '文笔评分', '画工评分', '趣味评分',
-        ];
-        return ratingFields.includes(key);
     }
 
     /**
@@ -270,26 +197,32 @@ export class UserDataExtractor {
      * 格式: ## 章节名\n内容\n## 下一个章节
      */
     extractSection(content: string, sectionName: string): string | undefined {
-        // 匹配章节标题
-        const sectionRegex = new RegExp(
-            `^## ${sectionName}\\s*\\n([\\s\\S]*?)(?=\\n## |$)`,
-            'm'
-        );
+        const normalizedContent = content.replace(/\r\n/g, '\n');
+        const lines = normalizedContent.split('\n');
+        const heading = `## ${sectionName}`;
 
-        const match = content.match(sectionRegex);
-        if (match) {
-            const sectionContent = match[1].trim();
-            // 如果章节内容为空，返回 undefined
-            return sectionContent || undefined;
+        const startIndex = lines.findIndex(line => line.trim() === heading);
+        if (startIndex === -1) {
+            return undefined;
         }
-        return undefined;
+
+        let endIndex = lines.length;
+        for (let i = startIndex + 1; i < lines.length; i++) {
+            if (/^##\s+/.test(lines[i])) {
+                endIndex = i;
+                break;
+            }
+        }
+
+        const sectionContent = lines.slice(startIndex + 1, endIndex).join('\n').trim();
+        return sectionContent || undefined;
     }
 
     /**
      * 判断条目类型
      */
     private determineSubjectType(frontmatter: Record<string, unknown>): number {
-        const typeStr = frontmatter['作品大类'] || frontmatter['type'];
+        const typeStr = frontmatter['作品大类'] ?? frontmatter['type'];
 
         // 如果已经是数字，直接返回
         if (typeof typeStr === 'number') return typeStr;
@@ -312,7 +245,7 @@ export class UserDataExtractor {
      * 提取作品大类，用于导出时区分 Book 下的细分类。
      */
     private extractWorkType(frontmatter: Record<string, unknown>): string | undefined {
-        const typeStr = frontmatter['作品大类'] || frontmatter['type'];
+        const typeStr = frontmatter['作品大类'] ?? frontmatter['type'];
         return typeof typeStr === 'string' && typeStr.trim() ? typeStr.trim() : undefined;
     }
 
