@@ -9,7 +9,7 @@ import { BangumiClient } from '../api/client';
 import { BangumiPluginSettings } from '../settings/settings';
 import { SyncManager } from '../sync/syncManager';
 import { AddToCollectionModal, AddToCollectionInput } from './addToCollectionModal';
-import { tn, tnFormat, t } from '../i18n';
+import { tn, tnFormat } from '../i18n';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { generateFilePath } from '../../common/template/pathTemplate';
 
@@ -104,7 +104,7 @@ export class SearchModal extends Modal {
 		const filterDiv = contentEl.createDiv({ cls: 'bangumi-search-filter' });
 
 		// 类型选择
-		const typeLabel = filterDiv.createSpan({ text: `${tn('searchModal', 'subjectType')}: ` });
+		filterDiv.createSpan({ text: `${tn('searchModal', 'subjectType')}: ` });
 		const typeSelect = filterDiv.createEl('select', { cls: 'bangumi-search-select' });
 		SUBJECT_TYPE_OPTIONS.forEach(opt => {
 			typeSelect.createEl('option', {
@@ -114,7 +114,7 @@ export class SearchModal extends Modal {
 		});
 
 		// 排序选择
-		const sortLabel = filterDiv.createSpan({ text: ` ${tn('searchModal', 'sortBy')}: ` });
+		filterDiv.createSpan({ text: ` ${tn('searchModal', 'sortBy')}: ` });
 		const sortSelect = filterDiv.createEl('select', { cls: 'bangumi-search-select' });
 		SORT_OPTIONS.forEach(opt => {
 			sortSelect.createEl('option', {
@@ -236,7 +236,7 @@ export class SearchModal extends Modal {
 				this.loadMoreBtn.removeClass('visible');
 			}
 
-		} catch (error) {
+		} catch (error: unknown) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			this.statusEl.setText(`${tn('searchModal', 'searchFailed')}: ${errorMsg}`);
 		} finally {
@@ -263,7 +263,7 @@ export class SearchModal extends Modal {
 				if (collection) {
 					this.collectionStatuses.set(subject.id, collection);
 				}
-			} catch (error) {
+			} catch (error: unknown) {
 				// 忽略错误，继续检查下一个
 			}
 		}
@@ -283,7 +283,7 @@ export class SearchModal extends Modal {
 			if (file instanceof TFile) {
 				return filePath;
 			}
-		} catch (error) {
+		} catch (error: unknown) {
 			// 忽略错误
 		}
 		return null;
@@ -397,7 +397,7 @@ export class SearchModal extends Modal {
 	/**
 	 * 处理添加完成
 	 */
-	private async handleAddComplete(input: AddToCollectionInput): Promise<void> {
+	private handleAddComplete(input: AddToCollectionInput): void {
 		new Notice(tnFormat('searchModal', 'addedSuccess', { name: input.subjectName }));
 		this.onComplete();
 	}

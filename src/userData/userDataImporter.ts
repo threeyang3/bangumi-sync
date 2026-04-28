@@ -60,8 +60,8 @@ export class UserDataImporter {
 
             const content = await this.app.vault.read(file);
             return await this.importFromText(filePath, content, options, onProgress);
-        } catch (error) {
-            throw new Error(`Failed to parse import file: ${error}`);
+        } catch (error: unknown) {
+            throw new Error(`Failed to parse import file: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
@@ -77,8 +77,8 @@ export class UserDataImporter {
         try {
             const importData = JSON.parse(content) as UserDataExport;
             return await this.importParsedData(importData, options, onProgress);
-        } catch (error) {
-            throw new Error(`Failed to parse import file ${fileName}: ${error}`);
+        } catch (error: unknown) {
+            throw new Error(`Failed to parse import file ${fileName}: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 

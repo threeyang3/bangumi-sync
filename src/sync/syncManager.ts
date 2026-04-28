@@ -203,10 +203,10 @@ export class SyncManager {
 			result.success = true;
 			this.reportProgress({ status: 'completed', message: '同步完成' });
 
-		} catch (error) {
+		} catch (error: unknown) {
 			console.error('[Bangumi Sync] 同步失败:', error);
-			this.reportProgress({ status: 'error', message: String(error) });
-			new Notice(`同步失败: ${error}`);
+			this.reportProgress({ status: 'error', message: error instanceof Error ? error.message : String(error) });
+			new Notice(`同步失败: ${error instanceof Error ? error.message : String(error)}`);
 		}
 
 		result.duration = Date.now() - startTime;
@@ -571,10 +571,10 @@ export class SyncManager {
 			result.success = true;
 			this.reportProgress({ status: 'completed', message: '同步完成' });
 
-		} catch (error) {
+		} catch (error: unknown) {
 			console.error('[Bangumi Sync] 执行同步失败:', error);
-			this.reportProgress({ status: 'error', message: String(error) });
-			new Notice(`同步失败: ${error}`);
+			this.reportProgress({ status: 'error', message: error instanceof Error ? error.message : String(error) });
+			new Notice(`同步失败: ${error instanceof Error ? error.message : String(error)}`);
 		}
 
 		result.duration = Date.now() - startTime;

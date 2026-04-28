@@ -10,7 +10,7 @@
 
 ## 版本说明
 
-当前版本 (v4.7.0) 集成了以下功能：
+当前版本 (v4.7.1) 集成了以下功能：
 
 - **集数追踪**：自动获取并显示动画集数、小说卷数、漫画话数
 - **紧凑显示**：集数以数字框形式显示，节省空间
@@ -784,6 +784,23 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
   - 修复添加新条目时 404 错误问题
   - 修复搜索添加条目时集数信息缺失问题
   - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.7.0
+
+- **v4.7.1**: 代码质量优化版本
+  - 修复 UI 文本国际化问题：批量编辑器、短评同步、标签同步弹窗
+  - 修复状态同步弹窗中硬编码的中文收藏状态文本
+  - 迁移 vault.modify 到 vault.process（共 11 处）
+  - 启用 TypeScript 严格模式（strict: true）
+  - 修复 strictPropertyInitialization 和 strictFunctionTypes 类型错误
+  - 修复 common/api/client.ts 中 activeWindow 错误导入
+  - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.7.1
+
+- **v4.7.2**: ESLint 问题修复版本
+  - 修复模板字符串中 unknown 类型错误（5 处）
+  - 移除无 await 的 async 方法（searchModal.ts）
+  - 移除未使用的导入和变量（t, typeLabel, sortLabel, error）
+  - 更新 tsconfig.json lib 为 ES2017（支持 Object.entries）
+  - 移除已弃用的 baseUrl 配置
+  - 发布地址：https://github.com/threeyang3/bangumi-sync/releases/tag/4.7.2
 
 ## 集数追踪功能
 

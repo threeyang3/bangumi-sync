@@ -30,7 +30,7 @@ export class FileManager {
 				await this.ensureDirectory(dirPath);
 				try {
 					await this.app.vault.createFolder(dirPath);
-				} catch (error) {
+				} catch (error: unknown) {
 					// 目录可能已存在（并发创建）
 					console.debug(`[Bangumi Sync] 创建目录失败（可能已存在）: ${error}`);
 				}
