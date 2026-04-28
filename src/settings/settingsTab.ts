@@ -221,12 +221,23 @@ export class BangumiSettingTab extends PluginSettingTab {
 			.setName(tn('settings', 'notePathTemplate'))
 			.setDesc(tn('settings', 'notePathTemplateDesc'))
 			.addText(text => text
-				.setPlaceholder('Inbox/notes/acgn')
+				.setPlaceholder('收集箱/笔记/ACGN/{{name_cn}}.md')
 				.setValue(this.settings.notePathTemplate)
 				.onChange(async (value) => {
 					this.settings.notePathTemplate = value;
 					await this.onSave();
 				}));
+
+		new Setting(containerEl)
+			.setName(tn('settings', 'noteTemplateContent'))
+			.setDesc(tn('settings', 'noteTemplateContentDesc'))
+			.addButton(button => {
+				button
+					.setButtonText(tn('settings', 'edit'))
+					.onClick(() => {
+						this.openNoteTemplateEditor();
+					});
+			});
 
 		// ==================== 模板设置 ====================
 		new Setting(containerEl).setName(tn('settings', 'templateSettings')).setHeading();
@@ -856,6 +867,20 @@ export class BangumiSettingTab extends PluginSettingTab {
 			templateType.defaultTemplate,
 			() => {
 				// Preview mode, no save
+			}
+		);
+		modal.open();
+	}
+
+	private openNoteTemplateEditor(): void {
+		const modal = new TemplateEditorModal(
+			this.app,
+			this.settings.noteTemplateContent,
+			(template: string) => {
+				void (async () => {
+					this.settings.noteTemplateContent = template;
+					await this.onSave();
+				})();
 			}
 		);
 		modal.open();

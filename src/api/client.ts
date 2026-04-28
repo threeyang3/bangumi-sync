@@ -192,6 +192,42 @@ export class BangumiClient {
 	}
 
 	/**
+	 * 检查条目是否已收藏。
+	 * 与 getCollectionStatus 不同，这里会把 404 视为正常的“未收藏”，避免控制台产生大量错误噪音。
+	 */
+	async hasCollection(subjectId: number): Promise<boolean> {
+		const endpoint = ENDPOINTS.MY_COLLECTION_BY_ID(subjectId);
+		const url = `${this.baseUrl}${endpoint}`;
+
+		try {
+			const response = await requestUrl({
+				url,
+				method: 'GET',
+				headers: this.getHeaders(),
+			});
+
+			if (response.status === 200) {
+				return true;
+			}
+
+			if (response.status === 404) {
+				return false;
+			}
+
+			if (response.status >= 400) {
+				throw new Error(`Request failed, status ${response.status}`);
+			}
+
+			return false;
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('404')) {
+				return false;
+			}
+			throw error;
+		}
+	}
+
+	/**
 	 * 获取条目详情
 	 */
 	async getSubject(subjectId: number): Promise<Subject> {

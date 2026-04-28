@@ -388,7 +388,6 @@ tags:
 标语:
 单评: false
 精彩片段:
-笔记: "{{note_link}}"
 存储:
 资源属性:
 {{#if related}}相关:
@@ -418,7 +417,6 @@ Bangumi链接: "{{bangumi_url}}"
 > | 标签 |\`= this.tags\`|
 > | 评分 |\`= this.评分\`|
 > | 明细 |音乐: \`= this.音乐评分\` 人设: \`= this.人设评分\` 剧情: \`= this.剧情评分\` 美术: \`= this.美术评分\`|
-> | 笔记 | \`= this.笔记\`|
 > | 放送 | {{year}} 年 {{month}} 月 |
 > | 集数 | {{category}} 共{{episode}}话 |
 > | 精彩片段 | \`= this.精彩片段\` |
@@ -473,7 +471,6 @@ tags:
 标语:
 单评: false
 精彩片段:
-笔记: "{{note_link}}"
 版本:
 Kindle: false
 保存: true
@@ -508,7 +505,6 @@ Bangumi链接: "{{bangumi_url}}"
 > | 标签 |\`= this.tags\`|
 > | 评分 |\`= this.评分\`|
 > | 明细 | 剧情: \`= this.剧情评分\` 插画: \`= this.插画评分\` 文笔: \`= this.文笔评分\` 人设: \`= this.人设评分\`|
-> | 笔记 | \`= this.笔记\`|
 > | 精彩片段 | \`= this.精彩片段\` |
 > | 进度 |\`= this.连载状态\` - \`= this.进度\` |
 > | 书系 |\`= this.书系\`|
@@ -552,7 +548,6 @@ tags:
 标语:
 单评: false
 精彩片段:
-笔记: "{{note_link}}"
 版本:
 格式:
 Kindle: false
@@ -584,7 +579,6 @@ Bangumi链接: "{{bangumi_url}}"
 > | 标签 |\`= this.tags\`|
 > | 评分 |\`= this.评分\`|
 > | 明细 | 剧情: \`= this.剧情评分\` 画工: \`= this.画工评分\` 人设: \`= this.人设评分\`|
-> | 笔记 | \`= this.笔记\`|
 > | 精彩片段 | \`= this.精彩片段\` |
 > | 作者 |\`= this.作者\`|{{#if staff}}
 > | 作画 |\`= this.作画\`|{{/if}}
@@ -630,7 +624,6 @@ tags:
 美术评分: {{rating_art}}
 标语:
 单评: false
-笔记: "{{note_link}}"
 存储:
 {{#if related}}相关:
 {{related}}
@@ -660,7 +653,6 @@ Bangumi链接: "{{bangumi_url}}"
 > | 标签 |\`= this.tags\`|
 > | 评分 |\`= this.评分\`|
 > | 明细 |剧情: \`= this.剧情评分\` 趣味: \`= this.趣味评分\` 音乐: \`= this.音乐评分\` 美术: \`= this.美术评分\`|
-> | 笔记 | \`= this.笔记\`|
 > | 开发 | \`= this.开发\`|
 > | 发行 | \`= this.发行\`|
 > | 官网 | \`= this.官网\`|
@@ -699,7 +691,6 @@ tags:
 {{tags}}
 评分: {{my_rate}}
 单评: false
-笔记: "{{note_link}}"
 版本:
 格式:
 {{#if related}}相关:
@@ -726,7 +717,6 @@ ISBN: "{{isbn}}"
 > | 状态 |\`= this.阅读状态\`|
 > | 标签 |\`= this.tags\`|
 > | 评分 |\`= this.评分\`|
-> | 笔记 | \`= this.笔记\`|
 > | 页数 |\`= this.页数\`|
 > | ISBN |\`= this.ISBN\`|
 > | 发行 |{{date}}|

@@ -91,6 +91,13 @@ bangumi/
 
 详细坑点见 [docs/STATUS_SYNC_PITFALLS.md](docs/STATUS_SYNC_PITFALLS.md)
 
+## 共享笔记注意事项
+
+- 条目文件默认不要自动写入 `笔记` 属性，只能按需创建/追加共享笔记
+- 共享笔记 frontmatter 使用 `笔记ID`，并保持为 YAML 多行列表
+- 共享笔记检索应扫描本地笔记的 `笔记ID` 是否包含当前条目 ID，不要只按路径模板范围猜测
+- 汇聚共享笔记 ID 时优先走本地 `相关` 属性链接图，不要依赖逐条网络探测收藏状态
+
 ## 模板变量
 
 详见 [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md)

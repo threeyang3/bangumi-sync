@@ -38,6 +38,7 @@ import { UserDataExportModal, UserDataImportModal, ImportResultModal } from './s
 import { EpisodeContextMenu } from './src/episode/episodeContextMenu';
 import { EpisodeStatusManager } from './src/episode/episodeStatusManager';
 import { EpisodeCommentManager } from './src/episode/episodeCommentManager';
+import { SubjectNoteManager } from './src/note/subjectNoteManager';
 
 /**
  * 缓存数据结构
@@ -97,6 +98,7 @@ export default class BangumiPlugin extends Plugin {
 	episodeStatusManager: EpisodeStatusManager | null = null;
 	episodeCommentManager: EpisodeCommentManager | null = null;
 	episodeContextMenu: EpisodeContextMenu | null = null;
+	subjectNoteManager: SubjectNoteManager | null = null;
 
 	// 数据缓存
 	private cachedData: CachedData | null = null;
@@ -158,6 +160,14 @@ export default class BangumiPlugin extends Plugin {
 			id: 'check-and-sync-status',
 			name: tn('commands', 'checkAndSyncStatus'),
 			callback: () => this.openControlPanel({ autoSyncStatus: true }),
+		});
+
+		this.addCommand({
+			id: 'create-subject-note',
+			name: tn('commands', 'createSubjectNote'),
+			callback: () => {
+				void this.subjectNoteManager?.createOrAppendForCurrentFile();
+			},
 		});
 
 		// 添加 Ribbon 图标
@@ -223,6 +233,31 @@ export default class BangumiPlugin extends Plugin {
 			console.debug('[Bangumi Sync] 已自动更新路径模板，使用带类型后缀的文件名');
 			await this.saveSettings();
 		}
+
+		if (this.settings.notePathTemplate && !this.settings.notePathTemplate.endsWith('.md')) {
+			const normalized = this.settings.notePathTemplate.replace(/\/+$/, '');
+			this.settings.notePathTemplate = `${normalized}/{{name_cn}}.md`;
+			console.debug('[Bangumi Sync] 已迁移共享笔记路径模板为完整文件路径');
+			await this.saveSettings();
+		}
+
+		if (this.settings.noteTemplateContent.includes('\nid:\n{{id_yaml}}')) {
+			this.settings.noteTemplateContent = this.settings.noteTemplateContent.replace(
+				/\nid:\n\{\{id_yaml\}\}/,
+				'\n笔记ID:\n{{id_yaml}}'
+			);
+			console.debug('[Bangumi Sync] 已迁移共享笔记模板字段为 笔记ID');
+			await this.saveSettings();
+		}
+
+		if (this.settings.noteTemplateContent.includes('\n笔记ID: {{id_yaml}}')) {
+			this.settings.noteTemplateContent = this.settings.noteTemplateContent.replace(
+				/\n笔记ID: \{\{id_yaml\}\}/,
+				'\n笔记ID:\n{{id_yaml}}'
+			);
+			console.debug('[Bangumi Sync] 已迁移共享笔记模板字段为 笔记ID');
+			await this.saveSettings();
+		}
 	}
 
 	/**
@@ -251,6 +286,7 @@ export default class BangumiPlugin extends Plugin {
 		};
 
 		this.syncManager = new SyncManager(this.app, config);
+		this.subjectNoteManager = new SubjectNoteManager(this.app, this.syncManager.client, this.settings);
 	}
 
 	/**
@@ -476,6 +512,7 @@ export default class BangumiPlugin extends Plugin {
 					timestamp: Date.now(),
 				});
 			},
+			this.subjectNoteManager,
 			this.episodeStatusManager,
 			options?.autoSyncStatus ?? false
 		);

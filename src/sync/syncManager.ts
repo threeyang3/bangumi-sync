@@ -10,7 +10,7 @@
  * 5. 支持相关条目双向链接
  */
 
-import { Notice, App, TFile } from 'obsidian';
+import { Notice, App, TFile, normalizePath } from 'obsidian';
 import { BangumiClient } from '../api/client';
 import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType } from '../../common/api/types';
 import { FileManager } from '../../common/file/fileManager';
@@ -331,7 +331,7 @@ export class SyncManager {
 		const links: string[] = [];
 		for (const relation of relations) {
 			console.debug(`[Bangumi Sync] 检查相关条目: ${relation.name_cn || relation.name} (ID: ${relation.id})`);
-			const localPath = this.incrementalSync.getLocalPath(relation.id);
+			const localPath = this.resolveRelatedLocalPath(relation.id);
 			console.debug(`[Bangumi Sync] 本地路径: ${localPath || '未同步'}`);
 			if (localPath) {
 				// 使用文件名作为显示名称（带类型后缀）
@@ -343,6 +343,34 @@ export class SyncManager {
 		}
 		console.debug(`[Bangumi Sync] 生成了 ${links.length} 个相关链接`);
 		return links;
+	}
+
+	private resolveRelatedLocalPath(subjectId: number): string | undefined {
+		const indexedPath = this.incrementalSync.getLocalPath(subjectId);
+		if (indexedPath) {
+			return indexedPath;
+		}
+
+		const scanRoot = normalizePath(this.config.scanFolderPath || '');
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			if (scanRoot && !file.path.startsWith(scanRoot)) {
+				continue;
+			}
+
+			const cache = this.app.metadataCache.getFileCache(file);
+			const frontmatterId: unknown = cache?.frontmatter?.id;
+			const numericId = typeof frontmatterId === 'number'
+				? frontmatterId
+				: typeof frontmatterId === 'string' && /^\d+$/.test(frontmatterId)
+					? Number(frontmatterId)
+					: null;
+			if (numericId === subjectId) {
+				this.incrementalSync.addBatchSyncedItem(subjectId, file.path, file.basename);
+				return file.path;
+			}
+		}
+
+		return undefined;
 	}
 
 	/**
@@ -830,7 +858,7 @@ export class SyncManager {
 
 		for (const relation of relations) {
 			// 获取相关条目的本地路径（包括本批次同步的）
-			const relatedPath = this.incrementalSync.getLocalPath(relation.id);
+			const relatedPath = this.resolveRelatedLocalPath(relation.id);
 			if (relatedPath) {
 				console.debug(`[Bangumi Sync] 更新相关条目的链接: ${relation.name_cn} -> ${currentLink}`);
 				try {

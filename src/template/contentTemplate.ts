@@ -34,7 +34,7 @@ export function extractTemplateVars(
 	ratingDetails?: RatingDetails,
 	episodes?: Episode[],
 	userEpisodeStatus?: UserEpisodeCollection[],
-	notePathTemplate?: string,
+	_notePathTemplate?: string,
 	coverLinkType?: CoverLinkType,
 	localCoverPath?: string,
 	relatedLinks?: string[]
@@ -88,11 +88,7 @@ export function extractTemplateVars(
 		}
 	}
 
-	// 生成笔记链接
 	const name_cn = subject.name_cn || '';
-	const noteLink = notePathTemplate
-		? `[[${notePathTemplate}/《${name_cn}》笔记|《${name_cn}》笔记]]`
-		: '';
 
 	// 相关条目链接（YAML 数组格式，用双引号包围）
 	const related = relatedLinks && relatedLinks.length > 0
@@ -165,8 +161,8 @@ export function extractTemplateVars(
 		rating_drawing: ratingDetails?.drawing || '',
 		rating_fun: ratingDetails?.fun || '',
 
-		// 笔记链接
-		note_link: noteLink,
+		// 为兼容旧模板保留变量，但默认不再自动生成笔记属性
+		note_link: '',
 
 		// 相关条目
 		related,

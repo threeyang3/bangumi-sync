@@ -16,6 +16,7 @@ import { ConflictDetector } from './conflictResolver';
 import { SearchModal } from '../ui/searchModal';
 import { tn } from '../i18n';
 import { EpisodeStatusManager } from '../episode/episodeStatusManager';
+import { SubjectNoteManager } from '../note/subjectNoteManager';
 
 /**
  * 本地条目信息
@@ -57,6 +58,7 @@ export class ControlPanel extends Modal {
 	private frontmatterEditor: FrontmatterEditor;
 	private conflictDetector: ConflictDetector;
 	private episodeStatusManager: EpisodeStatusManager | null;
+	private subjectNoteManager: SubjectNoteManager | null;
 	private onFiltersChange: (filters: PanelFilters) => void;
 
 	// 缓存相关
@@ -91,12 +93,14 @@ export class ControlPanel extends Modal {
 		onFiltersChange: (filters: PanelFilters) => void,
 		cachedData: CachedPanelData | null,
 		onCacheUpdate: (data: CachedPanelData) => void,
+		subjectNoteManager?: SubjectNoteManager | null,
 		episodeStatusManager?: EpisodeStatusManager | null,
 		autoSyncStatus?: boolean
 	) {
 		super(app);
 		this.settings = settings;
 		this.syncManager = syncManager;
+		this.subjectNoteManager = subjectNoteManager ?? null;
 		this.episodeStatusManager = episodeStatusManager ?? null;
 		this.onFiltersChange = onFiltersChange;
 		this.cachedData = cachedData;
@@ -551,8 +555,28 @@ export class ControlPanel extends Modal {
 				actionCell.createEl('button', { text: tn('controlPanel', 'open'), cls: 'bangumi-action-btn-small' }, btn => {
 					btn.addEventListener('click', () => this.openFile(localInfo.path));
 				});
+				actionCell.createEl('button', { text: tn('controlPanel', 'note'), cls: 'bangumi-action-btn-small' }, btn => {
+					btn.addEventListener('click', () => {
+						void this.openOrCreateNote(localInfo.path);
+					});
+				});
 			}
 		});
+	}
+
+	private async openOrCreateNote(path: string): Promise<void> {
+		if (!this.subjectNoteManager) {
+			new Notice('条目笔记管理器未初始化');
+			return;
+		}
+
+		const file = this.app.vault.getAbstractFileByPath(path);
+		if (!(file instanceof TFile)) {
+			new Notice(tn('controlPanel', 'fileNotFound'));
+			return;
+		}
+
+		await this.subjectNoteManager.createOrAppendForLocalFile(file);
 	}
 
 	/**

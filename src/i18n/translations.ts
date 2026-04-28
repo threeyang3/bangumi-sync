@@ -20,6 +20,7 @@ export interface TranslationStrings {
 		importUserData: string;
 		searchSubjects: string;
 		checkAndSyncStatus: string;
+		createSubjectNote: string;
 	};
 
 	// Ribbon
@@ -80,6 +81,8 @@ export interface TranslationStrings {
 		imagePathTemplateDesc: string;
 		notePathTemplate: string;
 		notePathTemplateDesc: string;
+		noteTemplateContent: string;
+		noteTemplateContentDesc: string;
 		templateSettings: string;
 		templateVarTip: string;
 		syncOptions: string;
@@ -230,6 +233,7 @@ export interface TranslationStrings {
 		confirmDelete: string;
 		deleteConfirm: string;
 		open: string;
+		note: string;
 		// 筛选
 		allTypes: string;
 		allStatus: string;
@@ -503,6 +507,7 @@ const en: TranslationStrings = {
 		importUserData: 'Import user data',
 		searchSubjects: 'Search and add subjects',
 		checkAndSyncStatus: 'Check and sync status',
+		createSubjectNote: 'Create or append subject note',
 	},
 
 	ribbon: {
@@ -559,7 +564,9 @@ const en: TranslationStrings = {
 		imagePathTemplate: 'Image path template',
 		imagePathTemplateDesc: 'Supported variables: {{id}}, {{name_cn}}, {{name}}, {{typeLabel}} (e.g., ACGN/assets/{{name_cn}}_{{typeLabel}}.jpg)',
 		notePathTemplate: 'Note path template',
-		notePathTemplateDesc: 'Base path for note links, format: [[path/《name_cn》note|《name_cn》note]]',
+		notePathTemplateDesc: 'Full shared note file path template. Example: 收集箱/笔记/ACGN/{{name_cn}}.md',
+		noteTemplateContent: 'Note template content',
+		noteTemplateContentDesc: 'Template used when creating a new shared note file. Supported variables: {{id_yaml}}, {{primary_id}}, {{name}}, {{name_cn}}, {{entry_heading}}',
 		templateSettings: 'Template settings',
 		templateVarTip: 'Template variable tip: {{tags}} uses your own tags, empty if none',
 		syncOptions: 'Sync options',
@@ -703,6 +710,7 @@ const en: TranslationStrings = {
 		confirmDelete: 'Confirm delete',
 		deleteConfirm: 'Move selected files to trash?',
 		open: 'Open',
+		note: 'Note',
 		allTypes: 'All types',
 		allStatus: 'All status',
 		allSyncStatus: 'All sync status',
@@ -960,6 +968,7 @@ const zhCN: TranslationStrings = {
 		importUserData: '导入用户数据',
 		searchSubjects: '搜索并添加条目',
 		checkAndSyncStatus: '检查并同步状态',
+		createSubjectNote: '创建或追加条目笔记',
 	},
 
 	ribbon: {
@@ -1016,7 +1025,9 @@ const zhCN: TranslationStrings = {
 		imagePathTemplate: '图片路径模板',
 		imagePathTemplateDesc: '支持变量: {{id}}, {{name_cn}}, {{name}}, {{typeLabel}} (如: ACGN/assets/{{name_cn}}_{{typeLabel}}.jpg)',
 		notePathTemplate: '笔记路径模板',
-		notePathTemplateDesc: '笔记链接的基础路径，生成格式: [[路径/《中文名》笔记|《中文名》笔记]]',
+		noteTemplateContent: '笔记模板内容',
+		noteTemplateContentDesc: '创建新的共享笔记文件时使用。支持变量：{{id_yaml}}、{{primary_id}}、{{name}}、{{name_cn}}、{{entry_heading}}',
+		notePathTemplateDesc: '共享笔记完整文件路径模板，例如：收集箱/笔记/ACGN/{{name_cn}}.md',
 		templateSettings: '模板设置',
 		templateVarTip: '模板变量提示：{{tags}} 使用用户自己的标签，如果没有则留空',
 		syncOptions: '同步选项',
@@ -1160,6 +1171,7 @@ const zhCN: TranslationStrings = {
 		confirmDelete: '确认删除',
 		deleteConfirm: '将选中的文件移动到回收站？',
 		open: '打开',
+		note: '笔记',
 		allTypes: '全部类型',
 		allStatus: '全部状态',
 		allSyncStatus: '全部同步状态',

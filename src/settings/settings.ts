@@ -86,7 +86,8 @@ export interface BangumiPluginSettings {
 	syncPathTemplate: string;
 	downloadImages: boolean;
 	imagePathTemplate: string;
-	notePathTemplate: string; // 笔记链接路径模板
+	notePathTemplate: string; // 共享笔记完整文件路径模板
+	noteTemplateContent: string; // 共享笔记模板内容
 
 	// 图片设置
 	imageQuality: ImageQuality;
@@ -156,7 +157,18 @@ export const DEFAULT_SETTINGS: BangumiPluginSettings = {
 	syncPathTemplate: 'ACGN/{{type}}/{{name_cn_with_type}}.md',
 	downloadImages: true,
 	imagePathTemplate: 'ACGN/assets/{{id}}_cover.jpg',
-	notePathTemplate: '收集箱/笔记/ACGN',
+	notePathTemplate: '收集箱/笔记/ACGN/{{name_cn}}.md',
+	noteTemplateContent: `---
+笔记ID:
+{{id_yaml}}
+---
+
+# {{entry_heading}}
+
+## 记录
+
+## 感想
+`,
 
 	// 图片设置
 	imageQuality: 'large',

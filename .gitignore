@@ -48,3 +48,6 @@ test-output/
 # Environment
 .env
 .env.local
+
+# Local scratch file
+problem.md
