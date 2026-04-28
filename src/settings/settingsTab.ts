@@ -79,7 +79,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 				button
 					.setButtonText(tn('settings', 'templateGuide'))
 					.onClick(() => {
-						void this.app.workspace.openLinkText('docs/TEMPLATE_GUIDE.md', '', true);
+						window.open('https://github.com/threeyang3/bangumi-sync/blob/main/docs/TEMPLATE_GUIDE.md', '_blank');
 					});
 			});
 
