@@ -123,6 +123,11 @@ rating: {{rating|未评分}}
 
 详见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 
+- GitHub Release notes 默认使用中文
+- Release notes 按 `新功能`、`改进`、`修复` 三部分组织
+- 某一部分没有内容时不要保留空标题
+- Release notes 必须使用真正的多行 Markdown 列表，不要把 `\n` 当作字面量写入单段文本
+
 ```bash
 # 1. 更新版本号（manifest.json, package.json）
 # 2. 构建

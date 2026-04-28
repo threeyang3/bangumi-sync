@@ -4,7 +4,7 @@
  */
 
 import { App, Modal, Notice, Setting, TFile } from 'obsidian';
-import { Subject, SubjectType, PagedResult, UserCollection } from '../../common/api/types';
+import { Subject, SubjectType, PagedResult, UserCollection, getCollectionStatusLabel } from '../../common/api/types';
 import { BangumiClient } from '../api/client';
 import { BangumiPluginSettings } from '../settings/settings';
 import { SyncManager } from '../sync/syncManager';
@@ -345,7 +345,7 @@ export class SearchModal extends Modal {
 		// 云端收藏状态
 		const collection = this.collectionStatuses.get(subject.id);
 		if (collection) {
-			const collectionTypeLabel = this.getCollectionTypeLabel(collection.type);
+			const collectionTypeLabel = getCollectionStatusLabel(collection.type, subject.type);
 			statusEl.createSpan({ text: collectionTypeLabel, cls: 'bangumi-status-badge bangumi-status-collected' });
 		} else {
 			statusEl.createSpan({ text: tn('searchModal', 'notCollected'), cls: 'bangumi-status-badge bangumi-status-not-collected' });
@@ -360,20 +360,6 @@ export class SearchModal extends Modal {
 		addBtn.addEventListener('click', () => {
 			this.openAddModal(subject, collection);
 		});
-	}
-
-	/**
-	 * 获取收藏类型标签
-	 */
-	private getCollectionTypeLabel(type: number): string {
-		const labels: Record<number, string> = {
-			1: tn('collectionTypes', 'wish'),
-			2: tn('collectionTypes', 'done'),
-			3: tn('collectionTypes', 'doing'),
-			4: tn('collectionTypes', 'onHold'),
-			5: tn('collectionTypes', 'dropped'),
-		};
-		return labels[type] || String(type);
 	}
 
 	/**

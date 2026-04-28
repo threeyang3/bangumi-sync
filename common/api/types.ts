@@ -328,22 +328,74 @@ export function getCollectionTypeName(type: CollectionType): string {
 	}
 }
 
+const COLLECTION_STATUS_ICON_MAP: Record<CollectionType, string> = {
+	[CollectionType.Wish]: '🕒',
+	[CollectionType.Done]: '✅',
+	[CollectionType.Doing]: '▶️',
+	[CollectionType.OnHold]: '⏸️',
+	[CollectionType.Dropped]: '❌',
+};
+
+function getCollectionStatusVerb(type: CollectionType, subjectType?: SubjectType): string {
+	switch (type) {
+		case CollectionType.Wish:
+			switch (subjectType) {
+				case SubjectType.Book:
+					return '想读';
+				case SubjectType.Game:
+					return '想玩';
+				case SubjectType.Music:
+					return '想听';
+				default:
+					return '想看';
+			}
+		case CollectionType.Done:
+			switch (subjectType) {
+				case SubjectType.Book:
+					return '读过';
+				case SubjectType.Game:
+					return '玩过';
+				case SubjectType.Music:
+					return '听过';
+				default:
+					return '看过';
+			}
+		case CollectionType.Doing:
+			switch (subjectType) {
+				case SubjectType.Book:
+					return '在读';
+				case SubjectType.Game:
+					return '在玩';
+				case SubjectType.Music:
+					return '在听';
+				default:
+					return '在看';
+			}
+		case CollectionType.OnHold:
+			return '搁置';
+		case CollectionType.Dropped:
+			return '抛弃';
+		default:
+			return '未知';
+	}
+}
+
+export function getCollectionStatusLabel(
+	type: CollectionType,
+	subjectType?: SubjectType,
+	withIcon: boolean = true
+): string {
+	const label = getCollectionStatusVerb(type, subjectType);
+	if (!withIcon) {
+		return label;
+	}
+
+	return `${label}${COLLECTION_STATUS_ICON_MAP[type] ?? ''}`;
+}
+
 /**
  * 获取收藏状态的表情符号
  */
-export function getCollectionStatusEmoji(type: CollectionType): string {
-	switch (type) {
-		case CollectionType.Wish:
-			return '想看🕒';
-		case CollectionType.Done:
-			return '已看✅';
-		case CollectionType.Doing:
-			return '在看▶️';
-		case CollectionType.OnHold:
-			return '搁置⏸️';
-		case CollectionType.Dropped:
-			return '放弃❌';
-		default:
-			return '';
-	}
+export function getCollectionStatusEmoji(type: CollectionType, subjectType?: SubjectType): string {
+	return getCollectionStatusLabel(type, subjectType, true);
 }

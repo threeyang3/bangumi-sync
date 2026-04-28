@@ -4,7 +4,7 @@
  */
 
 import { App, TFolder, normalizePath } from 'obsidian';
-import { SubjectType, CollectionType } from '../../common/api/types';
+import { SubjectType, CollectionType, getCollectionStatusLabel } from '../../common/api/types';
 
 /**
  * 本地条目信息
@@ -529,7 +529,7 @@ export class IncrementalSync {
 		}
 
 		// 忽略明显是旧损坏 frontmatter 中混入的键值对，例如“评分: 9”
-		if (/^[^,\[\]]+:\s*.+$/.test(normalized)) {
+		if (/^[^,[\]]+:\s*.+$/.test(normalized)) {
 			return false;
 		}
 
@@ -727,7 +727,9 @@ export class IncrementalSync {
 	 * 将状态文本转换为 CollectionType 数字
 	 */
 	private parseStatusText(text: string): number | null {
-		const normalizedText = text.trim().replace(/[🕒✅▶️⏸️❌\uFE0F\s]/g, '');
+		const normalizedText = text
+			.trim()
+			.replace(/🕒|✅|▶️|⏸️|❌|\uFE0F|\s/gu, '');
 		const statusMap: Record<string, number> = {
 			'想看': CollectionType.Wish,
 			'想读': CollectionType.Wish,
@@ -755,15 +757,23 @@ export class IncrementalSync {
 	/**
 	 * 将 CollectionType 数字转换为状态文本
 	 */
-	private getStatusText(type: CollectionType): string {
-		const textMap: Record<number, string> = {
-			[CollectionType.Wish]: '想看',
-			[CollectionType.Done]: '看过',
-			[CollectionType.Doing]: '在看',
-			[CollectionType.OnHold]: '搁置',
-			[CollectionType.Dropped]: '抛弃',
-		};
-		return textMap[type] ?? '';
+	private getStatusText(type: CollectionType, statusFieldName: string): string {
+		return getCollectionStatusLabel(type, this.getSubjectTypeFromStatusFieldName(statusFieldName), true);
+	}
+
+	private getSubjectTypeFromStatusFieldName(statusFieldName: string): SubjectType | undefined {
+		switch (statusFieldName) {
+			case '阅读状态':
+				return SubjectType.Book;
+			case '游玩状态':
+				return SubjectType.Game;
+			case '收藏状态':
+				return SubjectType.Music;
+			case '观看状态':
+				return SubjectType.Anime;
+			default:
+				return undefined;
+		}
 	}
 
 	/**
@@ -803,7 +813,7 @@ export class IncrementalSync {
 		const suffix = frontmatterMatch[3];
 		const bodyContent = frontmatterMatch[4];
 
-		const statusText = this.getStatusText(newStatus);
+		const statusText = this.getStatusText(newStatus, statusFieldName);
 		const newStatusStr = `${statusFieldName}: ${statusText}`;
 
 		const statusRegex = new RegExp(`^${statusFieldName}:.*$`, 'm');

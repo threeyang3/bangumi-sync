@@ -5,7 +5,7 @@
  * 支持章节显示
  */
 
-import { Subject, UserCollection, getCollectionStatusEmoji, Episode, UserEpisodeCollection, SubjectType } from '../../common/api/types';
+import { Subject, UserCollection, getCollectionStatusLabel, Episode, UserEpisodeCollection, SubjectType } from '../../common/api/types';
 import { parseInfoByType, parseDate, cleanSummary } from '../../common/parser/infoboxParser';
 import { getCharacterTemplateVars, CharacterInfo } from '../../common/parser/characterParser';
 import { getDefaultTemplate, getTypeLabel } from '../../common/template/defaultTemplates';
@@ -70,7 +70,7 @@ export function extractTemplateVars(
 	// 短评保留原始换行（放在正文 callout 中）
 	const my_comment = collection?.comment || '';
 	const my_status = collection
-		? getCollectionStatusEmoji(collection.type)
+		? getCollectionStatusLabel(collection.type, subject.type)
 		: '';
 
 	// V4: 生成章节显示内容

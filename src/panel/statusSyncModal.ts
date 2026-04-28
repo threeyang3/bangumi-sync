@@ -5,7 +5,7 @@
  */
 
 import { App, Modal, Notice, TFile } from 'obsidian';
-import { UserCollection, CollectionType } from '../../common/api/types';
+import { UserCollection, CollectionType, getCollectionStatusLabel } from '../../common/api/types';
 import { BangumiClient } from '../api/client';
 import { IncrementalSync } from '../sync/incrementalSync';
 import { EpisodeStatusManager } from '../episode/episodeStatusManager';
@@ -257,8 +257,8 @@ export class StatusSyncModal extends Modal {
 		// 状态行
 		if (diff.status.hasDiff) {
 			this.renderFieldRow(tbody, tn('statusSyncModal', 'fieldStatus'),
-				this.getStatusText(diff.status.localValue),
-				this.getStatusText(diff.status.cloudValue),
+				this.getStatusText(diff.status.localValue, diff.collection.subject_type),
+				this.getStatusText(diff.status.cloudValue, diff.collection.subject_type),
 				'status', index, false);
 		}
 
@@ -306,16 +306,13 @@ export class StatusSyncModal extends Modal {
 	/**
 	 * 获取状态文本
 	 */
-	private getStatusText(status: number | null): string {
+	private getStatusText(status: number | null, subjectType: number): string {
 		if (status === null) return tn('statusSyncModal', 'empty');
-		const textMap: Record<number, string> = {
-			1: '想看',
-			2: '看过',
-			3: '在看',
-			4: '搁置',
-			5: '抛弃',
-		};
-		return textMap[status] || tn('statusSyncModal', 'empty');
+		const validStatus = this.toValidCollectionType(status);
+		if (validStatus === null) {
+			return tn('statusSyncModal', 'empty');
+		}
+		return getCollectionStatusLabel(validStatus, subjectType, true) || tn('statusSyncModal', 'empty');
 	}
 
 	/**

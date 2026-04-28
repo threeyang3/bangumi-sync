@@ -4,7 +4,7 @@
  */
 
 import { App, Modal, Notice, TFile } from 'obsidian';
-import { UserCollection, SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName, getCollectionStatusEmoji } from '../../common/api/types';
+import { UserCollection, SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName, getCollectionStatusLabel } from '../../common/api/types';
 import { BangumiPluginSettings, PanelFilters } from '../settings/settings';
 import { SyncManager } from '../sync/syncManager';
 import { IncrementalSync } from '../sync/incrementalSync';
@@ -505,7 +505,7 @@ export class ControlPanel extends Modal {
 			row.createEl('td', { text: getTypeLabel(collection.subject_type) });
 
 			// 状态
-			row.createEl('td', { text: getCollectionStatusEmoji(collection.type) });
+			row.createEl('td', { text: getCollectionStatusLabel(collection.type, collection.subject_type) });
 
 			// 评分
 			const ratingCell = row.createEl('td');
