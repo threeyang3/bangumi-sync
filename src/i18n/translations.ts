@@ -19,6 +19,7 @@ export interface TranslationStrings {
 		exportUserData: string;
 		importUserData: string;
 		searchSubjects: string;
+		checkAndSyncStatus: string;
 	};
 
 	// Ribbon
@@ -49,6 +50,10 @@ export interface TranslationStrings {
 	// 设置
 	settings: {
 		heading: string;
+		helpLinks: string;
+		templateGuide: string;
+		githubRepo: string;
+		getAccessToken: string;
 		authentication: string;
 		accessToken: string;
 		accessTokenDesc: string;
@@ -497,6 +502,7 @@ const en: TranslationStrings = {
 		exportUserData: 'Export user data',
 		importUserData: 'Import user data',
 		searchSubjects: 'Search and add subjects',
+		checkAndSyncStatus: 'Check and sync status',
 	},
 
 	ribbon: {
@@ -524,6 +530,10 @@ const en: TranslationStrings = {
 
 	settings: {
 		heading: 'Settings',
+		helpLinks: 'Help & Documentation',
+		templateGuide: 'Template Guide',
+		githubRepo: 'GitHub Repository',
+		getAccessToken: 'Get Access Token',
 		authentication: 'Authentication',
 		accessToken: 'Access token',
 		accessTokenDesc: 'Generate Access Token at https://next.bgm.tv/demo/access-token',
@@ -949,6 +959,7 @@ const zhCN: TranslationStrings = {
 		exportUserData: '导出用户数据',
 		importUserData: '导入用户数据',
 		searchSubjects: '搜索并添加条目',
+		checkAndSyncStatus: '检查并同步状态',
 	},
 
 	ribbon: {
@@ -976,6 +987,10 @@ const zhCN: TranslationStrings = {
 
 	settings: {
 		heading: '设置',
+		helpLinks: '帮助与文档',
+		templateGuide: '模板设计指南',
+		githubRepo: 'GitHub 仓库',
+		getAccessToken: '获取 Access Token',
 		authentication: '认证设置',
 		accessToken: 'Access Token',
 		accessTokenDesc: '在 https://next.bgm.tv/demo/access-token 生成 Access Token',

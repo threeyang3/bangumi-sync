@@ -81,6 +81,9 @@ export class ControlPanel extends Modal {
 	private focusedRowIndex: number = -1;
 	private tableRows: HTMLTableRowElement[] = [];
 
+	// 自动触发状态同步
+	private autoSyncStatus: boolean;
+
 	constructor(
 		app: App,
 		settings: BangumiPluginSettings,
@@ -88,7 +91,8 @@ export class ControlPanel extends Modal {
 		onFiltersChange: (filters: PanelFilters) => void,
 		cachedData: CachedPanelData | null,
 		onCacheUpdate: (data: CachedPanelData) => void,
-		episodeStatusManager?: EpisodeStatusManager | null
+		episodeStatusManager?: EpisodeStatusManager | null,
+		autoSyncStatus?: boolean
 	) {
 		super(app);
 		this.settings = settings;
@@ -97,6 +101,7 @@ export class ControlPanel extends Modal {
 		this.onFiltersChange = onFiltersChange;
 		this.cachedData = cachedData;
 		this.onCacheUpdate = onCacheUpdate;
+		this.autoSyncStatus = autoSyncStatus ?? false;
 
 		this.client = new BangumiClient(settings.accessToken);
 		this.incrementalSync = new IncrementalSync(app);
@@ -148,6 +153,11 @@ export class ControlPanel extends Modal {
 			// 使用缓存数据，直接显示
 			this.renderStatus(`${tn('controlPanel', 'cachedDataLoaded')} ${this.state.collections.length} ${tn('controlPanel', 'totalItems')}`);
 			this.applyFilters();
+
+			// 自动触发状态同步
+			if (this.autoSyncStatus) {
+				void this.syncStatus();
+			}
 		} else {
 			// 无缓存，加载数据
 			void this.loadData();

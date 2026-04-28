@@ -153,6 +153,13 @@ export default class BangumiPlugin extends Plugin {
 			callback: () => this.openSearchModal(),
 		});
 
+		// 添加命令：检查并同步状态
+		this.addCommand({
+			id: 'check-and-sync-status',
+			name: tn('commands', 'checkAndSyncStatus'),
+			callback: () => this.openControlPanel({ autoSyncStatus: true }),
+		});
+
 		// 添加 Ribbon 图标
 		this.addRibbonIcon('database', tn('ribbon', 'collectionManager'), () => {
 			this.openControlPanel();
@@ -434,7 +441,7 @@ export default class BangumiPlugin extends Plugin {
 	/**
 	 * 打开控制面板
 	 */
-	openControlPanel() {
+	openControlPanel(options?: { autoSyncStatus?: boolean }) {
 		if (!this.settings.accessToken) {
 			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
@@ -469,7 +476,8 @@ export default class BangumiPlugin extends Plugin {
 					timestamp: Date.now(),
 				});
 			},
-			this.episodeStatusManager
+			this.episodeStatusManager,
+			options?.autoSyncStatus ?? false
 		);
 		this.controlPanel.open();
 	}

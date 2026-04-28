@@ -67,6 +67,44 @@ export class BangumiSettingTab extends PluginSettingTab {
 		// 标题
 		new Setting(containerEl).setName(tn('settings', 'heading')).setHeading();
 
+		// ==================== 帮助链接 ====================
+		new Setting(containerEl).setName(tn('settings', 'helpLinks')).setHeading();
+
+		const helpLinksDiv = containerEl.createDiv({ cls: 'bangumi-help-links' });
+
+		// 模板设计指南
+		new Setting(helpLinksDiv)
+			.setName(tn('settings', 'templateGuide'))
+			.addButton(button => {
+				button
+					.setButtonText(tn('settings', 'templateGuide'))
+					.onClick(() => {
+						void this.app.workspace.openLinkText('docs/TEMPLATE_GUIDE.md', '', true);
+					});
+			});
+
+		// GitHub 仓库
+		new Setting(helpLinksDiv)
+			.setName(tn('settings', 'githubRepo'))
+			.addButton(button => {
+				button
+					.setButtonText(tn('settings', 'githubRepo'))
+					.onClick(() => {
+						window.open('https://github.com/threeyang3/bangumi-sync', '_blank');
+					});
+			});
+
+		// 获取 Access Token
+		new Setting(helpLinksDiv)
+			.setName(tn('settings', 'getAccessToken'))
+			.addButton(button => {
+				button
+					.setButtonText(tn('settings', 'getAccessToken'))
+					.onClick(() => {
+						window.open('https://next.bgm.tv/demo/access-token', '_blank');
+					});
+			});
+
 		// ==================== 认证设置 ====================
 		new Setting(containerEl).setName(tn('settings', 'authentication')).setHeading();
 
