@@ -5,21 +5,7 @@
 
 import { App, Modal, Setting } from 'obsidian';
 import { SubjectType, UserCollection } from '../../common/api/types';
-import { tn, t } from '../i18n';
-
-/**
- * 评分明细
- */
-export interface RatingDetails {
-	music?: string;
-	character?: string;
-	story?: string;
-	art?: string;
-	illustration?: string;
-	writing?: string;
-	drawing?: string;
-	fun?: string;
-}
+import { tn } from '../i18n';
 
 /**
  * 待同步条目预览数据
@@ -34,7 +20,6 @@ export interface SyncPreviewItem {
 	my_rate?: number;
 	collection: UserCollection;
 	selected: boolean;
-	ratingDetails: RatingDetails;
 }
 
 /**
@@ -46,55 +31,12 @@ export interface SyncPreviewResult {
 }
 
 /**
- * 各类型条目的评分明细字段配置
- */
-const RATING_DETAIL_FIELDS: Record<number, { key: keyof RatingDetails; labelKey: string }[]> = {
-	[SubjectType.Anime]: [
-		{ key: 'music', labelKey: 'music' },
-		{ key: 'character', labelKey: 'character' },
-		{ key: 'story', labelKey: 'story' },
-		{ key: 'art', labelKey: 'art' },
-	],
-	[SubjectType.Book]: [
-		{ key: 'story', labelKey: 'story' },
-		{ key: 'illustration', labelKey: 'illustration' },
-		{ key: 'writing', labelKey: 'writing' },
-		{ key: 'character', labelKey: 'character' },
-	],
-	[SubjectType.Music]: [],
-	[SubjectType.Game]: [
-		{ key: 'story', labelKey: 'story' },
-		{ key: 'fun', labelKey: 'fun' },
-		{ key: 'music', labelKey: 'music' },
-		{ key: 'art', labelKey: 'art' },
-	],
-	[SubjectType.Real]: [],
-};
-
-/**
- * 获取条目的评分明细字段
- */
-function getRatingFields(type: SubjectType, category?: string): { key: keyof RatingDetails; label: string }[] {
-	const ratingLabels = t('ratingFields');
-	// 漫画特殊处理
-	if (type === SubjectType.Book && category?.includes('漫画')) {
-		return [
-			{ key: 'story', label: String(ratingLabels.story) },
-			{ key: 'drawing', label: String(ratingLabels.drawing) },
-			{ key: 'character', label: String(ratingLabels.character) },
-		];
-	}
-	const fields = RATING_DETAIL_FIELDS[type] || [];
-	return fields.map(f => ({ key: f.key, label: String(ratingLabels[f.labelKey as keyof typeof ratingLabels]) }));
-}
-
-/**
  * 同步预览弹窗
  */
 export class SyncPreviewModal extends Modal {
 	private items: SyncPreviewItem[];
 	private onConfirm: (result: SyncPreviewResult) => void;
-	private itemElements: Map<number, { checkbox: HTMLInputElement; detailInputs: Map<keyof RatingDetails, HTMLInputElement> }> = new Map();
+	private itemElements: Map<number, { checkbox: HTMLInputElement }> = new Map();
 
 	constructor(
 		app: App,
@@ -183,33 +125,7 @@ export class SyncPreviewModal extends Modal {
 			myRateSpan.setText(`[${tn('syncPreview', 'myRating')}: ${item.my_rate}]`);
 		}
 
-		// 评分明细输入
-		const fields = getRatingFields(item.type);
-		if (fields.length > 0) {
-			const detailsDiv = itemDiv.createDiv({ cls: 'bangumi-preview-details' });
-			detailsDiv.createSpan({ text: `${tn('syncPreview', 'ratingDetails')}: `, cls: 'bangumi-preview-details-label' });
-
-			const detailInputs = new Map<keyof RatingDetails, HTMLInputElement>();
-
-			fields.forEach(field => {
-				const fieldSpan = detailsDiv.createSpan({ cls: 'bangumi-preview-detail-field' });
-				fieldSpan.createSpan({ text: `${field.label}: ` });
-
-				const input = fieldSpan.createEl('input', { type: 'text' });
-				input.value = item.ratingDetails[field.key] || '';
-				input.addClass('bangumi-preview-detail-input');
-				input.setAttribute('placeholder', '0-10');
-
-				detailInputs.set(field.key, input);
-			});
-
-			this.itemElements.set(item.id, { checkbox, detailInputs });
-		} else {
-			this.itemElements.set(item.id, {
-				checkbox,
-				detailInputs: new Map()
-			});
-		}
+		this.itemElements.set(item.id, { checkbox });
 	}
 
 	/**
@@ -240,16 +156,11 @@ export class SyncPreviewModal extends Modal {
 			return;
 		}
 
-		// 更新每个条目的选择状态和评分明细
+		// 更新每个条目的选择状态
 		this.items.forEach(item => {
 			const elements = this.itemElements.get(item.id);
 			if (elements) {
 				item.selected = elements.checkbox.checked;
-
-				// 收集评分明细
-				elements.detailInputs.forEach((input, key) => {
-					item.ratingDetails[key] = input.value;
-				});
 			}
 		});
 

@@ -19,11 +19,13 @@ import { IncrementalSync } from './incrementalSync';
 import { SyncOptions, SyncResult, SyncProgress } from './syncStatus';
 import { parseCharacters } from '../../common/parser/characterParser';
 import { generateFilePath } from '../../common/template/pathTemplate';
-import { generateContentByType } from '../template/contentTemplate';
+import { applyNamedPropertyValuesToContent, CustomTemplates, generateContentByType } from '../template/contentTemplate';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
-import { SyncPreviewItem, RatingDetails } from '../ui/syncPreviewModal';
-import { DefaultPropertyValues, CoverLinkType } from '../settings/settings';
+import { SyncPreviewItem } from '../ui/syncPreviewModal';
+import { CoverLinkType } from '../settings/settings';
 import { UserDataExtractor, UserDataMerger, DataProtectionSettings, DEFAULT_DATA_PROTECTION_SETTINGS } from '../userData';
+import { LocalPropertyModalResult, LocalPropertyValueMap } from '../ui/localPropertyModal';
+import { buildExtraTemplateVarsFromPropertyValues, getTemplatePropertyGroupsForSubject } from '../template/templateProperties';
 
 /**
  * 同步管理器配置
@@ -46,7 +48,6 @@ export interface SyncManagerConfig {
 		music?: string;
 		real?: string;
 	};
-	defaultPropertyValues?: DefaultPropertyValues;
 	dataProtection?: DataProtectionSettings;  // 数据保护设置
 }
 
@@ -293,6 +294,10 @@ export class SyncManager {
 		return fileName.replace(/\.md$/, '');
 	}
 
+	getCustomTemplates(): CustomTemplates | undefined {
+		return this.config.customTemplates;
+	}
+
 	/**
 	 * 下载并解析本地封面路径
 	 */
@@ -393,7 +398,10 @@ export class SyncManager {
 	 */
 	async syncByCollections(
 		collections: UserCollection[],
-		options?: { overwrite?: boolean },
+		options?: {
+			overwrite?: boolean;
+			localPropertyValuesBySubjectId?: Map<number, LocalPropertyValueMap>;
+		},
 		onProgress?: (current: number, total: number, message: string) => void
 	): Promise<SyncResult> {
 		const startTime = Date.now();
@@ -407,6 +415,7 @@ export class SyncManager {
 		};
 
 		const overwrite = options?.overwrite ?? false;
+		const localPropertyValuesBySubjectId = options?.localPropertyValuesBySubjectId;
 
 		try {
 			console.debug(`[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}`);
@@ -429,7 +438,11 @@ export class SyncManager {
 				});
 
 				try {
-					await this.processCollectionWithBidirectionalLinksAndOverwrite(collection, overwrite);
+					await this.processCollectionWithBidirectionalLinksAndOverwrite(
+						collection,
+						overwrite,
+						localPropertyValuesBySubjectId?.get(collection.subject_id)
+					);
 					result.added++;
 				} catch (error) {
 					console.error(`[Bangumi Sync] 同步条目失败 (ID: ${collection.subject_id}):`, error);
@@ -544,7 +557,6 @@ export class SyncManager {
 				my_rate: collection.rate,
 				collection,
 				selected: true,
-				ratingDetails: {},
 			}));
 
 			return {
@@ -570,7 +582,8 @@ export class SyncManager {
 	 */
 	async executeSync(
 		previewItems: SyncPreviewItem[],
-		action: 'all' | 'selected' | 'unselected'
+		action: 'all' | 'selected' | 'unselected',
+		localPropertyResult?: LocalPropertyModalResult
 	): Promise<SyncResult> {
 		const startTime = Date.now();
 		const result: SyncResult = {
@@ -612,7 +625,10 @@ export class SyncManager {
 				});
 
 				try {
-					await this.processCollectionWithRatingDetailsAndBidirectionalLinks(item.collection, item.ratingDetails);
+					await this.processCollectionWithRatingDetailsAndBidirectionalLinks(
+						item.collection,
+						localPropertyResult?.propertyValuesBySubjectId?.get(item.collection.subject_id)
+					);
 					result.added++;
 				} catch (error) {
 					console.error(`[Bangumi Sync] 处理条目失败: ${item.name_cn}`, error);
@@ -677,7 +693,6 @@ export class SyncManager {
 			undefined,  // ratingDetails
 			episodeData?.episodes,
 			episodeData?.userStatus,
-			this.config.defaultPropertyValues,
 			this.config.notePathTemplate,
 			this.config.coverLinkType,
 			localCoverPath,
@@ -702,7 +717,11 @@ export class SyncManager {
 	/**
 	 * 处理单个收藏（带双向链接更新，支持覆盖）
 	 */
-	private async processCollectionWithBidirectionalLinksAndOverwrite(collection: UserCollection, overwrite: boolean): Promise<void> {
+	private async processCollectionWithBidirectionalLinksAndOverwrite(
+		collection: UserCollection,
+		overwrite: boolean,
+		localPropertyValues?: LocalPropertyValueMap
+	): Promise<void> {
 		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
@@ -723,6 +742,8 @@ export class SyncManager {
 
 		// V4: 获取章节信息
 		const episodeData = await this.fetchEpisodeData(subject);
+		const templateProperties = getTemplatePropertyGroupsForSubject(subject, this.config.customTemplates).customProperties;
+		const extraTemplateVars = buildExtraTemplateVarsFromPropertyValues(templateProperties, localPropertyValues);
 
 		// 生成相关条目链接（已同步的条目，包括本批次已同步的）
 		const relatedLinks = this.config.enableRelatedLinks !== false
@@ -735,15 +756,22 @@ export class SyncManager {
 			collection,
 			characters,
 			this.config.customTemplates,
-			undefined,  // ratingDetails
+			undefined,
 			episodeData?.episodes,
 			episodeData?.userStatus,
-			this.config.defaultPropertyValues,
 			this.config.notePathTemplate,
 			this.config.coverLinkType,
 			localCoverPath,
-			relatedLinks
+			relatedLinks,
+			extraTemplateVars
 		);
+
+		const explicitLocalPropertyValues = localPropertyValues && Object.keys(localPropertyValues).length > 0
+			? localPropertyValues
+			: undefined;
+		if (explicitLocalPropertyValues) {
+			content = applyNamedPropertyValuesToContent(content, explicitLocalPropertyValues);
+		}
 
 		// 强制同步时保护用户数据
 		if (overwrite) {
@@ -755,8 +783,12 @@ export class SyncManager {
 					// 合并用户数据到新内容
 					const dataProtection = this.config.dataProtection || DEFAULT_DATA_PROTECTION_SETTINGS;
 					content = this.userDataMerger.mergeUserData(existingFile, content, localUserData, dataProtection);
-					console.debug(`[Bangumi Sync] 已保护用户数据: ${localUserData.name_cn}`);
+					console.debug(`[Bangumi Sync] 已保护用户数据: ${localUserData.identifier.name_cn}`);
 				}
+			}
+
+			if (explicitLocalPropertyValues) {
+				content = applyNamedPropertyValuesToContent(content, explicitLocalPropertyValues);
 			}
 		}
 
@@ -781,7 +813,7 @@ export class SyncManager {
 	 */
 	private async processCollectionWithRatingDetailsAndBidirectionalLinks(
 		collection: UserCollection,
-		ratingDetails: RatingDetails
+		localPropertyValues?: LocalPropertyValueMap
 	): Promise<void> {
 		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
@@ -804,6 +836,8 @@ export class SyncManager {
 
 		// V4: 获取章节信息
 		const episodeData = await this.fetchEpisodeData(subject);
+		const templateProperties = getTemplatePropertyGroupsForSubject(subject, this.config.customTemplates).customProperties;
+		const extraTemplateVars = buildExtraTemplateVarsFromPropertyValues(templateProperties, localPropertyValues);
 
 		// 生成相关条目链接（已同步的条目，包括本批次已同步的）
 		const relatedLinks = this.config.enableRelatedLinks !== false
@@ -811,20 +845,24 @@ export class SyncManager {
 			: [];
 
 		// 生成文件内容（使用 V3 版本，包含用户自己的标签和评分明细）
-		const content = generateContentByType(
+		let content = generateContentByType(
 			subject,
 			collection,
 			characters,
 			this.config.customTemplates,
-			ratingDetails,
+			undefined,
 			episodeData?.episodes,
 			episodeData?.userStatus,
-			this.config.defaultPropertyValues,
 			this.config.notePathTemplate,
 			this.config.coverLinkType,
 			localCoverPath,
-			relatedLinks
+			relatedLinks,
+			extraTemplateVars
 		);
+
+		if (localPropertyValues && Object.keys(localPropertyValues).length > 0) {
+			content = applyNamedPropertyValuesToContent(content, localPropertyValues);
+		}
 
 		// 创建文件
 		await this.fileManager.createOrUpdateFile(filePath, content, {
@@ -894,7 +932,7 @@ export class SyncManager {
 			comment: string;
 			tags: string[];
 			private: boolean;
-			ratingDetails: RatingDetails;
+			localPropertyValues?: LocalPropertyValueMap;
 			syncToCloud: boolean;
 			createLocal: boolean;
 		}
@@ -960,6 +998,8 @@ export class SyncManager {
 
 				// V4: 获取章节信息
 				const episodeData = await this.fetchEpisodeData(subject);
+				const templateProperties = getTemplatePropertyGroupsForSubject(subject, this.config.customTemplates).customProperties;
+				const extraTemplateVars = buildExtraTemplateVarsFromPropertyValues(templateProperties, input.localPropertyValues);
 
 				// 生成相关条目链接
 				const relatedLinks = this.config.enableRelatedLinks !== false
@@ -972,18 +1012,22 @@ export class SyncManager {
 					collection,
 					characters,
 					this.config.customTemplates,
-					input.ratingDetails,
+					undefined,
 					episodeData?.episodes,
 					episodeData?.userStatus,
-					this.config.defaultPropertyValues,
 					this.config.notePathTemplate,
 					this.config.coverLinkType,
 					localCoverPath,
-					relatedLinks
+					relatedLinks,
+					extraTemplateVars
 				);
 
+				const finalContent = input.localPropertyValues && Object.keys(input.localPropertyValues).length > 0
+					? applyNamedPropertyValuesToContent(content, input.localPropertyValues)
+					: content;
+
 				// 创建文件
-				await this.fileManager.createOrUpdateFile(filePath, content, { overwrite: false });
+				await this.fileManager.createOrUpdateFile(filePath, finalContent, { overwrite: false });
 				console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
 
 				return { success: true, filePath };

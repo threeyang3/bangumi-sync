@@ -17,6 +17,7 @@ import { SearchModal } from '../ui/searchModal';
 import { tn } from '../i18n';
 import { EpisodeStatusManager } from '../episode/episodeStatusManager';
 import { SubjectNoteManager } from '../note/subjectNoteManager';
+import { hasLocalPropertyFieldsForCollections, loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult } from '../ui/localPropertyModal';
 
 /**
  * 本地条目信息
@@ -662,6 +663,11 @@ export class ControlPanel extends Modal {
 			return;
 		}
 
+		const localPropertyResult = await this.collectLocalPropertyValues(selectedCollections);
+		if (localPropertyResult === null) {
+			return;
+		}
+
 		// 显示同步进度
 		this.state.loading = true;
 		this.renderStatus(`${tn('controlPanel', 'syncingItems')} ${selectedCollections.length}...`);
@@ -669,7 +675,10 @@ export class ControlPanel extends Modal {
 		try {
 			const result = await this.syncManager.syncByCollections(
 				selectedCollections,
-				{ overwrite },
+				{
+					overwrite,
+					localPropertyValuesBySubjectId: localPropertyResult.propertyValuesBySubjectId,
+				},
 				(current, total, message) => {
 					this.renderStatus(message);
 				}
@@ -713,6 +722,58 @@ export class ControlPanel extends Modal {
 			new Notice(`${tn('controlPanel', 'syncError')}: ${errorMsg}`);
 			this.renderStatus(`${tn('controlPanel', 'syncError')}: ${errorMsg}`);
 		}
+	}
+
+	private async collectLocalPropertyValues(
+		collections: UserCollection[]
+	): Promise<LocalPropertyModalResult | null> {
+		let warned = false;
+		const subjectsById = await loadSubjectsForCollections(
+			collections,
+			this.client,
+			(message) => {
+				if (!warned) {
+					warned = true;
+					new Notice(message);
+				}
+			}
+		);
+
+		const hasDynamicFields = hasLocalPropertyFieldsForCollections(
+			collections,
+			subjectsById,
+			this.syncManager.getCustomTemplates()
+		);
+
+		if (!hasDynamicFields) {
+			return {
+				propertyValuesBySubjectId: new Map(),
+			};
+		}
+
+		return new Promise<LocalPropertyModalResult | null>(resolve => {
+			const modal = new LocalPropertyModal(
+				this.app,
+				collections,
+				subjectsById,
+				this.syncManager.getCustomTemplates(),
+				(result) => {
+					resolved = true;
+					resolve(result);
+				}
+			);
+
+			const originalOnClose = modal.onClose.bind(modal);
+			let resolved = false;
+			modal.onClose = () => {
+				originalOnClose();
+				if (!resolved) {
+					resolved = true;
+					resolve(null);
+				}
+			};
+			modal.open();
+		});
 	}
 
 	/**

@@ -1,263 +1,216 @@
 /**
  * 用户数据合并器
- *
- * 合并用户自定义数据到新生成的内容中，用于：
- * 1. 强制同步时保护用户数据
- * 2. 导入用户数据
  */
 
 import { App, TFile } from 'obsidian';
 import {
-    SubjectUserData,
-    RatingDetails,
-    RATING_DETAIL_FIELDS,
-    DataProtectionSettings,
-    DEFAULT_DATA_PROTECTION_SETTINGS,
+	SubjectUserData,
+	DataProtectionSettings,
+	DEFAULT_DATA_PROTECTION_SETTINGS,
 } from './types';
 
-/**
- * 用户数据合并器
- */
 export class UserDataMerger {
-    private app: App;
+	private app: App;
 
-    constructor(app: App) {
-        this.app = app;
-    }
+	constructor(app: App) {
+		this.app = app;
+	}
 
-    /**
-     * 合并用户数据到新内容中
-     */
-    mergeUserData(
-        file: TFile,
-        newContent: string,
-        localUserData: SubjectUserData,
-        settings: DataProtectionSettings = DEFAULT_DATA_PROTECTION_SETTINGS
-    ): string {
-        let result = newContent;
+	mergeUserData(
+		file: TFile,
+		newContent: string,
+		localUserData: SubjectUserData,
+		settings: DataProtectionSettings = DEFAULT_DATA_PROTECTION_SETTINGS
+	): string {
+		void file;
+		let result = newContent;
 
-        // 1. 合并评分明细
-        if (settings.preserveRatingDetails && localUserData.ratingDetails) {
-            result = this.mergeRatingDetails(result, localUserData.ratingDetails, localUserData.type);
-        }
+		const shouldPreserveCustomProperties =
+			settings.preserveCustomProperties || settings.preserveRatingDetails;
+		if (shouldPreserveCustomProperties && localUserData.customProperties) {
+			result = this.mergeCustomProperties(result, localUserData.customProperties);
+		}
 
-        // 2. 合并自定义属性
-        if (settings.preserveCustomProperties && localUserData.customProperties) {
-            result = this.mergeCustomProperties(result, localUserData.customProperties);
-        }
+		const shouldPreserveBodyContent =
+			settings.preserveRecord || settings.preserveThoughts;
+		if (shouldPreserveBodyContent && localUserData.bodySections) {
+			if (settings.preserveRecord && localUserData.bodySections.record) {
+				result = this.updateSection(result, '记录', localUserData.bodySections.record);
+			}
+			if (settings.preserveThoughts && localUserData.bodySections.thoughts) {
+				result = this.updateSection(result, '感想', localUserData.bodySections.thoughts);
+			}
+		}
 
-        // 3. 合并记录
-        if (settings.preserveRecord && localUserData.recordContent) {
-            result = this.updateSection(result, '记录', localUserData.recordContent);
-        }
+		return result;
+	}
 
-        // 4. 合并感想
-        if (settings.preserveThoughts && localUserData.thoughtsContent) {
-            result = this.updateSection(result, '感想', localUserData.thoughtsContent);
-        }
+	mergeCustomProperties(
+		content: string,
+		customProperties: Record<string, unknown>
+	): string {
+		let result = content;
 
-        return result;
-    }
+		for (const [key, value] of Object.entries(customProperties)) {
+			if (this.hasFrontmatterField(result, key)) {
+				continue;
+			}
+			result = this.addFrontmatterField(result, key, value);
+		}
 
-    /**
-     * 合并评分明细到内容
-     */
-    mergeRatingDetails(
-        content: string,
-        details: RatingDetails,
-        subjectType: number
-    ): string {
-        // 获取该条目类型的评分明细字段配置
-        const config = RATING_DETAIL_FIELDS[subjectType] || RATING_DETAIL_FIELDS['comic'];
+		return result;
+	}
 
-        if (!config) return content;
+	updateFrontmatterField(content: string, field: string, value: unknown): string {
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
+		if (!frontmatterMatch) return content;
 
-        let result = content;
-        for (const { key, frontmatterField } of config) {
-            const value = details[key];
-            if (value) {
-                result = this.updateFrontmatterField(result, frontmatterField, value);
-            }
-        }
+		const prefix = frontmatterMatch[1];
+		let frontmatter = frontmatterMatch[2];
+		const suffix = frontmatterMatch[3];
+		const restContent = content.substring(frontmatterMatch[0].length);
+		const formattedValue = this.formatFrontmatterValue(value);
+		const fieldRegex = buildFrontmatterFieldRegex(field);
 
-        return result;
-    }
+		if (fieldRegex.test(frontmatter)) {
+			frontmatter = frontmatter.replace(fieldRegex, `${field}: ${formattedValue}`);
+		} else {
+			frontmatter = `${frontmatter}\n${field}: ${formattedValue}`;
+		}
 
-    /**
-     * 合并自定义属性到内容
-     * 不覆盖已存在的字段
-     */
-    mergeCustomProperties(
-        content: string,
-        customProperties: Record<string, unknown>
-    ): string {
-        let result = content;
+		return prefix + frontmatter + suffix + restContent;
+	}
 
-        for (const [key, value] of Object.entries(customProperties)) {
-            // 检查字段是否已存在
-            if (this.hasFrontmatterField(result, key)) {
-                // 字段已存在，不覆盖
-                continue;
-            }
+	addFrontmatterField(content: string, field: string, value: unknown): string {
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
+		if (!frontmatterMatch) return content;
 
-            // 添加新字段
-            result = this.addFrontmatterField(result, key, value);
-        }
+		const prefix = frontmatterMatch[1];
+		const frontmatter = frontmatterMatch[2];
+		const suffix = frontmatterMatch[3];
+		const restContent = content.substring(frontmatterMatch[0].length);
+		const formattedValue = this.formatFrontmatterValue(value);
+		const newFrontmatter = `${frontmatter}\n${field}: ${formattedValue}`;
 
-        return result;
-    }
+		return prefix + newFrontmatter + suffix + restContent;
+	}
 
-    /**
-     * 更新 frontmatter 字段
-     */
-    updateFrontmatterField(content: string, field: string, value: string): string {
-        const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
-        if (!frontmatterMatch) return content;
+	hasFrontmatterField(content: string, field: string): boolean {
+		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+		if (!frontmatterMatch) return false;
 
-        const prefix = frontmatterMatch[1];
-        let frontmatter = frontmatterMatch[2];
-        const suffix = frontmatterMatch[3];
-        const restContent = content.substring(frontmatterMatch[0].length);
+		const frontmatter = frontmatterMatch[1];
+		const fieldRegex = new RegExp(`^${escapeRegExp(field)}:`, 'm');
+		return fieldRegex.test(frontmatter);
+	}
 
-        // 构建字段值（需要引号包围）
-        const formattedValue = this.formatFrontmatterValue(value);
+	getFrontmatterValue(content: string, field: string): string | undefined {
+		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+		if (!frontmatterMatch) return undefined;
 
-        // 检查字段是否存在
-        const fieldRegex = new RegExp(`^${field}:.*$`, 'm');
-        if (fieldRegex.test(frontmatter)) {
-            // 更新现有字段
-            frontmatter = frontmatter.replace(fieldRegex, `${field}: ${formattedValue}`);
-        } else {
-            // 添加新字段（在 frontmatter 末尾）
-            frontmatter = frontmatter + `\n${field}: ${formattedValue}`;
-        }
+		const lines = frontmatterMatch[1].split('\n');
+		const fieldPrefix = `${field}:`;
+		const startIndex = lines.findIndex(line => line.startsWith(fieldPrefix));
+		if (startIndex === -1) {
+			return undefined;
+		}
 
-        return prefix + frontmatter + suffix + restContent;
-    }
+		const inlineValue = lines[startIndex].slice(fieldPrefix.length).trim();
+		if (inlineValue) {
+			return stripQuotedValue(inlineValue);
+		}
 
-    /**
-     * 添加 frontmatter 字段（不覆盖）
-     */
-    addFrontmatterField(content: string, field: string, value: unknown): string {
-        const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
-        if (!frontmatterMatch) return content;
+		const listItems: string[] = [];
+		for (let i = startIndex + 1; i < lines.length; i++) {
+			const line = lines[i];
+			if (/^[^-\s][^:]*:/.test(line)) {
+				break;
+			}
+			const listMatch = line.match(/^\s*-\s*(.*)$/);
+			if (listMatch) {
+				listItems.push(stripQuotedValue(listMatch[1].trim()));
+				continue;
+			}
+			if (line.trim() && !/^\s/.test(line)) {
+				break;
+			}
+		}
 
-        const prefix = frontmatterMatch[1];
-        const frontmatter = frontmatterMatch[2];
-        const suffix = frontmatterMatch[3];
-        const restContent = content.substring(frontmatterMatch[0].length);
+		return listItems.length > 0 ? listItems.join(', ') : '';
+	}
 
-        // 构建字段值
-        const formattedValue = this.formatFrontmatterValue(value);
+	updateSection(content: string, sectionName: string, sectionContent: string): string {
+		const normalizedContent = content.replace(/\r\n/g, '\n');
+		const lines = normalizedContent.split('\n');
+		const heading = `## ${sectionName}`;
+		const startIndex = lines.findIndex(line => line.trim() === heading);
 
-        // 在 frontmatter 末尾添加
-        const newFrontmatter = frontmatter + `\n${field}: ${formattedValue}`;
+		if (startIndex !== -1) {
+			let endIndex = lines.length;
+			for (let i = startIndex + 1; i < lines.length; i++) {
+				if (/^##\s+/.test(lines[i])) {
+					endIndex = i;
+					break;
+				}
+			}
 
-        return prefix + newFrontmatter + suffix + restContent;
-    }
+			const replacement = [heading, '', sectionContent.trim()];
+			const nextLines = [
+				...lines.slice(0, startIndex),
+				...replacement,
+				...lines.slice(endIndex),
+			];
+			return nextLines.join('\n').replace(/\n+$/, '\n');
+		}
 
-    /**
-     * 检查 frontmatter 是否包含指定字段
-     */
-    hasFrontmatterField(content: string, field: string): boolean {
-        const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-        if (!frontmatterMatch) return false;
+		return normalizedContent.replace(/\n*$/, '') + `\n\n## ${sectionName}\n\n${sectionContent.trim()}\n`;
+	}
 
-        const frontmatter = frontmatterMatch[1];
-        const fieldRegex = new RegExp(`^${field}:`, 'm');
-        return fieldRegex.test(frontmatter);
-    }
+	private formatFrontmatterValue(value: unknown): string {
+		if (typeof value === 'string') {
+			if (
+				value.includes(':') || value.includes('#') || value.includes('\n') ||
+				value.includes('"') || value.includes("'") || value.includes('[') || value.includes('{')
+			) {
+				return `"${value.replace(/"/g, '\\"')}"`;
+			}
+			return value;
+		}
 
-    /**
-     * 格式化 frontmatter 值
-     */
-    private formatFrontmatterValue(value: unknown): string {
-        if (typeof value === 'string') {
-            // 如果值包含特殊字符，用双引号包围
-            if (value.includes(':') || value.includes('#') || value.includes('\n') ||
-                value.includes('"') || value.includes("'") || value.includes('[') ||
-                value.includes('{')) {
-                // 转义双引号
-                const escaped = value.replace(/"/g, '\\"');
-                return `"${escaped}"`;
-            }
-            // 简单字符串，直接使用
-            return value;
-        }
+		if (typeof value === 'boolean') {
+			return value ? 'true' : 'false';
+		}
 
-        if (typeof value === 'boolean') {
-            return value ? 'true' : 'false';
-        }
+		if (typeof value === 'number') {
+			return String(value);
+		}
 
-        if (typeof value === 'number') {
-            return String(value);
-        }
+		if (Array.isArray(value)) {
+			return `\n${value.map(item => `  - ${this.formatFrontmatterValue(item)}`).join('\n')}`;
+		}
 
-        if (Array.isArray(value)) {
-            // YAML 数组格式
-            const items = value.map(item => `  - ${this.formatFrontmatterValue(item)}`);
-            return `\n${items.join('\n')}`;
-        }
+		if (typeof value === 'object' && value !== null) {
+			return JSON.stringify(value);
+		}
 
-        if (typeof value === 'object' && value !== null) {
-            // YAML 对象格式（简化处理）
-            return JSON.stringify(value);
-        }
+		return String(value);
+	}
+}
 
-        return String(value);
-    }
+function buildFrontmatterFieldRegex(field: string): RegExp {
+	return new RegExp(`^${escapeRegExp(field)}:\\s*.*(?:\\n  - .*?)*$`, 'm');
+}
 
-    /**
-     * 更新章节内容
-     */
-    updateSection(content: string, sectionName: string, sectionContent: string): string {
-        const normalizedContent = content.replace(/\r\n/g, '\n');
-        const lines = normalizedContent.split('\n');
-        const heading = `## ${sectionName}`;
-        const startIndex = lines.findIndex(line => line.trim() === heading);
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-        if (startIndex !== -1) {
-            let endIndex = lines.length;
-            for (let i = startIndex + 1; i < lines.length; i++) {
-                if (/^##\s+/.test(lines[i])) {
-                    endIndex = i;
-                    break;
-                }
-            }
-
-            const replacement = [heading, '', sectionContent.trim()];
-            const nextLines = [
-                ...lines.slice(0, startIndex),
-                ...replacement,
-                ...lines.slice(endIndex),
-            ];
-            return nextLines.join('\n').replace(/\n+$/, '\n');
-        }
-
-        return normalizedContent.replace(/\n*$/, '') + `\n\n## ${sectionName}\n\n${sectionContent.trim()}\n`;
-    }
-
-    /**
-     * 获取 frontmatter 字段值
-     */
-    getFrontmatterValue(content: string, field: string): string | undefined {
-        const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-        if (!frontmatterMatch) return undefined;
-
-        const frontmatter = frontmatterMatch[1];
-        const fieldRegex = new RegExp(`^${field}:\\s*(.*)$`, 'm');
-        const match = frontmatter.match(fieldRegex);
-
-        if (match) {
-            let value = match[1].trim();
-            // 移除引号
-            if ((value.startsWith('"') && value.endsWith('"')) ||
-                (value.startsWith("'") && value.endsWith("'"))) {
-                value = value.slice(1, -1);
-            }
-            return value;
-        }
-
-        return undefined;
-    }
+function stripQuotedValue(value: string): string {
+	if (
+		(value.startsWith('"') && value.endsWith('"')) ||
+		(value.startsWith("'") && value.endsWith("'"))
+	) {
+		return value.slice(1, -1);
+	}
+	return value;
 }

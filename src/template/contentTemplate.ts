@@ -10,8 +10,28 @@ import { parseInfoByType, parseDate, cleanSummary } from '../../common/parser/in
 import { getCharacterTemplateVars, CharacterInfo } from '../../common/parser/characterParser';
 import { getDefaultTemplate, getTypeLabel } from '../../common/template/defaultTemplates';
 import { parseEpisodes, createUserStatusMap } from '../../common/parser/episodeParser';
-import { RatingDetails } from '../ui/syncPreviewModal';
-import { DefaultPropertyValues, CoverLinkType } from '../settings/settings';
+import { CoverLinkType } from '../settings/settings';
+
+export interface CustomTemplates {
+	anime?: string;
+	novel?: string;
+	comic?: string;
+	game?: string;
+	album?: string;
+	music?: string;
+	real?: string;
+}
+
+export interface RatingDetails {
+	music?: string;
+	character?: string;
+	story?: string;
+	art?: string;
+	illustration?: string;
+	writing?: string;
+	drawing?: string;
+	fun?: string;
+}
 
 /**
  * 内容模板变量
@@ -37,7 +57,8 @@ export function extractTemplateVars(
 	_notePathTemplate?: string,
 	coverLinkType?: CoverLinkType,
 	localCoverPath?: string,
-	relatedLinks?: string[]
+	relatedLinks?: string[],
+	extraTemplateVars?: Record<string, string>
 ): ContentTemplateVars {
 	// 解析 infobox 获取详细信息
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
@@ -174,6 +195,10 @@ export function extractTemplateVars(
 		Object.assign(vars, charVars);
 	}
 
+	if (extraTemplateVars) {
+		Object.assign(vars, extraTemplateVars);
+	}
+
 	return vars;
 }
 
@@ -229,9 +254,10 @@ export function generateContent(
 	notePathTemplate?: string,
 	coverLinkType?: CoverLinkType,
 	localCoverPath?: string,
-	relatedLinks?: string[]
+	relatedLinks?: string[],
+	extraTemplateVars?: Record<string, string>
 ): string {
-	const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks);
+	const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars);
 	return renderContentTemplate(template, vars);
 }
 
@@ -242,129 +268,95 @@ export function generateContentByType(
 	subject: Subject,
 	collection?: UserCollection,
 	characters?: CharacterInfo[],
-	customTemplates?: {
-		anime?: string;
-		novel?: string;
-		comic?: string;
-		game?: string;
-		album?: string;
-		music?: string;
-		real?: string;
-	},
+	customTemplates?: CustomTemplates,
 	ratingDetails?: RatingDetails,
 	episodes?: Episode[],
 	userEpisodeStatus?: UserEpisodeCollection[],
-	defaultPropertyValues?: DefaultPropertyValues,
 	notePathTemplate?: string,
 	coverLinkType?: CoverLinkType,
 	localCoverPath?: string,
-	relatedLinks?: string[]
+	relatedLinks?: string[],
+	extraTemplateVars?: Record<string, string>
 ): string {
 	// 解析 infobox 获取详细信息以确定细分类别
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
 	const category = parsedInfo.category || '';
 
-	// 获取模板
-	let template: string;
+	const template = resolveTemplateForSubject(subject, customTemplates, category);
+	return generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars);
+}
 
-	// 首先检查自定义模板
+export function resolveTemplateForSubject(
+	subject: Subject,
+	customTemplates?: CustomTemplates,
+	resolvedCategory?: string
+): string {
+	const category = resolvedCategory || parseInfoByType(subject.infobox, subject.type, subject.platform).category || '';
+
 	if (customTemplates) {
 		if (category.includes('小说') && customTemplates.novel) {
-			template = customTemplates.novel;
-		} else if (category.includes('漫画') && customTemplates.comic) {
-			template = customTemplates.comic;
-		} else if ((category.includes('画集') || category.includes('画本')) && customTemplates.album) {
-			template = customTemplates.album;
-		} else {
-			switch (subject.type) {
-				case SubjectType.Anime:
-					template = customTemplates.anime || getDefaultTemplate(subject.type, category);
-					break;
-				case SubjectType.Game:
-					template = customTemplates.game || getDefaultTemplate(subject.type, category);
-					break;
-				case SubjectType.Music:
-					template = customTemplates.music || getDefaultTemplate(subject.type, category);
-					break;
-				case SubjectType.Real:
-					template = customTemplates.real || getDefaultTemplate(subject.type, category);
-					break;
-				case SubjectType.Book:
-				default:
-					template = customTemplates.novel || getDefaultTemplate(subject.type, category);
-					break;
-			}
+			return customTemplates.novel;
 		}
-	} else {
-		template = getDefaultTemplate(subject.type, category);
+
+		if (category.includes('漫画') && customTemplates.comic) {
+			return customTemplates.comic;
+		}
+
+		if ((category.includes('画集') || category.includes('画本')) && customTemplates.album) {
+			return customTemplates.album;
+		}
+
+		switch (subject.type) {
+			case SubjectType.Anime:
+				return customTemplates.anime || getDefaultTemplate(subject.type, category);
+			case SubjectType.Game:
+				return customTemplates.game || getDefaultTemplate(subject.type, category);
+			case SubjectType.Music:
+				return customTemplates.music || getDefaultTemplate(subject.type, category);
+			case SubjectType.Real:
+				return customTemplates.real || getDefaultTemplate(subject.type, category);
+			case SubjectType.Book:
+			default:
+				return customTemplates.novel || getDefaultTemplate(subject.type, category);
+		}
 	}
 
-	let content = generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks);
-
-	// 应用默认属性值
-	if (defaultPropertyValues) {
-		content = applyDefaultPropertyValues(content, subject.type, category, defaultPropertyValues);
-	}
-
-	return content;
+	return getDefaultTemplate(subject.type, category);
 }
 
-/**
- * 应用默认属性值到内容中
- */
-function applyDefaultPropertyValues(
+export function applyNamedPropertyValuesToContent(
 	content: string,
-	subjectType: number,
-	category: string,
-	defaultValues: DefaultPropertyValues
+	propertyValues: Record<string, string | boolean | string[]>
 ): string {
-	// 根据条目类型应用对应的默认值
-	if (subjectType === 2) {  // 动画
-		if (defaultValues.anime_storage) {
-			content = replaceEmptyProperty(content, '存储:', defaultValues.anime_storage);
-		}
-		if (defaultValues.anime_resourceAttr) {
-			content = replaceEmptyProperty(content, '资源属性:', defaultValues.anime_resourceAttr);
-		}
-		if (defaultValues.anime_slogan) {
-			content = replaceEmptyProperty(content, '标语:', defaultValues.anime_slogan);
-		}
-	} else if (category.includes('小说')) {
-		if (defaultValues.novel_version) {
-			content = replaceEmptyProperty(content, '版本:', defaultValues.novel_version);
-		}
-		if (defaultValues.novel_kindle !== undefined) {
-			content = replaceEmptyProperty(content, 'Kindle:', String(defaultValues.novel_kindle));
-		}
-		if (defaultValues.novel_saved !== undefined) {
-			content = replaceEmptyProperty(content, '保存:', String(defaultValues.novel_saved));
-		}
-	} else if (category.includes('漫画')) {
-		if (defaultValues.comic_version) {
-			content = replaceEmptyProperty(content, '版本:', defaultValues.comic_version);
-		}
-		if (defaultValues.comic_format) {
-			content = replaceEmptyProperty(content, '格式:', defaultValues.comic_format);
-		}
-	} else if (subjectType === 4) {  // 游戏
-		if (defaultValues.game_platform) {
-			content = replaceEmptyProperty(content, '平台:', defaultValues.game_platform);
-		}
-		if (defaultValues.game_storage) {
-			content = replaceEmptyProperty(content, '存储:', defaultValues.game_storage);
-		}
+	let nextContent = content;
+	for (const [propertyName, value] of Object.entries(propertyValues)) {
+		nextContent = replacePropertyValue(nextContent, `${propertyName}:`, value);
 	}
-
-	return content;
+	return nextContent;
 }
 
 /**
- * 替换空属性值
+ * 替换属性值
  */
-function replaceEmptyProperty(content: string, propertyName: string, defaultValue: string): string {
-	// 匹配属性: 后面为空或只有空白的情况
-	const regex = new RegExp(`(${propertyName}\\s*)(\\n|$)`, 'g');
-	return content.replace(regex, `$1${defaultValue}$2`);
+function replacePropertyValue(content: string, propertyName: string, value: string | boolean | string[]): string {
+	const escapedName = propertyName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const regex = new RegExp(`^${escapedName}\\s*.*(?:\\n  - .*?)*$`, 'm');
+	return content.replace(regex, `${propertyName} ${formatPropertyValue(value)}`);
+}
+
+function formatPropertyValue(value: string | boolean | string[]): string {
+	if (Array.isArray(value)) {
+		if (value.length === 0) {
+			return '[]';
+		}
+		return `\n${value.map(item => `  - ${item}`).join('\n')}`;
+	}
+
+	if (typeof value === 'boolean') {
+		return value ? 'true' : 'false';
+	}
+
+	return value;
 }
 
 // 兼容旧版本的类型别名

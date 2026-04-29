@@ -16,6 +16,7 @@ import { SyncModal } from './src/ui/syncModal';
 import { SyncOptionsModal, SyncOptionsInput } from './src/ui/syncOptionsModal';
 import { SyncPreviewModal, SyncPreviewResult } from './src/ui/syncPreviewModal';
 import { SearchModal } from './src/ui/searchModal';
+import { hasLocalPropertyFieldsForCollections, loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult } from './src/ui/localPropertyModal';
 import { ControlPanel } from './src/panel/controlPanel';
 import { SyncProgress } from './src/sync/syncStatus';
 import { UserCollection } from './common/api/types';
@@ -219,7 +220,10 @@ export default class BangumiPlugin extends Plugin {
 	 * 加载设置
 	 */
 	async loadSettings() {
-		const loadedData = await this.loadData() as Partial<BangumiPluginSettings>;
+		const loadedData = await this.loadData() as Partial<BangumiPluginSettings> & { defaultPropertyValues?: unknown };
+		if ('defaultPropertyValues' in loadedData) {
+			delete loadedData.defaultPropertyValues;
+		}
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
 
 		// 迁移：如果路径模板使用 {{name_cn}} 而不是 {{name_cn_with_type}}，自动更新
@@ -282,7 +286,6 @@ export default class BangumiPlugin extends Plugin {
 			scanFolderPath: this.settings.scanFolderPath,
 			coverLinkType: this.settings.coverLinkType,
 			customTemplates: templates,
-			defaultPropertyValues: this.settings.defaultPropertyValues,
 		};
 
 		this.syncManager = new SyncManager(this.app, config);
@@ -613,6 +616,14 @@ export default class BangumiPlugin extends Plugin {
 			this.syncModal.close();
 			this.syncModal = null;
 
+			const localPropertyResult = await this.collectLocalPropertyValuesForCollections(
+				prepareResult.previewItems.map(item => item.collection)
+			);
+			if (localPropertyResult === null) {
+				new Notice('已取消同步');
+				return;
+			}
+
 			const previewModal = new SyncPreviewModal(
 				this.app,
 				prepareResult.previewItems,
@@ -632,7 +643,11 @@ export default class BangumiPlugin extends Plugin {
 							}
 						});
 
-						const syncResult = await this.syncManager!.executeSync(result.items, result.action);
+						const syncResult = await this.syncManager!.executeSync(
+							result.items,
+							result.action,
+							localPropertyResult
+						);
 
 						this.settings.lastSyncTime = new Date().toISOString();
 						this.settings.lastSyncCount = syncResult.added + syncResult.skipped;
@@ -676,6 +691,65 @@ export default class BangumiPlugin extends Plugin {
 				}
 			}, 1000);
 		}
+	}
+
+	private async collectLocalPropertyValuesForCollections(
+		collections: UserCollection[]
+	): Promise<LocalPropertyModalResult | null> {
+		const syncManager = this.syncManager;
+		if (!syncManager) {
+			return {
+				propertyValuesBySubjectId: new Map(),
+			};
+		}
+
+		let warned = false;
+		const subjectsById = await loadSubjectsForCollections(
+			collections,
+			syncManager.client,
+			(message) => {
+				if (!warned) {
+					warned = true;
+					new Notice(message);
+				}
+			}
+		);
+
+		const hasDynamicFields = hasLocalPropertyFieldsForCollections(
+			collections,
+			subjectsById,
+			syncManager.getCustomTemplates()
+		);
+
+		if (!hasDynamicFields) {
+			return {
+				propertyValuesBySubjectId: new Map(),
+			};
+		}
+
+		return new Promise<LocalPropertyModalResult | null>(resolve => {
+			const modal = new LocalPropertyModal(
+				this.app,
+				collections,
+				subjectsById,
+				syncManager.getCustomTemplates(),
+				(result) => {
+					resolved = true;
+					resolve(result);
+				}
+			);
+
+			let resolved = false;
+			const originalOnClose = modal.onClose.bind(modal);
+			modal.onClose = () => {
+				originalOnClose();
+				if (!resolved) {
+					resolved = true;
+					resolve(null);
+				}
+			};
+			modal.open();
+		});
 	}
 
 	/**

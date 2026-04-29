@@ -21,6 +21,7 @@ import { API_BASE_URL, ENDPOINTS, DEFAULT_HEADERS } from '../../common/api/endpo
 export class BangumiClient {
 	private accessToken: string;
 	private baseUrl: string;
+	private authenticatedUsername: string | null = null;
 
 	constructor(accessToken: string = '', baseUrl: string = API_BASE_URL) {
 		this.accessToken = accessToken;
@@ -32,6 +33,7 @@ export class BangumiClient {
 	 */
 	setAccessToken(token: string): void {
 		this.accessToken = token;
+		this.authenticatedUsername = null;
 	}
 
 	/**
@@ -156,6 +158,7 @@ export class BangumiClient {
 			if (response.status === 200) {
 				const user = response.json as { username?: string };
 				console.debug(`[Bangumi Sync] 获取到用户: ${user.username}`);
+				this.authenticatedUsername = user.username ?? null;
 				return { valid: true, username: user.username };
 			}
 
@@ -170,18 +173,47 @@ export class BangumiClient {
 		}
 	}
 
+	private async getAuthenticatedUsername(): Promise<string> {
+		if (this.authenticatedUsername) {
+			return this.authenticatedUsername;
+		}
+
+		const result = await this.validateToken();
+		if (!result.valid || !result.username) {
+			throw new Error(result.error || '无法获取用户名，请检查 Access Token');
+		}
+
+		this.authenticatedUsername = result.username;
+		return result.username;
+	}
+
 	/**
 	 * 获取用户对指定条目的收藏状态
 	 * @param subjectId 条目 ID
 	 * @returns 收藏信息，如果未收藏则返回 null
 	 */
 	async getCollectionStatus(subjectId: number): Promise<UserCollection | null> {
-		const endpoint = ENDPOINTS.MY_COLLECTION_BY_ID(subjectId);
+		const username = await this.getAuthenticatedUsername();
+		const endpoint = ENDPOINTS.USER_COLLECTION_BY_ID(username, subjectId);
+		const url = `${this.baseUrl}${endpoint}`;
 		console.debug(`[Bangumi Sync] 获取收藏状态: GET ${endpoint}`);
 
 		try {
-			const result = await this.request<UserCollection>('GET', endpoint);
-			return result;
+			const response = await requestUrl({
+				url,
+				method: 'GET',
+				headers: this.getHeaders(),
+			});
+
+			if (response.status === 200) {
+				return response.json as UserCollection;
+			}
+
+			if (response.status === 404) {
+				return null;
+			}
+
+			throw new Error(`Request failed, status ${response.status}`);
 		} catch (error) {
 			// 404 表示未收藏
 			if (error instanceof Error && error.message.includes('404')) {
@@ -196,7 +228,8 @@ export class BangumiClient {
 	 * 与 getCollectionStatus 不同，这里会把 404 视为正常的“未收藏”，避免控制台产生大量错误噪音。
 	 */
 	async hasCollection(subjectId: number): Promise<boolean> {
-		const endpoint = ENDPOINTS.MY_COLLECTION_BY_ID(subjectId);
+		const username = await this.getAuthenticatedUsername();
+		const endpoint = ENDPOINTS.USER_COLLECTION_BY_ID(username, subjectId);
 		const url = `${this.baseUrl}${endpoint}`;
 
 		try {

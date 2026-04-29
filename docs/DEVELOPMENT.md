@@ -29,11 +29,22 @@ main.ts          ← 入口层（插件注册）
 |------|------|
 | `src/sync/` | 同步逻辑（SyncManager、IncrementalSync） |
 | `src/panel/` | 控制面板（ControlPanel、BatchEditor） |
-| `src/template/` | 内容模板处理 |
+| `src/template/` | 内容模板处理与模板属性分类 |
 | `src/settings/` | 设置数据与 UI |
 | `src/ui/` | 同步弹窗 |
 | `src/userData/` | 用户数据保护 |
 | `src/i18n/` | 国际化 |
+
+### 自定义属性链路
+
+```
+模板 frontmatter
+    → templateProperties.ts 提取全部属性
+        → 过滤 Bangumi / 同步流程自动字段
+            → 生成 customProperties 定义
+                → 同步收藏 / 控制面板同步 / 搜索并添加 共用
+                → 强制同步继承 / 导入导出 共用
+```
 
 ### 数据流
 
@@ -106,7 +117,7 @@ console.log('信息');  // 不允许
 
 ```json
 {
-  "version": "4.7.4"
+  "version": "5.2.1"
 }
 ```
 
@@ -120,21 +131,21 @@ npm run build
 
 ```bash
 # 创建版本目录
-mkdir -p release/v4.7.4
+mkdir -p release/v5.2.1
 
 # 复制文件
 cp main.js manifest.json styles.css release/
-cp main.js manifest.json styles.css release/v4.7.4/
+cp main.js manifest.json styles.css release/v5.2.1/
 
 # 创建 zip（可选）
-cd archives && powershell -Command "Compress-Archive -Path ../release/main.js,../release/manifest.json,../release/styles.css -DestinationPath bangumi-sync-v4.7.4.zip -Force"
+cd archives && powershell -Command "Compress-Archive -Path ../release/main.js,../release/manifest.json,../release/styles.css -DestinationPath bangumi-sync-v5.2.1.zip -Force"
 ```
 
 ### 4. 提交并推送
 
 ```bash
 git add -A
-git commit -m "release: v4.7.4 功能描述"
+git commit -m "release: v5.2.1"
 git push
 ```
 
@@ -143,8 +154,8 @@ git push
 **重要**：Release tag 必须与 manifest.json 版本号完全一致，不带 `v` 前缀。
 
 ```bash
-gh release create 4.7.4 ./release/main.js ./release/manifest.json ./release/styles.css \
-  --title "v4.7.4" \
+gh release create 5.2.1 ./release/main.js ./release/manifest.json ./release/styles.css \
+  --title "v5.2.1" \
   --notes "更新内容说明"
 ```
 
@@ -153,6 +164,14 @@ gh release create 4.7.4 ./release/main.js ./release/manifest.json ./release/styl
 - 必须包含单独的文件：`main.js`、`manifest.json`、`styles.css`
 - 不能只上传 zip 文件
 - Tag 必须是纯版本号（如 `4.7.4`），不能带 `v` 前缀
+
+## 自定义属性开发约束
+
+- 新增或修改本地自定义属性逻辑时，先改 `src/template/templateProperties.ts`
+- 不要为评分明细、资源属性等字段单独维护第二套窗口或导入导出逻辑
+- 列表型自定义属性统一使用 YAML 数组表示，UI 输入统一按英文逗号拆分
+- 快速同步 / 自动同步路径不能弹窗，只能依赖模板默认值
+- 导出 / 导入 / 强制同步继承必须保持一致：辨识属性、自定义属性、记录/感想
 
 ## 调试技巧
 

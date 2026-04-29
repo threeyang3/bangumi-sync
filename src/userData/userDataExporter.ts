@@ -5,20 +5,8 @@
  */
 
 import { App, TFile, normalizePath } from 'obsidian';
-import { SubjectType } from '../../common/api/types';
 import { UserDataExtractor } from './userDataExtractor';
-import { UserDataExport, SubjectUserData } from './types';
-
-/**
- * 条目类型标签
- */
-const SUBJECT_TYPE_LABELS: Record<number, string> = {
-    [SubjectType.Anime]: 'anime',
-    [SubjectType.Book]: 'novel',  // 小说和漫画需要区分
-    [SubjectType.Music]: 'music',
-    [SubjectType.Game]: 'game',
-    [SubjectType.Real]: 'real',
-};
+import { UserDataExport, SubjectUserData, SUBJECT_TYPE_LABELS } from './types';
 
 /**
  * 用户数据导出器
@@ -98,10 +86,10 @@ export class UserDataExporter {
 
         for (const [id, userData] of userDataMap) {
             // 获取类型标签
-            let typeLabel = SUBJECT_TYPE_LABELS[userData.type] || 'novel';
+            let typeLabel = SUBJECT_TYPE_LABELS[userData.identifier.type] || 'novel';
 
-            if (userData.type === Number(SubjectType.Book)) {
-                const workType = userData.workType?.toLowerCase();
+            if (userData.identifier.type === 1) {
+                const workType = userData.identifier.workType?.toLowerCase();
                 if (workType === 'comic') {
                     typeLabel = 'comic';
                 } else if (workType === 'album') {

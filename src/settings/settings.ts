@@ -35,40 +35,6 @@ export interface PanelFilters {
 }
 
 /**
- * 默认属性值配置
- * 用于批量同步时自动填充空属性
- */
-export interface DefaultPropertyValues {
-	// 动画默认值
-	anime_storage?: string;        // 存储
-	anime_resourceAttr?: string;   // 资源属性
-	anime_slogan?: string;         // 标语
-	anime_related?: string;        // 相关
-
-	// 小说默认值
-	novel_version?: string;        // 版本
-	novel_kindle?: boolean;        // Kindle
-	novel_saved?: boolean;         // 保存
-	novel_related?: string;        // 相关
-	novel_channel?: string;        // 渠道
-	novel_purchased?: boolean;     // 已购
-
-	// 漫画默认值
-	comic_version?: string;        // 版本
-	comic_format?: string;         // 格式
-	comic_kindle?: boolean;        // Kindle
-	comic_related?: string;        // 相关
-	comic_channel?: string;        // 渠道
-	comic_purchased?: boolean;     // 已购
-
-	// 游戏默认值
-	game_platform?: string;        // 平台
-	game_storage?: string;         // 存储
-	game_related?: string;         // 相关
-	game_slogan?: string;          // 标语
-}
-
-/**
  * 封面链接类型
  * - network: 网络链接（Bangumi CDN 地址）
  * - local: 本地链接（下载到本地的相对路径）
@@ -121,9 +87,6 @@ export interface BangumiPluginSettings {
 
 	// 控制面板筛选条件持久化
 	panelFilters: PanelFilters;
-
-	// 默认属性值配置
-	defaultPropertyValues: DefaultPropertyValues;
 
 	// 相关条目链接
 	enableRelatedLinks: boolean;  // 是否自动处理关联条目链接
@@ -198,9 +161,6 @@ export const DEFAULT_SETTINGS: BangumiPluginSettings = {
 
 	// 控制面板筛选条件
 	panelFilters: { ...DEFAULT_PANEL_FILTERS },
-
-	// 默认属性值
-	defaultPropertyValues: {},
 
 	// 相关条目链接
 	enableRelatedLinks: true,

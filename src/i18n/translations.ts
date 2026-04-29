@@ -103,20 +103,6 @@ export interface TranslationStrings {
 		syncStatus: string;
 		lastSync: string;
 		notSyncedYet: string;
-		defaultPropertyValues: string;
-		defaultPropertyValuesDesc: string;
-		anime: string;
-		novel: string;
-		comic: string;
-		game: string;
-		storage: string;
-		resourceAttr: string;
-		slogan: string;
-		version: string;
-		format: string;
-		platform: string;
-		kindle: string;
-		saved: string;
 		preview: string;
 		standardTemplate: string;
 		authorTemplate: string;
@@ -283,6 +269,9 @@ export interface TranslationStrings {
 		selectSyncedToEdit: string;
 		selectSyncedToDelete: string;
 		confirmDeleteMessage: string;
+		localPropertyTitle: string;
+		localPropertyDesc: string;
+		localPropertySkip: string;
 	};
 
 	// 评分明细
@@ -587,20 +576,6 @@ const en: TranslationStrings = {
 		syncStatus: 'Sync status',
 		lastSync: 'Last sync',
 		notSyncedYet: 'Not synced yet',
-		defaultPropertyValues: 'Default property values',
-		defaultPropertyValuesDesc: 'Auto-fill these properties during batch sync (leave empty to skip)',
-		anime: 'Anime',
-		novel: 'Novel',
-		comic: 'Comic',
-		game: 'Game',
-		storage: 'Storage',
-		resourceAttr: 'Resource attribute',
-		slogan: 'Slogan',
-		version: 'Version',
-		format: 'Format',
-		platform: 'Platform',
-		kindle: 'Kindle',
-		saved: 'Saved',
 		preview: 'Preview',
 		standardTemplate: 'Standard template',
 		authorTemplate: 'Author template',
@@ -627,13 +602,13 @@ const en: TranslationStrings = {
 		dataProtection: 'Data protection',
 		dataProtectionDesc: 'Settings for protecting user data during force sync',
 		preserveRatingDetails: 'Preserve rating details',
-		preserveRatingDetailsDesc: 'Keep rating details (music, character, story, etc.) when force syncing',
+		preserveRatingDetailsDesc: 'Keep custom score-detail fields when force syncing',
 		preserveCustomProperties: 'Preserve custom properties',
-		preserveCustomPropertiesDesc: 'Keep custom properties (slogan, storage, version, etc.) when force syncing',
+		preserveCustomPropertiesDesc: 'Keep custom frontmatter properties when force syncing',
 		preserveRecord: 'Preserve records',
-		preserveRecordDesc: 'Keep record section content when force syncing',
+		preserveRecordDesc: 'Keep the Record section content when force syncing',
 		preserveThoughts: 'Preserve thoughts',
-		preserveThoughtsDesc: 'Keep thoughts section content when force syncing',
+		preserveThoughtsDesc: 'Keep the Thoughts section content when force syncing',
 	},
 
 	syncOptions: {
@@ -652,7 +627,7 @@ const en: TranslationStrings = {
 
 	syncPreview: {
 		title: 'Sync preview',
-		itemsToSync: 'items to sync. Confirm items and fill in rating details.',
+		itemsToSync: 'items to sync. Confirm which items should be imported.',
 		ratingDetails: 'Rating details',
 		myRating: 'My rating',
 		selectAll: 'Select all',
@@ -755,6 +730,9 @@ const en: TranslationStrings = {
 		selectSyncedToEdit: 'Please select synced items to edit',
 		selectSyncedToDelete: 'Selected items are not synced, cannot delete',
 		confirmDeleteMessage: 'Delete selected local files? This will move them to trash.',
+		localPropertyTitle: 'Local custom properties',
+		localPropertyDesc: 'Fields here are discovered from the current template frontmatter. The plugin first collects all frontmatter properties, then filters out auto-filled Bangumi fields. Any remaining local-only field, including score-detail properties, can be filled here.',
+		localPropertySkip: 'Skip',
 	},
 
 	ratingFields: {
@@ -770,7 +748,7 @@ const en: TranslationStrings = {
 
 	userData: {
 		exportTitle: 'Export user data',
-		exportDesc: 'Export your local user data (rating details, custom properties, records, thoughts) to backup files.',
+		exportDesc: 'Export local user data in three parts: identifier fields, custom properties, and the Record/Thoughts section content.',
 		importTitle: 'Import user data',
 		importDesc: 'Import user data from backup files. Missing fields will be highlighted for your decision.',
 		scanFolder: 'Scan folder',
@@ -1048,20 +1026,6 @@ const zhCN: TranslationStrings = {
 		syncStatus: '同步状态',
 		lastSync: '上次同步',
 		notSyncedYet: '尚未同步',
-		defaultPropertyValues: '默认属性值',
-		defaultPropertyValuesDesc: '批量同步时，自动填充这些属性的默认值（留空则不填充）',
-		anime: '动画',
-		novel: '小说',
-		comic: '漫画',
-		game: '游戏',
-		storage: '存储',
-		resourceAttr: '资源属性',
-		slogan: '标语',
-		version: '版本',
-		format: '格式',
-		platform: '平台',
-		kindle: 'Kindle',
-		saved: '保存',
 		preview: '预览',
 		standardTemplate: '标准模板',
 		authorTemplate: '作者自用模板',
@@ -1088,13 +1052,13 @@ const zhCN: TranslationStrings = {
 		dataProtection: '数据保护',
 		dataProtectionDesc: '强制同步时保护用户数据的设置',
 		preserveRatingDetails: '保留评分明细',
-		preserveRatingDetailsDesc: '强制同步时保留评分明细（音乐、人设、剧情等）',
+		preserveRatingDetailsDesc: '强制同步时保留本地的评分明细类自定义属性',
 		preserveCustomProperties: '保留自定义属性',
-		preserveCustomPropertiesDesc: '强制同步时保留自定义属性（标语、存储、版本等）',
+		preserveCustomPropertiesDesc: '强制同步时保留本地自定义 frontmatter 属性',
 		preserveRecord: '保留记录',
-		preserveRecordDesc: '强制同步时保留记录部分内容',
+		preserveRecordDesc: '强制同步时保留“记录”部分内容',
 		preserveThoughts: '保留感想',
-		preserveThoughtsDesc: '强制同步时保留感想部分内容',
+		preserveThoughtsDesc: '强制同步时保留“感想”部分内容',
 	},
 
 	syncOptions: {
@@ -1113,7 +1077,7 @@ const zhCN: TranslationStrings = {
 
 	syncPreview: {
 		title: '同步预览',
-		itemsToSync: '个条目待同步，请确认要导入的条目并填写评分明细',
+		itemsToSync: '个条目待同步，请确认要导入哪些条目',
 		ratingDetails: '评分明细',
 		myRating: '我的评分',
 		selectAll: '全选',
@@ -1216,6 +1180,9 @@ const zhCN: TranslationStrings = {
 		selectSyncedToEdit: '请先选择已同步的条目进行编辑',
 		selectSyncedToDelete: '选中的条目都未同步，无法删除',
 		confirmDeleteMessage: '确定要删除选中的本地文件吗？此操作将移动到系统回收站。',
+		localPropertyTitle: '本地自定义属性',
+		localPropertyDesc: '这里的字段会先从当前模板 frontmatter 中完整提取，再过滤掉可自动从 Bangumi 或同步流程得到的属性。剩余的本地属性都会出现在这里，包括评分明细类属性。',
+		localPropertySkip: '跳过',
 	},
 
 	ratingFields: {
@@ -1231,7 +1198,7 @@ const zhCN: TranslationStrings = {
 
 	userData: {
 		exportTitle: '导出用户数据',
-		exportDesc: '将本地用户数据（评分明细、自定义属性、记录、感想）导出到备份文件。',
+		exportDesc: '将本地用户数据按三部分导出到备份文件：辨识属性、自定义属性，以及“记录”/“感想”两部分内容。',
 		importTitle: '导入用户数据',
 		importDesc: '从备份文件导入用户数据。缺失的字段将高亮显示供您选择。',
 		scanFolder: '扫描文件夹',

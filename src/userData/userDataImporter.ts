@@ -14,7 +14,6 @@ import {
     MissingFieldDecision,
 } from './types';
 import { getFrontmatterNumber, getFrontmatterRecord } from '../../common/utils/frontmatter';
-import { safeStringify } from '../../common/utils/value';
 
 /**
  * 用户数据导入器
@@ -174,7 +173,7 @@ export class UserDataImporter {
             if (Number.isNaN(subjectId)) {
                 result.errors.push({
                     id: 0,
-                    name_cn: userData.name_cn || id,
+                    name_cn: userData.identifier?.name_cn || id,
                     error: 'Invalid subject id',
                 });
                 continue;
@@ -195,7 +194,7 @@ export class UserDataImporter {
             } catch (error) {
                 result.errors.push({
                     id: subjectId,
-                    name_cn: userData.name_cn,
+                    name_cn: userData.identifier.name_cn,
                     error: String(error),
                 });
             }
@@ -226,15 +225,6 @@ export class UserDataImporter {
         const missingFields: MissingFieldDecision[] = [];
         let updatedContent = content;
 
-        // 合并评分明细
-        if (userData.ratingDetails) {
-            updatedContent = this.merger.mergeRatingDetails(
-                updatedContent,
-                userData.ratingDetails,
-                userData.type
-            );
-        }
-
         // 合并自定义属性
         if (userData.customProperties) {
             for (const [key, value] of Object.entries(userData.customProperties)) {
@@ -244,7 +234,7 @@ export class UserDataImporter {
                         updatedContent = this.merger.updateFrontmatterField(
                             updatedContent,
                             key,
-                            safeStringify(value)
+                            value
                         );
                     } else if (options.mergeStrategy === 'smart') {
                         const localValue = this.merger.getFrontmatterValue(updatedContent, key);
@@ -252,7 +242,7 @@ export class UserDataImporter {
                             updatedContent = this.merger.updateFrontmatterField(
                                 updatedContent,
                                 key,
-                                safeStringify(value)
+                                value
                             );
                         }
                     }
@@ -262,7 +252,7 @@ export class UserDataImporter {
                     // 字段不存在，记录为缺失字段
                     missingFields.push({
                         subjectId,
-                        subjectName: userData.name_cn,
+                        subjectName: userData.identifier.name_cn,
                         fieldName: key,
                         fieldValue: value,
                         decision: null,
@@ -271,21 +261,19 @@ export class UserDataImporter {
             }
         }
 
-        // 合并记录
-        if (userData.recordContent) {
+        if (userData.bodySections?.record) {
             updatedContent = this.merger.updateSection(
                 updatedContent,
                 '记录',
-                userData.recordContent
+                userData.bodySections.record
             );
         }
 
-        // 合并感想
-        if (userData.thoughtsContent) {
+        if (userData.bodySections?.thoughts) {
             updatedContent = this.merger.updateSection(
                 updatedContent,
                 '感想',
-                userData.thoughtsContent
+                userData.bodySections.thoughts
             );
         }
 

@@ -29,6 +29,7 @@ bangumi/
 │   ├── api/               # API 客户端扩展
 │   ├── sync/              # 同步逻辑
 │   ├── template/          # 内容模板处理
+│   │   └── templateProperties.ts # 模板 frontmatter 属性解析与分类
 │   ├── panel/             # 控制面板
 │   ├── settings/          # 设置
 │   ├── ui/                # UI 弹窗
@@ -82,12 +83,22 @@ bangumi/
 ## 同步注意事项
 
 - 收藏更新统一使用 `POST /v0/users/-/collections/{subject_id}`
+- 收藏状态查询不能再使用 `/v0/users/-/collections/{subject_id}`，必须先拿真实用户名再查询 `/v0/users/{username}/collections/{subject_id}`
 - 清空云端标签时要显式发送 `tags: []`
 - 短评比较前必须先做换行/空白规范化
 - 标签解析与状态同步合并都必须走同一套净化逻辑
 - 单集状态修改必须同时更新 `ep_statuses` 与正文 `.ep-box`
 - 单集状态从云端覆盖本地前必须先清空旧本地状态
 - `.ep-box` 解析不要依赖固定属性顺序
+
+## 自定义属性注意事项
+
+- 本地自定义属性必须统一走 `src/template/templateProperties.ts`
+- 逻辑顺序必须是“先取模板 frontmatter 全部属性，再过滤掉 Bangumi / 同步流程可自动填充的字段”
+- 评分明细不再是单独的数据通道；除兼容旧模板外，应与其他自定义属性同等处理
+- 列表型自定义属性使用 `[]` 作为模板默认值，并在 UI 中按英文逗号拆分为数组
+- 快速同步 / 自动同步不弹自定义属性窗口，只能使用模板默认值或空值
+- 导出 / 导入 / 强制同步继承必须统一保留三部分：辨识属性、自定义属性、记录/感想
 
 详细坑点见 [docs/STATUS_SYNC_PITFALLS.md](docs/STATUS_SYNC_PITFALLS.md)
 

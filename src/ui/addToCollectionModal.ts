@@ -4,12 +4,12 @@
  */
 
 import { App, Modal, Notice, Setting } from 'obsidian';
-import { Subject, SubjectType, UserCollection } from '../../common/api/types';
+import { Subject, UserCollection } from '../../common/api/types';
 import { BangumiClient } from '../api/client';
 import { BangumiPluginSettings } from '../settings/settings';
 import { SyncManager } from '../sync/syncManager';
-import { RatingDetails } from './syncPreviewModal';
-import { tn, t } from '../i18n';
+import { tn } from '../i18n';
+import { getTemplatePropertyGroupsForSubject, TemplatePropertyDefinition } from '../template/templateProperties';
 
 /**
  * 添加到收藏的输入数据
@@ -22,7 +22,7 @@ export interface AddToCollectionInput {
 	comment: string;        // 短评
 	tags: string[];         // 标签
 	private: boolean;       // 是否私密
-	ratingDetails: RatingDetails;  // 评分明细
+	localPropertyValues: Record<string, string | boolean | string[]>;
 	syncToCloud: boolean;   // 是否同步到云端
 	createLocal: boolean;   // 是否创建本地文件
 }
@@ -37,41 +37,6 @@ const COLLECTION_TYPE_OPTIONS: { value: number; labelKey: 'wish' | 'done' | 'doi
 	{ value: 4, labelKey: 'onHold' },
 	{ value: 5, labelKey: 'dropped' },
 ];
-
-/**
- * 各类型条目的评分明细字段配置
- */
-const RATING_DETAIL_FIELDS: Record<number, { key: keyof RatingDetails; labelKey: string }[]> = {
-	[SubjectType.Anime]: [
-		{ key: 'music', labelKey: 'music' },
-		{ key: 'character', labelKey: 'character' },
-		{ key: 'story', labelKey: 'story' },
-		{ key: 'art', labelKey: 'art' },
-	],
-	[SubjectType.Book]: [
-		{ key: 'story', labelKey: 'story' },
-		{ key: 'illustration', labelKey: 'illustration' },
-		{ key: 'writing', labelKey: 'writing' },
-		{ key: 'character', labelKey: 'character' },
-	],
-	[SubjectType.Music]: [],
-	[SubjectType.Game]: [
-		{ key: 'story', labelKey: 'story' },
-		{ key: 'fun', labelKey: 'fun' },
-		{ key: 'music', labelKey: 'music' },
-		{ key: 'art', labelKey: 'art' },
-	],
-	[SubjectType.Real]: [],
-};
-
-/**
- * 获取条目的评分明细字段
- */
-function getRatingFields(type: SubjectType): { key: keyof RatingDetails; label: string }[] {
-	const ratingLabels = t('ratingFields');
-	const fields = RATING_DETAIL_FIELDS[type] || [];
-	return fields.map(f => ({ key: f.key, label: String(ratingLabels[f.labelKey as keyof typeof ratingLabels]) }));
-}
 
 /**
  * 添加到收藏弹窗
@@ -90,14 +55,14 @@ export class AddToCollectionModal extends Modal {
 	private comment: string = '';
 	private tags: string[] = [];
 	private isPrivate: boolean = false;
-	private ratingDetails: RatingDetails = {};
+	private localPropertyValues: Record<string, string | boolean | string[]> = {};
 	private syncToCloud: boolean = true;
 	private createLocal: boolean = true;
+	private customFields: TemplatePropertyDefinition[] = [];
 
 	// UI 元素
 	private tagsContainer!: HTMLElement;
 	private tagInputEl!: HTMLInputElement;
-	private ratingDetailInputs: Map<keyof RatingDetails, HTMLInputElement> = new Map();
 
 	constructor(
 		app: App,
@@ -115,6 +80,8 @@ export class AddToCollectionModal extends Modal {
 		this.subject = subject;
 		this.onComplete = onComplete;
 		this.existingCollection = existingCollection;
+		this.customFields = getTemplatePropertyGroupsForSubject(subject, this.syncManager.getCustomTemplates()).customProperties;
+		this.initializeDefaultLocalPropertyValues();
 
 		// 如果有现有收藏数据，预填充
 		if (existingCollection) {
@@ -133,6 +100,8 @@ export class AddToCollectionModal extends Modal {
 		// 标题
 		const title = `${tn('addToCollection', 'title')} - ${this.subject.name_cn || this.subject.name}`;
 		new Setting(contentEl).setName(title).setHeading();
+
+		contentEl.createEl('h3', { text: 'Bangumi 属性', cls: 'bangumi-add-collection-section' });
 
 		// 收藏状态
 		const typeDiv = contentEl.createDiv({ cls: 'bangumi-add-collection-type' });
@@ -205,25 +174,11 @@ export class AddToCollectionModal extends Modal {
 				text.inputEl.rows = 3;
 			});
 
-		// 评分明细
-		const ratingFields = getRatingFields(this.subject.type);
-		if (ratingFields.length > 0) {
-			contentEl.createEl('h3', { text: tn('addToCollection', 'ratingDetails'), cls: 'bangumi-add-collection-section' });
-
-			ratingFields.forEach(field => {
-				const fieldSetting = new Setting(contentEl)
-					.setName(field.label)
-					.addSlider(slider => {
-						slider
-							.setLimits(0, 10, 1)
-							.setValue(0)
-							.onChange(value => {
-								this.ratingDetails[field.key] = String(value);
-								valueEl.setText(String(value));
-							});
-					});
-				const valueEl = fieldSetting.controlEl.createSpan({ cls: 'bangumi-add-collection-rate-value', text: '0' });
-				this.ratingDetailInputs.set(field.key, fieldSetting.controlEl.querySelector('input') as HTMLInputElement);
+		if (this.customFields.length > 0) {
+			contentEl.createEl('h3', { text: tn('controlPanel', 'localPropertyTitle'), cls: 'bangumi-add-collection-section' });
+			const gridEl = contentEl.createDiv({ cls: 'bangumi-local-property-grid' });
+			this.customFields.forEach(field => {
+				this.renderCustomField(gridEl, field);
 			});
 		}
 
@@ -295,7 +250,7 @@ export class AddToCollectionModal extends Modal {
 			comment: this.comment,
 			tags: this.tags,
 			private: this.isPrivate,
-			ratingDetails: this.ratingDetails,
+			localPropertyValues: { ...this.localPropertyValues },
 			syncToCloud: this.syncToCloud,
 			createLocal: this.createLocal,
 		};
@@ -308,7 +263,7 @@ export class AddToCollectionModal extends Modal {
 				comment: input.comment,
 				tags: input.tags,
 				private: input.private,
-				ratingDetails: input.ratingDetails,
+				localPropertyValues: input.localPropertyValues,
 				syncToCloud: input.syncToCloud,
 				createLocal: input.createLocal,
 			});
@@ -330,4 +285,69 @@ export class AddToCollectionModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 	}
+
+	private initializeDefaultLocalPropertyValues(): void {
+		for (const field of this.customFields) {
+			if (field.initialValue !== undefined) {
+				this.localPropertyValues[field.name] = field.initialValue;
+			}
+		}
+	}
+
+	private renderCustomField(container: HTMLElement, field: TemplatePropertyDefinition): void {
+		const fieldEl = container.createDiv({ cls: `bangumi-local-property-field bangumi-local-property-field-${field.type}` });
+		fieldEl.createEl('label', { text: field.label, cls: 'bangumi-local-property-label' });
+
+		if (field.type === 'toggle') {
+			const toggleWrap = fieldEl.createDiv({ cls: 'bangumi-local-property-toggle' });
+			const toggle = toggleWrap.createEl('input', { type: 'checkbox' });
+			const initialValue = this.localPropertyValues[field.name];
+			toggle.checked = typeof initialValue === 'boolean' ? initialValue : false;
+			toggle.addEventListener('change', () => {
+				this.localPropertyValues[field.name] = toggle.checked;
+			});
+			return;
+		}
+
+		if (field.type === 'list') {
+			const input = fieldEl.createEl('input', { type: 'text', cls: 'bangumi-local-property-input' });
+			input.placeholder = field.placeholder || '';
+			const initialValue = this.localPropertyValues[field.name];
+			if (Array.isArray(initialValue)) {
+				input.value = initialValue.join(', ');
+			}
+			input.addEventListener('input', () => {
+				const parsed = parseListInput(input.value);
+				if (parsed && parsed.length > 0) {
+					this.localPropertyValues[field.name] = parsed;
+				} else {
+					delete this.localPropertyValues[field.name];
+				}
+			});
+			return;
+		}
+
+		const input = fieldEl.createEl('input', { type: 'text', cls: 'bangumi-local-property-input' });
+		input.placeholder = field.placeholder || '';
+		const initialValue = this.localPropertyValues[field.name];
+		if (typeof initialValue === 'string') {
+			input.value = initialValue;
+		}
+		input.addEventListener('input', () => {
+			const trimmed = input.value.trim();
+			if (trimmed) {
+				this.localPropertyValues[field.name] = trimmed;
+			} else {
+				delete this.localPropertyValues[field.name];
+			}
+		});
+	}
+}
+
+function parseListInput(value: string): string[] | undefined {
+	const items = value
+		.split(',')
+		.map(item => item.trim())
+		.filter(Boolean);
+	return items.length > 0 ? items : undefined;
 }

@@ -381,15 +381,15 @@ id: {{id}}
 tags:
 {{tags}}
 评分: {{my_rate}}
-音乐评分: {{rating_music}}
-人设评分: {{rating_character}}
-剧情评分: {{rating_story}}
-美术评分: {{rating_art}}
+音乐评分:
+人设评分:
+剧情评分:
+美术评分:
 标语:
 单评: false
 精彩片段:
 存储:
-资源属性:
+资源属性: []
 {{#if related}}相关:
 {{related}}
 {{/if}}
@@ -464,10 +464,10 @@ id: {{id}}
 tags:
 {{tags}}
 评分: {{my_rate}}
-剧情评分: {{rating_story}}
-插画评分: {{rating_illustration}}
-文笔评分: {{rating_writing}}
-人设评分: {{rating_character}}
+剧情评分:
+插画评分:
+文笔评分:
+人设评分:
 标语:
 单评: false
 精彩片段:
@@ -542,9 +542,9 @@ id: {{id}}
 tags:
 {{tags}}
 评分: {{my_rate}}
-剧情评分: {{rating_story}}
-画工评分: {{rating_drawing}}
-人设评分: {{rating_character}}
+剧情评分:
+画工评分:
+人设评分:
 标语:
 单评: false
 精彩片段:
@@ -618,13 +618,14 @@ id: {{id}}
 tags:
 {{tags}}
 评分: {{my_rate}}
-剧情评分: {{rating_story}}
-趣味评分: {{rating_fun}}
-音乐评分: {{rating_music}}
-美术评分: {{rating_art}}
+剧情评分:
+趣味评分:
+音乐评分:
+美术评分:
 标语:
 单评: false
 存储:
+资源属性: []
 {{#if related}}相关:
 {{related}}
 {{/if}}
