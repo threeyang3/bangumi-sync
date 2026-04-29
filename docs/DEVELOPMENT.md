@@ -1,5 +1,15 @@
 # 开发指南
 
+本文档只保留“开发环境、提交流程、发布流程、代码约束”这类维护信息。
+
+如果你要理解代码本身，请优先看：
+
+- [文档总览](./README.md)
+- [项目架构与模块说明](./ARCHITECTURE.md)
+- [逻辑判断参考](./LOGIC_REFERENCE.md)
+- [模板设计参考](./TEMPLATE_GUIDE.md)
+- [状态同步踩坑记录](./STATUS_SYNC_PITFALLS.md)
+
 ## 环境要求
 
 - Node.js 16+
@@ -13,48 +23,18 @@ npm run dev      # 开发模式（监听文件变化）
 npm run build    # 生产构建
 ```
 
-## 项目架构
+## 技术文档入口
 
-### 分层结构
+### 架构与模块
 
-```
-common/          ← 基础设施层（API、解析、文件）
-src/             ← 业务逻辑层（同步、设置、UI）
-main.ts          ← 入口层（插件注册）
-```
+- `docs/` 文档应该先怎么看：见 [README.md](./README.md)
+- `main.ts` 如何协调各入口：见 [ARCHITECTURE.md](./ARCHITECTURE.md)
+- 同步、自定义属性、导入导出、状态同步的判断规则：见 [LOGIC_REFERENCE.md](./LOGIC_REFERENCE.md)
 
-### 核心模块
+### 专题文档
 
-| 模块 | 职责 |
-|------|------|
-| `src/sync/` | 同步逻辑（SyncManager、IncrementalSync） |
-| `src/panel/` | 控制面板（ControlPanel、BatchEditor） |
-| `src/template/` | 内容模板处理与模板属性分类 |
-| `src/settings/` | 设置数据与 UI |
-| `src/ui/` | 同步弹窗 |
-| `src/userData/` | 用户数据保护 |
-| `src/i18n/` | 国际化 |
-
-### 自定义属性链路
-
-```
-模板 frontmatter
-    → templateProperties.ts 提取全部属性
-        → 过滤 Bangumi / 同步流程自动字段
-            → 生成 customProperties 定义
-                → 同步收藏 / 控制面板同步 / 搜索并添加 共用
-                → 强制同步继承 / 导入导出 共用
-```
-
-### 数据流
-
-```
-main.ts 入口
-    → SyncManager 协调同步
-        → BangumiClient 获取数据
-        → FileManager 写入文件
-        → ContentTemplate 生成内容
-```
+- 模板能力、模板变量、默认值：见 [TEMPLATE_GUIDE.md](./TEMPLATE_GUIDE.md)
+- 状态同步和单集功能的已知边界：见 [STATUS_SYNC_PITFALLS.md](./STATUS_SYNC_PITFALLS.md)
 
 ## 编码规范
 
@@ -172,6 +152,11 @@ gh release create 5.2.1 ./release/main.js ./release/manifest.json ./release/styl
 - 列表型自定义属性统一使用 YAML 数组表示，UI 输入统一按英文逗号拆分
 - 快速同步 / 自动同步路径不能弹窗，只能依赖模板默认值
 - 导出 / 导入 / 强制同步继承必须保持一致：辨识属性、自定义属性、记录/感想
+- 如果修改了字段分类规则，同时检查：
+  - `src/template/templateProperties.ts`
+  - `src/userData/types.ts` 中的 `BANGUMI_FIELDS`
+  - `docs/TEMPLATE_GUIDE.md`
+  - `docs/LOGIC_REFERENCE.md`
 
 ## 调试技巧
 
