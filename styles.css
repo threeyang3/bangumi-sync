@@ -1504,3 +1504,364 @@
 			justify-content: center;
 		}
 	}
+
+		/* 搜索弹窗适配 */
+		@media (max-width: 767px) {
+			.modal:has(.bangumi-search-modal) {
+				width: 95vw !important;
+				max-width: none !important;
+			}
+
+			.bangumi-search-input-container {
+				flex-wrap: wrap;
+			}
+
+			.bangumi-search-input {
+				width: 100%;
+				order: -1;
+			}
+
+			.bangumi-search-btn {
+				flex: 1;
+			}
+
+			/* 筛选栏折叠 */
+			.bangumi-search-filter {
+				flex-wrap: wrap;
+				gap: 8px;
+				padding: 8px;
+			}
+
+			.bangumi-search-filter.collapsed {
+				display: none;
+			}
+
+			.bangumi-search-filter-toggle {
+				display: flex;
+				width: 100%;
+				justify-content: center;
+				padding: 8px;
+				background: var(--background-secondary);
+				border-radius: 4px;
+				margin-bottom: 8px;
+			}
+
+			.bangumi-search-select {
+				flex: 1;
+				min-width: 100px;
+			}
+
+			/* 搜索结果 */
+			.bangumi-search-results {
+				max-height: 50vh;
+			}
+
+			.bangumi-search-result-item {
+				flex-wrap: wrap;
+				gap: 8px;
+			}
+
+			.bangumi-search-result-cover {
+				width: 40px;
+				height: 56px;
+			}
+
+			.bangumi-search-result-info {
+				flex: 1;
+				min-width: calc(100% - 60px);
+			}
+
+			.bangumi-search-result-add-btn {
+				width: 100%;
+				margin-top: 8px;
+			}
+		}
+
+		/* 添加收藏弹窗适配 */
+		@media (max-width: 767px) {
+			.modal:has(.bangumi-add-collection-modal) {
+				width: 95vw !important;
+				max-width: none !important;
+			}
+
+			.bangumi-add-collection-type {
+				flex-wrap: wrap;
+			}
+
+			.bangumi-add-collection-type-btn {
+				flex: 1;
+				min-width: 60px;
+			}
+
+			.bangumi-add-collection-tags {
+				flex-wrap: wrap;
+			}
+
+			.bangumi-template-textarea {
+				height: 250px;
+			}
+		}
+
+		/* 本地属性弹窗适配 */
+		@media (max-width: 767px) {
+			.modal:has(.bangumi-local-property-modal) {
+				width: 95vw !important;
+				max-width: none !important;
+			}
+
+			.bangumi-local-property-grid {
+				grid-template-columns: 1fr;
+				gap: 12px;
+			}
+
+			.bangumi-local-property-section {
+				padding: 10px;
+			}
+
+			.bangumi-local-property-section h3 {
+				font-size: 14px;
+			}
+		}
+
+		/* 状态同步弹窗适配 */
+		@media (max-width: 767px) {
+			.modal:has(.bangumi-status-sync-modal) {
+				width: 100vw !important;
+				height: 100vh !important;
+				max-width: none !important;
+				max-height: none !important;
+			}
+
+			.bangumi-status-sync-actions {
+				flex-wrap: wrap;
+				gap: 6px;
+			}
+
+			.bangumi-status-sync-actions button {
+				flex: 1;
+				min-width: 80px;
+			}
+
+			.bangumi-status-sync-table {
+				flex: 1;
+			}
+
+			.bangumi-status-sync-table th,
+			.bangumi-status-sync-table td {
+				padding: 8px;
+				font-size: 12px;
+			}
+
+			.bangumi-name-cell {
+				width: 40% !important;
+			}
+
+			.bangumi-fields-cell {
+				width: 60% !important;
+			}
+
+			.bangumi-action-cell {
+				width: 100% !important;
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				padding-top: 8px;
+				border-top: 1px solid var(--background-modifier-border);
+			}
+
+			.bangumi-detail-row td {
+				padding: 6px;
+			}
+
+			.bangumi-sync-decision-select {
+				min-width: 100px;
+			}
+
+			.bangumi-status-sync-footer {
+				flex-direction: column;
+				gap: 8px;
+			}
+
+			.bangumi-status-sync-footer button {
+				width: 100%;
+			}
+		}
+
+		/* 同步预览弹窗适配 */
+		@media (max-width: 767px) {
+			.bangumi-preview-list {
+				max-height: 50vh;
+			}
+
+			.bangumi-preview-item {
+				flex-wrap: wrap;
+				gap: 8px;
+				padding: 10px;
+			}
+
+			.bangumi-preview-item-header {
+				width: 100%;
+			}
+
+			.bangumi-preview-details {
+				width: 100%;
+				margin-left: 0;
+				flex-wrap: wrap;
+				gap: 6px;
+			}
+
+			.bangumi-preview-detail-field {
+				flex: 1;
+				min-width: 80px;
+			}
+
+			.bangumi-preview-quick {
+				flex-wrap: wrap;
+				gap: 6px;
+			}
+
+			.bangumi-preview-quick button {
+				flex: 1;
+			}
+		}
+
+		/* 设置面板适配 */
+		@media (max-width: 767px) {
+			.bangumi-help-links {
+				flex-direction: column;
+				gap: 8px;
+			}
+
+			.bangumi-help-links .setting-item {
+				flex-direction: column;
+				align-items: flex-start;
+				gap: 8px;
+			}
+
+			.bangumi-help-links .setting-item-control {
+				width: 100%;
+			}
+
+			.bangumi-help-links .setting-item-control button {
+				width: 100%;
+			}
+
+			.bangumi-path-template-setting {
+				padding: 0;
+			}
+
+			.bangumi-path-input {
+				font-size: 14px;
+			}
+
+			.bangumi-checkbox-group {
+				flex-direction: column;
+				gap: 8px;
+				padding: 8px;
+			}
+
+			.bangumi-checkbox-label {
+				width: 100%;
+				padding: 10px 12px;
+			}
+
+			.bangumi-template-help {
+				padding: 8px;
+			}
+
+			.bangumi-var-tag {
+				font-size: 11px;
+				padding: 2px 4px;
+				margin: 1px;
+			}
+
+			.bangumi-template-textarea {
+				height: 250px;
+				font-size: 12px;
+			}
+
+			.bangumi-setting-desc {
+				font-size: 12px;
+			}
+		}
+
+		/* 模板正文 bangumi-info callout 适配 */
+		@media (max-width: 767px) {
+			.callout[data-callout="bangumi-info"] .callout-content,
+			.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content {
+				flex-direction: column !important;
+				align-items: center !important;
+			}
+
+			.callout[data-callout="bangumi-info"] .callout-content > :first-child,
+			.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :first-child {
+				flex: none !important;
+				width: 100% !important;
+			}
+
+			.callout[data-callout="bangumi-info"] .callout-content > :last-child,
+			.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :last-child {
+				flex: none !important;
+				width: 100% !important;
+			}
+
+			.callout[data-callout="bangumi-info"] img,
+			.markdown-rendered .callout[data-callout="bangumi-info"] img {
+				width: 100% !important;
+				max-width: 280px !important;
+				height: auto !important;
+				margin: 0 auto !important;
+				display: block !important;
+			}
+
+			.callout[data-callout="bangumi-info"] .callout-content > p,
+			.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > p {
+				text-align: center !important;
+				flex-shrink: 0 !important;
+				display: flex !important;
+				justify-content: center !important;
+			}
+		}
+
+		/* 批量编辑器适配 */
+		@media (max-width: 767px) {
+			.bangumi-batch-editor {
+				width: 100%;
+			}
+
+			.bangumi-batch-editor-info {
+				font-size: 12px;
+				padding: 8px;
+			}
+
+			.bangumi-operation-list {
+				max-height: 150px;
+			}
+
+			.bangumi-operation-item {
+				flex-wrap: wrap;
+				gap: 6px;
+				padding: 8px;
+				font-size: 12px;
+			}
+
+			.bangumi-add-operation {
+				flex-wrap: wrap;
+				gap: 6px;
+				padding: 8px;
+			}
+
+			.bangumi-property-input,
+			.bangumi-value-input {
+				width: 100%;
+				min-width: 0;
+			}
+		}
+
+		/* 模板编辑器适配 */
+		@media (max-width: 767px) {
+			.bangumi-template-textarea {
+				height: 200px;
+				font-size: 12px;
+			}
+		}
