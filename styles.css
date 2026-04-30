@@ -1367,3 +1367,140 @@
 		overscroll-behavior: contain;
 	}
 }
+
+	/* 控制面板适配 */
+	@media (max-width: 767px) {
+		.modal:has(.bangumi-control-panel) {
+			width: 100vw !important;
+			height: 100vh !important;
+			max-width: none !important;
+			max-height: none !important;
+		}
+
+		.bangumi-control-panel h2 {
+			font-size: 18px;
+			margin-bottom: 10px;
+		}
+
+		/* 筛选栏 */
+		.bangumi-panel-filter-bar {
+			flex-wrap: wrap;
+			gap: 8px;
+			padding: 8px;
+		}
+
+		.bangumi-filter-select {
+			flex: 1;
+			min-width: 100px;
+		}
+
+		.bangumi-filter-search {
+			width: 100%;
+			order: -1;
+		}
+
+		/* 操作栏 */
+		.bangumi-panel-action-bar {
+			flex-wrap: wrap;
+			gap: 6px;
+			padding: 8px;
+		}
+
+		.bangumi-action-btn {
+			font-size: 12px;
+			padding: 8px 12px;
+			flex: 1;
+			min-width: 80px;
+		}
+
+		.bangumi-selected-count {
+			width: 100%;
+			text-align: center;
+			margin-top: 8px;
+			order: 99;
+		}
+
+		/* 表格改卡片 */
+		.bangumi-collection-table thead {
+			display: none;
+		}
+
+		.bangumi-collection-table tbody {
+			display: flex;
+			flex-direction: column;
+			gap: 12px;
+		}
+
+		.bangumi-collection-table tr {
+			display: flex;
+			flex-wrap: wrap;
+			padding: 12px;
+			border: 1px solid var(--background-modifier-border);
+			border-radius: 8px;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.bangumi-collection-table tr:hover {
+			background: var(--background-secondary);
+		}
+
+		.bangumi-collection-table td {
+			border: none;
+			padding: 4px;
+		}
+
+		/* 卡片布局 */
+		.bangumi-collection-table td:first-child {
+			order: 1;
+			width: auto;
+		}
+
+		.bangumi-name-cell {
+			order: 2;
+			flex: 1;
+			min-width: 0;
+			max-width: none !important;
+		}
+
+		.bangumi-collection-table td:nth-child(3),
+		.bangumi-collection-table td:nth-child(4) {
+			order: 3;
+			width: auto;
+		}
+
+		.bangumi-tags-cell {
+			order: 4;
+			width: 100%;
+			white-space: normal;
+		}
+
+		.bangumi-sync-status {
+			order: 5;
+		}
+
+		.bangumi-action-cell {
+			order: 6;
+			width: 100%;
+			display: flex;
+			justify-content: flex-end;
+			gap: 8px;
+			padding-top: 8px;
+			border-top: 1px solid var(--background-modifier-border);
+		}
+
+		/* 分页 */
+		.bangumi-panel-pagination {
+			flex-direction: column;
+			gap: 8px;
+		}
+
+		.bangumi-pagination-info {
+			text-align: center;
+		}
+
+		.bangumi-pagination-buttons {
+			width: 100%;
+			justify-content: center;
+		}
+	}

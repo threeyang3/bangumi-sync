@@ -18,6 +18,7 @@ import { tn } from '../i18n';
 import { EpisodeStatusManager } from '../episode/episodeStatusManager';
 import { SubjectNoteManager } from '../note/subjectNoteManager';
 import { hasLocalPropertyFieldsForCollections, loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult } from '../ui/localPropertyModal';
+import { isMobile } from '../utils/mobile';
 
 /**
  * 本地条目信息
@@ -86,6 +87,10 @@ export class ControlPanel extends Modal {
 
 	// 自动触发状态同步
 	private autoSyncStatus: boolean;
+
+	// 滑动关闭（移动端）
+	private touchStartY: number = 0;
+	private touchCurrentY: number = 0;
 
 	constructor(
 		app: App,
@@ -167,6 +172,9 @@ export class ControlPanel extends Modal {
 			// 无缓存，加载数据
 			void this.loadData();
 		}
+
+		// 设置滑动关闭（移动端）
+		this.setupSwipeToClose();
 	}
 
 	onClose(): void {
@@ -1175,6 +1183,36 @@ export class ControlPanel extends Modal {
 				row.removeClass('focused');
 			}
 		});
+	}
+
+	/**
+	 * 设置滑动关闭手势（仅移动端）
+	 */
+	private setupSwipeToClose(): void {
+		if (!isMobile()) return;
+
+		this.contentEl.addEventListener('touchstart', (e) => {
+			this.touchStartY = e.touches[0].clientY;
+		}, { passive: true });
+
+		this.contentEl.addEventListener('touchmove', (e) => {
+			this.touchCurrentY = e.touches[0].clientY;
+			const diff = this.touchCurrentY - this.touchStartY;
+			if (diff > 0) {
+				this.contentEl.style.transform = `translateY(${diff}px)`;
+				this.contentEl.style.opacity = String(1 - diff / 300);
+			}
+		}, { passive: true });
+
+		this.contentEl.addEventListener('touchend', () => {
+			const diff = this.touchCurrentY - this.touchStartY;
+			if (diff > 100) {
+				this.close();
+			} else {
+				this.contentEl.style.transform = '';
+				this.contentEl.style.opacity = '';
+			}
+		}, { passive: true });
 	}
 }
 
