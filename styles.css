@@ -1310,3 +1310,60 @@
 	background: var(--background-secondary);
 	border-color: var(--interactive-accent);
 }
+
+/* ==================== 移动端适配 ==================== */
+
+/* 通用弹窗适配 */
+@media (max-width: 767px) {
+	.modal {
+		width: 95vw !important;
+		max-width: none !important;
+		max-height: 90vh !important;
+	}
+
+	.modal-content {
+		padding: 12px;
+	}
+
+	/* 按钮容器垂直排列 */
+	.bangumi-modal-buttons {
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.bangumi-modal-buttons button {
+		width: 100%;
+	}
+
+	/* 更大的点击区域 */
+	.bangumi-action-btn,
+	.bangumi-action-btn-small,
+	.bangumi-search-btn {
+		min-height: 44px;
+		min-width: 44px;
+		padding: 10px 16px;
+	}
+
+	.bangumi-filter-select,
+	.bangumi-search-input,
+	.bangumi-local-property-input {
+		min-height: 44px;
+		font-size: 16px; /* 防止 iOS 缩放 */
+	}
+
+	/* 复选框更大 */
+	.bangumi-collection-table input[type="checkbox"],
+	.bangumi-preview-checkbox {
+		width: 24px;
+		height: 24px;
+	}
+
+	/* 滚动优化 */
+	.bangumi-panel-table,
+	.bangumi-search-results,
+	.bangumi-preview-list,
+	.bangumi-status-sync-table {
+		-webkit-overflow-scrolling: touch;
+		overscroll-behavior: contain;
+	}
+}
