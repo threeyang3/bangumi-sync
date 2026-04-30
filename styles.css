@@ -1865,3 +1865,10 @@
 				font-size: 12px;
 			}
 		}
+
+/* 滑动关闭手势样式 */
+.is-swiping {
+	transform: translateY(var(--swipe-y, 0));
+	opacity: var(--swipe-opacity, 1);
+	transition: none;
+}

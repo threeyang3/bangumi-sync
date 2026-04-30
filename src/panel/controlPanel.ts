@@ -1213,8 +1213,11 @@ export class ControlPanel extends Modal {
 			this.touchCurrentY = e.touches[0].clientY;
 			const diff = this.touchCurrentY - this.touchStartY;
 			if (diff > 0) {
-				this.contentEl.style.transform = `translateY(${diff}px)`;
-				this.contentEl.style.opacity = String(1 - diff / 300);
+				this.contentEl.setCssProps({
+					'--swipe-y': `${diff}px`,
+					'--swipe-opacity': String(1 - diff / 300),
+				});
+				this.contentEl.addClass('is-swiping');
 			}
 		};
 
@@ -1223,8 +1226,11 @@ export class ControlPanel extends Modal {
 			if (diff > 100) {
 				this.close();
 			} else {
-				this.contentEl.style.transform = '';
-				this.contentEl.style.opacity = '';
+				this.contentEl.setCssProps({
+					'--swipe-y': '',
+					'--swipe-opacity': '',
+				});
+				this.contentEl.removeClass('is-swiping');
 			}
 		};
 
