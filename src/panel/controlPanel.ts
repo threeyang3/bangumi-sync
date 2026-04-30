@@ -91,6 +91,9 @@ export class ControlPanel extends Modal {
 	// 滑动关闭（移动端）
 	private touchStartY: number = 0;
 	private touchCurrentY: number = 0;
+	private touchStartHandler: ((e: TouchEvent) => void) | null = null;
+	private touchMoveHandler: ((e: TouchEvent) => void) | null = null;
+	private touchEndHandler: (() => void) | null = null;
 
 	constructor(
 		app: App,
@@ -178,6 +181,17 @@ export class ControlPanel extends Modal {
 	}
 
 	onClose(): void {
+		// 清理触摸事件监听器
+		if (this.touchStartHandler) {
+			this.contentEl.removeEventListener('touchstart', this.touchStartHandler);
+		}
+		if (this.touchMoveHandler) {
+			this.contentEl.removeEventListener('touchmove', this.touchMoveHandler);
+		}
+		if (this.touchEndHandler) {
+			this.contentEl.removeEventListener('touchend', this.touchEndHandler);
+		}
+
 		const { contentEl } = this;
 		contentEl.empty();
 	}
@@ -1191,20 +1205,20 @@ export class ControlPanel extends Modal {
 	private setupSwipeToClose(): void {
 		if (!isMobile()) return;
 
-		this.contentEl.addEventListener('touchstart', (e) => {
+		this.touchStartHandler = (e) => {
 			this.touchStartY = e.touches[0].clientY;
-		}, { passive: true });
+		};
 
-		this.contentEl.addEventListener('touchmove', (e) => {
+		this.touchMoveHandler = (e) => {
 			this.touchCurrentY = e.touches[0].clientY;
 			const diff = this.touchCurrentY - this.touchStartY;
 			if (diff > 0) {
 				this.contentEl.style.transform = `translateY(${diff}px)`;
 				this.contentEl.style.opacity = String(1 - diff / 300);
 			}
-		}, { passive: true });
+		};
 
-		this.contentEl.addEventListener('touchend', () => {
+		this.touchEndHandler = () => {
 			const diff = this.touchCurrentY - this.touchStartY;
 			if (diff > 100) {
 				this.close();
@@ -1212,7 +1226,11 @@ export class ControlPanel extends Modal {
 				this.contentEl.style.transform = '';
 				this.contentEl.style.opacity = '';
 			}
-		}, { passive: true });
+		};
+
+		this.contentEl.addEventListener('touchstart', this.touchStartHandler, { passive: true });
+		this.contentEl.addEventListener('touchmove', this.touchMoveHandler, { passive: true });
+		this.contentEl.addEventListener('touchend', this.touchEndHandler, { passive: true });
 	}
 }
 
