@@ -220,11 +220,11 @@ export default class BangumiPlugin extends Plugin {
 	 * 加载设置
 	 */
 	async loadSettings() {
-		const loadedData = await this.loadData() as Partial<BangumiPluginSettings> & { defaultPropertyValues?: unknown };
-		if ('defaultPropertyValues' in loadedData) {
+		const loadedData = await this.loadData() as Partial<BangumiPluginSettings> & { defaultPropertyValues?: unknown } | null;
+		if (loadedData && 'defaultPropertyValues' in loadedData) {
 			delete loadedData.defaultPropertyValues;
 		}
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData ?? {});
 
 		// 迁移：如果路径模板使用 {{name_cn}} 而不是 {{name_cn_with_type}}，自动更新
 		if (this.settings.syncPathTemplate &&
