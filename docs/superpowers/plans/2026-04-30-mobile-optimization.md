@@ -8,6 +8,8 @@
 
 **Tech Stack:** TypeScript, CSS Media Queries, Obsidian Plugin API
 
+**Current status (2026-05-02):** 本文件是原始执行计划，不再是完全准确的待办清单。`v5.3.2` 已完成控制面板移动端卡片化、紧凑工具栏、状态栏/分页压缩、自定义勾选样式、iOS 安全区关闭按钮和顶部滚动下拉关闭防误触，并发布 `5.3.2` prerelease 供 BRAT 测试。搜索弹窗筛选栏折叠、状态同步折叠列表、设置页分组折叠仍未完整实现，不能按下方自检清单视为已完成。
+
 ---
 
 ## 文件结构
@@ -40,10 +42,10 @@
 
 /**
  * 检测是否为移动设备
- * 依据：屏幕宽度 < 768px 或支持触摸事件
+ * 依据：屏幕宽度 < 768px
  */
 export function isMobile(): boolean {
-	return window.innerWidth < 768 || 'ontouchstart' in window;
+	return window.matchMedia('(max-width: 767px)').matches;
 }
 
 /**

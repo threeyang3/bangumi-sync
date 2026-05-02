@@ -6,6 +6,20 @@ type: project
 
 # 移动端优化设计
 
+## 当前实现状态（2026-05-02）
+
+截至 `v5.3.2`，`mobile` 分支已经完成控制面板移动端优先优化，并发布同名 prerelease 供 BRAT 测试。已落地内容包括：
+
+- 控制面板在移动端使用卡片式条目列表，左列放选择框和已同步条目的“打开 / 笔记”按钮，右列放标题、元数据、短评、标签
+- 顶部操作栏压缩为更紧凑的按钮网格，并补充边框按钮样式
+- 状态栏将 `已选` 计数放到加载状态文字右侧
+- 底部分页压缩为“上一页 / 页码 / 下一页”单行布局
+- 控制面板关闭按钮避开 iOS 顶部状态栏安全区
+- 滑动关闭只在列表滚动到顶部时启用，减少误触
+- 移动端检测只使用 `max-width: 767px` 断点，不再把触摸屏桌面设备误判为移动端
+
+未完整落地的原始设想仍包括：搜索弹窗筛选栏折叠、状态同步弹窗折叠列表、设置页分组折叠。这些内容仍可作为后续计划，但不要按本文旧草案误判为已经全部完成。
+
 ## 背景
 
 Bangumi Sync 插件已在 `manifest.json` 中声明支持移动端（`isDesktopOnly: false`），但现有 UI 主要针对桌面端设计，存在以下问题：
@@ -32,10 +46,10 @@ Bangumi Sync 插件已在 `manifest.json` 中声明支持移动端（`isDesktopO
 ```typescript
 /**
  * 检测是否为移动设备
- * 依据：屏幕宽度 < 768px 或支持触摸事件
+ * 依据：屏幕宽度 < 768px
  */
 export function isMobile(): boolean {
-  return window.innerWidth < 768 || 'ontouchstart' in window;
+  return window.matchMedia('(max-width: 767px)').matches;
 }
 
 /**
@@ -295,11 +309,11 @@ private setupSwipeToClose(): void {
 | `src/utils/mobile.ts` | 新增 | 设备检测工具函数 |
 | `styles.css` | 修改 | 添加移动端媒体查询 |
 | `src/panel/controlPanel.ts` | 修改 | 添加卡片视图渲染逻辑 |
-| `src/panel/statusSyncModal.ts` | 修改 | 添加折叠列表支持 |
-| `src/ui/searchModal.ts` | 修改 | 筛选栏折叠功能 |
+| `src/panel/statusSyncModal.ts` | 待后续确认 | 原计划添加折叠列表支持，v5.3.2 尚未完整实现 |
+| `src/ui/searchModal.ts` | 待后续确认 | 原计划添加筛选栏折叠功能，v5.3.2 尚未完整实现 |
 | `src/ui/localPropertyModal.ts` | 修改 | 移动端布局适配 |
 | `src/ui/addToCollectionModal.ts` | 修改 | 移动端布局适配 |
-| `src/settings/settingsTab.ts` | 修改 | 设置分组折叠 |
+| `src/settings/settingsTab.ts` | 待后续确认 | 原计划添加设置分组折叠，v5.3.2 尚未完整实现 |
 
 ## 测试计划
 

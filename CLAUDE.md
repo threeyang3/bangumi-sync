@@ -95,6 +95,22 @@ bangumi/
   - `git push`
 - 如果 `git push` 与 GitHub 的 HTTPS / TLS 通道异常，而 `gh` 仍可访问 GitHub API，优先继续尝试 `gh` 路径或调整 git 后端，而不是直接放弃同步
 
+## 移动端测试发布注意事项
+
+- `mobile` 分支用于移动端体验测试，不要直接合并到 `main` 影响正在等待 Obsidian 官方审查的版本
+- BRAT 测试版 release 的 tag 必须与 `manifest.json` 里的 `version` 完全一致
+- 当前移动端测试版使用纯版本号 tag，并通过 GitHub prerelease 提供 `main.js`、`manifest.json`、`styles.css`
+- 如果为了测试创建了旧 prerelease，删除时使用 `gh release delete {版本号} --yes --cleanup-tag` 同时清理 tag，避免 BRAT 看到多个入口
+- Release notes 要用真正的多行 Markdown，不能把 `\n` 当作字面量写进 `--notes`
+
+## 移动端控制面板注意事项
+
+- 移动端判断只按 `window.matchMedia('(max-width: 767px)')`，不要把触摸屏作为移动端条件，否则触摸屏 Windows 桌面会误走移动端布局
+- 桌面端控制面板继续保留表格布局；移动端通过 CSS 媒体查询把表格行改成卡片
+- 移动端条目卡片左列放选择框和已同步条目的“打开 / 笔记”按钮，右列放标题、元数据、短评、标签
+- 移动端状态栏中 `已选` 计数和加载状态同排显示，分页为“上一页 / 页码 / 下一页”单行布局
+- 滑动关闭只在 `.bangumi-panel-table` 滚动到顶部时启用，避免列表滚动时误关闭面板
+
 ## 同步注意事项
 
 - 收藏更新统一使用 `POST /v0/users/-/collections/{subject_id}`

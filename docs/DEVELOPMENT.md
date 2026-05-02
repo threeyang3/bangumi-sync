@@ -93,11 +93,11 @@ console.log('信息');  // 不允许
 
 ### 1. 更新版本号
 
-同时更新 `manifest.json` 和 `package.json`：
+同时更新 `manifest.json`、`package.json`、`package-lock.json` 和 `versions.json`：
 
 ```json
 {
-  "version": "5.2.1"
+  "version": "{版本号}"
 }
 ```
 
@@ -111,21 +111,21 @@ npm run build
 
 ```bash
 # 创建版本目录
-mkdir -p release/v5.2.1
+mkdir -p release/v{版本号}
 
 # 复制文件
 cp main.js manifest.json styles.css release/
-cp main.js manifest.json styles.css release/v5.2.1/
+cp main.js manifest.json styles.css release/v{版本号}/
 
 # 创建 zip（可选）
-cd archives && powershell -Command "Compress-Archive -Path ../release/main.js,../release/manifest.json,../release/styles.css -DestinationPath bangumi-sync-v5.2.1.zip -Force"
+cd archives && powershell -Command "Compress-Archive -Path ../release/main.js,../release/manifest.json,../release/styles.css -DestinationPath bangumi-sync-v{版本号}.zip -Force"
 ```
 
 ### 4. 提交并推送
 
 ```bash
 git add -A
-git commit -m "release: v5.2.1"
+git commit -m "release: v{版本号}"
 git push
 ```
 
@@ -134,8 +134,8 @@ git push
 **重要**：Release tag 必须与 manifest.json 版本号完全一致，不带 `v` 前缀。
 
 ```bash
-gh release create 5.2.1 ./release/main.js ./release/manifest.json ./release/styles.css \
-  --title "v5.2.1" \
+gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css \
+  --title "v{版本号}" \
   --notes "更新内容说明"
 ```
 
@@ -144,6 +144,21 @@ gh release create 5.2.1 ./release/main.js ./release/manifest.json ./release/styl
 - 必须包含单独的文件：`main.js`、`manifest.json`、`styles.css`
 - 不能只上传 zip 文件
 - Tag 必须是纯版本号（如 `4.7.4`），不能带 `v` 前缀
+- Tag 必须与 `manifest.json` 里的 `version` 完全一致，否则 BRAT 无法按 release tag 正常安装
+- Release notes 需要传入真正的多行 Markdown，不要把 `\n` 当作字面量写入
+
+### BRAT 测试版发布
+
+如需在不合并 `main` 的情况下提供移动端或其他试验版给 BRAT 测试：
+
+1. 在测试分支上把 `manifest.json`、`package.json`、`package-lock.json`、`versions.json` 更新到新的纯版本号，例如 `5.3.2`
+2. 运行 `npm run lint` 和 `npm run build`
+3. 提交并推送测试分支
+4. 创建同名 tag 并推送：`git tag {版本号}`、`git push origin {版本号}`
+5. 使用 `gh release create {版本号} ... --prerelease` 创建 prerelease
+6. 若替换测试版本，删除旧 prerelease 时同时清理旧 tag：`gh release delete {旧版本号} --yes --cleanup-tag`
+
+测试版 tag 也必须与 `manifest.json` 版本一致。不要复用正在等待 Obsidian 官方审查的版本号。
 
 ## 自定义属性开发约束
 
