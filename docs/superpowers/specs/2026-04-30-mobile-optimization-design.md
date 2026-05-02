@@ -8,7 +8,7 @@ type: project
 
 ## 当前实现状态（2026-05-02）
 
-截至 `v5.3.2`，`mobile` 分支已经完成控制面板移动端优先优化，并发布同名 prerelease 供 BRAT 测试。已落地内容包括：
+截至 `v5.3.3`，`mobile` 分支已经完成控制面板移动端优先优化，并发布同名 prerelease 供 BRAT 测试。已落地内容包括：
 
 - 控制面板在移动端使用卡片式条目列表，左列放选择框和已同步条目的“打开 / 笔记”按钮，右列放标题、元数据、短评、标签
 - 顶部操作栏压缩为更紧凑的按钮网格，并补充边框按钮样式
@@ -309,11 +309,11 @@ private setupSwipeToClose(): void {
 | `src/utils/mobile.ts` | 新增 | 设备检测工具函数 |
 | `styles.css` | 修改 | 添加移动端媒体查询 |
 | `src/panel/controlPanel.ts` | 修改 | 添加卡片视图渲染逻辑 |
-| `src/panel/statusSyncModal.ts` | 待后续确认 | 原计划添加折叠列表支持，v5.3.2 尚未完整实现 |
-| `src/ui/searchModal.ts` | 待后续确认 | 原计划添加筛选栏折叠功能，v5.3.2 尚未完整实现 |
+| `src/panel/statusSyncModal.ts` | 待后续确认 | 原计划添加折叠列表支持，v5.3.3 尚未完整实现 |
+| `src/ui/searchModal.ts` | 待后续确认 | 原计划添加筛选栏折叠功能，v5.3.3 尚未完整实现 |
 | `src/ui/localPropertyModal.ts` | 修改 | 移动端布局适配 |
 | `src/ui/addToCollectionModal.ts` | 修改 | 移动端布局适配 |
-| `src/settings/settingsTab.ts` | 待后续确认 | 原计划添加设置分组折叠，v5.3.2 尚未完整实现 |
+| `src/settings/settingsTab.ts` | 待后续确认 | 原计划添加设置分组折叠，v5.3.3 尚未完整实现 |
 
 ## 测试计划
 
