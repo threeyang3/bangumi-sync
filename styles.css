@@ -1381,6 +1381,12 @@
 			max-height: none !important;
 		}
 
+		.modal:has(.bangumi-control-panel) .modal-close-button {
+			top: calc(env(safe-area-inset-top, 0px) + 16px) !important;
+			right: 16px !important;
+			z-index: 10;
+		}
+
 		.bangumi-control-panel h2 {
 			font-size: 18px;
 			margin-bottom: 10px;
@@ -1442,14 +1448,16 @@
 		}
 
 		.bangumi-collection-table tr {
-			display: flex;
-			flex-direction: column;
+			display: grid;
+			grid-template-columns: 30px minmax(0, 1fr);
 			padding: 12px;
 			border: 1px solid var(--background-modifier-border);
 			border-radius: 8px;
-			gap: 6px;
+			column-gap: 10px;
+			row-gap: 6px;
 			width: 100%;
 			box-sizing: border-box;
+			align-items: start;
 		}
 
 		.bangumi-collection-table tr:hover {
@@ -1461,20 +1469,23 @@
 			padding: 0;
 		}
 
-		/* 第一行：复选框 + 标题 */
+		/* 左侧：选择框 */
 		.bangumi-collection-table td:first-child {
-			order: 1;
+			grid-column: 1;
+			grid-row: 1 / span 4;
 			display: flex;
-			align-items: center;
-			gap: 8px;
-			width: 100%;
+			align-items: flex-start;
+			justify-content: center;
+			width: auto;
+			padding-top: 2px;
 		}
 
-		/* 标题 - 填充剩余宽度，超长截断 */
+		/* 右侧第一行：标题，填满选择框右侧宽度 */
 		.bangumi-name-cell {
-			order: 2;
-			flex: 1;
+			grid-column: 2;
+			grid-row: 1;
 			min-width: 0;
+			width: 100%;
 			font-weight: 500;
 			/* 允许标题在空间不足时截断，而不是换行 */
 			overflow: hidden;
@@ -1489,7 +1500,8 @@
 
 		/* 元数据行：将类型、状态、评分、同步状态放在同一行 */
 		.bangumi-mobile-meta {
-			order: 3;
+			grid-column: 2;
+			grid-row: 2;
 			display: flex;
 			flex-wrap: wrap;
 			gap: 4px 8px;
@@ -1520,7 +1532,8 @@
 
 		/* 短评 - 拉满宽度，在行末截断 */
 		.bangumi-comment-cell {
-			order: 4;
+			grid-column: 2;
+			grid-row: 3;
 			width: 100%;
 			font-size: 12px;
 			color: var(--text-muted);
@@ -1531,7 +1544,8 @@
 
 		/* 标签 - 拉满宽度，在行末截断 */
 		.bangumi-tags-cell {
-			order: 5;
+			grid-column: 2;
+			grid-row: 4;
 			width: 100%;
 			white-space: nowrap;
 			overflow: hidden;
@@ -1541,7 +1555,8 @@
 
 		/* 操作按钮 */
 		.bangumi-action-cell {
-			order: 6;
+			grid-column: 1 / -1;
+			grid-row: 5;
 			display: flex;
 			justify-content: flex-end;
 			gap: 8px;
