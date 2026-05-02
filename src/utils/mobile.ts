@@ -4,10 +4,10 @@
 
 /**
  * 检测是否为移动设备
- * 依据：屏幕宽度 < 768px 或支持触摸事件
+ * 依据：屏幕宽度 < 768px
  */
 export function isMobile(): boolean {
-	return window.innerWidth < 768 || 'ontouchstart' in window;
+	return window.matchMedia('(max-width: 767px)').matches;
 }
 
 /**

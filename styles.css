@@ -979,6 +979,10 @@
 	background: var(--background-secondary);
 }
 
+.bangumi-mobile-meta {
+	display: none;
+}
+
 .bangumi-cover-thumb {
 	width: 50px;
 	height: 70px;
@@ -1420,25 +1424,32 @@
 			order: 99;
 		}
 
-		/* 表格改卡片 */
+		/* 表格改卡片 - 纵向布局优化 */
 		.bangumi-collection-table thead {
 			display: none;
+		}
+
+		.bangumi-collection-table {
+			width: 100%;
+			table-layout: fixed;
 		}
 
 		.bangumi-collection-table tbody {
 			display: flex;
 			flex-direction: column;
-			gap: 12px;
+			gap: 10px;
+			width: 100%;
 		}
 
 		.bangumi-collection-table tr {
 			display: flex;
-			flex-wrap: wrap;
+			flex-direction: column;
 			padding: 12px;
 			border: 1px solid var(--background-modifier-border);
 			border-radius: 8px;
-			align-items: center;
-			gap: 8px;
+			gap: 6px;
+			width: 100%;
+			box-sizing: border-box;
 		}
 
 		.bangumi-collection-table tr:hover {
@@ -1447,45 +1458,95 @@
 
 		.bangumi-collection-table td {
 			border: none;
-			padding: 4px;
+			padding: 0;
 		}
 
-		/* 卡片布局 */
+		/* 第一行：复选框 + 标题 */
 		.bangumi-collection-table td:first-child {
 			order: 1;
-			width: auto;
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			width: 100%;
 		}
 
+		/* 标题 - 填充剩余宽度，超长截断 */
 		.bangumi-name-cell {
 			order: 2;
 			flex: 1;
 			min-width: 0;
-			max-width: none !important;
+			font-weight: 500;
+			/* 允许标题在空间不足时截断，而不是换行 */
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 
-		.bangumi-collection-table td:nth-child(3),
-		.bangumi-collection-table td:nth-child(4) {
+		/* 隐藏原标题（日语标题） */
+		.bangumi-name-original {
+			display: none;
+		}
+
+		/* 元数据行：将类型、状态、评分、同步状态放在同一行 */
+		.bangumi-mobile-meta {
 			order: 3;
-			width: auto;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 4px 8px;
+			font-size: 12px;
+			color: var(--text-muted);
+			width: 100%;
 		}
 
-		.bangumi-tags-cell {
+		.bangumi-mobile-meta-item {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+		}
+
+		.bangumi-mobile-meta-item:not(:last-child)::after {
+			content: '·';
+			margin-left: 4px;
+			color: var(--text-faint);
+		}
+
+		/* 隐藏原始的元数据单元格（移动端用 .bangumi-mobile-meta 替代） */
+		.bangumi-collection-table td:nth-child(3),
+		.bangumi-collection-table td:nth-child(4),
+		.bangumi-collection-table td:nth-child(5),
+		.bangumi-collection-table td:nth-child(8) {
+			display: none;
+		}
+
+		/* 短评 - 拉满宽度，在行末截断 */
+		.bangumi-comment-cell {
 			order: 4;
 			width: 100%;
-			white-space: normal;
+			font-size: 12px;
+			color: var(--text-muted);
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
 		}
 
-		.bangumi-sync-status {
+		/* 标签 - 拉满宽度，在行末截断 */
+		.bangumi-tags-cell {
 			order: 5;
+			width: 100%;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			font-size: 12px;
 		}
 
+		/* 操作按钮 */
 		.bangumi-action-cell {
 			order: 6;
-			width: 100%;
 			display: flex;
 			justify-content: flex-end;
 			gap: 8px;
 			padding-top: 8px;
+			margin-top: 2px;
 			border-top: 1px solid var(--background-modifier-border);
 		}
 

@@ -80,6 +80,21 @@ bangumi/
 - 提交前至少运行 `npm run lint` 和 `npm run build`
 - 本地 ESLint 配置用于尽量复现 Obsidian 社区扫描，不要随意删改 `eslint.config.mjs`
 
+## GitHub 操作约定
+
+- 以后默认优先使用 `gh` 完成 GitHub 相关操作
+- 包括但不限于：
+  - 检查认证状态
+  - 查看仓库 / release / tag 信息
+  - 创建 release
+  - 需要时通过 GitHub API 辅助排查远端问题
+- `git` 仍用于本地版本控制操作，例如：
+  - `git status`
+  - `git add`
+  - `git commit`
+  - `git push`
+- 如果 `git push` 与 GitHub 的 HTTPS / TLS 通道异常，而 `gh` 仍可访问 GitHub API，优先继续尝试 `gh` 路径或调整 git 后端，而不是直接放弃同步
+
 ## 同步注意事项
 
 - 收藏更新统一使用 `POST /v0/users/-/collections/{subject_id}`
@@ -145,6 +160,7 @@ rating: {{rating|未评分}}
 - Release notes 按 `新功能`、`改进`、`修复` 三部分组织
 - 某一部分没有内容时不要保留空标题
 - Release notes 必须使用真正的多行 Markdown 列表，不要把 `\n` 当作字面量写入单段文本
+- GitHub 相关步骤默认先尝试 `gh`
 
 ```bash
 # 1. 更新版本号（manifest.json, package.json）
@@ -160,7 +176,7 @@ cp main.js manifest.json styles.css release/v{版本号}/
 git add -A && git commit -m "release: v{版本号}"
 git push
 
-# 5. 创建 GitHub Release（tag 不带 v 前缀）
+# 5. 使用 gh 创建 GitHub Release（tag 不带 v 前缀）
 gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css --title "v{版本号}" --notes "更新内容"
 ```
 

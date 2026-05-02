@@ -91,6 +91,7 @@ export class ControlPanel extends Modal {
 	// 滑动关闭（移动端）
 	private touchStartY: number = 0;
 	private touchCurrentY: number = 0;
+	private swipeEnabled: boolean = false;
 	private touchStartHandler: ((e: TouchEvent) => void) | null = null;
 	private touchMoveHandler: ((e: TouchEvent) => void) | null = null;
 	private touchEndHandler: (() => void) | null = null;
@@ -546,12 +547,15 @@ export class ControlPanel extends Modal {
 			// 短评
 			const commentCell = row.createEl('td', { cls: 'bangumi-comment-cell' });
 			if (collection.comment) {
-				const maxLen = 20;
-				const displayComment = collection.comment.length > maxLen
+				// 桌面端截断显示，移动端通过 CSS 在行末截断
+				const maxLen = isMobile() ? collection.comment.length : 20;
+				const displayComment = !isMobile() && collection.comment.length > maxLen
 					? collection.comment.substring(0, maxLen) + '...'
 					: collection.comment;
 				commentCell.setText(displayComment);
-				commentCell.setAttribute('title', collection.comment);
+				if (!isMobile()) {
+					commentCell.setAttribute('title', collection.comment);
+				}
 			}
 
 			// 标签
@@ -570,6 +574,37 @@ export class ControlPanel extends Modal {
 				syncCell.createSpan({ text: `✓ ${tn('controlPanel', 'synced')}`, cls: 'synced' });
 			} else {
 				syncCell.createSpan({ text: `✗ ${tn('controlPanel', 'unsynced')}`, cls: 'unsynced' });
+			}
+
+			// 移动端：添加元数据行（类型 · 状态 · 评分 · 同步状态）
+			if (isMobile()) {
+				const metaCell = row.createEl('td', { cls: 'bangumi-mobile-meta' });
+
+				// 类型
+				metaCell.createSpan({ cls: 'bangumi-mobile-meta-item', text: getTypeLabel(collection.subject_type) });
+
+				// 状态
+				metaCell.createSpan({ cls: 'bangumi-mobile-meta-item', text: getCollectionStatusLabel(collection.type, collection.subject_type) });
+
+				// 评分
+				const ratingSpan = metaCell.createSpan({ cls: 'bangumi-mobile-meta-item' });
+				if (collection.subject.score) {
+					ratingSpan.createSpan({ text: `★${collection.subject.score.toFixed(1)}` });
+				}
+				if (collection.rate) {
+					ratingSpan.createSpan({ cls: 'bangumi-my-rate', text: ` [${collection.rate}]` });
+				}
+				if (!collection.subject.score && !collection.rate) {
+					ratingSpan.setText('-');
+				}
+
+				// 同步状态
+				const syncSpan = metaCell.createSpan({ cls: 'bangumi-mobile-meta-item' });
+				if (isSynced) {
+					syncSpan.createSpan({ text: `✓ ${tn('controlPanel', 'synced')}`, cls: 'synced' });
+				} else {
+					syncSpan.createSpan({ text: `✗ ${tn('controlPanel', 'unsynced')}`, cls: 'unsynced' });
+				}
 			}
 
 			// 操作
@@ -1201,18 +1236,25 @@ export class ControlPanel extends Modal {
 
 	/**
 	 * 设置滑动关闭手势（仅移动端）
+	 * 只在从顶部下拉时触发，避免与表格滚动冲突
 	 */
 	private setupSwipeToClose(): void {
 		if (!isMobile()) return;
 
 		this.touchStartHandler = (e) => {
 			this.touchStartY = e.touches[0].clientY;
+			// 只有当表格在顶部时才允许滑动关闭
+			this.swipeEnabled = this.tableEl.scrollTop === 0;
 		};
 
 		this.touchMoveHandler = (e) => {
+			if (!this.swipeEnabled) return;
+
 			this.touchCurrentY = e.touches[0].clientY;
 			const diff = this.touchCurrentY - this.touchStartY;
-			if (diff > 0) {
+
+			// 只有向下拉且表格仍在顶部时才触发
+			if (diff > 0 && this.tableEl.scrollTop === 0) {
 				this.contentEl.setCssProps({
 					'--swipe-y': `${diff}px`,
 					'--swipe-opacity': String(1 - diff / 300),
@@ -1222,8 +1264,10 @@ export class ControlPanel extends Modal {
 		};
 
 		this.touchEndHandler = () => {
+			if (!this.swipeEnabled) return;
+
 			const diff = this.touchCurrentY - this.touchStartY;
-			if (diff > 100) {
+			if (diff > 100 && this.tableEl.scrollTop === 0) {
 				this.close();
 			} else {
 				this.contentEl.setCssProps({
@@ -1232,6 +1276,7 @@ export class ControlPanel extends Modal {
 				});
 				this.contentEl.removeClass('is-swiping');
 			}
+			this.swipeEnabled = false;
 		};
 
 		this.contentEl.addEventListener('touchstart', this.touchStartHandler, { passive: true });
