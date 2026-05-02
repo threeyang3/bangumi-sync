@@ -1449,7 +1449,7 @@
 
 		.bangumi-collection-table tr {
 			display: grid;
-			grid-template-columns: 30px minmax(0, 1fr);
+			grid-template-columns: 56px minmax(0, 1fr);
 			padding: 12px;
 			border: 1px solid var(--background-modifier-border);
 			border-radius: 8px;
@@ -1472,12 +1472,38 @@
 		/* 左侧：选择框 */
 		.bangumi-collection-table td:first-child {
 			grid-column: 1;
-			grid-row: 1 / span 4;
+			grid-row: 1;
 			display: flex;
 			align-items: flex-start;
 			justify-content: center;
 			width: auto;
 			padding-top: 2px;
+		}
+
+		.bangumi-collection-table input[type="checkbox"] {
+			appearance: none;
+			-webkit-appearance: none;
+			display: grid;
+			place-items: center;
+			width: 28px;
+			height: 28px;
+			margin: 0;
+			border: 1.5px solid var(--background-modifier-border-hover);
+			border-radius: 6px;
+			background: var(--background-primary);
+		}
+
+		.bangumi-collection-table input[type="checkbox"]:checked {
+			border-color: var(--interactive-accent);
+			background: var(--interactive-accent);
+		}
+
+		.bangumi-collection-table input[type="checkbox"]:checked::after {
+			content: "✓";
+			color: var(--text-on-accent);
+			font-size: 20px;
+			font-weight: 700;
+			line-height: 1;
 		}
 
 		/* 右侧第一行：标题，填满选择框右侧宽度 */
@@ -1486,6 +1512,7 @@
 			grid-row: 1;
 			min-width: 0;
 			width: 100%;
+			max-width: none !important;
 			font-weight: 500;
 			/* 允许标题在空间不足时截断，而不是换行 */
 			overflow: hidden;
@@ -1555,14 +1582,32 @@
 
 		/* 操作按钮 */
 		.bangumi-action-cell {
-			grid-column: 1 / -1;
-			grid-row: 5;
+			grid-column: 1;
+			grid-row: 2 / span 3;
 			display: flex;
-			justify-content: flex-end;
-			gap: 8px;
-			padding-top: 8px;
-			margin-top: 2px;
-			border-top: 1px solid var(--background-modifier-border);
+			flex-direction: column;
+			align-items: center;
+			justify-content: flex-start;
+			gap: 4px;
+			width: 100%;
+			padding-top: 2px;
+			margin-top: 0;
+			border-top: none;
+		}
+
+		.bangumi-action-cell:empty {
+			display: none;
+		}
+
+		.bangumi-action-cell .bangumi-action-btn-small {
+			width: 44px;
+			min-width: 44px;
+			min-height: 24px;
+			height: 24px;
+			padding: 2px 4px;
+			font-size: 11px;
+			line-height: 1;
+			text-align: center;
 		}
 
 		/* 分页 */
