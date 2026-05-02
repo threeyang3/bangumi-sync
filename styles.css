@@ -158,6 +158,8 @@
 	display: flex;
 	gap: 8px;
 	font-size: 12px;
+	align-items: center;
+	min-width: 0;
 }
 
 .bangumi-search-result-type {
@@ -168,7 +170,15 @@
 	color: var(--text-accent);
 }
 
+.bangumi-search-result-meta-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 4px;
+}
+
 .bangumi-search-result-add-btn {
+	flex: 0 0 auto;
 	padding: 4px 12px;
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
@@ -320,10 +330,6 @@
 .bangumi-status-not-collected {
 	background: var(--background-secondary-alt);
 	color: var(--text-muted);
-}
-
-.bangumi-search-result-status {
-	margin-top: 6px;
 }
 
 /* 模板编辑器文本区域 */
@@ -1028,9 +1034,10 @@
 }
 
 .bangumi-panel-pagination {
-	display: flex;
-	justify-content: space-between;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
 	align-items: center;
+	gap: 8px;
 	padding: 10px;
 	background: var(--background-secondary);
 	border-radius: 6px;
@@ -1042,14 +1049,12 @@
 	font-size: 13px;
 }
 
-.bangumi-pagination-buttons {
-	display: flex;
-	gap: 8px;
-}
-
-.bangumi-pagination-buttons button {
+.bangumi-pagination-btn {
 	padding: 4px 12px;
 	font-size: 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
 }
 
 /* V3 批量编辑器样式 */
@@ -1468,12 +1473,12 @@
 
 		.bangumi-collection-table tr {
 			display: grid;
-			grid-template-columns: 56px minmax(0, 1fr);
-			padding: 10px 12px;
+			grid-template-columns: 48px minmax(0, 1fr);
+			padding: 10px;
 			border: 1px solid var(--background-modifier-border);
 			border-radius: 8px;
-			column-gap: 10px;
-			row-gap: 3px;
+			column-gap: 8px;
+			row-gap: 2px;
 			width: 100%;
 			box-sizing: border-box;
 			align-items: start;
@@ -1630,6 +1635,7 @@
 			gap: 3px;
 			width: 100%;
 			max-width: 100%;
+			justify-self: center;
 			padding-top: 2px;
 			margin-top: 0;
 			border-top: none;
@@ -1640,8 +1646,9 @@
 		}
 
 		.bangumi-collection-table .bangumi-action-cell .bangumi-action-btn-small {
-			width: 44px;
-			min-width: 44px;
+			display: block;
+			width: 40px;
+			min-width: 40px;
 			min-height: 24px;
 			height: 24px;
 			padding: 2px 4px;
@@ -1656,40 +1663,25 @@
 
 		/* 分页 */
 		.bangumi-panel-pagination {
-			display: flex;
+			display: grid;
+			grid-template-columns: auto minmax(0, 1fr) auto;
 			align-items: center;
-			justify-content: space-between;
 			gap: 8px;
 			padding: 10px 12px;
 		}
 
 		.bangumi-pagination-info {
-			order: 2;
-			flex: 1;
 			text-align: center;
 			color: var(--text-muted);
 		}
 
-		.bangumi-pagination-buttons {
-			display: contents;
-		}
-
-		.bangumi-pagination-buttons button {
-			flex: 0 0 auto;
+		.bangumi-pagination-btn {
 			min-width: 76px;
 			min-height: 34px;
 			padding: 5px 10px;
 			border: 1px solid var(--background-modifier-border);
 			border-radius: 6px;
 			background: var(--background-primary);
-		}
-
-		.bangumi-pagination-buttons button:first-child {
-			order: 1;
-		}
-
-		.bangumi-pagination-buttons button:last-child {
-			order: 3;
 		}
 	}
 
@@ -1701,23 +1693,32 @@
 			}
 
 			.bangumi-search-input-container {
-				flex-wrap: wrap;
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto auto;
+				gap: 6px;
+				align-items: center;
 			}
 
 			.bangumi-search-input {
 				width: 100%;
-				order: -1;
+				min-width: 0;
 			}
 
 			.bangumi-search-btn {
-				flex: 1;
+				min-width: 52px;
+				min-height: 36px;
+				padding: 5px 9px;
 			}
 
-			/* 筛选栏折叠 */
 			.bangumi-search-filter {
-				flex-wrap: wrap;
+				display: grid;
+				grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
 				gap: 8px;
 				padding: 8px;
+			}
+
+			.bangumi-search-filter span {
+				white-space: nowrap;
 			}
 
 			.bangumi-search-filter.collapsed {
@@ -1735,8 +1736,8 @@
 			}
 
 			.bangumi-search-select {
-				flex: 1;
-				min-width: 100px;
+				width: 100%;
+				min-width: 0;
 			}
 
 			/* 搜索结果 */
@@ -1745,23 +1746,57 @@
 			}
 
 			.bangumi-search-result-item {
-				flex-wrap: wrap;
-				gap: 8px;
+				display: grid;
+				grid-template-columns: 44px minmax(0, 1fr);
+				align-items: start;
+				gap: 10px;
+				padding: 10px;
 			}
 
 			.bangumi-search-result-cover {
-				width: 40px;
-				height: 56px;
+				width: 44px;
+				height: 62px;
 			}
 
 			.bangumi-search-result-info {
+				width: 100%;
+				min-width: 0;
+			}
+
+			.bangumi-search-result-name {
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				margin-bottom: 4px;
+			}
+
+			.bangumi-search-result-meta-row {
+				gap: 6px;
+				margin-top: 2px;
+			}
+
+			.bangumi-search-result-meta {
 				flex: 1;
-				min-width: calc(100% - 60px);
+				gap: 5px;
+				white-space: nowrap;
+				overflow: hidden;
+			}
+
+			.bangumi-search-result-meta .bangumi-status-badge {
+				margin-right: 0;
+				padding: 0;
+				border-radius: 0;
+				background: transparent;
+				color: var(--text-muted);
+				font-size: 12px;
 			}
 
 			.bangumi-search-result-add-btn {
-				width: 100%;
-				margin-top: 8px;
+				width: auto;
+				min-width: 48px;
+				min-height: 30px;
+				margin-top: 0;
+				padding: 4px 8px;
 			}
 		}
 

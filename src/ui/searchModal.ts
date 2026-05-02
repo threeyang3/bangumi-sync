@@ -324,8 +324,10 @@ export class SearchModal extends Modal {
 			nameEl.createSpan({ text: ` (${subject.name})`, cls: 'bangumi-search-result-name-original' });
 		}
 
-		// 类型和评分
-		const metaEl = infoEl.createDiv({ cls: 'bangumi-search-result-meta' });
+		const metaRowEl = infoEl.createDiv({ cls: 'bangumi-search-result-meta-row' });
+
+		// 类型、评分和收藏状态
+		const metaEl = metaRowEl.createDiv({ cls: 'bangumi-search-result-meta' });
 		const typeLabel = getTypeLabel(subject.type);
 		metaEl.createSpan({ text: typeLabel, cls: 'bangumi-search-result-type' });
 
@@ -333,26 +335,23 @@ export class SearchModal extends Modal {
 			metaEl.createSpan({ text: `★${subject.rating.score.toFixed(1)}`, cls: 'bangumi-search-result-rating' });
 		}
 
-		// 状态标签
-		const statusEl = infoEl.createDiv({ cls: 'bangumi-search-result-status' });
-
 		// 本地同步状态
 		const isSynced = this.syncedSubjectIds.has(subject.id);
 		if (isSynced) {
-			statusEl.createSpan({ text: tn('searchModal', 'synced'), cls: 'bangumi-status-badge bangumi-status-synced' });
+			metaEl.createSpan({ text: tn('searchModal', 'synced'), cls: 'bangumi-status-badge bangumi-status-synced' });
 		}
 
 		// 云端收藏状态
 		const collection = this.collectionStatuses.get(subject.id);
 		if (collection) {
 			const collectionTypeLabel = getCollectionStatusLabel(collection.type, subject.type);
-			statusEl.createSpan({ text: collectionTypeLabel, cls: 'bangumi-status-badge bangumi-status-collected' });
+			metaEl.createSpan({ text: collectionTypeLabel, cls: 'bangumi-status-badge bangumi-status-collected' });
 		} else {
-			statusEl.createSpan({ text: tn('searchModal', 'notCollected'), cls: 'bangumi-status-badge bangumi-status-not-collected' });
+			metaEl.createSpan({ text: tn('searchModal', 'notCollected'), cls: 'bangumi-status-badge bangumi-status-not-collected' });
 		}
 
 		// 添加按钮
-		const addBtn = itemEl.createEl('button', {
+		const addBtn = metaRowEl.createEl('button', {
 			text: collection ? tn('searchModal', 'editCollection') : tn('searchModal', 'addToCollection'),
 			cls: 'bangumi-search-result-add-btn',
 		});

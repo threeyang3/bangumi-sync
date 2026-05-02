@@ -664,12 +664,7 @@ export class ControlPanel extends Modal {
 			return;
 		}
 
-		const info = this.paginationEl.createSpan({ cls: 'bangumi-pagination-info' });
-		info.setText(`${tn('controlPanel', 'totalItems')} ${filteredCollections.length}, ${this.currentPage}/${totalPages}`);
-
-		const buttons = this.paginationEl.createDiv({ cls: 'bangumi-pagination-buttons' });
-
-		buttons.createEl('button', { text: tn('controlPanel', 'prevPage') }, btn => {
+		this.paginationEl.createEl('button', { text: tn('controlPanel', 'prevPage'), cls: 'bangumi-pagination-btn bangumi-pagination-prev' }, btn => {
 			btn.disabled = this.currentPage <= 1;
 			btn.addEventListener('click', () => {
 				if (this.currentPage > 1) {
@@ -680,7 +675,10 @@ export class ControlPanel extends Modal {
 			});
 		});
 
-		buttons.createEl('button', { text: tn('controlPanel', 'nextPage') }, btn => {
+		const info = this.paginationEl.createSpan({ cls: 'bangumi-pagination-info' });
+		info.setText(`${tn('controlPanel', 'totalItems')} ${filteredCollections.length}, ${this.currentPage}/${totalPages}`);
+
+		this.paginationEl.createEl('button', { text: tn('controlPanel', 'nextPage'), cls: 'bangumi-pagination-btn bangumi-pagination-next' }, btn => {
 			btn.disabled = this.currentPage >= totalPages;
 			btn.addEventListener('click', () => {
 				if (this.currentPage < totalPages) {
