@@ -21,6 +21,7 @@ export interface TranslationStrings {
 		searchSubjects: string;
 		checkAndSyncStatus: string;
 		createSubjectNote: string;
+		batchDownloadCovers: string;
 	};
 
 	// Ribbon
@@ -48,6 +49,9 @@ export interface TranslationStrings {
 		selectExportFolder: string;
 		templateReadFailed: string;
 		noteManagerNotInit: string;
+		coverDownloadComplete: string;
+		coverDownloadDisabled: string;
+		coverDownloadNoItems: string;
 	};
 
 	// 设置
@@ -526,6 +530,7 @@ const en: TranslationStrings = {
 		searchSubjects: 'Search and add subjects',
 		checkAndSyncStatus: 'Check and sync status',
 		createSubjectNote: 'Create or append subject note',
+		batchDownloadCovers: 'Batch download cover images',
 	},
 
 	ribbon: {
@@ -551,6 +556,9 @@ const en: TranslationStrings = {
 		selectExportFolder: 'Please select a folder to export templates',
 		templateReadFailed: 'Failed to read template file: {path}',
 		noteManagerNotInit: 'Subject note manager not initialized',
+		coverDownloadComplete: 'Cover download complete: {downloaded} downloaded, {skipped} skipped, {failed} failed',
+		coverDownloadDisabled: 'Please enable "Download cover images" in settings first',
+		coverDownloadNoItems: 'No items with network cover links found',
 	},
 
 	settings: {
@@ -1003,6 +1011,7 @@ const zhCN: TranslationStrings = {
 		searchSubjects: '搜索并添加条目',
 		checkAndSyncStatus: '检查并同步状态',
 		createSubjectNote: '创建或追加条目笔记',
+		batchDownloadCovers: '批量下载封面图片',
 	},
 
 	ribbon: {
@@ -1028,6 +1037,9 @@ const zhCN: TranslationStrings = {
 		selectExportFolder: '请选择导出文件夹',
 		templateReadFailed: '模板文件读取失败: {path}',
 		noteManagerNotInit: '条目笔记管理器未初始化',
+		coverDownloadComplete: '封面下载完成：下载 {downloaded}，跳过 {skipped}，失败 {failed}',
+		coverDownloadDisabled: '请先在设置中启用"下载封面图片"',
+		coverDownloadNoItems: '没有找到含网络封面链接的条目',
 	},
 
 	settings: {

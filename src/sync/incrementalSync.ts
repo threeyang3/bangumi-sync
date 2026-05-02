@@ -152,6 +152,13 @@ export class IncrementalSync {
 	}
 
 	/**
+	 * 获取所有本地条目信息
+	 */
+	getLocalSubjects(): Map<number, LocalSubjectInfo> {
+		return this.localSubjects;
+	}
+
+	/**
 	 * 计算需要同步的条目
 	 * @param remoteCollections 远程收藏列表
 	 * @param limit 用户请求的同步数量限制（0 表示不限制）

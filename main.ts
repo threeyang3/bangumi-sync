@@ -171,6 +171,12 @@ export default class BangumiPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: 'batch-download-covers',
+			name: tn('commands', 'batchDownloadCovers'),
+			callback: () => void this.batchDownloadCovers(),
+		});
+
 		// 添加 Ribbon 图标
 		this.addRibbonIcon('database', tn('ribbon', 'collectionManager'), () => {
 			this.openControlPanel();
@@ -556,6 +562,54 @@ export default class BangumiPlugin extends Plugin {
 			limit: this.settings.syncLimit,
 			force: false,
 		}, false);
+	}
+
+	/**
+	 * 批量下载封面图片并替换链接
+	 */
+	async batchDownloadCovers() {
+		if (!this.settings.downloadImages) {
+			new Notice(tn('notices', 'coverDownloadDisabled'));
+			return;
+		}
+
+		if (!this.syncManager) {
+			new Notice(tn('notices', 'syncManagerNotInit'));
+			return;
+		}
+
+		this.syncModal = new SyncModal(this.app);
+		this.syncModal.open();
+
+		this.syncManager.setProgressCallback((progress: SyncProgress) => {
+			if (this.syncModal) {
+				this.syncModal.updateProgress(progress);
+			}
+		});
+
+		try {
+			const result = await this.syncManager.batchDownloadCovers();
+
+			this.syncModal.close();
+			this.syncModal = null;
+
+			if (result.downloaded === 0 && result.skipped === 0) {
+				new Notice(tn('notices', 'coverDownloadNoItems'));
+			} else {
+				new Notice(tnFormat('notices', 'coverDownloadComplete', {
+					downloaded: result.downloaded,
+					skipped: result.skipped,
+					failed: result.failed,
+				}));
+			}
+		} catch (error) {
+			if (this.syncModal) {
+				this.syncModal.close();
+				this.syncModal = null;
+			}
+			console.error('[Bangumi Sync] 批量下载封面失败:', error);
+			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 
 	/**

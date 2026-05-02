@@ -26,7 +26,7 @@ import { CoverLinkType } from '../settings/settings';
 import { UserDataExtractor, UserDataMerger, DataProtectionSettings, DEFAULT_DATA_PROTECTION_SETTINGS } from '../userData';
 import { LocalPropertyModalResult, LocalPropertyValueMap } from '../ui/localPropertyModal';
 import { buildExtraTemplateVarsFromPropertyValues, getTemplatePropertyGroupsForSubject } from '../template/templateProperties';
-import { tn } from '../i18n/translations';
+import { tn, tnFormat } from '../i18n/translations';
 
 /**
  * 同步管理器配置
@@ -1041,5 +1041,115 @@ export class SyncManager {
 			console.error(`[Bangumi Sync] 同步单个条目失败:`, error);
 			return { success: false, error: errorMsg };
 		}
+	}
+
+	/**
+	 * 批量下载封面图片并替换链接
+	 * 扫描所有本地条目，将网络封面下载到本地，并替换 frontmatter 和正文中的链接
+	 */
+	async batchDownloadCovers(): Promise<{ downloaded: number; skipped: number; failed: number }> {
+		const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
+		await this.incrementalSync.scanLocalFolder(scanPath);
+
+		const localSubjects = this.incrementalSync.getLocalSubjects();
+		const result = { downloaded: 0, skipped: 0, failed: 0 };
+		let processed = 0;
+
+		for (const [subjectId, info] of localSubjects) {
+			processed++;
+			this.reportProgress({
+				status: 'processing',
+				current: processed,
+				total: localSubjects.size,
+				currentItem: info.name_cn || String(subjectId),
+			});
+
+			try {
+				const file = this.app.vault.getAbstractFileByPath(info.path);
+				if (!(file instanceof TFile)) {
+					result.skipped++;
+					continue;
+				}
+
+				const content = await this.app.vault.read(file);
+				const coverValue = this.extractCoverValue(content);
+
+				if (!coverValue || !coverValue.startsWith('http')) {
+					result.skipped++;
+					continue;
+				}
+
+				// 提取模板变量
+				const name_cn = this.extractFrontmatterString(content, '中文名') || info.name_cn;
+				const name = this.extractFrontmatterString(content, '原名') || '';
+				const typeLabel = this.extractFrontmatterString(content, '作品大类') || '';
+
+				// 下载封面图片
+				const localPath = await this.imageHandler.downloadCover(
+					coverValue, subjectId, this.config.imagePathTemplate,
+					{ name_cn, name, typeLabel }
+				);
+
+				if (!localPath || localPath.startsWith('http')) {
+					result.failed++;
+					continue;
+				}
+
+				// 更新文件内容
+				let updatedContent = this.replaceCoverInFrontmatter(content, localPath);
+				updatedContent = this.replaceCoverInBody(updatedContent, localPath);
+
+				await this.app.vault.process(file, () => updatedContent);
+				result.downloaded++;
+				console.debug(`[Bangumi Sync] 封面下载完成: ${info.name_cn} -> ${localPath}`);
+			} catch (error) {
+				console.error(`[Bangumi Sync] 封面下载失败: ${info.name_cn}`, error);
+				result.failed++;
+			}
+		}
+
+		this.reportProgress({
+			status: 'completed',
+			message: tnFormat('notices', 'coverDownloadComplete', {
+				downloaded: result.downloaded,
+				skipped: result.skipped,
+				failed: result.failed,
+			}),
+		});
+
+		return result;
+	}
+
+	/**
+	 * 从 frontmatter 提取封面值
+	 */
+	private extractCoverValue(content: string): string {
+		const match = content.match(/^---\n[\s\S]*?\n封面:\s*"?([^"\n]+)"?/);
+		return match ? match[1].trim() : '';
+	}
+
+	/**
+	 * 从 frontmatter 提取字符串值
+	 */
+	private extractFrontmatterString(content: string, key: string): string {
+		const regex = new RegExp(`^---\\n[\\s\\S]*?\\n${key}:\\s*"?([^"\\n]+)"?`);
+		const match = content.match(regex);
+		return match ? match[1].trim() : '';
+	}
+
+	/**
+	 * 替换 frontmatter 中的封面值
+	 */
+	private replaceCoverInFrontmatter(content: string, localPath: string): string {
+		const coverRegex = /^(---\n[\s\S]*?\n封面:\s*)"?[^"\n]+"?/m;
+		return content.replace(coverRegex, `$1"${localPath}"`);
+	}
+
+	/**
+	 * 替换正文中的封面图片链接
+	 */
+	private replaceCoverInBody(content: string, localPath: string): string {
+		const imgRegex = /!\[cover\|[^\]]*\]\(https?:\/\/[^)]+\)/g;
+		return content.replace(imgRegex, `![cover|400](${localPath})`);
 	}
 }
