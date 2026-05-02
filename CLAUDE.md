@@ -99,7 +99,7 @@ bangumi/
 
 - `mobile` 分支用于移动端体验测试，不要直接合并到 `main` 影响正在等待 Obsidian 官方审查的版本
 - BRAT 测试版 release 的 tag 必须与 `manifest.json` 里的 `version` 完全一致
-- 当前移动端测试版使用纯版本号 tag，并通过 GitHub prerelease 提供 `main.js`、`manifest.json`、`styles.css`
+- 2026-05-02 当前移动端测试版是 `5.3.4` prerelease，使用纯版本号 tag，并通过 GitHub prerelease 提供 `main.js`、`manifest.json`、`styles.css`
 - 如果为了测试创建了旧 prerelease，删除时使用 `gh release delete {版本号} --yes --cleanup-tag` 同时清理 tag，避免 BRAT 看到多个入口
 - Release notes 要用真正的多行 Markdown，不能把 `\n` 当作字面量写进 `--notes`
 
@@ -109,6 +109,7 @@ bangumi/
 - 桌面端控制面板继续保留表格布局；移动端通过 CSS 媒体查询把表格行改成卡片
 - 移动端条目卡片左列放选择框和已同步条目的“打开 / 笔记”按钮，右列放标题、元数据、短评、标签
 - 移动端状态栏中 `已选` 计数和加载状态同排显示，分页为“上一页 / 页码 / 下一页”单行布局
+- 移动端搜索弹窗使用单行搜索、单行筛选和带封面的紧凑结果卡片；添加/编辑按钮在元数据行右侧，不挤占标题行
 - 滑动关闭只在 `.bangumi-panel-table` 滚动到顶部时启用，避免列表滚动时误关闭面板
 
 ## 同步注意事项

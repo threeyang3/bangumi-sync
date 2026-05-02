@@ -996,16 +996,18 @@ git push -u origin mobile
 
 ## 自检清单
 
+**2026-05-02 说明：** 下方是原始计划的覆盖清单，不再代表当前完成状态。以文件开头的 Current status 和 `docs/superpowers/specs/2026-04-30-mobile-optimization-design.md` 为准。
+
 **1. Spec 覆盖：**
 - [x] 设备检测工具函数 → Task 1
 - [x] 弹窗适配 → Task 2
 - [x] 控制面板表格改卡片 → Task 3
-- [x] 搜索弹窗筛选栏折叠 → Task 4
+- [ ] 搜索弹窗筛选栏折叠 → Task 4（v5.3.4 已完成紧凑布局，但尚未加入折叠开关）
 - [x] 添加收藏弹窗适配 → Task 5
 - [x] 本地属性弹窗适配 → Task 6
-- [x] 状态同步弹窗适配 → Task 7
+- [ ] 状态同步弹窗适配 → Task 7（待后续确认）
 - [x] 同步预览弹窗适配 → Task 8
-- [x] 设置面板适配 → Task 9
+- [ ] 设置面板适配 → Task 9（待后续确认）
 - [x] 模板正文 bangumi-info 适配 → Task 10
 - [x] 批量编辑器/模板编辑器适配 → Task 11
 - [x] 触摸增强（更大点击区域）→ Task 2

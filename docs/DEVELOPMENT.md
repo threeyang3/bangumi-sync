@@ -136,7 +136,7 @@ git push
 ```bash
 gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css \
   --title "v{版本号}" \
-  --notes "更新内容说明"
+  --notes-file release-notes-{版本号}.md
 ```
 
 ### Release 资产要求
@@ -151,7 +151,7 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 
 如需在不合并 `main` 的情况下提供移动端或其他试验版给 BRAT 测试：
 
-1. 在测试分支上把 `manifest.json`、`package.json`、`package-lock.json`、`versions.json` 更新到新的纯版本号，例如 `5.3.2`
+1. 在测试分支上把 `manifest.json`、`package.json`、`package-lock.json`、`versions.json` 更新到新的纯版本号，例如 `5.3.4`
 2. 运行 `npm run lint` 和 `npm run build`
 3. 提交并推送测试分支
 4. 创建同名 tag 并推送：`git tag {版本号}`、`git push origin {版本号}`
@@ -159,6 +159,8 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 6. 若替换测试版本，删除旧 prerelease 时同时清理旧 tag：`gh release delete {旧版本号} --yes --cleanup-tag`
 
 测试版 tag 也必须与 `manifest.json` 版本一致。不要复用正在等待 Obsidian 官方审查的版本号。
+
+2026-05-02 当前 `mobile` 分支测试版为 `5.3.4` prerelease。创建 release notes 时优先使用 `--notes-file` 传入真实多行 Markdown，避免在 GitHub 页面显示字面量 `\n`。
 
 ## 自定义属性开发约束
 

@@ -221,6 +221,7 @@ SyncManager
   - 批量同步前填写本地自定义属性
 - `searchModal.ts`
   - 搜索 Bangumi 条目
+  - 移动端使用紧凑搜索/筛选行和带封面缩略图的结果卡片
 - `addToCollectionModal.ts`
   - 搜索并添加时填写 Bangumi 属性和本地自定义属性
 - `syncModal.ts`
