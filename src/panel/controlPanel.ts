@@ -316,9 +316,7 @@ export class ControlPanel extends Modal {
 			btn.addEventListener('click', () => this.openSearchModal());
 		});
 
-		// 已选数量
-		const selectedCount = this.actionBarEl.createSpan({ cls: 'bangumi-selected-count' });
-		selectedCount.setText(`${tn('controlPanel', 'selectedCount')}: ${this.state.selectedIds.size}`);
+		this.updateSelectedCount();
 	}
 
 	/**
@@ -432,12 +430,28 @@ export class ControlPanel extends Modal {
 	 */
 	private renderStatus(message: string): void {
 		this.statusEl.empty();
-		this.statusEl.setText(message);
+		this.statusEl.createSpan({ cls: 'bangumi-status-message', text: message });
+		this.statusEl.createSpan({
+			cls: 'bangumi-selected-count',
+			text: `${tn('controlPanel', 'selectedCount')}: ${this.state.selectedIds.size}`,
+		});
 
 		if (this.state.loading) {
 			this.statusEl.addClass('loading');
 		} else {
 			this.statusEl.removeClass('loading');
+		}
+	}
+
+	/**
+	 * 更新状态栏中的已选数量
+	 */
+	private updateSelectedCount(): void {
+		if (!this.statusEl) return;
+
+		const selectedCount = this.statusEl.querySelector<HTMLElement>('.bangumi-selected-count');
+		if (selectedCount) {
+			selectedCount.setText(`${tn('controlPanel', 'selectedCount')}: ${this.state.selectedIds.size}`);
 		}
 	}
 

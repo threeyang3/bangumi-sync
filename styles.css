@@ -1412,22 +1412,41 @@
 		/* 操作栏 */
 		.bangumi-panel-action-bar {
 			flex-wrap: wrap;
-			gap: 6px;
-			padding: 8px;
+			gap: 4px;
+			padding: 6px;
 		}
 
 		.bangumi-action-btn {
 			font-size: 12px;
-			padding: 8px 12px;
-			flex: 1;
-			min-width: 80px;
+			padding: 5px 8px;
+			flex: 1 1 calc(25% - 4px);
+			min-width: 0;
+			min-height: 32px;
+			border: 1px solid var(--background-modifier-border);
+			border-radius: 6px;
+			background: var(--background-primary);
+			box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 		}
 
 		.bangumi-selected-count {
-			width: 100%;
-			text-align: center;
-			margin-top: 8px;
-			order: 99;
+			flex: 0 0 auto;
+			color: var(--text-muted);
+			text-align: right;
+		}
+
+		.bangumi-panel-status {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+			padding: 8px 4px;
+		}
+
+		.bangumi-status-message {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 
 		/* 表格改卡片 - 纵向布局优化 */
@@ -1465,8 +1484,11 @@
 		}
 
 		.bangumi-collection-table td {
+			display: block;
 			border: none;
 			padding: 0;
+			min-width: 0;
+			max-width: 100%;
 		}
 
 		/* 左侧：选择框 */
@@ -1496,25 +1518,35 @@
 		.bangumi-collection-table input[type="checkbox"]:checked {
 			border-color: var(--interactive-accent);
 			background: var(--interactive-accent);
+			background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E");
+			background-position: center;
+			background-repeat: no-repeat;
+			background-size: 21px 21px;
 		}
 
 		.bangumi-collection-table input[type="checkbox"]:checked::after {
-			content: "✓";
-			color: var(--text-on-accent);
-			font-size: 20px;
-			font-weight: 700;
-			line-height: 1;
+			content: none;
 		}
 
 		/* 右侧第一行：标题，填满选择框右侧宽度 */
 		.bangumi-name-cell {
 			grid-column: 2;
 			grid-row: 1;
+			display: block;
 			min-width: 0;
 			width: 100%;
 			max-width: none !important;
 			font-weight: 500;
 			/* 允许标题在空间不足时截断，而不是换行 */
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.bangumi-name-cell > span {
+			display: block;
+			min-width: 0;
+			max-width: 100%;
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
@@ -1608,21 +1640,47 @@
 			font-size: 11px;
 			line-height: 1;
 			text-align: center;
+			border: 1px solid var(--background-modifier-border);
+			border-radius: 5px;
+			background: var(--background-primary);
 		}
 
 		/* 分页 */
 		.bangumi-panel-pagination {
-			flex-direction: column;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
 			gap: 8px;
+			padding: 10px 12px;
 		}
 
 		.bangumi-pagination-info {
+			order: 2;
+			flex: 1;
 			text-align: center;
+			color: var(--text-muted);
 		}
 
 		.bangumi-pagination-buttons {
-			width: 100%;
-			justify-content: center;
+			display: contents;
+		}
+
+		.bangumi-pagination-buttons button {
+			flex: 0 0 auto;
+			min-width: 76px;
+			min-height: 34px;
+			padding: 5px 10px;
+			border: 1px solid var(--background-modifier-border);
+			border-radius: 6px;
+			background: var(--background-primary);
+		}
+
+		.bangumi-pagination-buttons button:first-child {
+			order: 1;
+		}
+
+		.bangumi-pagination-buttons button:last-child {
+			order: 3;
 		}
 	}
 
