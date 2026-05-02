@@ -383,7 +383,7 @@ export default class BangumiPlugin extends Plugin {
 						}
 					} catch (error) {
 						console.error(`[Bangumi Sync] 读取模板文件失败: ${config.filePath}`, error);
-						new Notice(`模板文件读取失败: ${config.filePath}`);
+						new Notice(tnFormat('notices', 'templateReadFailed', { path: config.filePath }));
 					}
 				}
 				return TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
@@ -600,14 +600,14 @@ export default class BangumiPlugin extends Plugin {
 			});
 
 			if (!prepareResult.success) {
-				new Notice(`同步失败: ${prepareResult.error}`);
+				new Notice(`${tn('notices', 'syncFailed')}: ${prepareResult.error}`);
 				this.syncModal.close();
 				this.syncModal = null;
 				return;
 			}
 
 			if (!prepareResult.previewItems || prepareResult.previewItems.length === 0) {
-				new Notice('没有需要同步的条目');
+				new Notice(tn('notices', 'noItemsToSync'));
 				this.syncModal.close();
 				this.syncModal = null;
 				return;
@@ -620,7 +620,7 @@ export default class BangumiPlugin extends Plugin {
 				prepareResult.previewItems.map(item => item.collection)
 			);
 			if (localPropertyResult === null) {
-				new Notice('已取消同步');
+				new Notice(tn('notices', 'syncCancelled'));
 				return;
 			}
 
@@ -630,7 +630,7 @@ export default class BangumiPlugin extends Plugin {
 				(result: SyncPreviewResult) => {
 					void (async () => {
 						if (result.action === 'cancel') {
-							new Notice('已取消同步');
+							new Notice(tn('notices', 'syncCancelled'));
 							return;
 						}
 

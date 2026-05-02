@@ -101,7 +101,7 @@ export class AddToCollectionModal extends Modal {
 		const title = `${tn('addToCollection', 'title')} - ${this.subject.name_cn || this.subject.name}`;
 		new Setting(contentEl).setName(title).setHeading();
 
-		contentEl.createEl('h3', { text: 'Bangumi 属性', cls: 'bangumi-add-collection-section' });
+		contentEl.createEl('h3', { text: tn('addToCollection', 'bangumiProperties'), cls: 'bangumi-add-collection-section' });
 
 		// 收藏状态
 		const typeDiv = contentEl.createDiv({ cls: 'bangumi-add-collection-type' });

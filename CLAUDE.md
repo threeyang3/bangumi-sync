@@ -24,7 +24,8 @@ bangumi/
 │   ├── api/               # API 层（类型、端点、客户端）
 │   ├── parser/            # 解析层（条目、角色、章节）
 │   ├── template/          # 模板层（默认模板、路径处理）
-│   └── file/              # 文件层（文件管理、图片处理）
+│   ├── file/              # 文件层（文件管理、图片处理）
+│   └── utils/             # 通用工具（frontmatter、计时、值处理）
 ├── src/                    # 核心代码
 │   ├── api/               # API 客户端扩展
 │   ├── sync/              # 同步逻辑
@@ -35,11 +36,16 @@ bangumi/
 │   ├── ui/                # UI 弹窗
 │   ├── userData/          # 用户数据保护
 │   ├── episode/           # 单集功能（评论、状态、右键菜单）
-│   └── i18n/              # 国际化
+│   ├── note/              # 条目笔记管理
+│   ├── i18n/              # 国际化
+│   └── utils/             # 移动端工具
 └── docs/                   # 文档
+    ├── README.md          # 文档总览
+    ├── ARCHITECTURE.md    # 项目架构与模块说明
+    ├── DEVELOPMENT.md     # 开发指南
+    ├── LOGIC_REFERENCE.md # 逻辑判断参考
     ├── TEMPLATE_GUIDE.md  # 模板设计指南
     ├── VERSION_HISTORY.md # 版本历史
-    ├── DEVELOPMENT.md     # 开发指南
     └── STATUS_SYNC_PITFALLS.md # 状态同步踩坑记录
 ```
 

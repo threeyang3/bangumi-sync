@@ -9,6 +9,7 @@ import { EpisodeStatusManager } from './episodeStatusManager';
 import { EpisodeCommentManager } from './episodeCommentManager';
 import { EpisodeStatusType, getEpisodeStatusText } from './types';
 import { delay } from '../../common/utils/timing';
+import { tn, tnFormat } from '../i18n/translations';
 
 /**
  * 集数右键菜单管理器
@@ -70,7 +71,7 @@ export class EpisodeContextMenu {
 		// 获取当前文件
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!view) {
-			new Notice('请先打开一个动画条目文件');
+			new Notice(tn('episodeContextMenu', 'openAnimeFileFirst'));
 			return;
 		}
 
@@ -82,7 +83,7 @@ export class EpisodeContextMenu {
 		// 从 frontmatter 获取 subjectId
 		const subjectId = await this.getSubjectIdFromFile(file);
 		if (!subjectId) {
-			new Notice('无法识别条目 ID');
+			new Notice(tn('episodeContextMenu', 'cannotIdentifyId'));
 			return;
 		}
 
@@ -94,7 +95,7 @@ export class EpisodeContextMenu {
 		// === 状态设置选项 ===
 		menu.addItem((item) => {
 			item
-				.setTitle(`看到第${epNumber}集`)
+				.setTitle(tnFormat('episodeContextMenu', 'watchedUpTo', { ep: epNumber }))
 				.onClick(() => void this.setWatchedUpTo(file, epNumber));
 		});
 
@@ -102,25 +103,25 @@ export class EpisodeContextMenu {
 
 		menu.addItem((item) => {
 			item
-				.setTitle(`标记为看过 ${currentStatus === 2 ? '✓' : ''}`)
+				.setTitle(`${tn('episodeContextMenu', 'markAsWatched')} ${currentStatus === 2 ? '✓' : ''}`)
 				.onClick(() => void this.setEpisodeStatus(file, episodeId, epNumber, 2, epBox));
 		});
 
 		menu.addItem((item) => {
 			item
-				.setTitle(`标记为想看 ${currentStatus === 1 ? '✓' : ''}`)
+				.setTitle(`${tn('episodeContextMenu', 'markAsWish')} ${currentStatus === 1 ? '✓' : ''}`)
 				.onClick(() => void this.setEpisodeStatus(file, episodeId, epNumber, 1, epBox));
 		});
 
 		menu.addItem((item) => {
 			item
-				.setTitle(`标记为抛弃 ${currentStatus === 3 ? '✓' : ''}`)
+				.setTitle(`${tn('episodeContextMenu', 'markAsDropped')} ${currentStatus === 3 ? '✓' : ''}`)
 				.onClick(() => void this.setEpisodeStatus(file, episodeId, epNumber, 3, epBox));
 		});
 
 		menu.addItem((item) => {
 			item
-				.setTitle(`取消收藏 ${currentStatus === 0 ? '✓' : ''}`)
+				.setTitle(`${tn('episodeContextMenu', 'unmark')} ${currentStatus === 0 ? '✓' : ''}`)
 				.onClick(() => void this.setEpisodeStatus(file, episodeId, epNumber, 0, epBox));
 		});
 
@@ -129,7 +130,7 @@ export class EpisodeContextMenu {
 		// === 单集吐槽 ===
 		menu.addItem((item) => {
 			item
-				.setTitle('📝 添加吐槽')
+				.setTitle(tn('episodeContextMenu', 'addComment'))
 				.onClick(() => void this.addEpisodeComment(file, epNumber));
 		});
 
@@ -153,10 +154,10 @@ export class EpisodeContextMenu {
 			// 2. 更新 UI 显示
 			this.updateEpBoxStyle(epBox, status);
 
-			new Notice(`第${epNumber}集已设置为"${getEpisodeStatusText(status)}"`);
+			new Notice(tnFormat('episodeContextMenu', 'episodeStatusSet', { ep: epNumber, status: getEpisodeStatusText(status) }));
 		} catch (error) {
 			console.error('[Bangumi Sync] 设置单集状态失败:', error);
-			new Notice('设置失败，请查看控制台');
+			new Notice(tn('episodeContextMenu', 'markFailed'));
 		}
 	}
 
@@ -197,10 +198,10 @@ export class EpisodeContextMenu {
 				this.updateEpBoxStyle(epBox, 2);
 			});
 
-			new Notice(`已标记第1-${targetEpNumber}集为"看过"`);
+			new Notice(tnFormat('episodeContextMenu', 'markedEpisodes', { ep: targetEpNumber }));
 		} catch (error) {
 			console.error('[Bangumi Sync] 设置"看到"状态失败:', error);
-			new Notice('设置失败，请查看控制台');
+			new Notice(tn('episodeContextMenu', 'markFailed'));
 		}
 	}
 
@@ -216,11 +217,11 @@ export class EpisodeContextMenu {
 				// 2. 切换到编辑模式并将光标移动到指定位置
 				await this.switchToEditModeAndFocus(result.insertLine, result.insertColumn);
 
-				new Notice(`已添加第${epNumber}集吐槽`);
+				new Notice(tnFormat('episodeContextMenu', 'episodeCommentAdded', { ep: epNumber }));
 			}
 		} catch (error) {
 			console.error('[Bangumi Sync] 添加单集吐槽失败:', error);
-			new Notice('添加失败，请查看控制台');
+			new Notice(tn('episodeContextMenu', 'addCommentFailed'));
 		}
 	}
 

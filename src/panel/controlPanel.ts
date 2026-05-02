@@ -638,7 +638,7 @@ export class ControlPanel extends Modal {
 
 	private async openOrCreateNote(path: string): Promise<void> {
 		if (!this.subjectNoteManager) {
-			new Notice('条目笔记管理器未初始化');
+			new Notice(tn('notices', 'noteManagerNotInit'));
 			return;
 		}
 

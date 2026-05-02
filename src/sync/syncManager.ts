@@ -26,6 +26,7 @@ import { CoverLinkType } from '../settings/settings';
 import { UserDataExtractor, UserDataMerger, DataProtectionSettings, DEFAULT_DATA_PROTECTION_SETTINGS } from '../userData';
 import { LocalPropertyModalResult, LocalPropertyValueMap } from '../ui/localPropertyModal';
 import { buildExtraTemplateVarsFromPropertyValues, getTemplatePropertyGroupsForSubject } from '../template/templateProperties';
+import { tn } from '../i18n/translations';
 
 /**
  * 同步管理器配置
@@ -202,12 +203,12 @@ export class SyncManager {
 			}
 
 			result.success = true;
-			this.reportProgress({ status: 'completed', message: '同步完成' });
+			this.reportProgress({ status: 'completed', message: tn('notices', 'syncComplete') });
 
 		} catch (error: unknown) {
 			console.error('[Bangumi Sync] 同步失败:', error);
 			this.reportProgress({ status: 'error', message: error instanceof Error ? error.message : String(error) });
-			new Notice(`同步失败: ${error instanceof Error ? error.message : String(error)}`);
+			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 
 		result.duration = Date.now() - startTime;
@@ -637,12 +638,12 @@ export class SyncManager {
 			}
 
 			result.success = true;
-			this.reportProgress({ status: 'completed', message: '同步完成' });
+			this.reportProgress({ status: 'completed', message: tn('notices', 'syncComplete') });
 
 		} catch (error: unknown) {
 			console.error('[Bangumi Sync] 执行同步失败:', error);
 			this.reportProgress({ status: 'error', message: error instanceof Error ? error.message : String(error) });
-			new Notice(`同步失败: ${error instanceof Error ? error.message : String(error)}`);
+			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 
 		result.duration = Date.now() - startTime;

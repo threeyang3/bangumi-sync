@@ -4,6 +4,7 @@ import { generateFilePath } from '../../common/template/pathTemplate';
 import { BangumiPluginSettings } from '../settings/settings';
 import { BangumiClient } from '../api/client';
 import { renderContentTemplate } from '../template/contentTemplate';
+import { tn } from '../i18n/translations';
 
 interface SubjectNoteContext {
 	subject: Subject;
@@ -26,7 +27,7 @@ export class SubjectNoteManager {
 	async createOrAppendForCurrentFile(): Promise<void> {
 		const file = this.app.workspace.getActiveFile();
 		if (!(file instanceof TFile)) {
-			new Notice('当前活动文件不是已同步条目文件');
+			new Notice(tn('subjectNote', 'notSyncedFile'));
 			return;
 		}
 
@@ -35,13 +36,13 @@ export class SubjectNoteManager {
 
 	async createOrAppendForLocalFile(localFile: TFile): Promise<void> {
 		if (!this.settings.notePathTemplate.trim()) {
-			new Notice('请先在设置中配置笔记路径模板');
+			new Notice(tn('subjectNote', 'configureNotePath'));
 			return;
 		}
 
 		const context = await this.resolveContext(localFile);
 		if (!context) {
-			new Notice('当前文件缺少有效的条目 ID，无法创建条目笔记');
+			new Notice(tn('subjectNote', 'missingSubjectId'));
 			return;
 		}
 
@@ -57,7 +58,7 @@ export class SubjectNoteManager {
 			localFile.path,
 			true
 		);
-		new Notice(match ? '已追加到共享笔记' : '已创建共享笔记');
+		new Notice(tn('subjectNote', match ? 'appendedToNote' : 'createdNote'));
 	}
 
 	private async resolveContext(localFile: TFile): Promise<SubjectNoteContext | null> {

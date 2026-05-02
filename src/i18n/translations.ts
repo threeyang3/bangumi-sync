@@ -46,6 +46,8 @@ export interface TranslationStrings {
 		exportTemplatesSuccess: string;
 		exportTemplatesFailed: string;
 		selectExportFolder: string;
+		templateReadFailed: string;
+		noteManagerNotInit: string;
 	};
 
 	// 设置
@@ -382,6 +384,7 @@ export interface TranslationStrings {
 	// 添加到收藏弹窗
 	addToCollection: {
 		title: string;
+		bangumiProperties: string;
 		collectionType: string;
 		rating: string;
 		tags: string;
@@ -482,6 +485,32 @@ export interface TranslationStrings {
 		dropped: string;
 	};
 
+	// 集数右键菜单
+	episodeContextMenu: {
+		openAnimeFileFirst: string;
+		cannotIdentifyId: string;
+		watchedUpTo: string;
+		markAsWatched: string;
+		markAsWish: string;
+		markAsDropped: string;
+		unmark: string;
+		addComment: string;
+		episodeStatusSet: string;
+		markFailed: string;
+		markedEpisodes: string;
+		episodeCommentAdded: string;
+		addCommentFailed: string;
+	};
+
+	// 条目笔记管理
+	subjectNote: {
+		notSyncedFile: string;
+		configureNotePath: string;
+		missingSubjectId: string;
+		appendedToNote: string;
+		createdNote: string;
+	};
+
 }
 
 /**
@@ -520,6 +549,8 @@ const en: TranslationStrings = {
 		exportTemplatesSuccess: 'Templates exported successfully',
 		exportTemplatesFailed: 'Failed to export templates',
 		selectExportFolder: 'Please select a folder to export templates',
+		templateReadFailed: 'Failed to read template file: {path}',
+		noteManagerNotInit: 'Subject note manager not initialized',
 	},
 
 	settings: {
@@ -838,6 +869,7 @@ const en: TranslationStrings = {
 
 	addToCollection: {
 		title: 'Add to collection',
+		bangumiProperties: 'Bangumi properties',
 		collectionType: 'Collection status',
 		rating: 'Rating',
 		tags: 'Tags',
@@ -932,6 +964,30 @@ const en: TranslationStrings = {
 		onHold: 'On hold',
 		dropped: 'Dropped',
 	},
+
+	episodeContextMenu: {
+		openAnimeFileFirst: 'Please open an anime subject file first',
+		cannotIdentifyId: 'Cannot identify subject ID',
+		watchedUpTo: 'Watched up to episode {ep}',
+		markAsWatched: 'Mark as watched',
+		markAsWish: 'Mark as wish',
+		markAsDropped: 'Mark as dropped',
+		unmark: 'Unmark',
+		addComment: '📝 Add comment',
+		episodeStatusSet: 'Episode {ep} set to "{status}"',
+		markFailed: 'Failed, check console',
+		markedEpisodes: 'Marked episodes 1-{ep} as watched',
+		episodeCommentAdded: 'Added comment for episode {ep}',
+		addCommentFailed: 'Failed to add comment, check console',
+	},
+
+	subjectNote: {
+		notSyncedFile: 'Current active file is not a synced subject file',
+		configureNotePath: 'Please configure note path template in settings first',
+		missingSubjectId: 'Current file lacks a valid subject ID, cannot create subject note',
+		appendedToNote: 'Appended to shared note',
+		createdNote: 'Created shared note',
+	},
 };
 
 /**
@@ -970,6 +1026,8 @@ const zhCN: TranslationStrings = {
 		exportTemplatesSuccess: '模板导出成功',
 		exportTemplatesFailed: '模板导出失败',
 		selectExportFolder: '请选择导出文件夹',
+		templateReadFailed: '模板文件读取失败: {path}',
+		noteManagerNotInit: '条目笔记管理器未初始化',
 	},
 
 	settings: {
@@ -1288,6 +1346,7 @@ const zhCN: TranslationStrings = {
 
 	addToCollection: {
 		title: '添加到收藏',
+		bangumiProperties: 'Bangumi 属性',
 		collectionType: '收藏状态',
 		rating: '评分',
 		tags: '标签',
@@ -1381,6 +1440,30 @@ const zhCN: TranslationStrings = {
 		doing: '在看',
 		onHold: '搁置',
 		dropped: '抛弃',
+	},
+
+	episodeContextMenu: {
+		openAnimeFileFirst: '请先打开一个动画条目文件',
+		cannotIdentifyId: '无法识别条目 ID',
+		watchedUpTo: '看到第{ep}集',
+		markAsWatched: '标记为看过',
+		markAsWish: '标记为想看',
+		markAsDropped: '标记为抛弃',
+		unmark: '取消收藏',
+		addComment: '📝 添加吐槽',
+		episodeStatusSet: '第{ep}集已设置为"{status}"',
+		markFailed: '设置失败，请查看控制台',
+		markedEpisodes: '已标记第1-{ep}集为"看过"',
+		episodeCommentAdded: '已添加第{ep}集吐槽',
+		addCommentFailed: '添加失败，请查看控制台',
+	},
+
+	subjectNote: {
+		notSyncedFile: '当前活动文件不是已同步条目文件',
+		configureNotePath: '请先在设置中配置笔记路径模板',
+		missingSubjectId: '当前文件缺少有效的条目 ID，无法创建条目笔记',
+		appendedToNote: '已追加到共享笔记',
+		createdNote: '已创建共享笔记',
 	},
 
 };
