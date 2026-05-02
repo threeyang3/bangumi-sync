@@ -165,7 +165,7 @@ export class ControlPanel extends Modal {
 		// 检查是否有缓存数据
 		if (this.cachedData && this.cachedData.collections.length > 0) {
 			// 使用缓存数据，直接显示
-			this.renderStatus(`${tn('controlPanel', 'cachedDataLoaded')} ${this.state.collections.length} ${tn('controlPanel', 'totalItems')}`);
+			this.renderStatus(`${tn('controlPanel', 'cachedDataLoaded')} ${this.state.collections.length}`);
 			this.applyFilters();
 
 			// 自动触发状态同步
@@ -538,7 +538,7 @@ export class ControlPanel extends Modal {
 			// 名称
 			const nameCell = row.createEl('td', { cls: 'bangumi-name-cell' });
 			nameCell.createSpan({ text: collection.subject.name_cn || collection.subject.name || tn('controlPanel', 'unknown') });
-			if (collection.subject.name && collection.subject.name_cn && collection.subject.name !== collection.subject.name_cn) {
+			if (!isMobile() && collection.subject.name && collection.subject.name_cn && collection.subject.name !== collection.subject.name_cn) {
 				nameCell.createEl('br');
 				nameCell.createSpan({ cls: 'bangumi-name-original', text: collection.subject.name });
 			}
