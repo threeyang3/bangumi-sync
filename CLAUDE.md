@@ -101,11 +101,10 @@ bangumi/
   - `git push`
 - 如果 `git push` 与 GitHub 的 HTTPS / TLS 通道异常，而 `gh` 仍可访问 GitHub API，优先继续尝试 `gh` 路径或调整 git 后端，而不是直接放弃同步
 
-## 移动端测试发布注意事项
+## 测试分支发布注意事项
 
-- `mobile` 分支用于移动端体验测试，不要直接合并到 `main` 影响正在等待 Obsidian 官方审查的版本
+- `adv` 分支用于新功能测试，不要直接合并到 `main` 影响正在等待 Obsidian 官方审查的版本
 - BRAT 测试版 release 的 tag 必须与 `manifest.json` 里的 `version` 完全一致
-- 2026-05-02 当前移动端测试版是 `5.3.4` prerelease，使用纯版本号 tag，并通过 GitHub prerelease 提供 `main.js`、`manifest.json`、`styles.css`
 - 如果为了测试创建了旧 prerelease，删除时使用 `gh release delete {版本号} --yes --cleanup-tag` 同时清理 tag，避免 BRAT 看到多个入口
 - Release notes 要用真正的多行 Markdown，不能把 `\n` 当作字面量写进 `--notes`
 
