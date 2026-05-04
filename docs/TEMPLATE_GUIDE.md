@@ -208,27 +208,38 @@ tags:
 
 这些值来自 infobox 解析，是否有值取决于条目本身是否提供了对应信息。
 
-| 变量 | 说明 |
-|------|------|
-| `{{episode}}` | 集数 / 话数等 |
-| `{{director}}` | 导演 |
-| `{{music}}` | 音乐 |
-| `{{animeMake}}` | 动画制作 |
-| `{{website}}` | 官网 |
-| `{{author}}` | 作者 |
-| `{{illustration}}` | 插画 |
-| `{{publish}}` | 出版 / 发行 |
-| `{{series}}` | 书系 |
-| `{{journal}}` | 连载杂志 |
-| `{{volumes}}` | 册数 |
-| `{{status}}` | 完结 / 连载状态 |
-| `{{progress}}` | 连载进度 |
-| `{{staff}}` | staff 信息 |
-| `{{platform}}` | 平台 |
-| `{{develop}}` | 开发商 |
-| `{{playerNum}}` | 游玩人数 |
-| `{{pages}}` | 页数 |
-| `{{isbn}}` | ISBN |
+| 变量 | 说明 | 适用类型 |
+|------|------|---------|
+| `{{episode}}` | 集数 / 话数等 | 通用 |
+| `{{director}}` | 导演 | 动画 |
+| `{{music}}` | 音乐 | 动画 |
+| `{{animeMake}}` | 动画制作 | 动画 |
+| `{{from}}` | 原作 | 动画 |
+| `{{musicMake}}` | 音乐制作 | 动画 |
+| `{{audioDirector}}` | 音响监督 | 动画 |
+| `{{artDirector}}` | 美术监督 | 动画 |
+| `{{animeChief}}` | 总作画监督 | 动画 |
+| `{{website}}` | 官网 | 通用 |
+| `{{author}}` | 作者 | 书籍 |
+| `{{illustration}}` | 插画 | 书籍 |
+| `{{publish}}` | 出版 / 发行 | 书籍 |
+| `{{series}}` | 书系 | 书籍 |
+| `{{journal}}` | 连载杂志 | 书籍 |
+| `{{volumes}}` | 册数 | 书籍 |
+| `{{status}}` | 完结 / 连载状态 | 书籍 |
+| `{{progress}}` | 连载进度 | 书籍 |
+| `{{start}}` | 开始日期 | 书籍 |
+| `{{end}}` | 结束日期 | 书籍 |
+| `{{staff}}` | staff 信息 | 通用 |
+| `{{platform}}` | 平台 | 游戏 |
+| `{{develop}}` | 开发商 | 游戏 |
+| `{{playerNum}}` | 游玩人数 | 游戏 |
+| `{{script}}` | 剧本 | 游戏 |
+| `{{art}}` | 原画 | 游戏 |
+| `{{producer}}` | 制作人 | 游戏 |
+| `{{price}}` | 售价 | 游戏 |
+| `{{pages}}` | 页数 | 书籍 |
+| `{{isbn}}` | ISBN | 书籍 |
 
 ## 7. 评分明细变量
 

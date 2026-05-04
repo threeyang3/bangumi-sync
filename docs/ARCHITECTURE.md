@@ -139,12 +139,14 @@ SyncManager
 - 规范错误日志
 - 缓存已验证的用户名
 - 对少量接口做额外语义处理
+- 对 429 和 5xx 错误自动重试（指数退避 1s→2s→4s，最多 3 次）
+- `getAllUserCollections()` 分页间隔动态化（前 5 页 50ms，之后 100ms），支持取消信号
 
 需要特别注意的点：
 
 - 收藏状态查询不能再用 `/v0/users/-/collections/{id}` 读取。
 - 当前逻辑会先验证 token 或复用缓存用户名，再查询 `/v0/users/{username}/collections/{id}`。
-- `404` 在收藏状态查询里被当作“未收藏”，不是异常。
+- `404` 在收藏状态查询里被当作”未收藏”，不是异常。
 
 ### 5.2 `src/sync/syncManager.ts`
 
@@ -166,19 +168,24 @@ SyncManager
 - 搜索并添加后的单条同步 `syncSingleSubject()`
 - 协作式取消/暂停支持（通过 `SyncCancellationSignal`）
 - 批次回滚 `rollbackBatch()`（删除本次新建的文件）
+- 并发处理 `processConcurrently()`（三个同步方法共享）
+- 双向链接批量更新（按目标文件分组，每个文件只读写一次）
+- 错误详情收集（`SyncResult.errorDetails`）
 
 ### 5.3 `src/sync/incrementalSync.ts`
 
 这是“本地事实层”。
 
-它维护两类状态：
+它维护三类状态：
 
 - 历史已同步条目 `localSubjects`
 - 当前批次刚同步成功的条目 `batchSyncedItems`
+- id→path 反转索引 `metadataIdIndex`（扫描后从 metadataCache 构建）
 
 主要职责：
 
-- 扫描目录并识别本地已同步条目
+- 扫描目录并识别本地已同步条目（优先使用 metadataCache，减少文件读取）
+- 构建 id→path 反转索引，供 `resolvePathByMetadataCache()` O(1) 查找
 - 计算远程收藏与本地文件的差异
 - 解析和回写短评、标签、相关链接、评分、状态
 - 为状态同步面板提供本地值抽取能力
