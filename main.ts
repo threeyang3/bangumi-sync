@@ -760,7 +760,8 @@ export default class BangumiPlugin extends Plugin {
 						const syncResult = await this.syncManager!.executeSync(
 							result.items,
 							result.action,
-							localPropertyResult
+							localPropertyResult,
+							this.settings.syncConcurrency
 						);
 
 						this.settings.lastSyncTime = new Date().toISOString();
@@ -784,7 +785,7 @@ export default class BangumiPlugin extends Plugin {
 				collectionTypes: options.collectionTypes,
 				limit: options.limit,
 				force: options.force,
-			});
+			}, this.settings.syncConcurrency);
 
 			this.settings.lastSyncTime = new Date().toISOString();
 			this.settings.lastSyncCount = result.added + result.skipped;

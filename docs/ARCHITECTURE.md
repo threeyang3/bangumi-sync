@@ -34,6 +34,7 @@ common/
   - 加载设置、初始化 `SyncManager`
   - 注册命令、Ribbon、设置页
   - 连接“同步收藏”“控制面板”“搜索条目”“导入导出”等入口
+  - 状态栏同步进度指示器（后台运行时显示）
 - `manifest.json`
   - Obsidian 插件清单
 - `styles.css`
@@ -160,8 +161,11 @@ SyncManager
 - 普通同步 `sync()`
 - 手动同步准备 `prepareSync()`
 - 预览确认后执行 `executeSync()`
+- 同步数据准备 `prepareSyncData()`（`sync()` 和 `prepareSync()` 的共享逻辑）
 - 控制面板覆盖同步
 - 搜索并添加后的单条同步 `syncSingleSubject()`
+- 协作式取消/暂停支持（通过 `SyncCancellationSignal`）
+- 批次回滚 `rollbackBatch()`（删除本次新建的文件）
 
 ### 5.3 `src/sync/incrementalSync.ts`
 
@@ -225,7 +229,7 @@ SyncManager
 - `addToCollectionModal.ts`
   - 搜索并添加时填写 Bangumi 属性和本地自定义属性
 - `syncModal.ts`
-  - 同步进度反馈
+  - 同步进度反馈、暂停/恢复、取消（带回滚）、后台运行支持
 
 ### 5.7 `src/panel/`
 
@@ -296,7 +300,7 @@ main.ts -> SyncManager.sync()
   -> getAllUserCollections()
   -> scanLocalFolder()
   -> computeDiff()
-  -> processCollectionWithBidirectionalLinks()
+  -> processCollection()
   -> generateContentByType()
   -> createOrUpdateFile()
 ```
@@ -328,7 +332,7 @@ main.ts -> SyncManager.prepareSync()
 ```text
 ControlPanel
   -> collectLocalPropertyValues()
-  -> SyncManager.processCollectionWithBidirectionalLinksAndOverwrite()
+  -> SyncManager.processCollection(overwrite: true)
 ```
 
 特点：

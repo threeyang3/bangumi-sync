@@ -141,21 +141,25 @@ function sanitizeFileName(name: string): string {
 
 /**
  * 渲染路径模板
+ * 使用单次正则匹配替换所有变量
  * @param template 模板字符串，如 "ACGN/{{type}}/{{name_cn}}.md"
  * @param vars 模板变量
  */
 export function renderPathTemplate(template: string, vars: PathTemplateVars): string {
-	let result = template;
+	const varMap: Record<string, string> = {
+		type: sanitizeFileName(vars.type),
+		category: sanitizeFileName(vars.category),
+		name: sanitizeFileName(vars.name),
+		name_cn: sanitizeFileName(vars.name_cn),
+		name_cn_with_type: sanitizeFileName(vars.name_cn_with_type),
+		year: vars.year,
+		author: sanitizeFileName(vars.author),
+		id: String(vars.id),
+	};
 
-	// 替换变量
-	result = result.replace(/\{\{type\}\}/g, sanitizeFileName(vars.type));
-	result = result.replace(/\{\{category\}\}/g, sanitizeFileName(vars.category));
-	result = result.replace(/\{\{name\}\}/g, sanitizeFileName(vars.name));
-	result = result.replace(/\{\{name_cn\}\}/g, sanitizeFileName(vars.name_cn));
-	result = result.replace(/\{\{name_cn_with_type\}\}/g, sanitizeFileName(vars.name_cn_with_type));
-	result = result.replace(/\{\{year\}\}/g, vars.year);
-	result = result.replace(/\{\{author\}\}/g, sanitizeFileName(vars.author));
-	result = result.replace(/\{\{id\}\}/g, String(vars.id));
+	let result = template.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
+		return key in varMap ? varMap[key] : `{{${key}}}`;
+	});
 
 	// 清理路径中的空目录部分
 	result = result

@@ -76,6 +76,7 @@ export interface BangumiPluginSettings {
 	defaultSubjectTypes: SubjectType[];
 	defaultCollectionTypes: CollectionType[];
 	syncLimit: number;
+	syncConcurrency: number;  // 并发同步数（1-5，默认 3）
 
 	// 自动同步
 	autoSync: boolean;
@@ -152,6 +153,7 @@ export const DEFAULT_SETTINGS: BangumiPluginSettings = {
 	defaultSubjectTypes: [SubjectType.Book, SubjectType.Anime, SubjectType.Music, SubjectType.Game, SubjectType.Real],
 	defaultCollectionTypes: [CollectionType.Wish, CollectionType.Done, CollectionType.Doing, CollectionType.OnHold, CollectionType.Dropped],
 	syncLimit: 50,
+	syncConcurrency: 3,
 
 	autoSync: false,
 	autoSyncInterval: 60,

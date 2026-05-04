@@ -48,63 +48,93 @@ export class BangumiClient {
 	}
 
 	/**
-	 * 发送 API 请求
+	 * 判断 HTTP 状态码是否应重试（429 或 5xx）
+	 */
+	private isRetryableStatus(status: number): boolean {
+		return status === 429 || status >= 500;
+	}
+
+	/**
+	 * 发送 API 请求（带指数退避重试）
+	 * 对 429 和 5xx 自动重试 3 次，退避 1s→2s→4s
 	 */
 	private async request<T>(
 		method: 'GET' | 'POST' | 'PUT' | 'DELETE',
 		endpoint: string,
 		data?: unknown
 	): Promise<T> {
+		const maxRetries = 3;
 		const url = `${this.baseUrl}${endpoint}`;
 
-		const options: RequestUrlParam = {
-			url,
-			method,
-			headers: this.getHeaders(),
-			body: data ? JSON.stringify(data) : undefined,
-		};
-
-		try {
-			console.debug(`[Bangumi Sync] ${method} ${url}`);
-			if (data !== undefined) {
-				console.debug('[Bangumi Sync] Request payload:', { method, endpoint, data });
-			}
-			const response = await requestUrl(options);
-
-			console.debug(`[Bangumi Sync] Response status: ${response.status}`);
-			const responseJson = this.parseJsonResponse(response);
-
-			if (response.status >= 400) {
-				const error = this.toApiError(responseJson, response.status);
-				const errorMsg = error.title + (error.description ? `: ${error.description}` : '');
-				console.error(`[Bangumi Sync] API Error ${response.status} on ${method} ${endpoint}:`, errorMsg, data);
-				throw new Error(errorMsg);
-			}
-
-			// 204 No Content 表示成功但无返回内容
-			if (response.status === 204) {
-				return {} as T;
-			}
-
-			if (responseJson instanceof SyntaxError) {
-				console.debug(`[Bangumi Sync] Empty success response on ${method} ${endpoint}`);
-				return {} as T;
-			}
-
-			return responseJson as T;
-		} catch (error) {
-			const errorInfo = {
+		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			const options: RequestUrlParam = {
+				url,
 				method,
-				endpoint,
-				data,
-				error,
+				headers: this.getHeaders(),
+				body: data ? JSON.stringify(data) : undefined,
 			};
-			console.error(`[Bangumi Sync] Request failed:`, errorInfo);
-			if (error instanceof Error) {
-				throw new Error(`${error.message} | ${method} ${endpoint} | payload=${JSON.stringify(data)}`);
+
+			try {
+				if (attempt === 0) {
+					console.debug(`[Bangumi Sync] ${method} ${url}`);
+					if (data !== undefined) {
+						console.debug('[Bangumi Sync] Request payload:', { method, endpoint, data });
+					}
+				} else {
+					console.debug(`[Bangumi Sync] 重试 ${attempt}/${maxRetries}: ${method} ${url}`);
+				}
+
+				const response = await requestUrl(options);
+				console.debug(`[Bangumi Sync] Response status: ${response.status}`);
+
+				// 可重试的状态码且未超过重试次数
+				if (this.isRetryableStatus(response.status) && attempt < maxRetries) {
+					const delay = Math.pow(2, attempt) * 1000;
+					console.warn(`[Bangumi Sync] HTTP ${response.status}，${delay}ms 后重试...`);
+					await new Promise(resolve => activeWindow.setTimeout(resolve, delay));
+					continue;
+				}
+
+				const responseJson = this.parseJsonResponse(response);
+
+				if (response.status >= 400) {
+					const error = this.toApiError(responseJson, response.status);
+					const errorMsg = error.title + (error.description ? `: ${error.description}` : '');
+					console.error(`[Bangumi Sync] API Error ${response.status} on ${method} ${endpoint}:`, errorMsg, data);
+					throw new Error(errorMsg);
+				}
+
+				// 204 No Content 表示成功但无返回内容
+				if (response.status === 204) {
+					return {} as T;
+				}
+
+				if (responseJson instanceof SyntaxError) {
+					console.debug(`[Bangumi Sync] Empty success response on ${method} ${endpoint}`);
+					return {} as T;
+				}
+
+				return responseJson as T;
+			} catch (error) {
+				// 网络错误等非 HTTP 错误也可重试
+				if (attempt < maxRetries && !(error instanceof Error && error.message.includes('HTTP'))) {
+					const delay = Math.pow(2, attempt) * 1000;
+					console.warn(`[Bangumi Sync] 请求失败，${delay}ms 后重试...`, error);
+					await new Promise(resolve => activeWindow.setTimeout(resolve, delay));
+					continue;
+				}
+
+				const errorInfo = { method, endpoint, data, error };
+				console.error(`[Bangumi Sync] Request failed:`, errorInfo);
+				if (error instanceof Error) {
+					throw new Error(`${error.message} | ${method} ${endpoint} | payload=${JSON.stringify(data)}`);
+				}
+				throw new Error(`Request failed: ${String(error)} | ${method} ${endpoint} | payload=${JSON.stringify(data)}`);
 			}
-			throw new Error(`Request failed: ${String(error)} | ${method} ${endpoint} | payload=${JSON.stringify(data)}`);
 		}
+
+		// TypeScript 控制流到达此处不会实际执行
+		throw new Error(`Request failed after ${maxRetries} retries | ${method} ${endpoint}`);
 	}
 
 	private parseJsonResponse(response: { json: unknown }): unknown {
@@ -353,6 +383,7 @@ export class BangumiClient {
 
 	/**
 	 * 获取用户所有收藏（自动分页）
+	 * 前 5 页间隔 50ms，之后 100ms；支持取消信号
 	 */
 	async getAllUserCollections(
 		username: string,
@@ -360,11 +391,13 @@ export class BangumiClient {
 			subjectType?: SubjectType;
 			collectionType?: number;
 			onProgress?: (current: number, total: number) => void;
+			cancelled?: { value: boolean };
 		}
 	): Promise<UserCollection[]> {
 		const limit = 50;
 		let offset = 0;
 		let total = 0;
+		let page = 0;
 		const allCollections: UserCollection[] = [];
 
 		// 首次请求获取 total
@@ -375,6 +408,7 @@ export class BangumiClient {
 		});
 		total = firstResult.total;
 		allCollections.push(...firstResult.data);
+		page++;
 
 		if (options?.onProgress) {
 			options.onProgress(allCollections.length, total);
@@ -382,8 +416,15 @@ export class BangumiClient {
 
 		// 继续获取剩余数据
 		while (allCollections.length < total) {
+			if (options?.cancelled?.value) {
+				console.debug('[Bangumi Sync] 分页获取已取消');
+				break;
+			}
+
 			offset += limit;
-			await new Promise(resolve => activeWindow.setTimeout(resolve, 100));
+			// 前 5 页 50ms，之后 100ms
+			const delay = page < 5 ? 50 : 100;
+			await new Promise(resolve => activeWindow.setTimeout(resolve, delay));
 
 			const result = await this.getUserCollections(username, {
 				...options,
@@ -391,6 +432,7 @@ export class BangumiClient {
 				offset,
 			});
 			allCollections.push(...result.data);
+			page++;
 
 			if (options?.onProgress) {
 				options.onProgress(allCollections.length, total);

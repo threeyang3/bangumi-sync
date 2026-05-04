@@ -27,6 +27,8 @@ export class IncrementalSync {
 	private lastScanPath: string = '';
 	// 本批次同步的条目（用于同批次内的相关条目关联）
 	private batchSyncedItems: Map<number, LocalSubjectInfo> = new Map();
+	// metadataCache 构建的 id→path 反转索引（用于快速路径查找）
+	private metadataIdIndex: Map<number, string> = new Map();
 
 	constructor(app: App) {
 		this.app = app;
@@ -140,7 +142,52 @@ export class IncrementalSync {
 		}
 
 		console.debug(`[Bangumi Sync] 扫描完成，发现 ${this.localSubjects.size} 个已同步条目 (缓存命中: ${cacheHits}, 文件读取: ${fileReads})`);
+
+		// 构建 metadataCache id→path 反转索引（用于后续快速路径查找）
+		this.buildMetadataIdIndex(targetFiles);
+
 		return this.localSubjects.size;
+	}
+
+	/**
+	 * 从 metadataCache 构建 id→path 反转索引
+	 * 扫描完成后调用，用于后续 O(1) 路径查找
+	 */
+	private buildMetadataIdIndex(files: TFile[]): void {
+		this.metadataIdIndex.clear();
+		for (const file of files) {
+			const cache = this.app.metadataCache.getFileCache(file);
+			const frontmatter = cache?.frontmatter;
+			if (!frontmatter) continue;
+
+			// 尝试 id 字段
+			const frontmatterId: unknown = frontmatter.id;
+			if (frontmatterId !== undefined && frontmatterId !== null) {
+				const numericId = typeof frontmatterId === 'number'
+					? frontmatterId
+					: typeof frontmatterId === 'string' && /^\d+$/.test(frontmatterId)
+						? parseInt(frontmatterId, 10)
+						: null;
+				if (numericId !== null && numericId > 0) {
+					this.metadataIdIndex.set(numericId, file.path);
+					continue;
+				}
+			}
+
+			// 尝试 BangumiID 字段
+			const bgmId: unknown = frontmatter.BangumiID;
+			if (bgmId !== undefined && bgmId !== null) {
+				const numericId = typeof bgmId === 'number'
+					? bgmId
+					: typeof bgmId === 'string' && /^\d+$/.test(bgmId)
+						? parseInt(bgmId, 10)
+						: null;
+				if (numericId !== null && numericId > 0) {
+					this.metadataIdIndex.set(numericId, file.path);
+				}
+			}
+		}
+		console.debug(`[Bangumi Sync] 构建 id→path 索引: ${this.metadataIdIndex.size} 条`);
 	}
 
 	/**
@@ -279,6 +326,7 @@ export class IncrementalSync {
 	clear(): void {
 		this.localSubjects.clear();
 		this.lastScanPath = '';
+		this.metadataIdIndex.clear();
 	}
 
 	/**
@@ -368,17 +416,27 @@ export class IncrementalSync {
 
 	/**
 	 * 通过 metadataCache 解析条目 ID 对应的本地路径
-	 * 用于在缓存未命中时快速查找，避免读取文件内容
+	 * 优先查反转索引（O(1)），未命中再遍历 metadataCache
 	 * @param subjectId 条目 ID
 	 * @param scanRoot 扫描根路径（可选，用于过滤文件范围）
 	 * @returns 找到的路径，同时会将结果添加到缓存中
 	 */
 	resolvePathByMetadataCache(subjectId: number, scanRoot?: string): string | undefined {
+		// 优先查反转索引
+		const indexedPath = this.metadataIdIndex.get(subjectId);
+		if (indexedPath) {
+			const normalizedRoot = scanRoot ? normalizePath(scanRoot) : '';
+			if (!normalizedRoot || indexedPath.startsWith(normalizedRoot)) {
+				this.addBatchSyncedItem(subjectId, indexedPath, '', false);
+				return indexedPath;
+			}
+		}
+
+		// 索引未命中，遍历 metadataCache
 		const normalizedRoot = scanRoot ? normalizePath(scanRoot) : '';
 		const allFiles = this.app.vault.getMarkdownFiles();
 
 		for (const file of allFiles) {
-			// 如果指定了扫描根路径，只扫描该路径下的文件
 			if (normalizedRoot && !file.path.startsWith(normalizedRoot)) {
 				continue;
 			}
@@ -390,7 +448,6 @@ export class IncrementalSync {
 				continue;
 			}
 
-			// 检查 id 字段
 			const frontmatterId: unknown = frontmatter.id;
 			if (frontmatterId !== undefined && frontmatterId !== null) {
 				const numericId = typeof frontmatterId === 'number'
@@ -399,14 +456,14 @@ export class IncrementalSync {
 						? parseInt(frontmatterId, 10)
 						: null;
 				if (numericId === subjectId) {
-					// 找到了，添加到缓存
 					const name_cn = frontmatter.中文名 ? String(frontmatter.中文名).trim() : '';
 					this.addBatchSyncedItem(subjectId, file.path, name_cn || file.basename, false);
+					// 更新索引
+					this.metadataIdIndex.set(subjectId, file.path);
 					return file.path;
 				}
 			}
 
-			// 检查 BangumiID 字段
 			const bgmId: unknown = frontmatter.BangumiID;
 			if (bgmId !== undefined && bgmId !== null) {
 				const numericId = typeof bgmId === 'number'
@@ -415,9 +472,9 @@ export class IncrementalSync {
 						? parseInt(bgmId, 10)
 						: null;
 				if (numericId === subjectId) {
-					// 找到了，添加到缓存
 					const name_cn = frontmatter.中文名 ? String(frontmatter.中文名).trim() : '';
 					this.addBatchSyncedItem(subjectId, file.path, name_cn || file.basename, false);
+					this.metadataIdIndex.set(subjectId, file.path);
 					return file.path;
 				}
 			}

@@ -138,7 +138,7 @@ export class SyncManager {
 	 * 执行同步
 	 * 优化：支持并发处理多个条目，提高同步速度
 	 */
-	async sync(options: SyncOptions): Promise<SyncResultWithRollback> {
+	async sync(options: SyncOptions, concurrency: number = 3): Promise<SyncResultWithRollback> {
 		const startTime = Date.now();
 		let wasCancelled = false;
 		const result: SyncResult = {
@@ -148,6 +148,7 @@ export class SyncManager {
 			skipped: 0,
 			errors: 0,
 			duration: 0,
+			errorDetails: [],
 		};
 
 		try {
@@ -159,10 +160,7 @@ export class SyncManager {
 			// 开始批次同步
 			this.incrementalSync.startBatch();
 
-			// 并发处理条目
-			const concurrency = 3; // 并发数
 			let completedCount = 0;
-			const errors: string[] = [];
 
 			// 使用并发控制处理条目
 			await this.processConcurrently(
@@ -189,14 +187,15 @@ export class SyncManager {
 						completedCount++;
 					} catch (error) {
 						const errorMsg = error instanceof Error ? error.message : String(error);
-						console.error(`[Bangumi Sync] 处理条目失败: ${collection.subject.name_cn}`, error);
-						errors.push(`${collection.subject.name_cn}: ${errorMsg}`);
+						const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
+						console.error(`[Bangumi Sync] 处理条目失败: ${name}`, error);
+						result.errorDetails.push(`${name}: ${errorMsg}`);
 					}
 				}
 			);
 
 			result.added = completedCount;
-			result.errors = errors.length;
+			result.errors = result.errorDetails.length;
 
 			if (!wasCancelled) {
 				result.success = true;
@@ -500,6 +499,7 @@ export class SyncManager {
 		options?: {
 			overwrite?: boolean;
 			localPropertyValuesBySubjectId?: Map<number, LocalPropertyValueMap>;
+			concurrency?: number;
 		},
 		onProgress?: (current: number, total: number, message: string) => void
 	): Promise<SyncResultWithRollback> {
@@ -512,48 +512,57 @@ export class SyncManager {
 			skipped: 0,
 			errors: 0,
 			duration: 0,
+			errorDetails: [],
 		};
 
 		const overwrite = options?.overwrite ?? false;
 		const localPropertyValuesBySubjectId = options?.localPropertyValuesBySubjectId;
+		const concurrency = options?.concurrency ?? 3;
 
 		try {
-			console.debug(`[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}`);
+			console.debug(`[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}，并发数: ${concurrency}`);
 
 			// 开始批次同步
 			this.incrementalSync.startBatch();
 
-			for (let i = 0; i < collections.length; i++) {
-				if (await this.checkCancellation()) {
-					wasCancelled = true;
-					break;
-				}
+			// 使用并发控制处理条目
+			await this.processConcurrently(
+				collections,
+				concurrency,
+				async (collection, i) => {
+					if (await this.checkCancellation()) {
+						wasCancelled = true;
+						return;
+					}
 
-				const collection = collections[i];
+					if (onProgress) {
+						onProgress(i + 1, collections.length, `正在同步条目 ${i + 1}/${collections.length}`);
+					}
 
-				if (onProgress) {
-					onProgress(i + 1, collections.length, `正在同步条目 ${i + 1}/${collections.length}`);
-				}
-
-				this.reportProgress({
-					status: 'processing',
-					current: i + 1,
-					total: collections.length,
-					message: `同步条目... (${i + 1}/${collections.length})`,
-				});
-
-				try {
-					await this.processCollection(collection, {
-						overwrite,
-						preserveUserDataOnOverwrite: true,
-						localPropertyValues: localPropertyValuesBySubjectId?.get(collection.subject_id),
+					this.reportProgress({
+						status: 'processing',
+						current: i + 1,
+						total: collections.length,
+						message: `同步条目... (${i + 1}/${collections.length})`,
 					});
-					result.added++;
-				} catch (error) {
-					console.error(`[Bangumi Sync] 同步条目失败 (ID: ${collection.subject_id}):`, error);
-					result.errors++;
+
+					try {
+						await this.processCollection(collection, {
+							overwrite,
+							preserveUserDataOnOverwrite: true,
+							localPropertyValues: localPropertyValuesBySubjectId?.get(collection.subject_id),
+						});
+						result.added++;
+					} catch (error) {
+						const errorMsg = error instanceof Error ? error.message : String(error);
+						const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
+						console.error(`[Bangumi Sync] 同步条目失败 (ID: ${collection.subject_id}):`, error);
+						result.errorDetails.push(`${name}: ${errorMsg}`);
+					}
 				}
-			}
+			);
+
+			result.errors = result.errorDetails.length;
 
 			if (!wasCancelled) {
 				result.success = true;
@@ -628,7 +637,8 @@ export class SyncManager {
 	async executeSync(
 		previewItems: SyncPreviewItem[],
 		action: 'all' | 'selected' | 'unselected',
-		localPropertyResult?: LocalPropertyModalResult
+		localPropertyResult?: LocalPropertyModalResult,
+		concurrency: number = 3
 	): Promise<SyncResultWithRollback> {
 		const startTime = Date.now();
 		let wasCancelled = false;
@@ -639,6 +649,7 @@ export class SyncManager {
 			skipped: 0,
 			errors: 0,
 			duration: 0,
+			errorDetails: [],
 		};
 
 		try {
@@ -653,40 +664,46 @@ export class SyncManager {
 			}
 
 			result.total = itemsToSync.length;
-			console.debug(`[Bangumi Sync] 开始同步 ${itemsToSync.length} 个条目`);
+			console.debug(`[Bangumi Sync] 开始同步 ${itemsToSync.length} 个条目，并发数: ${concurrency}`);
 
 			// 开始批次同步
 			this.incrementalSync.startBatch();
 
-			// 处理每个条目
-			for (let i = 0; i < itemsToSync.length; i++) {
-				if (await this.checkCancellation()) {
-					wasCancelled = true;
-					break;
-				}
+			// 使用并发控制处理条目
+			await this.processConcurrently(
+				itemsToSync,
+				concurrency,
+				async (item, i) => {
+					if (await this.checkCancellation()) {
+						wasCancelled = true;
+						return;
+					}
 
-				const item = itemsToSync[i];
-
-				this.reportProgress({
-					status: 'processing',
-					current: i + 1,
-					total: itemsToSync.length,
-					currentItem: item.name_cn || item.name,
-					message: `处理条目... (${i + 1}/${itemsToSync.length})`,
-				});
-
-				try {
-					await this.processCollection(item.collection, {
-						overwrite: false,
-						preserveUserDataOnOverwrite: false,
-						localPropertyValues: localPropertyResult?.propertyValuesBySubjectId?.get(item.collection.subject_id),
+					this.reportProgress({
+						status: 'processing',
+						current: i + 1,
+						total: itemsToSync.length,
+						currentItem: item.name_cn || item.name,
+						message: `处理条目... (${i + 1}/${itemsToSync.length})`,
 					});
-					result.added++;
-				} catch (error) {
-					console.error(`[Bangumi Sync] 处理条目失败: ${item.name_cn}`, error);
-					result.errors++;
+
+					try {
+						await this.processCollection(item.collection, {
+							overwrite: false,
+							preserveUserDataOnOverwrite: false,
+							localPropertyValues: localPropertyResult?.propertyValuesBySubjectId?.get(item.collection.subject_id),
+						});
+						result.added++;
+					} catch (error) {
+						const errorMsg = error instanceof Error ? error.message : String(error);
+						const name = item.name_cn || item.name || String(item.id);
+						console.error(`[Bangumi Sync] 处理条目失败: ${name}`, error);
+						result.errorDetails.push(`${name}: ${errorMsg}`);
+					}
 				}
-			}
+			);
+
+			result.errors = result.errorDetails.length;
 
 			if (!wasCancelled) {
 				result.success = true;
@@ -804,8 +821,7 @@ export class SyncManager {
 
 	/**
 	 * 更新已同步相关条目的链接（双向链接）
-	 * 在当前条目的相关条目文件中添加当前条目的链接
-	 * 显示名称使用文件名（带类型后缀）
+	 * 批量处理：先收集所有需要更新的关联关系，按目标文件分组，每个文件只读写一次
 	 */
 	private async updateRelatedItemsBidirectional(
 		currentId: number,
@@ -813,30 +829,35 @@ export class SyncManager {
 		currentName: string,
 		relations: { id: number; name_cn: string; name: string }[]
 	): Promise<void> {
-		// 使用文件名作为显示名称（带类型后缀）
 		const displayName = this.extractDisplayNameFromPath(currentPath);
 		const currentLink = `[[${currentPath}|${displayName}]]`;
 
+		// 收集需要更新的文件及其新增链接
+		const updatesByFile = new Map<string, string[]>();
+
 		for (const relation of relations) {
-			// 获取相关条目的本地路径（包括本批次同步的）
 			const relatedPath = this.resolveRelatedLocalPath(relation.id);
 			if (relatedPath) {
-				console.debug(`[Bangumi Sync] 更新相关条目的链接: ${relation.name_cn} -> ${currentLink}`);
-				try {
-					// 读取相关条目文件
-					const file = this.app.vault.getAbstractFileByPath(relatedPath);
-					if (file instanceof TFile) {
-						const content = await this.app.vault.read(file);
-						// 在相关条目中添加当前条目的链接
-						const updatedContent = this.incrementalSync.updateRelated(content, [currentLink]);
-						if (updatedContent !== content) {
-							await this.app.vault.process(file, () => updatedContent);
-							console.debug(`[Bangumi Sync] 已更新 ${relation.name_cn} 的相关链接`);
-						}
+				const existing = updatesByFile.get(relatedPath) || [];
+				existing.push(currentLink);
+				updatesByFile.set(relatedPath, existing);
+			}
+		}
+
+		// 批量更新每个目标文件
+		for (const [path, links] of updatesByFile) {
+			try {
+				const file = this.app.vault.getAbstractFileByPath(path);
+				if (file instanceof TFile) {
+					const content = await this.app.vault.read(file);
+					const updatedContent = this.incrementalSync.updateRelated(content, links);
+					if (updatedContent !== content) {
+						await this.app.vault.process(file, () => updatedContent);
+						console.debug(`[Bangumi Sync] 已更新 ${path} 的相关链接 (${links.length} 条)`);
 					}
-				} catch (error) {
-					console.error(`[Bangumi Sync] 更新相关条目链接失败: ${relation.name_cn}`, error);
 				}
+			} catch (error) {
+				console.error(`[Bangumi Sync] 更新相关条目链接失败: ${path}`, error);
 			}
 		}
 	}

@@ -158,6 +158,18 @@ export class SyncModal extends Modal {
 			});
 			this.completedEl.createEl('p', { text: statsText, cls: 'bangumi-sync-stats' });
 
+			// 错误详情（可折叠）
+			if (result.errorDetails.length > 0) {
+				const detailsEl = this.completedEl.createEl('details', { cls: 'bangumi-sync-error-details' });
+				detailsEl.createEl('summary', {
+					text: `${tn('syncModal', 'errorDetails')} (${result.errorDetails.length})`,
+				});
+				const listEl = detailsEl.createEl('ul', { cls: 'bangumi-sync-error-list' });
+				for (const detail of result.errorDetails) {
+					listEl.createEl('li', { text: detail });
+				}
+			}
+
 			// 如果是取消状态，显示回滚按钮
 			if (result.wasCancelled && result.batchFiles.some(f => f.wasNewlyCreated)) {
 				const newFileCount = result.batchFiles.filter(f => f.wasNewlyCreated).length;

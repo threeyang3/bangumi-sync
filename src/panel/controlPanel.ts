@@ -747,6 +747,7 @@ export class ControlPanel extends Modal {
 				{
 					overwrite,
 					localPropertyValuesBySubjectId: localPropertyResult.propertyValuesBySubjectId,
+					concurrency: this.settings.syncConcurrency,
 				},
 				(current, total, message) => {
 					this.renderStatus(message);

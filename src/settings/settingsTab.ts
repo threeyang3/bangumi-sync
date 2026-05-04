@@ -340,6 +340,18 @@ export class BangumiSettingTab extends PluginSettingTab {
 					}
 				}));
 
+		new Setting(containerEl)
+			.setName(tn('settings', 'syncConcurrency'))
+			.setDesc(tn('settings', 'syncConcurrencyDesc'))
+			.addSlider(slider => slider
+				.setLimits(1, 5, 1)
+				.setValue(this.settings.syncConcurrency)
+				.setDynamicTooltip()
+				.onChange(async (value) => {
+					this.settings.syncConcurrency = value;
+					await this.onSave();
+				}));
+
 		// ==================== 自动同步 ====================
 		new Setting(containerEl).setName(tn('settings', 'autoSync')).setHeading();
 

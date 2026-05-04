@@ -100,6 +100,8 @@ export interface TranslationStrings {
 		collectionTypesToSyncDesc: string;
 		syncLimit: string;
 		syncLimitDesc: string;
+		syncConcurrency: string;
+		syncConcurrencyDesc: string;
 		autoSync: string;
 		enableAutoSync: string;
 		enableAutoSyncDesc: string;
@@ -199,6 +201,7 @@ export interface TranslationStrings {
 		rollbackComplete: string;
 		rollbackFailed: string;
 		completedStats: string;
+		errorDetails: string;
 	};
 
 	// 模板编辑器
@@ -618,6 +621,8 @@ const en: TranslationStrings = {
 		collectionTypesToSyncDesc: 'Select collection types to sync',
 		syncLimit: 'Sync limit',
 		syncLimitDesc: 'If unsynced count is less than limit, sync all unsynced items',
+		syncConcurrency: 'Sync concurrency',
+		syncConcurrencyDesc: 'Number of items to sync simultaneously (1-5)',
 		autoSync: 'Auto sync',
 		enableAutoSync: 'Enable auto sync',
 		enableAutoSyncDesc: 'Automatically sync Bangumi collections periodically',
@@ -712,6 +717,7 @@ const en: TranslationStrings = {
 		rollbackComplete: 'Rollback complete: {deleted} deleted, {failed} failed',
 		rollbackFailed: 'Rollback failed',
 		completedStats: 'Added: {added}, Skipped: {skipped}, Errors: {errors}',
+		errorDetails: 'Error details',
 	},
 
 	templateEditor: {
@@ -1111,6 +1117,8 @@ const zhCN: TranslationStrings = {
 		collectionTypesToSyncDesc: '选择要同步的收藏状态',
 		syncLimit: '同步数量限制',
 		syncLimitDesc: '每次同步的最大条目数量（0 表示不限制，会智能处理：如果未同步数量不够，同步所有未同步的）',
+		syncConcurrency: '同步并发数',
+		syncConcurrencyDesc: '同时处理的条目数量（1-5）',
 		autoSync: '自动同步',
 		enableAutoSync: '启用自动同步',
 		enableAutoSyncDesc: '定期自动同步 Bangumi 收藏',
@@ -1205,6 +1213,7 @@ const zhCN: TranslationStrings = {
 		rollbackComplete: '回滚完成：删除 {deleted} 个，失败 {failed} 个',
 		rollbackFailed: '回滚失败',
 		completedStats: '新增 {added}，跳过 {skipped}，失败 {errors}',
+		errorDetails: '错误详情',
 	},
 
 	templateEditor: {

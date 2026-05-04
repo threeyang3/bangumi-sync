@@ -24,6 +24,7 @@ export interface SyncResult {
 	skipped: number;        // 已存在跳过的数量
 	errors: number;
 	duration: number;
+	errorDetails: string[]; // 失败条目的详细错误信息
 }
 
 /**
