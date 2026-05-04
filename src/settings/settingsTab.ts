@@ -326,18 +326,28 @@ export class BangumiSettingTab extends PluginSettingTab {
 			label.createSpan({ text: getCollectionTypeName(type) });
 		});
 
-		new Setting(containerEl)
+		const syncLimitSetting = new Setting(containerEl)
 			.setName(tn('settings', 'syncLimit'))
 			.setDesc(tn('settings', 'syncLimitDesc'))
 			.addText(text => text
 				.setPlaceholder('50')
-				.setValue(String(this.settings.syncLimit))
+				.setValue(this.settings.syncLimit === 0 ? '' : String(this.settings.syncLimit))
 				.onChange(async (value) => {
 					const num = parseInt(value, 10);
 					if (!isNaN(num) && num >= 0) {
 						this.settings.syncLimit = num;
 						await this.onSave();
 					}
+				}))
+			.addButton(btn => btn
+				.setButtonText(tn('settings', 'syncAll'))
+				.onClick(async () => {
+					this.settings.syncLimit = 0;
+					const input = syncLimitSetting.controlEl.querySelector('input') as HTMLInputElement;
+					if (input) {
+						input.value = '';
+					}
+					await this.onSave();
 				}));
 
 		new Setting(containerEl)

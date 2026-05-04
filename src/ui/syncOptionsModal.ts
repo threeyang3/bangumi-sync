@@ -135,16 +135,27 @@ export class SyncOptionsModal extends Modal {
 		// ==================== 同步数量 ====================
 		new Setting(contentEl).setName(tn('syncOptions', 'syncLimit')).setHeading();
 
-		new Setting(contentEl)
+		const limitSetting = new Setting(contentEl)
 			.setName(tn('syncOptions', 'syncLimit'))
 			.setDesc(tn('syncOptions', 'syncLimitDesc'))
-			.addText(text => text
-				.setPlaceholder('50')
-				.setValue(String(this.limitValue))
-				.onChange((value) => {
-					const num = parseInt(value, 10);
-					if (!isNaN(num) && num >= 0) {
-						this.limitValue = num;
+			.addText(text => {
+				text
+					.setPlaceholder('50')
+					.setValue(this.limitValue === 0 ? '' : String(this.limitValue))
+					.onChange((value) => {
+						const num = parseInt(value, 10);
+						if (!isNaN(num) && num >= 0) {
+							this.limitValue = num;
+						}
+					});
+			})
+			.addButton(btn => btn
+				.setButtonText(tn('syncOptions', 'syncAll'))
+				.onClick(() => {
+					this.limitValue = 0;
+					const input = limitSetting.controlEl.querySelector('input') as HTMLInputElement;
+					if (input) {
+						input.value = '';
 					}
 				}));
 

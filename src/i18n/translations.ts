@@ -102,6 +102,7 @@ export interface TranslationStrings {
 		syncLimitDesc: string;
 		syncConcurrency: string;
 		syncConcurrencyDesc: string;
+		syncAll: string;
 		autoSync: string;
 		enableAutoSync: string;
 		enableAutoSyncDesc: string;
@@ -157,6 +158,7 @@ export interface TranslationStrings {
 		collectionTypes: string;
 		syncLimit: string;
 		syncLimitDesc: string;
+		syncAll: string;
 		forceSync: string;
 		forceSyncDesc: string;
 		selectAll: string;
@@ -623,6 +625,7 @@ const en: TranslationStrings = {
 		syncLimitDesc: 'If unsynced count is less than limit, sync all unsynced items',
 		syncConcurrency: 'Sync concurrency',
 		syncConcurrencyDesc: 'Number of items to sync simultaneously (1-5)',
+		syncAll: 'All',
 		autoSync: 'Auto sync',
 		enableAutoSync: 'Enable auto sync',
 		enableAutoSyncDesc: 'Automatically sync Bangumi collections periodically',
@@ -675,6 +678,7 @@ const en: TranslationStrings = {
 		collectionTypes: 'Collection types',
 		syncLimit: 'Sync limit',
 		syncLimitDesc: 'If unsynced count is less than limit, sync all unsynced items',
+		syncAll: 'All',
 		forceSync: 'Force sync',
 		forceSyncDesc: 'Ignore existing items and re-sync all selected items',
 		selectAll: 'Select all',
@@ -1119,6 +1123,7 @@ const zhCN: TranslationStrings = {
 		syncLimitDesc: '每次同步的最大条目数量（0 表示不限制，会智能处理：如果未同步数量不够，同步所有未同步的）',
 		syncConcurrency: '同步并发数',
 		syncConcurrencyDesc: '同时处理的条目数量（1-5）',
+		syncAll: '全部',
 		autoSync: '自动同步',
 		enableAutoSync: '启用自动同步',
 		enableAutoSyncDesc: '定期自动同步 Bangumi 收藏',
@@ -1171,6 +1176,7 @@ const zhCN: TranslationStrings = {
 		collectionTypes: '收藏状态',
 		syncLimit: '同步数量',
 		syncLimitDesc: '如果未同步数量不够，同步所有未同步的条目',
+		syncAll: '全部',
 		forceSync: '强制同步',
 		forceSyncDesc: '忽略已存在的条目，重新同步所有选中的条目',
 		selectAll: '全选',
