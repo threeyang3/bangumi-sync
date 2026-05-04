@@ -34,6 +34,7 @@ export class IncrementalSync {
 
 	/**
 	 * 扫描本地文件夹，获取已同步的条目
+	 * 优化：优先使用 metadataCache 获取 ID，避免不必要的文件读取
 	 * @param folderPath 要扫描的文件夹路径
 	 * @param onProgress 进度回调
 	 */
@@ -60,13 +61,67 @@ export class IncrementalSync {
 		console.debug(`[Bangumi Sync] 找到 ${targetFiles.length} 个文件`);
 
 		let processed = 0;
+		let cacheHits = 0;
+		let fileReads = 0;
+
 		for (const file of targetFiles) {
 			try {
-				const content = await this.app.vault.read(file);
-				const subjectId = this.extractSubjectId(content);
+				let subjectId: number | null = null;
+				let name_cn = '';
+
+				// 优先从 metadataCache 获取 frontmatter 信息
+				const cache = this.app.metadataCache.getFileCache(file);
+				const frontmatter = cache?.frontmatter;
+
+				if (frontmatter) {
+					// 尝试从 frontmatter 的 id 字段获取
+					const frontmatterId: unknown = frontmatter.id;
+					if (frontmatterId !== undefined && frontmatterId !== null) {
+						const numericId = typeof frontmatterId === 'number'
+							? frontmatterId
+							: typeof frontmatterId === 'string' && /^\d+$/.test(frontmatterId)
+								? parseInt(frontmatterId, 10)
+								: null;
+						if (numericId !== null && numericId > 0) {
+							subjectId = numericId;
+							cacheHits++;
+						}
+					}
+
+					// 尝试从 frontmatter 的 BangumiID 字段获取
+					if (subjectId === null) {
+						const bgmId: unknown = frontmatter.BangumiID;
+						if (bgmId !== undefined && bgmId !== null) {
+							const numericId = typeof bgmId === 'number'
+								? bgmId
+								: typeof bgmId === 'string' && /^\d+$/.test(bgmId)
+									? parseInt(bgmId, 10)
+									: null;
+							if (numericId !== null && numericId > 0) {
+								subjectId = numericId;
+								cacheHits++;
+							}
+						}
+					}
+
+					// 从 frontmatter 获取中文名
+					if (frontmatter.中文名) {
+						name_cn = String(frontmatter.中文名).trim();
+					}
+				}
+
+				// 如果 metadataCache 没有找到 ID，则读取文件内容
+				if (subjectId === null) {
+					const content = await this.app.vault.read(file);
+					subjectId = this.extractSubjectId(content);
+					fileReads++;
+
+					if (subjectId && !name_cn) {
+						name_cn = this.extractNameCN(content);
+					}
+				}
 
 				if (subjectId) {
-					const name_cn = this.extractNameCN(content);
 					this.localSubjects.set(subjectId, {
 						id: subjectId,
 						path: file.path,
@@ -84,7 +139,7 @@ export class IncrementalSync {
 			}
 		}
 
-		console.debug(`[Bangumi Sync] 扫描完成，发现 ${this.localSubjects.size} 个已同步条目`);
+		console.debug(`[Bangumi Sync] 扫描完成，发现 ${this.localSubjects.size} 个已同步条目 (缓存命中: ${cacheHits}, 文件读取: ${fileReads})`);
 		return this.localSubjects.size;
 	}
 
@@ -309,6 +364,66 @@ export class IncrementalSync {
 		// 再检查之前同步的
 		const info = this.localSubjects.get(subjectId);
 		return info?.path;
+	}
+
+	/**
+	 * 通过 metadataCache 解析条目 ID 对应的本地路径
+	 * 用于在缓存未命中时快速查找，避免读取文件内容
+	 * @param subjectId 条目 ID
+	 * @param scanRoot 扫描根路径（可选，用于过滤文件范围）
+	 * @returns 找到的路径，同时会将结果添加到缓存中
+	 */
+	resolvePathByMetadataCache(subjectId: number, scanRoot?: string): string | undefined {
+		const normalizedRoot = scanRoot ? normalizePath(scanRoot) : '';
+		const allFiles = this.app.vault.getMarkdownFiles();
+
+		for (const file of allFiles) {
+			// 如果指定了扫描根路径，只扫描该路径下的文件
+			if (normalizedRoot && !file.path.startsWith(normalizedRoot)) {
+				continue;
+			}
+
+			const cache = this.app.metadataCache.getFileCache(file);
+			const frontmatter = cache?.frontmatter;
+
+			if (!frontmatter) {
+				continue;
+			}
+
+			// 检查 id 字段
+			const frontmatterId: unknown = frontmatter.id;
+			if (frontmatterId !== undefined && frontmatterId !== null) {
+				const numericId = typeof frontmatterId === 'number'
+					? frontmatterId
+					: typeof frontmatterId === 'string' && /^\d+$/.test(frontmatterId)
+						? parseInt(frontmatterId, 10)
+						: null;
+				if (numericId === subjectId) {
+					// 找到了，添加到缓存
+					const name_cn = frontmatter.中文名 ? String(frontmatter.中文名).trim() : '';
+					this.addBatchSyncedItem(subjectId, file.path, name_cn || file.basename, false);
+					return file.path;
+				}
+			}
+
+			// 检查 BangumiID 字段
+			const bgmId: unknown = frontmatter.BangumiID;
+			if (bgmId !== undefined && bgmId !== null) {
+				const numericId = typeof bgmId === 'number'
+					? bgmId
+					: typeof bgmId === 'string' && /^\d+$/.test(bgmId)
+						? parseInt(bgmId, 10)
+						: null;
+				if (numericId === subjectId) {
+					// 找到了，添加到缓存
+					const name_cn = frontmatter.中文名 ? String(frontmatter.中文名).trim() : '';
+					this.addBatchSyncedItem(subjectId, file.path, name_cn || file.basename, false);
+					return file.path;
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	/**

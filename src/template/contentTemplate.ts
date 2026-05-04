@@ -205,39 +205,50 @@ export function extractTemplateVars(
 /**
  * 渲染内容模板
  * V4.1 增强：支持条件渲染、默认值
+ * 优化：使用单次遍历处理所有模板语法，减少正则匹配次数
  */
 export function renderContentTemplate(template: string, vars: ContentTemplateVars): string {
-	let result = template;
+	// 使用统一的正则表达式匹配所有模板语法
+	// 匹配顺序：条件渲染 > 带默认值的变量 > 普通变量
+	const templateRegex = /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}|\{\{(\w+)\|([^}]+)\}\}|\{\{(\w+)\}\}/g;
 
-	// 1. 处理条件渲染 {{#if variable}}...{{/if}}
-	result = result.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_match: string, key: string, content: string) => {
-		const value = vars[key];
-		// 变量有值且不为空字符串时显示内容
-		if (value !== undefined && value !== null && value !== '') {
-			return content;
-		}
-		return '';
-	});
-
-	// 2. 处理默认值 {{variable|default}}
-	result = result.replace(/\{\{(\w+)\|([^}]+)\}\}/g, (_match: string, key: string, defaultVal: string) => {
-		const value = vars[key];
-		if (value !== undefined && value !== null && value !== '') {
-			return String(value);
-		}
-		return defaultVal;
-	});
-
-	// 3. 替换所有 {{variable}} 格式的变量
-	result = result.replace(/\{\{(\w+)\}\}/g, (_match: string, key: string) => {
-		const value = vars[key];
-		if (value === undefined || value === null) {
+	return template.replace(templateRegex, (
+		_match: string,
+		ifKey: string | undefined,
+		ifContent: string | undefined,
+		defaultKey: string | undefined,
+		defaultVal: string | undefined,
+		simpleKey: string | undefined
+	) => {
+		// 处理条件渲染 {{#if variable}}...{{/if}}
+		if (ifKey !== undefined && ifContent !== undefined) {
+			const value = vars[ifKey];
+			if (value !== undefined && value !== null && value !== '') {
+				return ifContent;
+			}
 			return '';
 		}
-		return String(value);
-	});
 
-	return result;
+		// 处理带默认值的变量 {{variable|default}}
+		if (defaultKey !== undefined && defaultVal !== undefined) {
+			const value = vars[defaultKey];
+			if (value !== undefined && value !== null && value !== '') {
+				return String(value);
+			}
+			return defaultVal;
+		}
+
+		// 处理普通变量 {{variable}}
+		if (simpleKey !== undefined) {
+			const value = vars[simpleKey];
+			if (value === undefined || value === null) {
+				return '';
+			}
+			return String(value);
+		}
+
+		return _match;
+	});
 }
 
 /**
@@ -263,6 +274,7 @@ export function generateContent(
 
 /**
  * 根据条目类型选择模板并生成内容
+ * 优化：避免重复解析 infobox，将 category 传递给 resolveTemplateForSubject
  */
 export function generateContentByType(
 	subject: Subject,
@@ -282,6 +294,7 @@ export function generateContentByType(
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
 	const category = parsedInfo.category || '';
 
+	// 将 category 传递给 resolveTemplateForSubject，避免重复解析
 	const template = resolveTemplateForSubject(subject, customTemplates, category);
 	return generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars);
 }

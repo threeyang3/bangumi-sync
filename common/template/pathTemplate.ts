@@ -95,7 +95,7 @@ export function extractPathVars(
 
 /**
  * 获取用于文件名的类型后缀
- * 动画使用具体类型（TV、OVA、剧场版），其他使用大类
+ * 动画使用具体类型（TV、OVA、剧场版），其他类型优先使用细分类别
  */
 function getTypeSuffixForName(subjectType: SubjectType, category: string, platform?: string): string {
 	// 对于动画，优先使用 platform（包含具体类型如 TV、OVA、剧场版）
@@ -111,7 +111,20 @@ function getTypeSuffixForName(subjectType: SubjectType, category: string, platfo
 		return '动画';
 	}
 
-	// 对于其他类型，使用大类
+	// 对于书籍类型，优先使用细分类别（小说、漫画、画集等）
+	if (subjectType === SubjectType.Book) {
+		if (category && category.trim()) {
+			return category.trim();
+		}
+		// 默认返回"书籍"
+		return '书籍';
+	}
+
+	// 对于其他类型，优先使用细分类别，如果没有则使用大类
+	if (category && category.trim()) {
+		return category.trim();
+	}
+
 	return getTypeLabelChinese(getSubjectTypeLabel(subjectType));
 }
 

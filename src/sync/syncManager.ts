@@ -10,7 +10,7 @@
  * 5. 支持相关条目双向链接
  */
 
-import { Notice, App, TFile, normalizePath } from 'obsidian';
+import { Notice, App, TFile } from 'obsidian';
 import { BangumiClient } from '../api/client';
 import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType } from '../../common/api/types';
 import { FileManager } from '../../common/file/fileManager';
@@ -136,6 +136,7 @@ export class SyncManager {
 
 	/**
 	 * 执行同步
+	 * 优化：支持并发处理多个条目，提高同步速度
 	 */
 	async sync(options: SyncOptions): Promise<SyncResultWithRollback> {
 		const startTime = Date.now();
@@ -158,31 +159,44 @@ export class SyncManager {
 			// 开始批次同步
 			this.incrementalSync.startBatch();
 
-			// 处理每个条目
-			for (let i = 0; i < diff.toAdd.length; i++) {
-				if (await this.checkCancellation()) {
-					wasCancelled = true;
-					break;
+			// 并发处理条目
+			const concurrency = 3; // 并发数
+			let completedCount = 0;
+			const errors: string[] = [];
+
+			// 使用并发控制处理条目
+			await this.processConcurrently(
+				diff.toAdd,
+				concurrency,
+				async (collection, index) => {
+					if (wasCancelled) return;
+
+					if (await this.checkCancellation()) {
+						wasCancelled = true;
+						return;
+					}
+
+					this.reportProgress({
+						status: 'processing',
+						current: index + 1,
+						total: diff.toAdd.length,
+						currentItem: collection.subject.name_cn || collection.subject.name,
+						message: `处理条目... (${index + 1}/${diff.toAdd.length})`,
+					});
+
+					try {
+						await this.processCollection(collection, { overwrite: false, preserveUserDataOnOverwrite: false });
+						completedCount++;
+					} catch (error) {
+						const errorMsg = error instanceof Error ? error.message : String(error);
+						console.error(`[Bangumi Sync] 处理条目失败: ${collection.subject.name_cn}`, error);
+						errors.push(`${collection.subject.name_cn}: ${errorMsg}`);
+					}
 				}
+			);
 
-				const collection = diff.toAdd[i];
-
-				this.reportProgress({
-					status: 'processing',
-					current: i + 1,
-					total: diff.toAdd.length,
-					currentItem: collection.subject.name_cn || collection.subject.name,
-					message: `处理条目... (${i + 1}/${diff.toAdd.length})`,
-				});
-
-				try {
-					await this.processCollection(collection, { overwrite: false, preserveUserDataOnOverwrite: false });
-					result.added++;
-				} catch (error) {
-					console.error(`[Bangumi Sync] 处理条目失败: ${collection.subject.name_cn}`, error);
-					result.errors++;
-				}
-			}
+			result.added = completedCount;
+			result.errors = errors.length;
 
 			if (!wasCancelled) {
 				result.success = true;
@@ -199,6 +213,44 @@ export class SyncManager {
 
 		result.duration = Date.now() - startTime;
 		return this.createSyncResultWithRollback(result, wasCancelled);
+	}
+
+	/**
+	 * 并发处理数组中的元素
+	 * @param items 要处理的数组
+	 * @param concurrency 并发数
+	 * @param processor 处理函数
+	 */
+	private async processConcurrently<T>(
+		items: T[],
+		concurrency: number,
+		processor: (item: T, index: number) => Promise<void>
+	): Promise<void> {
+		const queue = [...items.map((item, index) => ({ item, index }))];
+		const workers: Promise<void>[] = [];
+
+		// 创建工作线程
+		for (let i = 0; i < Math.min(concurrency, items.length); i++) {
+			workers.push(this.processQueue(queue, processor));
+		}
+
+		// 等待所有工作线程完成
+		await Promise.all(workers);
+	}
+
+	/**
+	 * 处理队列中的任务
+	 */
+	private async processQueue<T>(
+		queue: { item: T; index: number }[],
+		processor: (item: T, index: number) => Promise<void>
+	): Promise<void> {
+		while (queue.length > 0) {
+			const task = queue.shift();
+			if (!task) break;
+
+			await processor(task.item, task.index);
+		}
 	}
 
 	/**
@@ -420,26 +472,9 @@ export class SyncManager {
 			return indexedPath;
 		}
 
-		const scanRoot = normalizePath(this.config.scanFolderPath || '');
-		for (const file of this.app.vault.getMarkdownFiles()) {
-			if (scanRoot && !file.path.startsWith(scanRoot)) {
-				continue;
-			}
-
-			const cache = this.app.metadataCache.getFileCache(file);
-			const frontmatterId: unknown = cache?.frontmatter?.id;
-			const numericId = typeof frontmatterId === 'number'
-				? frontmatterId
-				: typeof frontmatterId === 'string' && /^\d+$/.test(frontmatterId)
-					? Number(frontmatterId)
-					: null;
-			if (numericId === subjectId) {
-				this.incrementalSync.addBatchSyncedItem(subjectId, file.path, file.basename, false);
-				return file.path;
-			}
-		}
-
-		return undefined;
+		// 使用优化的 metadataCache 查找方法
+		const scanRoot = this.config.scanFolderPath || '';
+		return this.incrementalSync.resolvePathByMetadataCache(subjectId, scanRoot);
 	}
 
 	/**
