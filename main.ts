@@ -18,7 +18,7 @@ import { SyncPreviewModal, SyncPreviewResult } from './src/ui/syncPreviewModal';
 import { SearchModal } from './src/ui/searchModal';
 import { hasLocalPropertyFieldsForCollections, loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult } from './src/ui/localPropertyModal';
 import { ControlPanel } from './src/panel/controlPanel';
-import { SyncProgress } from './src/sync/syncStatus';
+import { SyncProgress, createCancellationSignal } from './src/sync/syncStatus';
 import { UserCollection } from './common/api/types';
 import { tn, tnFormat } from './src/i18n';
 import {
@@ -93,6 +93,8 @@ export default class BangumiPlugin extends Plugin {
 	syncManager: SyncManager | null = null;
 	private autoSyncIntervalId: number | null = null;
 	private syncModal: SyncModal | null = null;
+	private syncStatusBarEl: HTMLElement | null = null;
+	private cancellationSignal: ReturnType<typeof createCancellationSignal> | null = null;
 	private controlPanel: ControlPanel | null = null;
 
 	// 单集功能
@@ -110,6 +112,10 @@ export default class BangumiPlugin extends Plugin {
 
 		// 初始化同步管理器
 		await this.initSyncManager();
+
+		// 状态栏指示器（默认隐藏）
+		this.syncStatusBarEl = this.addStatusBarItem();
+		this.syncStatusBarEl.addClass('bangumi-sync-status-bar', 'bangumi-hidden');
 
 		// 初始化单集功能。这里不能让可选功能阻断整个插件加载，否则样式也不会生效。
 		this.initEpisodeFeatures();
@@ -212,6 +218,7 @@ export default class BangumiPlugin extends Plugin {
 			this.syncModal.close();
 			this.syncModal = null;
 		}
+		this.cancellationSignal = null;
 
 		// 关闭控制面板
 		if (this.controlPanel) {
@@ -220,6 +227,35 @@ export default class BangumiPlugin extends Plugin {
 		}
 
 		console.debug('[Bangumi Sync] 插件卸载');
+	}
+
+	/**
+	 * 更新状态栏同步进度
+	 */
+	private updateStatusBar(progress: SyncProgress): void {
+		if (!this.syncStatusBarEl) return;
+		this.syncStatusBarEl.removeClass('bangumi-hidden');
+		if (progress.total > 0) {
+			const percent = Math.floor((progress.current / progress.total) * 100);
+			const prefix = this.cancellationSignal?.paused
+				? tn('syncModal', 'paused')
+				: tn('syncModal', 'syncing');
+			this.syncStatusBarEl.setText(`Bangumi: ${prefix} ${progress.current}/${progress.total} (${percent}%)`);
+		} else {
+			this.syncStatusBarEl.setText(`Bangumi: ${tn('syncModal', 'preparing')}`);
+		}
+	}
+
+	/**
+	 * 隐藏状态栏（延迟）
+	 */
+	private hideStatusBar(delay = 5000): void {
+		if (!this.syncStatusBarEl) return;
+		activeWindow.setTimeout(() => {
+			if (this.syncStatusBarEl) {
+				this.syncStatusBarEl.addClass('bangumi-hidden');
+			}
+		}, delay);
 	}
 
 	/**
@@ -578,13 +614,17 @@ export default class BangumiPlugin extends Plugin {
 			return;
 		}
 
-		this.syncModal = new SyncModal(this.app);
+		this.cancellationSignal = createCancellationSignal();
+		this.syncManager.setCancellationSignal(this.cancellationSignal);
+		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
+		this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
 		this.syncModal.open();
 
 		this.syncManager.setProgressCallback((progress: SyncProgress) => {
 			if (this.syncModal) {
 				this.syncModal.updateProgress(progress);
 			}
+			this.updateStatusBar(progress);
 		});
 
 		try {
@@ -592,6 +632,9 @@ export default class BangumiPlugin extends Plugin {
 
 			this.syncModal.close();
 			this.syncModal = null;
+			this.cancellationSignal = null;
+			this.syncManager.setCancellationSignal(null);
+			this.hideStatusBar();
 
 			if (result.downloaded === 0 && result.skipped === 0) {
 				new Notice(tn('notices', 'coverDownloadNoItems'));
@@ -607,6 +650,9 @@ export default class BangumiPlugin extends Plugin {
 				this.syncModal.close();
 				this.syncModal = null;
 			}
+			this.cancellationSignal = null;
+			this.syncManager.setCancellationSignal(null);
+			this.hideStatusBar(0);
 			console.error('[Bangumi Sync] 批量下载封面失败:', error);
 			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
 		}
@@ -636,13 +682,17 @@ export default class BangumiPlugin extends Plugin {
 			return;
 		}
 
-		this.syncModal = new SyncModal(this.app);
+		this.cancellationSignal = createCancellationSignal();
+		this.syncManager.setCancellationSignal(this.cancellationSignal);
+		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
+		this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
 		this.syncModal.open();
 
 		this.syncManager.setProgressCallback((progress: SyncProgress) => {
 			if (this.syncModal) {
 				this.syncModal.updateProgress(progress);
 			}
+			this.updateStatusBar(progress);
 		});
 
 		if (showPreview) {
@@ -657,6 +707,9 @@ export default class BangumiPlugin extends Plugin {
 				new Notice(`${tn('notices', 'syncFailed')}: ${prepareResult.error}`);
 				this.syncModal.close();
 				this.syncModal = null;
+				this.cancellationSignal = null;
+				this.syncManager.setCancellationSignal(null);
+				this.hideStatusBar(0);
 				return;
 			}
 
@@ -664,6 +717,9 @@ export default class BangumiPlugin extends Plugin {
 				new Notice(tn('notices', 'noItemsToSync'));
 				this.syncModal.close();
 				this.syncModal = null;
+				this.cancellationSignal = null;
+				this.syncManager.setCancellationSignal(null);
+				this.hideStatusBar(0);
 				return;
 			}
 
@@ -688,13 +744,17 @@ export default class BangumiPlugin extends Plugin {
 							return;
 						}
 
-						this.syncModal = new SyncModal(this.app);
+						this.cancellationSignal = createCancellationSignal();
+						this.syncManager!.setCancellationSignal(this.cancellationSignal);
+						this.syncModal = new SyncModal(this.app, this.cancellationSignal);
+						this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
 						this.syncModal.open();
 
 						this.syncManager!.setProgressCallback((progress: SyncProgress) => {
 							if (this.syncModal) {
 								this.syncModal.updateProgress(progress);
 							}
+							this.updateStatusBar(progress);
 						});
 
 						const syncResult = await this.syncManager!.executeSync(
@@ -707,16 +767,12 @@ export default class BangumiPlugin extends Plugin {
 						this.settings.lastSyncCount = syncResult.added + syncResult.skipped;
 						await this.saveSettings();
 
-						new Notice(
-							`同步完成！新增: ${syncResult.added}, 跳过: ${prepareResult.skipped}, 错误: ${syncResult.errors}`
-						);
-
-						activeWindow.setTimeout(() => {
-							if (this.syncModal) {
-								this.syncModal.close();
-								this.syncModal = null;
-							}
-						}, 1000);
+						if (this.syncModal) {
+							this.syncModal.showCompleted(syncResult);
+						}
+						this.cancellationSignal = null;
+						this.syncManager!.setCancellationSignal(null);
+						this.hideStatusBar();
 					})();
 				}
 			);
@@ -734,16 +790,12 @@ export default class BangumiPlugin extends Plugin {
 			this.settings.lastSyncCount = result.added + result.skipped;
 			await this.saveSettings();
 
-			new Notice(
-				`同步完成！新增: ${result.added}, 跳过: ${result.skipped}, 错误: ${result.errors}`
-			);
-
-			activeWindow.setTimeout(() => {
-				if (this.syncModal) {
-					this.syncModal.close();
-					this.syncModal = null;
-				}
-			}, 1000);
+			if (this.syncModal) {
+				this.syncModal.showCompleted(result);
+			}
+			this.cancellationSignal = null;
+			this.syncManager.setCancellationSignal(null);
+			this.hideStatusBar();
 		}
 	}
 

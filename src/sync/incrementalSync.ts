@@ -3,8 +3,9 @@
  * 通过扫描本地文件夹来检验是否已经同步
  */
 
-import { App, TFolder, normalizePath } from 'obsidian';
+import { App, TFile, TFolder, normalizePath } from 'obsidian';
 import { SubjectType, CollectionType, getCollectionStatusLabel } from '../../common/api/types';
+import { BatchSyncedFile } from './syncStatus';
 
 /**
  * 本地条目信息
@@ -13,6 +14,7 @@ interface LocalSubjectInfo {
 	id: number;
 	path: string;
 	name_cn: string;
+	wasNewlyCreated?: boolean;
 }
 
 /**
@@ -238,12 +240,54 @@ export class IncrementalSync {
 	 * @param subjectId 条目 ID
 	 * @param path 本地文件路径
 	 * @param name_cn 中文名
+	 * @param wasNewlyCreated 是否为新创建的文件（用于回滚判断）
 	 */
-	addBatchSyncedItem(subjectId: number, path: string, name_cn: string): void {
-		this.batchSyncedItems.set(subjectId, { id: subjectId, path, name_cn });
+	addBatchSyncedItem(subjectId: number, path: string, name_cn: string, wasNewlyCreated = false): void {
+		this.batchSyncedItems.set(subjectId, { id: subjectId, path, name_cn, wasNewlyCreated });
 		// 同时添加到 localSubjects，以便后续条目能找到
 		this.localSubjects.set(subjectId, { id: subjectId, path, name_cn });
 		console.debug(`[Bangumi Sync] 本批次已同步: ${name_cn} (ID: ${subjectId}) -> ${path}`);
+	}
+
+	/**
+	 * 获取本批次已同步的文件列表（用于回滚）
+	 */
+	getBatchSyncedFiles(): BatchSyncedFile[] {
+		const files: BatchSyncedFile[] = [];
+		for (const [subjectId, info] of this.batchSyncedItems) {
+			files.push({
+				subjectId,
+				filePath: info.path,
+				name_cn: info.name_cn,
+				wasNewlyCreated: info.wasNewlyCreated ?? false,
+			});
+		}
+		return files;
+	}
+
+	/**
+	 * 回滚本批次同步：删除新创建的文件
+	 * 只删除 wasNewlyCreated=true 的文件，覆盖更新的文件不处理
+	 */
+	async rollbackBatch(): Promise<{ deleted: number; failed: number }> {
+		const result = { deleted: 0, failed: 0 };
+		for (const [subjectId, info] of this.batchSyncedItems) {
+			if (!info.wasNewlyCreated) continue;
+			try {
+				const file = this.app.vault.getAbstractFileByPath(info.path);
+				if (file instanceof TFile) {
+					await this.app.fileManager.trashFile(file);
+					this.localSubjects.delete(subjectId);
+					result.deleted++;
+					console.debug(`[Bangumi Sync] 回滚删除: ${info.name_cn} -> ${info.path}`);
+				}
+			} catch (error) {
+				console.error(`[Bangumi Sync] 回滚失败: ${info.path}`, error);
+				result.failed++;
+			}
+		}
+		this.batchSyncedItems.clear();
+		return result;
 	}
 
 	/**

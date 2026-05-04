@@ -1,3 +1,8 @@
+/* 工具类 */
+.bangumi-hidden {
+	display: none !important;
+}
+
 /* Search Modal Styles */
 .modal:has(.bangumi-search-modal) {
 	width: 800px !important;
@@ -590,7 +595,106 @@
 	background: var(--interactive-accent);
 	border-radius: 4px;
 	transition: width 0.3s ease;
-	width: 0%;
+	width: var(--bangumi-progress-width, 0%);
+}
+
+.bangumi-progress-complete .bangumi-progress-fill {
+	width: 100%;
+}
+
+.bangumi-progress-bar.bangumi-sync-paused .bangumi-progress-fill {
+	opacity: 0.4;
+}
+
+/* 同步弹窗操作按钮 */
+.bangumi-sync-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.bangumi-sync-actions button {
+	flex: 1;
+	padding: 6px 12px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+}
+
+.bangumi-sync-pause-btn {
+	background: var(--interactive-normal);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.bangumi-sync-pause-btn:hover {
+	background: var(--interactive-hover);
+}
+
+.bangumi-sync-cancel-btn {
+	background: transparent;
+	color: var(--text-muted);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.bangumi-sync-cancel-btn:hover {
+	color: var(--text-error);
+	border-color: var(--text-error);
+}
+
+/* 同步完成区域 */
+.bangumi-sync-completed {
+	margin-top: 12px;
+}
+
+.bangumi-sync-stats {
+	padding: 8px 12px;
+	background: var(--background-secondary);
+	border-radius: 4px;
+	font-size: 13px;
+	margin-bottom: 10px;
+}
+
+.bangumi-sync-cancelled-info {
+	color: var(--text-muted);
+	font-size: 13px;
+	margin-bottom: 10px;
+}
+
+.bangumi-rollback-btn {
+	padding: 6px 12px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	background: transparent;
+	color: var(--text-warning);
+	border: 1px solid var(--text-warning);
+	margin-bottom: 8px;
+	width: 100%;
+}
+
+.bangumi-rollback-btn:hover {
+	background: var(--text-warning);
+	color: var(--text-on-accent);
+}
+
+.bangumi-rollback-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.bangumi-sync-close-btn {
+	padding: 6px 12px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	width: 100%;
+}
+
+/* 状态栏同步指示器 */
+.bangumi-sync-status-bar {
+	font-size: 12px;
+	color: var(--text-muted);
 }
 
 /* 路径模板设置 */

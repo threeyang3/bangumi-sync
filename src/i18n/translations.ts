@@ -39,6 +39,8 @@ export interface TranslationStrings {
 		syncComplete: string;
 		noItemsToSync: string;
 		syncCancelled: string;
+		tokenInvalid: string;
+		usernameNotFound: string;
 		templateFileNotFound: string;
 		readTemplateFailed: string;
 		selectTemplateFirst: string;
@@ -187,6 +189,16 @@ export interface TranslationStrings {
 		processing: string;
 		completed: string;
 		error: string;
+		pause: string;
+		resume: string;
+		cancel: string;
+		confirmCancel: string;
+		paused: string;
+		syncing: string;
+		rollback: string;
+		rollbackComplete: string;
+		rollbackFailed: string;
+		completedStats: string;
 	};
 
 	// 模板编辑器
@@ -546,6 +558,8 @@ const en: TranslationStrings = {
 		syncComplete: 'Sync complete',
 		noItemsToSync: 'No items to sync',
 		syncCancelled: 'Sync cancelled',
+		tokenInvalid: 'Access Token invalid: {error}',
+		usernameNotFound: 'Unable to get username, please check Access Token',
 		templateFileNotFound: 'Template file not found',
 		readTemplateFailed: 'Failed to read template file',
 		selectTemplateFirst: 'Please select a template file first',
@@ -688,6 +702,16 @@ const en: TranslationStrings = {
 		processing: 'Processing...',
 		completed: 'Completed',
 		error: 'Error',
+		pause: 'Pause',
+		resume: 'Resume',
+		cancel: 'Cancel',
+		confirmCancel: 'Are you sure you want to cancel? Newly created files will be moved to trash.',
+		paused: 'Paused',
+		syncing: 'Syncing',
+		rollback: 'Rollback',
+		rollbackComplete: 'Rollback complete: {deleted} deleted, {failed} failed',
+		rollbackFailed: 'Rollback failed',
+		completedStats: 'Added: {added}, Skipped: {skipped}, Errors: {errors}',
 	},
 
 	templateEditor: {
@@ -1027,6 +1051,8 @@ const zhCN: TranslationStrings = {
 		syncComplete: '同步完成',
 		noItemsToSync: '没有需要同步的条目',
 		syncCancelled: '已取消同步',
+		tokenInvalid: 'Access Token 无效: {error}',
+		usernameNotFound: '无法获取用户名，请检查 Access Token',
 		templateFileNotFound: '模板文件不存在',
 		readTemplateFailed: '读取模板文件失败',
 		selectTemplateFirst: '请先选择模板文件',
@@ -1169,6 +1195,16 @@ const zhCN: TranslationStrings = {
 		processing: '处理中...',
 		completed: '完成',
 		error: '错误',
+		pause: '暂停',
+		resume: '恢复',
+		cancel: '取消',
+		confirmCancel: '确定要取消同步吗？本次新建的文件将被移到回收站。',
+		paused: '已暂停',
+		syncing: '同步中',
+		rollback: '回滚',
+		rollbackComplete: '回滚完成：删除 {deleted} 个，失败 {failed} 个',
+		rollbackFailed: '回滚失败',
+		completedStats: '新增 {added}，跳过 {skipped}，失败 {errors}',
 	},
 
 	templateEditor: {

@@ -37,4 +37,45 @@ export interface SyncProgress {
 	currentItem?: string;
 }
 
-// 兼容旧版本的类型别名
+/**
+ * 协作式取消信号
+ * 同步循环在每个条目之间检查 cancelled 标志
+ */
+export interface SyncCancellationSignal {
+	cancelled: boolean;
+	paused: boolean;
+	cancel(): void;
+	pause(): void;
+	resume(): void;
+}
+
+/**
+ * 批次文件跟踪（用于回滚）
+ */
+export interface BatchSyncedFile {
+	subjectId: number;
+	filePath: string;
+	name_cn: string;
+	wasNewlyCreated: boolean;
+}
+
+/**
+ * 带回滚能力的同步结果
+ */
+export interface SyncResultWithRollback extends SyncResult {
+	batchFiles: BatchSyncedFile[];
+	wasCancelled: boolean;
+}
+
+/**
+ * 创建取消信号
+ */
+export function createCancellationSignal(): SyncCancellationSignal {
+	return {
+		cancelled: false,
+		paused: false,
+		cancel() { this.cancelled = true; },
+		pause() { this.paused = true; },
+		resume() { this.paused = false; },
+	};
+}
