@@ -171,14 +171,13 @@ export class ControlPanel extends Modal {
 		this.actionBarEl = contentEl.createDiv({ cls: 'bangumi-panel-action-bar' });
 		this.renderActionBar();
 
-		// 状态栏
-		this.statusEl = contentEl.createDiv({ cls: 'bangumi-panel-status' });
-
 		// 表格区域
 		this.tableEl = contentEl.createDiv({ cls: 'bangumi-panel-table' });
 
-		// 分页
-		this.paginationEl = contentEl.createDiv({ cls: 'bangumi-panel-pagination' });
+		// 底栏：状态 + 分页 同行
+		const footerBar = contentEl.createDiv({ cls: 'bangumi-panel-footer-bar' });
+		this.statusEl = footerBar.createDiv({ cls: 'bangumi-panel-status' });
+		this.paginationEl = footerBar.createDiv({ cls: 'bangumi-panel-pagination' });
 
 		// 添加键盘导航
 		this.tableEl.setAttribute('tabindex', '0');

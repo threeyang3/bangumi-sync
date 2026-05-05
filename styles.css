@@ -275,7 +275,6 @@
 }
 
 .bangumi-search-status,
-.bangumi-panel-status,
 .modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-status {
 	background:
 		linear-gradient(90deg, color-mix(in srgb, var(--bangumi-highlight) 28%, transparent) 0, transparent 28%),
@@ -360,12 +359,6 @@
 	padding: 10px 8px;
 }
 
-.bangumi-panel-pagination {
-	border: 1px solid var(--bangumi-line);
-	border-radius: var(--bangumi-radius);
-	box-shadow: var(--bangumi-shadow-soft);
-}
-
 .bangumi-checkbox-group {
 	padding: 12px;
 	border: 1px solid var(--bangumi-line);
@@ -443,12 +436,14 @@
 
 .bangumi-search-input-container {
 	display: flex;
+	flex-wrap: nowrap;
 	gap: 6px;
 	margin-bottom: 6px;
 }
 
 .bangumi-search-input {
-	flex: 1;
+	flex: 1 1 0;
+	min-width: 0;
 	padding: 5px 10px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
@@ -498,6 +493,7 @@
 	border-radius: 4px;
 	background: var(--background-primary);
 	font-size: 13px;
+	flex: 0 0 auto;
 }
 
 .bangumi-search-status {
@@ -1359,12 +1355,12 @@
 
 .bangumi-panel-filter-bar {
 	display: flex;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	gap: 8px;
-	padding: 6px;
+	padding: 8px 10px;
 	background: var(--background-secondary);
 	border-radius: 6px;
-	margin-bottom: 4px;
+	margin-bottom: 6px;
 }
 
 .bangumi-filter-select {
@@ -1373,12 +1369,12 @@
 	border-radius: 4px;
 	background: var(--background-primary);
 	font-size: 13px;
-	min-width: 100px;
+	flex: 0 0 auto;
 }
 
 .bangumi-filter-search {
-	flex: 1;
-	min-width: 200px;
+	flex: 1 1 0;
+	min-width: 0;
 	padding: 4px 8px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
@@ -1387,23 +1383,25 @@
 }
 
 .bangumi-panel-action-bar {
-	display: flex;
-	align-items: center;
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
 	gap: 6px;
-	padding: 4px 6px;
+	padding: 8px 10px;
 	background: var(--background-secondary);
 	border-radius: 6px;
-	margin-bottom: 4px;
+	margin-bottom: 6px;
 }
 
 .bangumi-action-btn {
-	padding: 4px 10px;
+	padding: 6px 10px;
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 	border: none;
 	border-radius: 4px;
 	cursor: pointer;
 	font-size: 13px;
+	text-align: center;
+	white-space: nowrap;
 	transition: opacity 0.2s;
 }
 
@@ -1437,13 +1435,26 @@
 	font-size: 13px;
 }
 
+.bangumi-panel-footer-bar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 4px;
+}
+
 .bangumi-panel-status {
-	padding: 4px 8px;
-	background: var(--background-secondary-alt);
-	border-radius: 4px;
+	flex: 1 1 0;
+	min-width: 0;
+	padding: 0;
+	background: transparent;
+	border: none;
+	border-radius: 0;
 	font-size: 13px;
 	color: var(--text-muted);
-	margin-bottom: 4px;
+	margin-bottom: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .bangumi-panel-status.loading {
@@ -1544,14 +1555,14 @@
 }
 
 .bangumi-panel-pagination {
-	display: grid;
-	grid-template-columns: auto minmax(0, 1fr) auto;
+	display: flex;
 	align-items: center;
-	gap: 8px;
-	padding: 6px 8px;
-	background: var(--background-secondary);
-	border-radius: 6px;
-	margin-top: 4px;
+	gap: 6px;
+	padding: 0;
+	background: transparent;
+	border-radius: 0;
+	margin-top: 0;
+	flex: 0 0 auto;
 }
 
 .bangumi-pagination-info {
@@ -2802,23 +2813,21 @@
 		line-height: 1.45;
 	}
 
-	.bangumi-panel-pagination {
-		grid-template-columns: 1fr 1fr;
-		gap: 8px;
-		padding: 8px;
+	.bangumi-panel-footer-bar {
+		flex-wrap: wrap;
+		gap: 4px;
 	}
 
-	.bangumi-pagination-info {
-		grid-column: 1 / -1;
-		order: -1;
+	.bangumi-panel-pagination {
+		gap: 4px;
 	}
 
 	.bangumi-pagination-btn {
-		width: 100%;
+		padding: 3px 8px;
 	}
 
 	.bangumi-search-input-container {
-		grid-template-columns: minmax(0, 1fr) auto auto;
+		flex-wrap: wrap;
 		gap: 6px;
 		position: sticky;
 		top: var(--bangumi-mobile-sticky-top);
@@ -2836,15 +2845,6 @@
 		content: attr(data-mobile-label);
 		font-size: 12px;
 		font-weight: 600;
-	}
-
-	.bangumi-search-filter {
-		grid-template-columns: 1fr;
-		gap: 6px;
-		padding: 6px 8px;
-		position: sticky;
-		top: calc(var(--bangumi-mobile-sticky-top) + 42px);
-		z-index: 2;
 	}
 
 	.bangumi-search-filter span {

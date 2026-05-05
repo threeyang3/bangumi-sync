@@ -116,12 +116,8 @@ export class SearchModal extends Modal {
 		});
 		this.decorateMobileButton(clearBtn, SEARCH_SHORT_LABELS.clear, tn('searchModal', 'clear'));
 
-		// 筛选选项
-		const filterDiv = contentEl.createDiv({ cls: 'bangumi-search-filter' });
-
 		// 类型选择
-		filterDiv.createSpan({ text: `${tn('searchModal', 'subjectType')}: ` });
-		const typeSelect = filterDiv.createEl('select', { cls: 'bangumi-search-select' });
+		const typeSelect = searchDiv.createEl('select', { cls: 'bangumi-search-select' });
 		SUBJECT_TYPE_OPTIONS.forEach(opt => {
 			typeSelect.createEl('option', {
 				value: String(opt.value),
@@ -130,8 +126,7 @@ export class SearchModal extends Modal {
 		});
 
 		// 排序选择
-		filterDiv.createSpan({ text: ` ${tn('searchModal', 'sortBy')}: ` });
-		const sortSelect = filterDiv.createEl('select', { cls: 'bangumi-search-select' });
+		const sortSelect = searchDiv.createEl('select', { cls: 'bangumi-search-select' });
 		SORT_OPTIONS.forEach(opt => {
 			sortSelect.createEl('option', {
 				value: opt.value,
