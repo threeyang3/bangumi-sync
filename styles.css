@@ -54,8 +54,8 @@
 }
 
 .bangumi-control-panel h2 {
-	margin-bottom: 18px;
-	padding: 0 0 14px;
+	margin-bottom: 6px;
+	padding: 0 0 4px;
 	border-bottom: 1px solid var(--bangumi-line);
 }
 
@@ -305,8 +305,8 @@
 }
 
 .bangumi-search-result-item {
-	padding: 14px 16px;
-	gap: 14px;
+	padding: 6px 10px;
+	gap: 10px;
 }
 
 .bangumi-search-result-item:hover,
@@ -436,15 +436,20 @@
 	height: 100%;
 }
 
+.bangumi-search-modal .setting-item-heading {
+	margin-bottom: 4px;
+	padding-bottom: 0;
+}
+
 .bangumi-search-input-container {
 	display: flex;
-	gap: 8px;
-	margin-bottom: 15px;
+	gap: 6px;
+	margin-bottom: 6px;
 }
 
 .bangumi-search-input {
 	flex: 1;
-	padding: 8px 12px;
+	padding: 5px 10px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
 	background: var(--background-primary);
@@ -457,7 +462,7 @@
 }
 
 .bangumi-search-btn {
-	padding: 6px 14px;
+	padding: 4px 10px;
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
@@ -479,16 +484,16 @@
 .bangumi-search-filter {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 10px;
+	gap: 8px;
 	align-items: center;
-	padding: 10px;
+	padding: 6px 8px;
 	background: var(--background-secondary);
 	border-radius: 6px;
-	margin-bottom: 15px;
+	margin-bottom: 6px;
 }
 
 .bangumi-search-select {
-	padding: 6px 10px;
+	padding: 4px 8px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
 	background: var(--background-primary);
@@ -496,12 +501,12 @@
 }
 
 .bangumi-search-status {
-	padding: 8px 12px;
+	padding: 3px 8px;
 	background: var(--background-secondary-alt);
 	border-radius: 4px;
 	font-size: 13px;
 	color: var(--text-muted);
-	margin-bottom: 10px;
+	margin-bottom: 4px;
 }
 
 .bangumi-search-results {
@@ -509,14 +514,14 @@
 	overflow-y: auto;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
-	margin-bottom: 15px;
+	margin-bottom: 6px;
 }
 
 .bangumi-search-result-item {
 	display: flex;
 	align-items: center;
-	gap: 12px;
-	padding: 10px;
+	gap: 10px;
+	padding: 6px 10px;
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
@@ -607,7 +612,7 @@
 .bangumi-search-load-more {
 	display: none;
 	width: 100%;
-	padding: 8px;
+	padding: 5px;
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
@@ -1347,23 +1352,23 @@
 }
 
 .bangumi-control-panel h2 {
-	margin-bottom: 15px;
-	padding-bottom: 10px;
+	margin-bottom: 6px;
+	padding-bottom: 4px;
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
 .bangumi-panel-filter-bar {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 10px;
-	padding: 10px;
+	gap: 8px;
+	padding: 6px;
 	background: var(--background-secondary);
 	border-radius: 6px;
-	margin-bottom: 10px;
+	margin-bottom: 4px;
 }
 
 .bangumi-filter-select {
-	padding: 6px 10px;
+	padding: 4px 8px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
 	background: var(--background-primary);
@@ -1374,7 +1379,7 @@
 .bangumi-filter-search {
 	flex: 1;
 	min-width: 200px;
-	padding: 6px 10px;
+	padding: 4px 8px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
 	background: var(--background-primary);
@@ -1384,15 +1389,15 @@
 .bangumi-panel-action-bar {
 	display: flex;
 	align-items: center;
-	gap: 10px;
-	padding: 10px;
+	gap: 6px;
+	padding: 4px 6px;
 	background: var(--background-secondary);
 	border-radius: 6px;
-	margin-bottom: 10px;
+	margin-bottom: 4px;
 }
 
 .bangumi-action-btn {
-	padding: 6px 14px;
+	padding: 4px 10px;
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 	border: none;
@@ -1433,12 +1438,12 @@
 }
 
 .bangumi-panel-status {
-	padding: 8px 12px;
+	padding: 4px 8px;
 	background: var(--background-secondary-alt);
 	border-radius: 4px;
 	font-size: 13px;
 	color: var(--text-muted);
-	margin-bottom: 10px;
+	margin-bottom: 4px;
 }
 
 .bangumi-panel-status.loading {
@@ -1473,7 +1478,7 @@
 	position: sticky;
 	top: 0;
 	background: var(--background-secondary);
-	padding: 10px 8px;
+	padding: 6px 8px;
 	text-align: left;
 	font-weight: 500;
 	border-bottom: 1px solid var(--background-modifier-border);
@@ -1481,7 +1486,7 @@
 }
 
 .bangumi-collection-table td {
-	padding: 8px;
+	padding: 5px 8px;
 	border-bottom: 1px solid var(--background-modifier-border);
 	vertical-align: middle;
 }
@@ -1543,10 +1548,10 @@
 	grid-template-columns: auto minmax(0, 1fr) auto;
 	align-items: center;
 	gap: 8px;
-	padding: 10px;
+	padding: 6px 8px;
 	background: var(--background-secondary);
 	border-radius: 6px;
-	margin-top: 10px;
+	margin-top: 4px;
 }
 
 .bangumi-pagination-info {
@@ -1555,7 +1560,7 @@
 }
 
 .bangumi-pagination-btn {
-	padding: 4px 12px;
+	padding: 3px 10px;
 	font-size: 12px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
@@ -2605,8 +2610,8 @@
 @media (max-width: 767px) {
 	:root {
 		--bangumi-mobile-sticky-top: 0px;
-		--bangumi-mobile-filter-height: 58px;
-		--bangumi-mobile-action-height: 102px;
+		--bangumi-mobile-filter-height: 48px;
+		--bangumi-mobile-action-height: 92px;
 	}
 
 	.modal-content {
@@ -2654,7 +2659,7 @@
 
 	.bangumi-panel-filter-bar {
 		gap: 8px;
-		padding: 10px;
+		padding: 6px;
 		position: sticky;
 		top: var(--bangumi-mobile-sticky-top);
 		z-index: 3;
@@ -2668,8 +2673,8 @@
 	.bangumi-panel-action-bar {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 8px;
-		padding: 8px;
+		gap: 6px;
+		padding: 6px;
 		position: sticky;
 		top: calc(var(--bangumi-mobile-sticky-top) + var(--bangumi-mobile-filter-height));
 		z-index: 2;
@@ -2814,7 +2819,7 @@
 
 	.bangumi-search-input-container {
 		grid-template-columns: minmax(0, 1fr) auto auto;
-		gap: 8px;
+		gap: 6px;
 		position: sticky;
 		top: var(--bangumi-mobile-sticky-top);
 		z-index: 3;
@@ -2836,9 +2841,9 @@
 	.bangumi-search-filter {
 		grid-template-columns: 1fr;
 		gap: 6px;
-		padding: 10px;
+		padding: 6px 8px;
 		position: sticky;
-		top: calc(var(--bangumi-mobile-sticky-top) + 48px);
+		top: calc(var(--bangumi-mobile-sticky-top) + 42px);
 		z-index: 2;
 	}
 
@@ -2857,8 +2862,8 @@
 
 	.bangumi-search-result-item {
 		grid-template-columns: 54px minmax(0, 1fr);
-		gap: 12px;
-		padding: 12px;
+		gap: 10px;
+		padding: 8px;
 	}
 
 	.bangumi-search-result-cover {
