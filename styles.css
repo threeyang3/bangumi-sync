@@ -1921,51 +1921,57 @@
 		/* 筛选栏 */
 		.bangumi-panel-filter-bar {
 			flex-wrap: wrap;
-			gap: 8px;
-			padding: 8px;
+			gap: 6px;
+			padding: 6px 8px;
 		}
 
 		.bangumi-filter-select {
-			flex: 1;
-			min-width: 100px;
+			flex: 1 1 0;
+			min-width: 0;
 		}
 
 		.bangumi-filter-search {
-			width: 100%;
+			flex: 1 1 100%;
+			min-width: 0;
 			order: -1;
 		}
 
 		/* 操作栏 */
 		.bangumi-panel-action-bar {
-			flex-wrap: wrap;
-			gap: 4px;
-			padding: 6px;
+			display: flex;
+			flex-wrap: nowrap;
+			overflow-x: auto;
+			-webkit-overflow-scrolling: touch;
+			gap: 6px;
+			padding: 6px 8px;
+			scrollbar-width: none;
+		}
+
+		.bangumi-panel-action-bar::-webkit-scrollbar {
+			display: none;
 		}
 
 		.bangumi-action-btn {
-			font-size: 12px;
-			padding: 5px 8px;
-			flex: 1 1 calc(25% - 4px);
-			min-width: 0;
+			flex: 0 0 auto;
+			min-width: 64px;
 			min-height: 32px;
-			border: 1px solid var(--background-modifier-border);
-			border-radius: 6px;
-			background: var(--background-primary);
-			box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+			padding: 4px 10px;
+			font-size: 12px;
+			white-space: nowrap;
 		}
 
 		.bangumi-selected-count {
 			flex: 0 0 auto;
 			color: var(--text-muted);
-			text-align: right;
+			font-size: 12px;
 		}
 
 		.bangumi-panel-status {
 			display: flex;
 			align-items: center;
-			justify-content: space-between;
-			gap: 12px;
-			padding: 8px 4px;
+			gap: 8px;
+			padding: 0;
+			font-size: 12px;
 		}
 
 		.bangumi-status-message {
@@ -2184,25 +2190,31 @@
 
 		/* 分页 */
 		.bangumi-panel-pagination {
-			display: grid;
-			grid-template-columns: auto minmax(0, 1fr) auto;
+			display: flex;
 			align-items: center;
-			gap: 8px;
-			padding: 10px 12px;
+			gap: 4px;
+			padding: 0;
 		}
 
 		.bangumi-pagination-info {
 			text-align: center;
 			color: var(--text-muted);
+			font-size: 12px;
 		}
 
 		.bangumi-pagination-btn {
-			min-width: 76px;
-			min-height: 34px;
-			padding: 5px 10px;
+			min-width: 56px;
+			min-height: 28px;
+			padding: 3px 8px;
 			border: 1px solid var(--background-modifier-border);
 			border-radius: 6px;
 			background: var(--background-primary);
+		}
+
+		.bangumi-panel-footer-bar {
+			display: flex;
+			align-items: center;
+			gap: 6px;
 		}
 	}
 
@@ -2214,10 +2226,8 @@
 			}
 
 			.bangumi-search-input-container {
-				display: grid;
-				grid-template-columns: minmax(0, 1fr) auto auto;
+				flex-wrap: wrap;
 				gap: 6px;
-				align-items: center;
 			}
 
 			.bangumi-search-input {
@@ -2621,8 +2631,8 @@
 @media (max-width: 767px) {
 	:root {
 		--bangumi-mobile-sticky-top: 0px;
-		--bangumi-mobile-filter-height: 48px;
-		--bangumi-mobile-action-height: 92px;
+		--bangumi-mobile-filter-height: 72px;
+		--bangumi-mobile-action-height: 46px;
 	}
 
 	.modal-content {
@@ -2669,34 +2679,51 @@
 	}
 
 	.bangumi-panel-filter-bar {
-		gap: 8px;
-		padding: 6px;
+		flex-wrap: wrap;
+		gap: 6px;
+		padding: 6px 8px;
 		position: sticky;
 		top: var(--bangumi-mobile-sticky-top);
 		z-index: 3;
 	}
 
 	.bangumi-filter-search {
+		flex: 1 1 100%;
+		min-width: 0;
 		order: -1;
-		width: 100%;
+	}
+
+	.bangumi-filter-select {
+		flex: 1 1 0;
+		min-width: 0;
 	}
 
 	.bangumi-panel-action-bar {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		display: flex;
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
 		gap: 6px;
-		padding: 6px;
+		padding: 6px 8px;
 		position: sticky;
 		top: calc(var(--bangumi-mobile-sticky-top) + var(--bangumi-mobile-filter-height));
 		z-index: 2;
+		scrollbar-width: none;
+	}
+
+	.bangumi-panel-action-bar::-webkit-scrollbar {
+		display: none;
 	}
 
 	.bangumi-action-btn {
-		width: 100%;
-		min-height: 40px;
-		padding: 8px 10px;
+		flex: 0 0 auto;
+		width: auto;
+		min-width: 64px;
+		min-height: 32px;
+		padding: 4px 10px;
 		font-size: 12px;
 		line-height: 1.2;
+		white-space: nowrap;
 	}
 
 	.bangumi-action-btn[data-mobile-label] {
@@ -2708,11 +2735,6 @@
 		font-size: 12px;
 		font-weight: 600;
 		line-height: 1.2;
-	}
-
-	.bangumi-action-btn-sync,
-	.bangumi-action-btn-search {
-		grid-column: 1 / -1;
 	}
 
 	.bangumi-action-btn-search {
@@ -2730,27 +2752,23 @@
 	}
 
 	.bangumi-selected-count {
-		grid-column: 1 / -1;
 		margin-left: 0;
-		padding-top: 2px;
-		text-align: center;
 		font-size: 12px;
 	}
 
 	.bangumi-panel-status {
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 6px;
-		padding: 10px 12px;
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+		padding: 0;
+		font-size: 12px;
 	}
 
 	.bangumi-status-message,
 	.bangumi-panel-status .bangumi-selected-count {
-		white-space: normal;
-		overflow: visible;
-		text-overflow: clip;
-		width: 100%;
-		text-align: left;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.bangumi-panel-table,
