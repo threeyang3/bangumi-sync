@@ -76,6 +76,7 @@ export class ControlPanel extends Modal {
 	private tableEl!: HTMLElement;
 	private paginationEl!: HTMLElement;
 	private statusEl!: HTMLElement;
+	private footerBarEl!: HTMLElement;
 
 	// 分页
 	private currentPage: number = 1;
@@ -175,9 +176,9 @@ export class ControlPanel extends Modal {
 		this.tableEl = contentEl.createDiv({ cls: 'bangumi-panel-table' });
 
 		// 底栏：状态 + 分页 同行
-		const footerBar = contentEl.createDiv({ cls: 'bangumi-panel-footer-bar' });
-		this.statusEl = footerBar.createDiv({ cls: 'bangumi-panel-status' });
-		this.paginationEl = footerBar.createDiv({ cls: 'bangumi-panel-pagination' });
+		this.footerBarEl = contentEl.createDiv({ cls: 'bangumi-panel-footer-bar' });
+		this.statusEl = this.footerBarEl.createDiv({ cls: 'bangumi-panel-status' });
+		this.paginationEl = this.footerBarEl.createDiv({ cls: 'bangumi-panel-pagination' });
 
 		// 添加键盘导航
 		this.tableEl.setAttribute('tabindex', '0');
@@ -696,8 +697,11 @@ export class ControlPanel extends Modal {
 		const totalPages = Math.ceil(filteredCollections.length / this.pageSize);
 
 		if (totalPages <= 1) {
+			this.footerBarEl.addClass('no-pagination');
 			return;
 		}
+
+		this.footerBarEl.removeClass('no-pagination');
 
 		this.paginationEl.createEl('button', { text: tn('controlPanel', 'prevPage'), cls: 'bangumi-pagination-btn bangumi-pagination-prev' }, btn => {
 			btn.disabled = this.currentPage <= 1;
