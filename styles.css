@@ -3,6 +3,407 @@
 	display: none !important;
 }
 
+/* Bangumi UI Theme */
+.bangumi-control-panel,
+.bangumi-search-modal,
+.bangumi-add-collection-modal,
+.bangumi-local-property-modal,
+.bangumi-status-sync-modal,
+.bangumi-batch-editor,
+.bangumi-settings-page {
+	--bangumi-paper: color-mix(in srgb, var(--background-primary) 88%, #f2e8d8 12%);
+	--bangumi-paper-strong: color-mix(in srgb, var(--background-secondary) 82%, #e5d3b3 18%);
+	--bangumi-ink-soft: color-mix(in srgb, var(--text-normal) 78%, #5d4631 22%);
+	--bangumi-line: color-mix(in srgb, var(--background-modifier-border) 68%, #7a5b3d 32%);
+	--bangumi-line-strong: color-mix(in srgb, var(--background-modifier-border-hover) 58%, #5f4327 42%);
+	--bangumi-accent: color-mix(in srgb, var(--interactive-accent) 72%, #b8672b 28%);
+	--bangumi-accent-strong: color-mix(in srgb, var(--interactive-accent) 55%, #874112 45%);
+	--bangumi-highlight: color-mix(in srgb, var(--text-accent) 45%, #f0c987 55%);
+	--bangumi-shadow: 0 18px 38px rgba(40, 24, 11, 0.12);
+	--bangumi-shadow-soft: 0 8px 18px rgba(53, 33, 18, 0.08);
+	--bangumi-radius: 14px;
+	--bangumi-radius-small: 10px;
+	--bangumi-serif: "Iowan Old Style", "Palatino Linotype", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+	--bangumi-sans: "Avenir Next", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+	font-family: var(--bangumi-sans);
+	color: var(--bangumi-ink-soft);
+}
+
+.modal:has(.bangumi-control-panel) .modal-content,
+.modal:has(.bangumi-search-modal) .modal-content,
+.modal:has(.bangumi-add-collection-modal) .modal-content,
+.modal:has(.bangumi-local-property-modal) .modal-content,
+.modal:has(.bangumi-status-sync-modal) .modal-content,
+.modal:has(.bangumi-batch-editor) .modal-content {
+	background:
+		radial-gradient(circle at top right, color-mix(in srgb, var(--interactive-accent) 10%, transparent) 0, transparent 36%),
+		linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 90%, #f4ead7 10%) 0%, var(--background-primary) 100%);
+	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 70%, #826347 30%);
+	border-radius: 18px;
+	box-shadow: var(--bangumi-shadow);
+}
+
+.bangumi-control-panel h2,
+.bangumi-search-modal .setting-item-heading,
+.bangumi-settings-page .setting-item-heading,
+.bangumi-status-sync-modal h2,
+.bangumi-batch-editor h2 {
+	font-family: var(--bangumi-serif);
+	letter-spacing: 0.04em;
+	color: color-mix(in srgb, var(--text-normal) 72%, #4f331d 28%);
+}
+
+.bangumi-control-panel h2 {
+	margin-bottom: 18px;
+	padding: 0 0 14px;
+	border-bottom: 1px solid var(--bangumi-line);
+}
+
+.bangumi-search-input,
+.bangumi-filter-search,
+.bangumi-filter-select,
+.bangumi-search-select,
+.bangumi-local-property-input,
+.bangumi-preview-detail-input,
+.bangumi-property-input,
+.bangumi-value-input,
+.bangumi-path-input,
+.bangumi-export-template-input,
+.bangumi-settings-page input[type="text"],
+.bangumi-settings-page textarea,
+.bangumi-settings-page select {
+	border: 1px solid var(--bangumi-line);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--background-primary) 84%, #fff9ef 16%);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+	transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.bangumi-search-input:focus,
+.bangumi-filter-search:focus,
+.bangumi-filter-select:focus,
+.bangumi-search-select:focus,
+.bangumi-local-property-input:focus,
+.bangumi-preview-detail-input:focus,
+.bangumi-property-input:focus,
+.bangumi-value-input:focus,
+.bangumi-path-input:focus,
+.bangumi-export-template-input:focus,
+.bangumi-settings-page input[type="text"]:focus,
+.bangumi-settings-page textarea:focus,
+.bangumi-settings-page select:focus {
+	border-color: var(--bangumi-accent);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--bangumi-highlight) 34%, transparent);
+	outline: none;
+}
+
+.bangumi-search-btn,
+.bangumi-search-result-add-btn,
+.bangumi-search-load-more,
+.bangumi-add-collection-type-btn,
+.bangumi-quick-btn,
+.bangumi-action-btn,
+.bangumi-action-btn-small,
+.bangumi-pagination-btn,
+.bangumi-sync-actions button,
+.bangumi-rollback-btn,
+.bangumi-sync-close-btn,
+.bangumi-export-template-buttons button,
+.bangumi-modal-buttons button,
+.bangumi-settings-page button {
+	border-radius: 999px;
+	transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+}
+
+.bangumi-search-btn,
+.bangumi-search-load-more,
+.bangumi-add-collection-type-btn,
+.bangumi-quick-btn,
+.bangumi-pagination-btn,
+.bangumi-action-btn-small,
+.bangumi-sync-cancel-btn,
+.bangumi-settings-page button:not(.mod-cta) {
+	background: linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 75%, #fff8ef 25%), color-mix(in srgb, var(--background-secondary) 82%, #ead9be 18%));
+	border: 1px solid var(--bangumi-line);
+	color: var(--bangumi-ink-soft);
+	box-shadow: var(--bangumi-shadow-soft);
+}
+
+.bangumi-search-btn:hover,
+.bangumi-search-load-more:hover,
+.bangumi-add-collection-type-btn:hover,
+.bangumi-quick-btn:hover,
+.bangumi-pagination-btn:hover,
+.bangumi-action-btn-small:hover,
+.bangumi-sync-cancel-btn:hover,
+.bangumi-settings-page button:not(.mod-cta):hover {
+	border-color: var(--bangumi-line-strong);
+	transform: translateY(-1px);
+}
+
+.bangumi-search-result-add-btn,
+.bangumi-add-collection-type-btn-active,
+.bangumi-action-btn,
+.bangumi-sync-pause-btn,
+.bangumi-modal-buttons .mod-cta,
+.bangumi-export-template-buttons .mod-cta,
+.bangumi-settings-page .mod-cta {
+	background: linear-gradient(135deg, var(--bangumi-accent) 0%, var(--bangumi-accent-strong) 100%);
+	color: var(--text-on-accent);
+	border: 1px solid color-mix(in srgb, var(--bangumi-accent-strong) 70%, #4d2100 30%);
+	box-shadow: 0 10px 18px rgba(118, 67, 22, 0.24);
+}
+
+.bangumi-search-result-add-btn:hover,
+.bangumi-action-btn:hover,
+.bangumi-sync-pause-btn:hover,
+.bangumi-modal-buttons .mod-cta:hover,
+.bangumi-export-template-buttons .mod-cta:hover,
+.bangumi-settings-page .mod-cta:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 12px 24px rgba(118, 67, 22, 0.28);
+	opacity: 1;
+}
+
+.bangumi-action-btn-delete {
+	background: linear-gradient(135deg, color-mix(in srgb, var(--text-error) 72%, #a54324 28%) 0%, color-mix(in srgb, var(--text-error) 46%, #632116 54%) 100%);
+	border-color: color-mix(in srgb, var(--text-error) 70%, #42150c 30%);
+}
+
+.bangumi-action-btn-delete:hover {
+	box-shadow: 0 12px 24px rgba(124, 35, 24, 0.24);
+}
+
+.bangumi-search-result-add-btn.is-editing {
+	background: linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 75%, #fff8ef 25%), color-mix(in srgb, var(--background-secondary) 82%, #ead9be 18%));
+	color: var(--bangumi-ink-soft);
+	border: 1px solid var(--bangumi-line);
+	box-shadow: var(--bangumi-shadow-soft);
+}
+
+.bangumi-search-result-add-btn.is-editing:hover {
+	box-shadow: 0 10px 20px rgba(53, 33, 18, 0.12);
+}
+
+.bangumi-search-filter,
+.bangumi-panel-filter-bar,
+.bangumi-panel-action-bar,
+.bangumi-template-help,
+.bangumi-path-preview,
+.bangumi-current-setting,
+.bangumi-sync-status,
+.bangumi-preview-info,
+.bangumi-v2-info,
+.bangumi-batch-editor-info,
+.bangumi-settings-page .setting-item,
+.bangumi-settings-page .setting-item-heading {
+	background:
+		linear-gradient(180deg, color-mix(in srgb, var(--background-secondary) 72%, #f6ecdc 28%) 0%, color-mix(in srgb, var(--background-secondary-alt) 78%, #ead9bd 22%) 100%);
+	border: 1px solid var(--bangumi-line);
+	border-radius: var(--bangumi-radius);
+	box-shadow: var(--bangumi-shadow-soft);
+}
+
+.bangumi-settings-page {
+	padding-bottom: 48px;
+}
+
+.bangumi-settings-page > .setting-item-heading {
+	margin-bottom: 14px;
+	padding: 16px 18px;
+}
+
+.bangumi-settings-page .setting-item-heading .setting-item-name {
+	font-size: 1.02em;
+}
+
+.bangumi-settings-page > .setting-item {
+	margin: 0 0 12px;
+	padding: 14px 18px;
+}
+
+.bangumi-settings-page .setting-item {
+	border-top: none;
+}
+
+.bangumi-settings-page .setting-item-name {
+	font-weight: 600;
+	color: color-mix(in srgb, var(--text-normal) 74%, #5d3d24 26%);
+}
+
+.bangumi-settings-page .setting-item-description,
+.bangumi-setting-desc,
+.bangumi-preview-label,
+.bangumi-file-path {
+	color: color-mix(in srgb, var(--text-muted) 82%, #72563b 18%);
+}
+
+.bangumi-help-links {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.bangumi-help-links .setting-item {
+	margin: 0;
+	min-height: 100%;
+}
+
+.bangumi-template-help {
+	padding: 16px 18px;
+	line-height: 1.65;
+}
+
+.bangumi-template-help p {
+	font-family: var(--bangumi-serif);
+	font-size: 15px;
+	letter-spacing: 0.03em;
+}
+
+.bangumi-var-tag,
+.bangumi-add-collection-tag,
+.bangumi-status-badge {
+	border: 1px solid color-mix(in srgb, var(--bangumi-accent) 42%, transparent);
+	border-radius: 999px;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.bangumi-var-tag {
+	background: linear-gradient(135deg, color-mix(in srgb, var(--bangumi-accent) 88%, #efc88c 12%), color-mix(in srgb, var(--bangumi-accent-strong) 78%, #70411c 22%));
+	padding: 4px 10px;
+}
+
+.bangumi-search-status,
+.bangumi-panel-status,
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-status {
+	background:
+		linear-gradient(90deg, color-mix(in srgb, var(--bangumi-highlight) 28%, transparent) 0, transparent 28%),
+		color-mix(in srgb, var(--background-secondary-alt) 82%, #f4ead6 18%);
+	border: 1px solid var(--bangumi-line);
+	border-radius: 12px;
+	color: color-mix(in srgb, var(--text-muted) 72%, #6d4f35 28%);
+}
+
+.bangumi-search-results,
+.bangumi-preview-list,
+.bangumi-operation-list,
+.bangumi-panel-table,
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table {
+	background: color-mix(in srgb, var(--background-primary) 90%, #fff9f0 10%);
+	border: 1px solid var(--bangumi-line);
+	border-radius: 16px;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.bangumi-search-result-item,
+.bangumi-preview-item,
+.bangumi-operation-item,
+.bangumi-collection-table td,
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table td {
+	border-bottom-color: color-mix(in srgb, var(--bangumi-line) 88%, transparent);
+}
+
+.bangumi-search-result-item {
+	padding: 14px 16px;
+	gap: 14px;
+}
+
+.bangumi-search-result-item:hover,
+.bangumi-preview-item:hover,
+.bangumi-collection-table tr:hover {
+	background:
+		linear-gradient(90deg, color-mix(in srgb, var(--bangumi-highlight) 20%, transparent) 0, transparent 20%),
+		color-mix(in srgb, var(--background-secondary) 72%, #f3e2c8 28%);
+}
+
+.bangumi-search-result-cover img,
+.bangumi-cover-thumb {
+	border-radius: 8px;
+	box-shadow: 0 10px 22px rgba(41, 23, 9, 0.18);
+}
+
+.bangumi-search-result-name,
+.bangumi-preview-name,
+.bangumi-name-cell,
+.bangumi-operation-property {
+	color: color-mix(in srgb, var(--text-normal) 82%, #3f2614 18%);
+	font-weight: 600;
+}
+
+.bangumi-search-result-name-original,
+.bangumi-name-original,
+.bangumi-tags-cell,
+.bangumi-search-result-type,
+.bangumi-preview-type,
+.bangumi-operation-arrow,
+.bangumi-operation-value {
+	color: color-mix(in srgb, var(--text-muted) 84%, #72553d 16%);
+}
+
+.bangumi-collection-table {
+	font-size: 13px;
+}
+
+.bangumi-collection-table th {
+	background:
+		linear-gradient(180deg, color-mix(in srgb, var(--background-secondary) 60%, #f5ead8 40%) 0%, color-mix(in srgb, var(--background-secondary-alt) 72%, #e8d6b9 28%) 100%);
+	border-bottom: 1px solid var(--bangumi-line-strong);
+	font-family: var(--bangumi-serif);
+	font-size: 12px;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: color-mix(in srgb, var(--text-muted) 70%, #69492e 30%);
+}
+
+.bangumi-collection-table td {
+	padding: 10px 8px;
+}
+
+.bangumi-panel-pagination {
+	border: 1px solid var(--bangumi-line);
+	border-radius: var(--bangumi-radius);
+	box-shadow: var(--bangumi-shadow-soft);
+}
+
+.bangumi-checkbox-group {
+	padding: 12px;
+	border: 1px solid var(--bangumi-line);
+	border-radius: var(--bangumi-radius);
+	background:
+		repeating-linear-gradient(
+			-35deg,
+			color-mix(in srgb, var(--background-secondary) 72%, #f5ead6 28%) 0,
+			color-mix(in srgb, var(--background-secondary) 72%, #f5ead6 28%) 16px,
+			color-mix(in srgb, var(--background-secondary-alt) 70%, #ebdcc2 30%) 16px,
+			color-mix(in srgb, var(--background-secondary-alt) 70%, #ebdcc2 30%) 32px
+		);
+}
+
+.bangumi-checkbox-label {
+	border: 1px solid transparent;
+	border-radius: 999px;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.bangumi-checkbox-label:hover {
+	border-color: var(--bangumi-line);
+	background: color-mix(in srgb, var(--background-primary) 78%, #fff8ef 22%);
+}
+
+.bangumi-modal-buttons {
+	padding-top: 8px;
+	border-top: 1px solid color-mix(in srgb, var(--bangumi-line) 72%, transparent);
+}
+
+.bangumi-local-property-section {
+	background:
+		linear-gradient(180deg, color-mix(in srgb, var(--background-secondary) 75%, #f5ebdc 25%) 0%, color-mix(in srgb, var(--background-primary) 80%, #fff9f0 20%) 100%);
+	border: 1px solid var(--bangumi-line);
+	border-radius: 14px;
+	box-shadow: var(--bangumi-shadow-soft);
+}
+
 /* Search Modal Styles */
 .modal:has(.bangumi-search-modal) {
 	width: 800px !important;
@@ -2198,4 +2599,369 @@
 	transform: translateY(var(--swipe-y, 0));
 	opacity: var(--swipe-opacity, 1);
 	transition: none;
+}
+
+/* 移动端精修覆盖 */
+@media (max-width: 767px) {
+	:root {
+		--bangumi-mobile-sticky-top: 0px;
+		--bangumi-mobile-filter-height: 58px;
+		--bangumi-mobile-action-height: 102px;
+	}
+
+	.modal-content {
+		padding: 10px;
+		border-radius: 16px;
+	}
+
+	.bangumi-modal-buttons {
+		gap: 10px;
+		padding-top: 10px;
+	}
+
+	.bangumi-modal-buttons button,
+	.bangumi-search-btn,
+	.bangumi-search-result-add-btn,
+	.bangumi-action-btn,
+	.bangumi-action-btn-small,
+	.bangumi-pagination-btn,
+	.bangumi-quick-btn {
+		min-height: 40px;
+		box-shadow: none;
+	}
+
+	.bangumi-control-panel h2,
+	.bangumi-search-modal .setting-item-heading,
+	.bangumi-settings-page .setting-item-heading {
+		letter-spacing: 0.02em;
+	}
+
+	.bangumi-panel-filter-bar,
+	.bangumi-panel-action-bar,
+	.bangumi-panel-status,
+	.bangumi-search-filter,
+	.bangumi-search-status,
+	.bangumi-template-help,
+	.bangumi-path-preview,
+	.bangumi-current-setting,
+	.bangumi-settings-page > .setting-item,
+	.bangumi-settings-page > .setting-item-heading,
+	.bangumi-local-property-section,
+	.bangumi-batch-editor-info {
+		border-radius: 12px;
+		box-shadow: none;
+	}
+
+	.bangumi-panel-filter-bar {
+		gap: 8px;
+		padding: 10px;
+		position: sticky;
+		top: var(--bangumi-mobile-sticky-top);
+		z-index: 3;
+	}
+
+	.bangumi-filter-search {
+		order: -1;
+		width: 100%;
+	}
+
+	.bangumi-panel-action-bar {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 8px;
+		padding: 8px;
+		position: sticky;
+		top: calc(var(--bangumi-mobile-sticky-top) + var(--bangumi-mobile-filter-height));
+		z-index: 2;
+	}
+
+	.bangumi-action-btn {
+		width: 100%;
+		min-height: 40px;
+		padding: 8px 10px;
+		font-size: 12px;
+		line-height: 1.2;
+	}
+
+	.bangumi-action-btn[data-mobile-label] {
+		font-size: 0;
+	}
+
+	.bangumi-action-btn[data-mobile-label]::after {
+		content: attr(data-mobile-label);
+		font-size: 12px;
+		font-weight: 600;
+		line-height: 1.2;
+	}
+
+	.bangumi-action-btn-sync,
+	.bangumi-action-btn-search {
+		grid-column: 1 / -1;
+	}
+
+	.bangumi-action-btn-search {
+		order: -2;
+	}
+
+	.bangumi-action-btn-refresh {
+		order: -1;
+	}
+
+	.bangumi-action-btn-delete {
+		background: linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 78%, #fff6f3 22%), color-mix(in srgb, var(--background-secondary) 80%, #ead0ca 20%));
+		color: color-mix(in srgb, var(--text-error) 76%, #6e2015 24%);
+		border-color: color-mix(in srgb, var(--text-error) 24%, var(--bangumi-line) 76%);
+	}
+
+	.bangumi-selected-count {
+		grid-column: 1 / -1;
+		margin-left: 0;
+		padding-top: 2px;
+		text-align: center;
+		font-size: 12px;
+	}
+
+	.bangumi-panel-status {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 6px;
+		padding: 10px 12px;
+	}
+
+	.bangumi-status-message,
+	.bangumi-panel-status .bangumi-selected-count {
+		white-space: normal;
+		overflow: visible;
+		text-overflow: clip;
+		width: 100%;
+		text-align: left;
+	}
+
+	.bangumi-panel-table,
+	.bangumi-search-results,
+	.bangumi-preview-list,
+	.bangumi-status-sync-table {
+		border-radius: 14px;
+		scroll-padding-top: calc(var(--bangumi-mobile-filter-height) + var(--bangumi-mobile-action-height) + 12px);
+	}
+
+	.bangumi-collection-table tbody {
+		gap: 10px;
+	}
+
+	.bangumi-collection-table tr {
+		grid-template-columns: 42px minmax(0, 1fr);
+		padding: 12px;
+		column-gap: 10px;
+		row-gap: 6px;
+		border-radius: 14px;
+		box-shadow: none;
+	}
+
+	.bangumi-collection-table td:first-child {
+		padding-top: 0;
+	}
+
+	.bangumi-collection-table .bangumi-action-cell {
+		grid-row: 2 / span 3;
+		gap: 6px;
+		padding-top: 0;
+	}
+
+	.bangumi-collection-table .bangumi-action-cell .bangumi-action-btn-small {
+		width: 36px;
+		min-width: 36px;
+		min-height: 30px;
+		height: 30px;
+		padding: 4px;
+		border-radius: 999px;
+	}
+
+	.bangumi-mobile-meta {
+		gap: 6px;
+		font-size: 11px;
+		line-height: 1.35;
+	}
+
+	.bangumi-mobile-meta-item {
+		padding: 2px 0;
+	}
+
+	.bangumi-mobile-meta-item:not(:last-child)::after {
+		margin-left: 6px;
+	}
+
+	.bangumi-comment-cell,
+	.bangumi-tags-cell {
+		font-size: 11px;
+		line-height: 1.45;
+	}
+
+	.bangumi-panel-pagination {
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+		padding: 8px;
+	}
+
+	.bangumi-pagination-info {
+		grid-column: 1 / -1;
+		order: -1;
+	}
+
+	.bangumi-pagination-btn {
+		width: 100%;
+	}
+
+	.bangumi-search-input-container {
+		grid-template-columns: minmax(0, 1fr) auto auto;
+		gap: 8px;
+		position: sticky;
+		top: var(--bangumi-mobile-sticky-top);
+		z-index: 3;
+		padding-bottom: 2px;
+		background: linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 92%, #f6eddf 8%) 0%, transparent 100%);
+	}
+
+	.bangumi-search-btn[data-mobile-label] {
+		font-size: 0;
+		min-width: 56px;
+	}
+
+	.bangumi-search-btn[data-mobile-label]::after {
+		content: attr(data-mobile-label);
+		font-size: 12px;
+		font-weight: 600;
+	}
+
+	.bangumi-search-filter {
+		grid-template-columns: 1fr;
+		gap: 6px;
+		padding: 10px;
+		position: sticky;
+		top: calc(var(--bangumi-mobile-sticky-top) + 48px);
+		z-index: 2;
+	}
+
+	.bangumi-search-filter span {
+		font-size: 11px;
+		color: var(--text-muted);
+	}
+
+	.bangumi-search-select {
+		min-height: 40px;
+	}
+
+	.bangumi-search-results {
+		max-height: 58vh;
+	}
+
+	.bangumi-search-result-item {
+		grid-template-columns: 54px minmax(0, 1fr);
+		gap: 12px;
+		padding: 12px;
+	}
+
+	.bangumi-search-result-cover {
+		width: 54px;
+		height: 76px;
+	}
+
+	.bangumi-search-result-name {
+		white-space: normal;
+		line-height: 1.3;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+	}
+
+	.bangumi-search-result-name-original {
+		display: inline;
+		font-size: 11px;
+	}
+
+	.bangumi-search-result-meta-row {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.bangumi-search-result-meta {
+		flex-wrap: wrap;
+		white-space: normal;
+		line-height: 1.35;
+	}
+
+	.bangumi-search-result-add-btn {
+		align-self: stretch;
+		width: 100%;
+	}
+
+	.bangumi-search-result-add-btn[data-mobile-label] {
+		font-size: 0;
+	}
+
+	.bangumi-search-result-add-btn[data-mobile-label]::after {
+		content: attr(data-mobile-label);
+		font-size: 12px;
+		font-weight: 600;
+	}
+
+	.bangumi-search-result-add-btn.is-editing {
+		background: color-mix(in srgb, var(--background-secondary) 76%, #efe2cc 24%);
+	}
+
+	.bangumi-settings-page {
+		padding-bottom: 28px;
+	}
+
+	.bangumi-settings-page > .setting-item-heading {
+		margin-bottom: 10px;
+		padding: 14px 14px;
+	}
+
+	.bangumi-settings-page > .setting-item {
+		margin-bottom: 10px;
+		padding: 12px 14px;
+	}
+
+	.bangumi-settings-page .setting-item {
+		gap: 10px;
+		align-items: flex-start;
+	}
+
+	.bangumi-settings-page .setting-item-info,
+	.bangumi-settings-page .setting-item-control {
+		width: 100%;
+	}
+
+	.bangumi-help-links {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 10px;
+	}
+
+	.bangumi-help-links .setting-item,
+	.bangumi-settings-page .setting-item-control,
+	.bangumi-settings-page .setting-item-control button {
+		width: 100%;
+	}
+
+	.bangumi-checkbox-group {
+		gap: 10px;
+		padding: 10px;
+	}
+
+	.bangumi-checkbox-label {
+		padding: 12px 14px;
+		border-radius: 14px;
+	}
+
+	.bangumi-template-help {
+		padding: 12px 14px;
+	}
+
+	.bangumi-var-tag {
+		padding: 4px 8px;
+		font-size: 10px;
+	}
 }

@@ -63,6 +63,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
+		containerEl.addClass('bangumi-settings-page');
 
 		// 标题
 		new Setting(containerEl).setName(tn('settings', 'heading')).setHeading();

@@ -14,7 +14,7 @@ import { BatchEditorModal, BatchEditOperation, FrontmatterEditor } from './batch
 import { StatusSyncModal, StatusSyncDiff, FieldDiff } from './statusSyncModal';
 import { ConflictDetector } from './conflictResolver';
 import { SearchModal } from '../ui/searchModal';
-import { tn } from '../i18n';
+import { getLocale, tn } from '../i18n';
 import { EpisodeStatusManager } from '../episode/episodeStatusManager';
 import { SubjectNoteManager } from '../note/subjectNoteManager';
 import { hasLocalPropertyFieldsForCollections, loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult } from '../ui/localPropertyModal';
@@ -95,6 +95,28 @@ export class ControlPanel extends Modal {
 	private touchStartHandler: ((e: TouchEvent) => void) | null = null;
 	private touchMoveHandler: ((e: TouchEvent) => void) | null = null;
 	private touchEndHandler: (() => void) | null = null;
+
+	private readonly mobileShortLabels = getLocale() === 'zh-CN'
+		? {
+			refresh: '刷新',
+			syncSelected: '同步',
+			forceSync: '强同',
+			deleteSelected: '删除',
+			batchEdit: '批编',
+			syncStatus: '状态',
+			undo: '撤销',
+			search: '搜索',
+		}
+		: {
+			refresh: 'Refresh',
+			syncSelected: 'Sync',
+			forceSync: 'Force',
+			deleteSelected: 'Delete',
+			batchEdit: 'Batch',
+			syncStatus: 'Status',
+			undo: 'Undo',
+			search: 'Search',
+		};
 
 	constructor(
 		app: App,
@@ -276,47 +298,61 @@ export class ControlPanel extends Modal {
 		this.actionBarEl.empty();
 
 		// 刷新按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'refresh'), cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'refresh'), cls: 'bangumi-action-btn bangumi-action-btn-refresh' }, btn => {
+			this.decorateMobileButton(btn, this.mobileShortLabels.refresh, tn('controlPanel', 'refresh'));
 			btn.addEventListener('click', () => { void this.loadData(); });
 		});
 
 		// 同步选中按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncSelected'), cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncSelected'), cls: 'bangumi-action-btn bangumi-action-btn-sync' }, btn => {
+			this.decorateMobileButton(btn, this.mobileShortLabels.syncSelected, tn('controlPanel', 'syncSelected'));
 			btn.addEventListener('click', () => { void this.syncSelected(false); });
 		});
 
 		// 强制同步按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'forceSync'), cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'forceSync'), cls: 'bangumi-action-btn bangumi-action-btn-force' }, btn => {
+			this.decorateMobileButton(btn, this.mobileShortLabels.forceSync, tn('controlPanel', 'forceSync'));
 			btn.addEventListener('click', () => { void this.syncSelected(true); });
 		});
 
 		// 删除选中按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'deleteSelected'), cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'deleteSelected'), cls: 'bangumi-action-btn bangumi-action-btn-delete' }, btn => {
+			this.decorateMobileButton(btn, this.mobileShortLabels.deleteSelected, tn('controlPanel', 'deleteSelected'));
 			btn.addEventListener('click', () => this.deleteSelected());
 		});
 
 		// 批量编辑按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'batchEdit'), cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'batchEdit'), cls: 'bangumi-action-btn bangumi-action-btn-batch' }, btn => {
+			this.decorateMobileButton(btn, this.mobileShortLabels.batchEdit, tn('controlPanel', 'batchEdit'));
 			btn.addEventListener('click', () => this.openBatchEditor());
 		});
 
 		// 同步状态按钮（统一同步评分、短评、标签、状态）
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncStatus'), cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncStatus'), cls: 'bangumi-action-btn bangumi-action-btn-status' }, btn => {
+			this.decorateMobileButton(btn, this.mobileShortLabels.syncStatus, tn('controlPanel', 'syncStatus'));
 			btn.addEventListener('click', () => { void this.syncStatus(); });
 		});
 
 		// 撤销按钮
-		const undoBtn = this.actionBarEl.createEl('button', { text: tn('controlPanel', 'undo'), cls: 'bangumi-action-btn' }, btn => {
+		const undoBtn = this.actionBarEl.createEl('button', { text: tn('controlPanel', 'undo'), cls: 'bangumi-action-btn bangumi-action-btn-undo' }, btn => {
+			this.decorateMobileButton(btn, this.mobileShortLabels.undo, tn('controlPanel', 'undo'));
 			btn.addEventListener('click', () => { void this.undoLastEdit(); });
 		});
 		undoBtn.disabled = !this.frontmatterEditor.canUndo();
 
 		// 搜索按钮
-		this.actionBarEl.createEl('button', { text: tn('searchModal', 'title'), cls: 'bangumi-action-btn' }, btn => {
+		this.actionBarEl.createEl('button', { text: tn('searchModal', 'title'), cls: 'bangumi-action-btn bangumi-action-btn-search' }, btn => {
+			this.decorateMobileButton(btn, this.mobileShortLabels.search, tn('searchModal', 'title'));
 			btn.addEventListener('click', () => this.openSearchModal());
 		});
 
 		this.updateSelectedCount();
+	}
+
+	private decorateMobileButton(button: HTMLButtonElement, shortLabel: string, fullLabel: string): void {
+		button.dataset.mobileLabel = shortLabel;
+		button.setAttribute('aria-label', fullLabel);
+		button.setAttribute('title', fullLabel);
 	}
 
 	/**

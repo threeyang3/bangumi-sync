@@ -9,7 +9,7 @@ import { BangumiClient } from '../api/client';
 import { BangumiPluginSettings } from '../settings/settings';
 import { SyncManager } from '../sync/syncManager';
 import { AddToCollectionModal, AddToCollectionInput } from './addToCollectionModal';
-import { tn, tnFormat } from '../i18n';
+import { getLocale, tn, tnFormat } from '../i18n';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { generateFilePath } from '../../common/template/pathTemplate';
 
@@ -34,6 +34,20 @@ const SORT_OPTIONS: { value: 'match' | 'heat' | 'rank' | 'score'; labelKey: 'sor
 	{ value: 'rank', labelKey: 'sort_rank' },
 	{ value: 'score', labelKey: 'sort_score' },
 ];
+
+const SEARCH_SHORT_LABELS = getLocale() === 'zh-CN'
+	? {
+		search: '搜索',
+		clear: '清空',
+		add: '添加',
+		edit: '编辑',
+	}
+	: {
+		search: 'Search',
+		clear: 'Clear',
+		add: 'Add',
+		edit: 'Edit',
+	};
 
 /**
  * 搜索弹窗
@@ -94,11 +108,13 @@ export class SearchModal extends Modal {
 			text: tn('searchModal', 'search'),
 			cls: 'bangumi-search-btn',
 		});
+		this.decorateMobileButton(searchBtn, SEARCH_SHORT_LABELS.search, tn('searchModal', 'search'));
 
 		const clearBtn = searchDiv.createEl('button', {
 			text: tn('searchModal', 'clear'),
 			cls: 'bangumi-search-btn',
 		});
+		this.decorateMobileButton(clearBtn, SEARCH_SHORT_LABELS.clear, tn('searchModal', 'clear'));
 
 		// 筛选选项
 		const filterDiv = contentEl.createDiv({ cls: 'bangumi-search-filter' });
@@ -353,8 +369,13 @@ export class SearchModal extends Modal {
 		// 添加按钮
 		const addBtn = metaRowEl.createEl('button', {
 			text: collection ? tn('searchModal', 'editCollection') : tn('searchModal', 'addToCollection'),
-			cls: 'bangumi-search-result-add-btn',
+			cls: `bangumi-search-result-add-btn ${collection ? 'is-editing' : 'is-adding'}`,
 		});
+		this.decorateMobileButton(
+			addBtn,
+			collection ? SEARCH_SHORT_LABELS.edit : SEARCH_SHORT_LABELS.add,
+			collection ? tn('searchModal', 'editCollection') : tn('searchModal', 'addToCollection')
+		);
 
 		addBtn.addEventListener('click', () => {
 			this.openAddModal(subject, collection);
@@ -390,5 +411,11 @@ export class SearchModal extends Modal {
 	onClose(): void {
 		const { contentEl } = this;
 		contentEl.empty();
+	}
+
+	private decorateMobileButton(button: HTMLButtonElement, shortLabel: string, fullLabel: string): void {
+		button.dataset.mobileLabel = shortLabel;
+		button.setAttribute('aria-label', fullLabel);
+		button.setAttribute('title', fullLabel);
 	}
 }
