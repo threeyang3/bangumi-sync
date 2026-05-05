@@ -38,9 +38,6 @@
 	background:
 		radial-gradient(circle at top right, color-mix(in srgb, var(--interactive-accent) 10%, transparent) 0, transparent 36%),
 		linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 90%, #f4ead7 10%) 0%, var(--background-primary) 100%);
-	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 70%, #826347 30%);
-	border-radius: 18px;
-	box-shadow: var(--bangumi-shadow);
 }
 
 .bangumi-control-panel h2,
@@ -1436,11 +1433,9 @@
 }
 
 .bangumi-panel-footer-bar {
-	display: grid;
-	grid-template-columns: auto 1fr auto;
-	grid-template-rows: auto auto;
+	display: flex;
 	align-items: center;
-	gap: 2px 8px;
+	gap: 8px;
 	margin-top: 4px;
 	padding: 4px 0;
 	font-size: 12px;
@@ -1448,8 +1443,8 @@
 }
 
 .bangumi-panel-status {
-	grid-column: 2;
-	grid-row: 1;
+	flex: 1;
+	min-width: 0;
 	padding: 0;
 	background: transparent;
 	border: none;
@@ -1464,9 +1459,7 @@
 }
 
 .bangumi-panel-footer-bar.no-pagination .bangumi-panel-status {
-	grid-column: 1 / -1;
-	grid-row: 1;
-	text-align: left;
+	text-align: center;
 }
 
 .bangumi-panel-status.loading {
@@ -1567,10 +1560,7 @@
 }
 
 .bangumi-panel-pagination {
-	grid-column: 1 / -1;
-	grid-row: 2;
-	display: grid;
-	grid-template-columns: auto 1fr auto;
+	display: flex;
 	align-items: center;
 	gap: 6px;
 	padding: 0;
@@ -1594,11 +1584,9 @@
 }
 
 .bangumi-pagination-prev {
-	grid-column: 1;
 }
 
 .bangumi-pagination-next {
-	grid-column: 3;
 }
 
 /* V3 批量编辑器样式 */
@@ -2230,7 +2218,6 @@
 			display: grid;
 			grid-template-columns: auto 1fr auto;
 			grid-template-rows: auto auto;
-			align-items: center;
 			gap: 2px 6px;
 			padding: 4px 8px;
 			font-size: 11px;
@@ -2238,10 +2225,12 @@
 		}
 
 		.bangumi-panel-status {
-			grid-column: 2;
+			grid-column: 1 / -1;
 			grid-row: 1;
+			z-index: 1;
 			display: flex;
 			align-items: center;
+			justify-content: center;
 			gap: 6px;
 			padding: 0;
 			font-size: 11px;
@@ -2249,7 +2238,7 @@
 
 		.bangumi-panel-pagination {
 			grid-column: 1 / -1;
-			grid-row: 2;
+			grid-row: 1 / span 2;
 			display: grid;
 			grid-template-columns: auto 1fr auto;
 			align-items: center;
@@ -2806,7 +2795,6 @@
 		display: grid;
 		grid-template-columns: auto 1fr auto;
 		grid-template-rows: auto auto;
-		align-items: center;
 		gap: 2px 6px;
 		padding: 4px 8px;
 		font-size: 11px;
@@ -2814,10 +2802,12 @@
 	}
 
 	.bangumi-panel-status {
-		grid-column: 2;
+		grid-column: 1 / -1;
 		grid-row: 1;
+		z-index: 1;
 		display: flex;
 		align-items: center;
+		justify-content: center;
 		gap: 6px;
 		padding: 0;
 		font-size: 11px;
@@ -2829,7 +2819,7 @@
 
 	.bangumi-panel-pagination {
 		grid-column: 1 / -1;
-		grid-row: 2;
+		grid-row: 1 / span 2;
 		display: grid;
 		grid-template-columns: auto 1fr auto;
 		align-items: center;
@@ -2936,7 +2926,7 @@
 
 	.bangumi-panel-pagination {
 		grid-column: 1 / -1;
-		grid-row: 2;
+		grid-row: 1 / span 2;
 		display: grid;
 		grid-template-columns: auto 1fr auto;
 		gap: 4px;
