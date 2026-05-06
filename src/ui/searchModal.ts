@@ -116,8 +116,11 @@ export class SearchModal extends Modal {
 		});
 		this.decorateMobileButton(clearBtn, SEARCH_SHORT_LABELS.clear, tn('searchModal', 'clear'));
 
+		// 选择器容器
+		const selectorsDiv = searchDiv.createDiv({ cls: 'bangumi-search-selectors-container' });
+
 		// 类型选择
-		const typeSelect = searchDiv.createEl('select', { cls: 'bangumi-search-select' });
+		const typeSelect = selectorsDiv.createEl('select', { cls: 'bangumi-search-select' });
 		SUBJECT_TYPE_OPTIONS.forEach(opt => {
 			typeSelect.createEl('option', {
 				value: String(opt.value),
@@ -126,7 +129,7 @@ export class SearchModal extends Modal {
 		});
 
 		// 排序选择
-		const sortSelect = searchDiv.createEl('select', { cls: 'bangumi-search-select' });
+		const sortSelect = selectorsDiv.createEl('select', { cls: 'bangumi-search-select' });
 		SORT_OPTIONS.forEach(opt => {
 			sortSelect.createEl('option', {
 				value: opt.value,

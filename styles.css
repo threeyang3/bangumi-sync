@@ -2931,12 +2931,12 @@
 	}
 
 	.bangumi-search-input {
-		flex: 1 1 100%;
+		flex: 1 1 0;
 		min-width: 0;
 	}
 
 	.bangumi-search-btn {
-		flex: 1;
+		flex: 0 0 auto;
 	}
 
 	.bangumi-search-btn[data-mobile-label] {
@@ -2950,13 +2950,20 @@
 		font-weight: 600;
 	}
 
+	.bangumi-search-selectors-container {
+		flex: 1 1 100%;
+		display: flex;
+		gap: 6px;
+		margin-top: 2px;
+	}
+
 	.bangumi-search-filter span {
 		font-size: 11px;
 		color: var(--text-muted);
 	}
 
 	.bangumi-search-select {
-		flex: 1 1 48%;
+		flex: 1 1 0;
 		min-width: 0;
 		min-height: 40px;
 	}
