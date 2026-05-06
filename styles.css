@@ -38,6 +38,10 @@
 	background:
 		radial-gradient(circle at top right, color-mix(in srgb, var(--interactive-accent) 10%, transparent) 0, transparent 36%),
 		linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 90%, #f4ead7 10%) 0%, var(--background-primary) 100%);
+	overflow: hidden !important;
+	display: flex;
+	flex-direction: column;
+	padding: 16px 20px !important;
 }
 
 .bangumi-control-panel h2,
@@ -286,10 +290,12 @@
 .bangumi-operation-list,
 .bangumi-panel-table,
 .modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table {
-	background: color-mix(in srgb, var(--background-primary) 90%, #fff9f0 10%);
+	background: color-mix(in srgb, var(--background-primary) 85%, #fffbf5 15%);
 	border: 1px solid var(--bangumi-line);
-	border-radius: 16px;
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+	border-radius: 12px;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+	overflow-y: auto;
+	margin-bottom: 0;
 }
 
 .bangumi-search-result-item,
@@ -504,9 +510,6 @@
 
 .bangumi-search-results {
 	max-height: 400px;
-	overflow-y: auto;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 6px;
 	margin-bottom: 6px;
 }
 
@@ -1468,9 +1471,6 @@
 
 .bangumi-panel-table {
 	flex: 1;
-	overflow-y: auto;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 6px;
 }
 
 .bangumi-table-loading,
