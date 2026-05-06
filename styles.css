@@ -605,12 +605,9 @@
 
 .bangumi-add-collection-type-btn {
 	padding: 6px 14px;
-	background: var(--background-secondary);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 4px;
+	border-radius: 999px;
 	cursor: pointer;
 	font-size: 13px;
-	transition: all 0.2s;
 }
 
 .bangumi-add-collection-type-btn:hover {
@@ -645,10 +642,11 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	padding: 2px 8px;
-	background: var(--background-secondary);
-	border-radius: 3px;
+	padding: 4px 10px;
+	background: var(--bangumi-paper-strong);
+	border-radius: 999px;
 	font-size: 12px;
+	border: 1px solid var(--bangumi-line);
 }
 
 .bangumi-add-collection-tag-remove {
