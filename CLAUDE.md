@@ -108,6 +108,29 @@ bangumi/
 - 如果为了测试创建了旧 prerelease，删除时使用 `gh release delete {版本号} --yes --cleanup-tag` 同时清理 tag，避免 BRAT 看到多个入口
 - Release notes 要用真正的多行 Markdown，不能把 `\n` 当作字面量写进 `--notes`
 
+### Release 分支指向（targetCommitish）
+
+**关键**：从 `adv` 分支发布时，必须显式指定 `--target adv`，否则 GitHub 默认指向 `main`。
+
+```bash
+# 正确：从 adv 分支发布
+gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css \
+  --title "v{版本号}" --notes "更新内容" --target adv
+
+# 错误：省略 --target 会导致 GitHub 指向 main 分支
+# 即使文件是最新的，源码浏览会显示 main 分支的旧代码
+```
+
+**后果**：
+- Release 页面的"Browse files"会显示错误分支的代码
+- GitHub 按 targetCommitish 排序时，版本顺序会混乱
+- 用户通过 BRAT 安装时可能获取到错误的源码
+
+**修复已发布 release**：
+```bash
+gh release edit {版本号} --target adv
+```
+
 ## 移动端控制面板注意事项
 
 - 移动端判断只按 `window.matchMedia('(max-width: 767px)')`，不要把触摸屏作为移动端条件，否则触摸屏 Windows 桌面会误走移动端布局

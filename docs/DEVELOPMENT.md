@@ -133,10 +133,20 @@ git push
 
 **重要**：Release tag 必须与 manifest.json 版本号完全一致，不带 `v` 前缀。
 
+**关键**：从 `adv` 分支发布时，必须显式指定 `--target adv`，否则 GitHub 默认指向 `main` 分支。
+
 ```bash
+# 从 adv 分支发布（当前主要发布方式）
 gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css \
   --title "v{版本号}" \
-  --notes-file release-notes-{版本号}.md
+  --notes-file release-notes-{版本号}.md \
+  --target adv
+
+# 从 main 分支发布（仅在合并到 main 后使用）
+gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css \
+  --title "v{版本号}" \
+  --notes-file release-notes-{版本号}.md \
+  --target main
 ```
 
 ### Release 资产要求
@@ -160,7 +170,15 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 
 测试版 tag 也必须与 `manifest.json` 版本一致。不要复用正在等待 Obsidian 官方审查的版本号。
 
-2026-05-06 当前最新稳定版为 `5.8.0`（在 `adv` 分支发布）。创建 release notes 时必须使用 `--notes-file` 传入 UTF-8 编码的 Markdown 文件，以避免 GitHub 界面中文乱码。
+2026-05-06 当前最新稳定版为 `v5.8.4`（在 `adv` 分支发布）。
+
+### 标准发布流程 (Preventing Sorting/Encoding Issues)
+为确保 GitHub Releases 顺序正确且无乱码，必须遵循以下步骤：
+
+1. **版本更新**：修改 `package.json` -> 运行 `node version-bump.mjs` -> 构建 `npm run build`。
+2. **创建附注标签**：使用 `git tag -a vX.Y.Z -m "Release vX.Y.Z"`（必须带 `v` 前缀，必须是附注标签）。
+3. **推送代码与标签**：`git push origin <branch>` 及 `git push origin --tags`。
+4. **发布 Release**：使用 `gh release create vX.Y.Z --notes-file notes.md --latest`。
 
 ## 自定义属性开发约束
 
