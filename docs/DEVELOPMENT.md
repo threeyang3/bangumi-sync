@@ -160,7 +160,7 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 
 测试版 tag 也必须与 `manifest.json` 版本一致。不要复用正在等待 Obsidian 官方审查的版本号。
 
-2026-05-02 当前 `mobile` 分支测试版为 `5.3.4` prerelease。创建 release notes 时优先使用 `--notes-file` 传入真实多行 Markdown，避免在 GitHub 页面显示字面量 `\n`。
+2026-05-06 当前最新稳定版为 `5.8.0`（在 `adv` 分支发布）。创建 release notes 时必须使用 `--notes-file` 传入 UTF-8 编码的 Markdown 文件，以避免 GitHub 界面中文乱码。
 
 ## 自定义属性开发约束
 

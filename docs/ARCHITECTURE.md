@@ -79,6 +79,7 @@ common/
 - `src/utils/`
   - UI 相关轻量工具函数
   - 当前包含移动端断点检测，移动端判断只使用 `max-width: 767px`
+  - 移动端 UI 核心逻辑：控制面板使用 Grid 底栏实现状态与分页同列对齐；搜索弹窗引入 `bangumi-search-selectors-container` 实现输入与选择器的分行布局对齐。
 
 ## 3. 启动生命周期
 
