@@ -1,419 +1,22 @@
-/* 工具类 */
+/* Bangumi Sync — Native Obsidian Style */
+
+/* ==================== Utilities ==================== */
+
 .bangumi-hidden {
 	display: none !important;
 }
 
-/* Bangumi UI Theme */
-.bangumi-control-panel,
-.bangumi-search-modal,
-.bangumi-add-collection-modal,
-.bangumi-local-property-modal,
-.bangumi-status-sync-modal,
-.bangumi-batch-editor,
-.bangumi-settings-page {
-	--bangumi-paper: color-mix(in srgb, var(--background-primary) 88%, #f2e8d8 12%);
-	--bangumi-paper-strong: color-mix(in srgb, var(--background-secondary) 82%, #e5d3b3 18%);
-	--bangumi-ink-soft: color-mix(in srgb, var(--text-normal) 78%, #5d4631 22%);
-	--bangumi-line: color-mix(in srgb, var(--background-modifier-border) 68%, #7a5b3d 32%);
-	--bangumi-line-strong: color-mix(in srgb, var(--background-modifier-border-hover) 58%, #5f4327 42%);
-	--bangumi-accent: color-mix(in srgb, var(--interactive-accent) 72%, #b8672b 28%);
-	--bangumi-accent-strong: color-mix(in srgb, var(--interactive-accent) 55%, #874112 45%);
-	--bangumi-highlight: color-mix(in srgb, var(--text-accent) 45%, #f0c987 55%);
-	--bangumi-shadow: 0 18px 38px rgba(40, 24, 11, 0.12);
-	--bangumi-shadow-soft: 0 8px 18px rgba(53, 33, 18, 0.08);
-	--bangumi-radius: 14px;
-	--bangumi-radius-small: 10px;
-	--bangumi-serif: "Iowan Old Style", "Palatino Linotype", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
-	--bangumi-sans: "Avenir Next", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-	font-family: var(--bangumi-sans);
-	color: var(--bangumi-ink-soft);
+/* ==================== Modal Sizing ==================== */
+
+.modal:has(.bangumi-control-panel) {
+	width: 1440px !important;
+	max-width: 95vw !important;
+	height: 90vh !important;
 }
 
-.modal:has(.bangumi-control-panel) .modal-content,
-.modal:has(.bangumi-search-modal) .modal-content,
-.modal:has(.bangumi-add-collection-modal) .modal-content,
-.modal:has(.bangumi-local-property-modal) .modal-content,
-.modal:has(.bangumi-status-sync-modal) .modal-content,
-.modal:has(.bangumi-batch-editor) .modal-content {
-	background:
-		radial-gradient(circle at top right, color-mix(in srgb, var(--interactive-accent) 10%, transparent) 0, transparent 36%),
-		linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 90%, #f4ead7 10%) 0%, var(--background-primary) 100%);
-	overflow: hidden !important;
-	display: flex;
-	flex-direction: column;
-	padding: 16px 20px !important;
-}
-
-.bangumi-control-panel h2,
-.bangumi-search-modal .setting-item-heading,
-.bangumi-settings-page .setting-item-heading,
-.bangumi-status-sync-modal h2,
-.bangumi-batch-editor h2 {
-	font-family: var(--bangumi-serif);
-	letter-spacing: 0.04em;
-	color: color-mix(in srgb, var(--text-normal) 72%, #4f331d 28%);
-}
-
-.bangumi-control-panel h2 {
-	margin-bottom: 6px;
-	padding: 0 0 4px;
-	border-bottom: 1px solid var(--bangumi-line);
-}
-
-.bangumi-search-input,
-.bangumi-filter-search,
-.bangumi-filter-select,
-.bangumi-search-select,
-.bangumi-local-property-input,
-.bangumi-preview-detail-input,
-.bangumi-property-input,
-.bangumi-value-input,
-.bangumi-path-input,
-.bangumi-export-template-input,
-.bangumi-settings-page input[type="text"],
-.bangumi-settings-page textarea,
-.bangumi-settings-page select {
-	border: 1px solid var(--bangumi-line);
-	border-radius: 12px;
-	background: color-mix(in srgb, var(--background-primary) 84%, #fff9ef 16%);
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
-	transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
-}
-
-.bangumi-search-input:focus,
-.bangumi-filter-search:focus,
-.bangumi-filter-select:focus,
-.bangumi-search-select:focus,
-.bangumi-local-property-input:focus,
-.bangumi-preview-detail-input:focus,
-.bangumi-property-input:focus,
-.bangumi-value-input:focus,
-.bangumi-path-input:focus,
-.bangumi-export-template-input:focus,
-.bangumi-settings-page input[type="text"]:focus,
-.bangumi-settings-page textarea:focus,
-.bangumi-settings-page select:focus {
-	border-color: var(--bangumi-accent);
-	box-shadow: 0 0 0 3px color-mix(in srgb, var(--bangumi-highlight) 34%, transparent);
-	outline: none;
-}
-
-.bangumi-search-btn,
-.bangumi-search-result-add-btn,
-.bangumi-search-load-more,
-.bangumi-add-collection-type-btn,
-.bangumi-quick-btn,
-.bangumi-action-btn,
-.bangumi-action-btn-small,
-.bangumi-pagination-btn,
-.bangumi-sync-actions button,
-.bangumi-rollback-btn,
-.bangumi-sync-close-btn,
-.bangumi-export-template-buttons button,
-.bangumi-modal-buttons button,
-.bangumi-settings-page button {
-	border-radius: 999px;
-	transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease, opacity 0.18s ease;
-}
-
-.bangumi-search-btn,
-.bangumi-search-load-more,
-.bangumi-add-collection-type-btn,
-.bangumi-quick-btn,
-.bangumi-pagination-btn,
-.bangumi-action-btn-small,
-.bangumi-sync-cancel-btn,
-.bangumi-settings-page button:not(.mod-cta) {
-	background: linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 75%, #fff8ef 25%), color-mix(in srgb, var(--background-secondary) 82%, #ead9be 18%));
-	border: 1px solid var(--bangumi-line);
-	color: var(--bangumi-ink-soft);
-	box-shadow: var(--bangumi-shadow-soft);
-}
-
-.bangumi-search-btn:hover,
-.bangumi-search-load-more:hover,
-.bangumi-add-collection-type-btn:hover,
-.bangumi-quick-btn:hover,
-.bangumi-pagination-btn:hover,
-.bangumi-action-btn-small:hover,
-.bangumi-sync-cancel-btn:hover,
-.bangumi-settings-page button:not(.mod-cta):hover {
-	border-color: var(--bangumi-line-strong);
-	transform: translateY(-1px);
-}
-
-.bangumi-search-result-add-btn,
-.bangumi-add-collection-type-btn-active,
-.bangumi-action-btn,
-.bangumi-sync-pause-btn,
-.bangumi-modal-buttons .mod-cta,
-.bangumi-export-template-buttons .mod-cta,
-.bangumi-settings-page .mod-cta {
-	background: linear-gradient(135deg, var(--bangumi-accent) 0%, var(--bangumi-accent-strong) 100%);
-	color: var(--text-on-accent);
-	border: 1px solid color-mix(in srgb, var(--bangumi-accent-strong) 70%, #4d2100 30%);
-	box-shadow: 0 10px 18px rgba(118, 67, 22, 0.24);
-}
-
-.bangumi-search-result-add-btn:hover,
-.bangumi-action-btn:hover,
-.bangumi-sync-pause-btn:hover,
-.bangumi-modal-buttons .mod-cta:hover,
-.bangumi-export-template-buttons .mod-cta:hover,
-.bangumi-settings-page .mod-cta:hover {
-	transform: translateY(-1px);
-	box-shadow: 0 12px 24px rgba(118, 67, 22, 0.28);
-	opacity: 1;
-}
-
-.bangumi-action-btn-delete {
-	background: linear-gradient(135deg, color-mix(in srgb, var(--text-error) 72%, #a54324 28%) 0%, color-mix(in srgb, var(--text-error) 46%, #632116 54%) 100%);
-	border-color: color-mix(in srgb, var(--text-error) 70%, #42150c 30%);
-}
-
-.bangumi-action-btn-delete:hover {
-	box-shadow: 0 12px 24px rgba(124, 35, 24, 0.24);
-}
-
-.bangumi-search-result-add-btn.is-editing {
-	background: linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 75%, #fff8ef 25%), color-mix(in srgb, var(--background-secondary) 82%, #ead9be 18%));
-	color: var(--bangumi-ink-soft);
-	border: 1px solid var(--bangumi-line);
-	box-shadow: var(--bangumi-shadow-soft);
-}
-
-.bangumi-search-result-add-btn.is-editing:hover {
-	box-shadow: 0 10px 20px rgba(53, 33, 18, 0.12);
-}
-
-.bangumi-search-filter,
-.bangumi-panel-filter-bar,
-.bangumi-panel-action-bar,
-.bangumi-template-help,
-.bangumi-path-preview,
-.bangumi-current-setting,
-.bangumi-sync-status,
-.bangumi-preview-info,
-.bangumi-v2-info,
-.bangumi-batch-editor-info,
-.bangumi-settings-page .setting-item,
-.bangumi-settings-page .setting-item-heading {
-	background:
-		linear-gradient(180deg, color-mix(in srgb, var(--background-secondary) 72%, #f6ecdc 28%) 0%, color-mix(in srgb, var(--background-secondary-alt) 78%, #ead9bd 22%) 100%);
-	border: 1px solid var(--bangumi-line);
-	border-radius: var(--bangumi-radius);
-	box-shadow: var(--bangumi-shadow-soft);
-}
-
-.bangumi-settings-page {
-	padding-bottom: 48px;
-}
-
-.bangumi-settings-page > .setting-item-heading {
-	margin-bottom: 14px;
-	padding: 16px 18px;
-}
-
-.bangumi-settings-page .setting-item-heading .setting-item-name {
-	font-size: 1.02em;
-}
-
-.bangumi-settings-page > .setting-item {
-	margin: 0 0 12px;
-	padding: 14px 18px;
-}
-
-.bangumi-settings-page .setting-item {
-	border-top: none;
-}
-
-.bangumi-settings-page .setting-item-name {
-	font-weight: 600;
-	color: color-mix(in srgb, var(--text-normal) 74%, #5d3d24 26%);
-}
-
-.bangumi-settings-page .setting-item-description,
-.bangumi-setting-desc,
-.bangumi-preview-label,
-.bangumi-file-path {
-	color: color-mix(in srgb, var(--text-muted) 82%, #72563b 18%);
-}
-
-.bangumi-help-links {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-	gap: 12px;
-	margin-bottom: 16px;
-}
-
-.bangumi-help-links .setting-item {
-	margin: 0;
-	min-height: 100%;
-}
-
-.bangumi-template-help {
-	padding: 16px 18px;
-	line-height: 1.65;
-}
-
-.bangumi-template-help p {
-	font-family: var(--bangumi-serif);
-	font-size: 15px;
-	letter-spacing: 0.03em;
-}
-
-.bangumi-var-tag,
-.bangumi-add-collection-tag,
-.bangumi-status-badge {
-	border: 1px solid color-mix(in srgb, var(--bangumi-accent) 42%, transparent);
-	border-radius: 999px;
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-.bangumi-var-tag {
-	background: linear-gradient(135deg, color-mix(in srgb, var(--bangumi-accent) 88%, #efc88c 12%), color-mix(in srgb, var(--bangumi-accent-strong) 78%, #70411c 22%));
-	padding: 4px 10px;
-}
-
-.bangumi-search-status,
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-status {
-	background:
-		linear-gradient(90deg, color-mix(in srgb, var(--bangumi-highlight) 28%, transparent) 0, transparent 28%),
-		color-mix(in srgb, var(--background-secondary-alt) 82%, #f4ead6 18%);
-	border: 1px solid var(--bangumi-line);
-	border-radius: 12px;
-	color: color-mix(in srgb, var(--text-muted) 72%, #6d4f35 28%);
-}
-
-.bangumi-search-results,
-.bangumi-preview-list,
-.bangumi-operation-list,
-.bangumi-panel-table,
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table {
-	background: color-mix(in srgb, var(--background-primary) 85%, #fffbf5 15%);
-	border: 1px solid var(--bangumi-line);
-	border-radius: 12px;
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
-	overflow-y: auto;
-	margin-bottom: 0;
-}
-
-.bangumi-search-result-item,
-.bangumi-preview-item,
-.bangumi-operation-item,
-.bangumi-collection-table td,
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table td {
-	border-bottom-color: color-mix(in srgb, var(--bangumi-line) 88%, transparent);
-}
-
-.bangumi-search-result-item {
-	padding: 6px 10px;
-	gap: 10px;
-}
-
-.bangumi-search-result-item:hover,
-.bangumi-preview-item:hover,
-.bangumi-collection-table tr:hover {
-	background:
-		linear-gradient(90deg, color-mix(in srgb, var(--bangumi-highlight) 20%, transparent) 0, transparent 20%),
-		color-mix(in srgb, var(--background-secondary) 72%, #f3e2c8 28%);
-}
-
-.bangumi-search-result-cover img,
-.bangumi-cover-thumb {
-	border-radius: 8px;
-	box-shadow: 0 10px 22px rgba(41, 23, 9, 0.18);
-}
-
-.bangumi-search-result-name,
-.bangumi-preview-name,
-.bangumi-name-cell,
-.bangumi-operation-property {
-	color: color-mix(in srgb, var(--text-normal) 82%, #3f2614 18%);
-	font-weight: 600;
-}
-
-.bangumi-search-result-name-original,
-.bangumi-name-original,
-.bangumi-tags-cell,
-.bangumi-search-result-type,
-.bangumi-preview-type,
-.bangumi-operation-arrow,
-.bangumi-operation-value {
-	color: color-mix(in srgb, var(--text-muted) 84%, #72553d 16%);
-}
-
-.bangumi-collection-table {
-	font-size: 13px;
-}
-
-.bangumi-collection-table th {
-	background:
-		linear-gradient(180deg, color-mix(in srgb, var(--background-secondary) 60%, #f5ead8 40%) 0%, color-mix(in srgb, var(--background-secondary-alt) 72%, #e8d6b9 28%) 100%);
-	border-bottom: 1px solid var(--bangumi-line-strong);
-	font-family: var(--bangumi-serif);
-	font-size: 12px;
-	letter-spacing: 0.05em;
-	text-transform: uppercase;
-	color: color-mix(in srgb, var(--text-muted) 70%, #69492e 30%);
-}
-
-.bangumi-collection-table td {
-	padding: 10px 8px;
-}
-
-.bangumi-checkbox-group {
-	padding: 12px;
-	border: 1px solid var(--bangumi-line);
-	border-radius: var(--bangumi-radius);
-	background:
-		repeating-linear-gradient(
-			-35deg,
-			color-mix(in srgb, var(--background-secondary) 72%, #f5ead6 28%) 0,
-			color-mix(in srgb, var(--background-secondary) 72%, #f5ead6 28%) 16px,
-			color-mix(in srgb, var(--background-secondary-alt) 70%, #ebdcc2 30%) 16px,
-			color-mix(in srgb, var(--background-secondary-alt) 70%, #ebdcc2 30%) 32px
-		);
-}
-
-.bangumi-checkbox-label {
-	border: 1px solid transparent;
-	border-radius: 999px;
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
-}
-
-.bangumi-checkbox-label:hover {
-	border-color: var(--bangumi-line);
-	background: color-mix(in srgb, var(--background-primary) 78%, #fff8ef 22%);
-}
-
-.bangumi-modal-buttons {
-	padding-top: 8px;
-	border-top: 1px solid color-mix(in srgb, var(--bangumi-line) 72%, transparent);
-}
-
-.bangumi-local-property-section {
-	background:
-		linear-gradient(180deg, color-mix(in srgb, var(--background-secondary) 75%, #f5ebdc 25%) 0%, color-mix(in srgb, var(--background-primary) 80%, #fff9f0 20%) 100%);
-	border: 1px solid var(--bangumi-line);
-	border-radius: 14px;
-	box-shadow: var(--bangumi-shadow-soft);
-}
-
-/* Search Modal Styles */
 .modal:has(.bangumi-search-modal) {
 	width: 800px !important;
 	max-width: 95vw !important;
-}
-
-.modal:has(.bangumi-local-property-modal) {
-	width: 980px !important;
-	max-width: 96vw !important;
-}
-
-.modal:has(.bangumi-local-property-modal) .modal-content {
-	width: 100% !important;
-	max-width: none !important;
 }
 
 .modal:has(.bangumi-add-collection-modal) {
@@ -426,526 +29,264 @@
 	max-width: none !important;
 }
 
-.bangumi-search-modal {
+.modal:has(.bangumi-local-property-modal) {
+	width: 980px !important;
+	max-width: 96vw !important;
+}
+
+.modal:has(.bangumi-local-property-modal) .modal-content {
+	width: 100% !important;
+	max-width: none !important;
+}
+
+.modal:has(.bangumi-status-sync-modal) {
+	width: 1280px !important;
+	max-width: 96vw !important;
+	height: 88vh !important;
+}
+
+.modal:has(.bangumi-status-sync-modal) .modal-content,
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
+	height: 100% !important;
+	min-height: 0 !important;
+}
+
+/* ==================== Control Panel ==================== */
+
+.bangumi-control-panel {
+	height: 100%;
 	display: flex;
 	flex-direction: column;
-	height: 100%;
 }
 
-.bangumi-search-input-container {
+.bangumi-control-panel h2 {
+	margin-bottom: 6px;
+	padding-bottom: 4px;
+}
+
+.bangumi-panel-filter-bar {
 	display: flex;
 	flex-wrap: nowrap;
-	align-items: center;
 	gap: 8px;
-	margin-bottom: 12px;
-	padding: 8px 12px;
-	background: var(--background-secondary);
-	border-radius: 12px;
-	border: 1px solid var(--bangumi-line);
+	padding: 8px 10px;
+	margin-bottom: 6px;
 }
 
-.bangumi-search-input {
-	flex: 1 1 auto;
-	min-width: 150px;
-	padding: 8px 12px;
-	font-size: 14px;
+.bangumi-filter-select {
+	padding: 4px 8px;
+	font-size: 13px;
+	flex: 0 0 auto;
 }
 
-.bangumi-search-btn {
-	padding: 6px 14px;
+.bangumi-filter-search {
+	flex: 1 1 0;
+	min-width: 0;
+	padding: 4px 8px;
+	font-size: 13px;
+}
+
+.bangumi-panel-action-bar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 8px 10px;
+	margin-bottom: 6px;
+}
+
+.bangumi-action-btn {
+	padding: 6px 10px;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: none;
+	border-radius: 4px;
 	cursor: pointer;
 	font-size: 13px;
+	text-align: center;
+	white-space: nowrap;
+	transition: opacity 0.2s;
+}
+
+.bangumi-action-btn:hover {
+	opacity: 0.9;
+}
+
+.bangumi-action-btn:focus-visible {
+	outline: 2px solid var(--text-on-accent);
+	outline-offset: 2px;
+}
+
+.bangumi-action-btn-small {
+	padding: 4px 8px;
+	font-size: 11px;
+	background: var(--background-secondary-alt);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+.bangumi-action-btn-small:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.bangumi-selected-count {
+	margin-left: auto;
+	color: var(--text-muted);
+	font-size: 13px;
+}
+
+/* ==================== Table ==================== */
+
+.bangumi-panel-table {
+	flex: 1;
+	overflow-y: auto;
+	margin-bottom: 0;
+}
+
+.bangumi-table-loading,
+.bangumi-table-empty,
+.bangumi-table-error {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	flex: 0 0 auto;
-}
-
-.bangumi-search-selectors-container {
-	display: flex;
-	gap: 6px;
-	flex: 0 0 auto;
-	margin-top: 0;
-}
-
-.bangumi-search-select {
-	padding: 6px 10px;
-	font-size: 13px;
-	min-width: 100px;
-	flex: 0 0 auto;
-}
-
-.bangumi-search-status {
-	padding: 4px 10px;
-	margin-bottom: 8px;
-	border-radius: 8px;
-}
-
-.bangumi-search-results {
-	max-height: 500px;
-	margin-bottom: 0;
-}
-
-.bangumi-search-result-item {
-	display: grid;
-	grid-template-columns: 60px minmax(0, 1fr) auto;
-	align-items: center;
-	gap: 16px;
-	padding: 12px 16px;
-	border-bottom: 1px solid var(--bangumi-line);
-}
-
-.bangumi-search-result-item:last-child {
-	border-bottom: none;
-}
-
-.bangumi-search-result-cover {
-	flex-shrink: 0;
-	width: 60px;
-	height: 84px;
-}
-
-.bangumi-search-result-cover img {
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-	border-radius: 8px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.bangumi-search-result-info {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	min-width: 0;
-}
-
-.bangumi-search-result-name {
-	font-weight: 600;
-	margin-bottom: 0;
-	line-height: 1.4;
-}
-
-.bangumi-search-result-name-cn {
-	color: var(--text-normal);
-	font-size: 15px;
-}
-
-.bangumi-search-result-name-original {
+	height: 200px;
 	color: var(--text-muted);
-	font-size: 12px;
-	margin-left: 6px;
+	font-size: 14px;
 }
 
-.bangumi-search-result-meta {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px 12px;
-	font-size: 13px;
-	align-items: center;
-}
-
-.bangumi-search-result-type {
-	color: var(--text-muted);
-	background: var(--background-secondary-alt);
-	padding: 1px 6px;
-	border-radius: 4px;
-}
-
-.bangumi-search-result-rating {
-	color: var(--bangumi-accent);
-	font-weight: 600;
-}
-
-.bangumi-search-result-meta-row {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-}
-
-.bangumi-search-result-add-btn {
-	padding: 6px 18px;
-	font-size: 13px;
-	font-weight: 600;
-	white-space: nowrap;
-}
-
-.bangumi-search-load-more {
-	display: none;
+.bangumi-collection-table {
 	width: 100%;
-	padding: 5px;
+	border-collapse: collapse;
+	font-size: 13px;
+}
+
+.bangumi-collection-table th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
 	background: var(--background-secondary);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 4px;
-	cursor: pointer;
-	font-size: 13px;
-	color: var(--text-muted);
-	transition: all 0.2s;
-}
-
-.bangumi-search-load-more:hover {
-	background: var(--background-secondary-alt);
-}
-
-.bangumi-search-load-more:focus-visible {
-	outline: 2px solid var(--interactive-accent);
-	outline-offset: 2px;
-}
-
-.bangumi-search-load-more.visible {
-	display: block;
-}
-
-/* Add to Collection Modal Styles */
-.bangumi-add-collection-modal {
-	width: 100%;
-	max-width: none;
-}
-
-.bangumi-add-collection-type {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	align-items: center;
-	margin-bottom: 15px;
-}
-
-.bangumi-add-collection-type-btn {
-	padding: 6px 14px;
-	border-radius: 999px;
-	cursor: pointer;
-	font-size: 13px;
-}
-
-.bangumi-add-collection-type-btn:hover {
-	background: var(--background-secondary-alt);
-}
-
-.bangumi-add-collection-type-btn:focus-visible {
-	outline: 2px solid var(--interactive-accent);
-	outline-offset: 2px;
-}
-
-.bangumi-add-collection-type-btn-active {
-	background: var(--interactive-accent);
-	color: var(--text-on-accent);
-	border-color: var(--interactive-accent);
-}
-
-.bangumi-add-collection-rate-value {
-	margin-left: 10px;
+	padding: 6px 8px;
+	text-align: left;
 	font-weight: 500;
-	color: var(--text-accent);
-}
-
-.bangumi-add-collection-tags {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px;
-	margin-top: 8px;
-}
-
-.bangumi-add-collection-tag {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	padding: 4px 10px;
-	background: var(--bangumi-paper-strong);
-	border-radius: 999px;
 	font-size: 12px;
-	border: 1px solid var(--bangumi-line);
+	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.bangumi-add-collection-tag-remove {
-	padding: 0;
-	background: transparent;
-	border: none;
-	color: var(--text-muted);
-	cursor: pointer;
-	font-size: 14px;
-	line-height: 1;
-}
-
-.bangumi-add-collection-tag-remove:hover {
-	color: var(--text-error);
-}
-
-.bangumi-add-collection-section {
-	margin-top: 20px;
-	margin-bottom: 10px;
-	font-size: 14px;
-	font-weight: 500;
-	color: var(--text-muted);
-}
-
-/* Status badges */
-.bangumi-status-badge {
-	display: inline-block;
-	padding: 2px 8px;
-	border-radius: 3px;
-	font-size: 11px;
-	margin-right: 6px;
-}
-
-.bangumi-status-synced {
-	background: var(--text-success);
-	color: var(--background-primary);
-}
-
-.bangumi-status-collected {
-	background: var(--interactive-accent);
-	color: var(--text-on-accent);
-}
-
-.bangumi-status-not-collected {
-	background: var(--background-secondary-alt);
-	color: var(--text-muted);
-}
-
-/* 模板编辑器文本区域 */
-.bangumi-template-textarea {
-	height: 400px;
-	width: 100%;
-	font-family: monospace;
-}
-
-/* 路径输入框 */
-.bangumi-path-input {
-	width: 100%;
-}
-
-/* 同步状态 */
-.bangumi-sync-status {
-	padding: 10px;
-	margin-top: 10px;
-	background: var(--background-secondary);
-	border-radius: 4px;
-	font-size: 14px;
-}
-
-/* 模板帮助 */
-.bangumi-template-help {
-	padding: 10px;
-	margin-bottom: 10px;
-	background: var(--background-secondary);
-	border-radius: 4px;
-}
-
-.bangumi-template-help p {
-	margin: 0 0 8px 0;
-	font-weight: bold;
-}
-
-.bangumi-export-template-input {
-	width: 100%;
-	margin: 10px 0;
-}
-
-.bangumi-export-template-buttons {
-	display: flex;
-	justify-content: flex-end;
-	gap: 10px;
-	flex-wrap: wrap;
-}
-
-/* 模板中的主要角色表格 */
-.markdown-rendered .callout[data-callout="tip"] table,
-.callout[data-callout="tip"] table {
-	width: 100%;
-	table-layout: fixed;
-	margin: 0 auto;
-}
-
-.markdown-rendered .callout[data-callout="tip"] table th,
-.markdown-rendered .callout[data-callout="tip"] table td,
-.callout[data-callout="tip"] table th,
-.callout[data-callout="tip"] table td {
-	text-align: center;
+.bangumi-collection-table td {
+	padding: 5px 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
 	vertical-align: middle;
 }
 
-.markdown-rendered .callout[data-callout="tip"] table img,
-.callout[data-callout="tip"] table img {
-	display: block;
-	max-width: 100%;
-	max-height: 180px;
-	margin: 0 auto;
-	object-fit: contain;
-}
-
-.markdown-rendered .callout[data-callout="tip"] .callout-content > *,
-.callout[data-callout="tip"] .callout-content > * {
-	width: 100%;
-}
-
-.bangumi-var-tag {
-	display: inline-block;
-	margin: 2px;
-	padding: 2px 6px;
-	background: var(--interactive-accent);
-	color: var(--text-on-accent);
-	border-radius: 3px;
-	font-size: 12px;
-}
-
-/* 模态框按钮 */
-.bangumi-modal-buttons {
-	display: flex;
-	justify-content: flex-end;
-	gap: 10px;
-	margin-top: 20px;
-}
-
-.bangumi-modal-buttons button {
-	padding: 6px 14px;
-}
-
-.bangumi-local-property-modal {
-	width: 100%;
-	max-width: none;
-}
-
-.bangumi-local-property-section {
-	margin-bottom: 14px;
-	padding: 10px 12px;
+.bangumi-collection-table tr:hover {
 	background: var(--background-secondary);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 8px;
 }
 
-.bangumi-local-property-section .bangumi-add-collection-section {
-	margin-top: 0;
-	margin-bottom: 10px;
+.bangumi-cover-thumb {
+	width: 50px;
+	height: 70px;
+	object-fit: cover;
+	border-radius: 3px;
 }
 
-.bangumi-local-property-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-	gap: 10px 12px;
+.bangumi-name-cell {
+	max-width: 300px;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
-.bangumi-local-property-field {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	min-width: 0;
+.bangumi-name-original {
+	color: var(--text-muted);
+	font-size: 11px;
 }
 
-.bangumi-local-property-label {
+.bangumi-tags-cell {
+	max-width: 150px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	font-size: 12px;
 	color: var(--text-muted);
-	line-height: 1.2;
 }
 
-.bangumi-local-property-input {
-	width: 100%;
-	min-width: 0;
-	padding: 6px 8px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 4px;
-	background: var(--background-primary);
-	font-size: 12px;
+.bangumi-my-rate {
+	color: var(--text-success);
+	font-size: 11px;
 }
 
-.bangumi-local-property-input:focus {
-	border-color: var(--interactive-accent);
-	outline: none;
+.bangumi-sync-status.synced {
+	color: var(--text-success);
 }
 
-.bangumi-local-property-toggle {
+.bangumi-sync-status.unsynced {
+	color: var(--text-muted);
+}
+
+.bangumi-action-cell {
+	white-space: nowrap;
+}
+
+.bangumi-mobile-meta {
+	display: none;
+}
+
+/* ==================== Footer & Pagination ==================== */
+
+.bangumi-panel-footer-bar {
 	display: flex;
 	align-items: center;
-	height: 30px;
+	gap: 8px;
+	margin-top: 4px;
+	padding: 4px 0;
+	font-size: 12px;
+	line-height: 1.3;
 }
 
-.bangumi-local-property-field-toggle {
-	justify-content: space-between;
-}
-
-/* 多选设置 */
-.bangumi-multiselect .setting-item-control {
-	flex-wrap: wrap;
-}
-
-/* 进度条容器 */
-.setting-item-control .progress-bar {
-	width: 100%;
-}
-
-/* 当前设置显示 */
-.bangumi-current-setting {
-	padding: 8px 12px;
-	margin-bottom: 10px;
-	background: var(--background-secondary-alt);
-	border-radius: 4px;
-	font-size: 13px;
+.bangumi-panel-status {
+	flex: 1;
+	min-width: 0;
+	padding: 0;
+	font-size: 12px;
 	color: var(--text-muted);
+	text-align: center;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
-/* 复选框组 */
-.bangumi-checkbox-group {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 10px;
-	padding: 10px;
-	background: var(--background-secondary);
-	border-radius: 6px;
-	margin-bottom: 10px;
+.bangumi-panel-footer-bar.no-pagination .bangumi-panel-status {
+	text-align: center;
 }
 
-.bangumi-checkbox-label {
+.bangumi-panel-status.loading {
+	color: var(--text-accent);
+}
+
+.bangumi-panel-pagination {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 6px 12px;
-	background: var(--background-primary);
-	border-radius: 4px;
-	cursor: pointer;
-	transition: background-color 0.2s;
+	padding: 0;
 }
 
-.bangumi-checkbox-label:hover {
-	background: var(--background-primary-alt);
-}
-
-.bangumi-checkbox-label input[type="checkbox"] {
-	margin: 0;
-	cursor: pointer;
-}
-
-.bangumi-checkbox-label span {
-	font-size: 14px;
-	user-select: none;
-}
-
-/* 快捷选择按钮 */
-.bangumi-quick-select {
-	display: flex;
-	gap: 8px;
-	margin-bottom: 15px;
-}
-
-.bangumi-quick-btn {
-	padding: 4px 12px;
+.bangumi-pagination-info {
+	color: var(--text-muted);
 	font-size: 12px;
-	background: var(--background-secondary);
+	text-align: center;
+}
+
+.bangumi-pagination-btn {
+	padding: 3px 10px;
+	font-size: 12px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
+	background: var(--background-primary);
 	cursor: pointer;
-	transition: all 0.2s;
 }
 
-.bangumi-quick-btn:hover {
-	background: var(--background-secondary-alt);
-	border-color: var(--interactive-accent);
-}
+/* ==================== Progress Bar ==================== */
 
-.bangumi-quick-btn:focus-visible {
-	outline: 2px solid var(--interactive-accent);
-	outline-offset: 2px;
-}
-
-/* 进度条样式 */
 .bangumi-progress-bar {
 	width: 100%;
 	height: 8px;
@@ -971,7 +312,14 @@
 	opacity: 0.4;
 }
 
-/* 同步弹窗操作按钮 */
+/* ==================== Sync Status ==================== */
+
+.bangumi-sync-status {
+	padding: 10px;
+	margin-top: 10px;
+	font-size: 14px;
+}
+
 .bangumi-sync-actions {
 	display: flex;
 	gap: 8px;
@@ -1007,15 +355,12 @@
 	border-color: var(--text-error);
 }
 
-/* 同步完成区域 */
 .bangumi-sync-completed {
 	margin-top: 12px;
 }
 
 .bangumi-sync-stats {
 	padding: 8px 12px;
-	background: var(--background-secondary);
-	border-radius: 4px;
 	font-size: 13px;
 	margin-bottom: 10px;
 }
@@ -1056,13 +401,356 @@
 	width: 100%;
 }
 
-/* 状态栏同步指示器 */
 .bangumi-sync-status-bar {
 	font-size: 12px;
 	color: var(--text-muted);
 }
 
-/* 路径模板设置 */
+/* ==================== Search Modal ==================== */
+
+.bangumi-search-modal {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.bangumi-search-input-container {
+	display: flex;
+	flex-wrap: nowrap;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 12px;
+	padding: 8px 12px;
+}
+
+.bangumi-search-input {
+	flex: 1 1 auto;
+	min-width: 150px;
+	padding: 8px 12px;
+	font-size: 14px;
+}
+
+.bangumi-search-btn {
+	padding: 6px 14px;
+	cursor: pointer;
+	font-size: 13px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+}
+
+.bangumi-search-selectors-container {
+	display: flex;
+	gap: 6px;
+	flex: 0 0 auto;
+	margin-top: 0;
+}
+
+.bangumi-search-select {
+	padding: 6px 10px;
+	font-size: 13px;
+	min-width: 100px;
+	flex: 0 0 auto;
+}
+
+.bangumi-search-status {
+	padding: 4px 10px;
+	margin-bottom: 8px;
+	border-radius: 4px;
+	font-size: 13px;
+	color: var(--text-muted);
+}
+
+.bangumi-search-results {
+	max-height: 500px;
+	overflow-y: auto;
+	margin-bottom: 0;
+}
+
+.bangumi-search-result-item {
+	display: grid;
+	grid-template-columns: 60px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 16px;
+	padding: 12px 16px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.bangumi-search-result-item:last-child {
+	border-bottom: none;
+}
+
+.bangumi-search-result-item:hover {
+	background: var(--background-secondary);
+}
+
+.bangumi-search-result-cover {
+	flex-shrink: 0;
+	width: 60px;
+	height: 84px;
+}
+
+.bangumi-search-result-cover img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: 3px;
+}
+
+.bangumi-search-result-info {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+}
+
+.bangumi-search-result-name {
+	font-weight: 600;
+	margin-bottom: 0;
+	line-height: 1.4;
+}
+
+.bangumi-search-result-name-cn {
+	color: var(--text-normal);
+	font-size: 15px;
+}
+
+.bangumi-search-result-name-original {
+	color: var(--text-muted);
+	font-size: 12px;
+	margin-left: 6px;
+}
+
+.bangumi-search-result-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 12px;
+	font-size: 13px;
+	align-items: center;
+}
+
+.bangumi-search-result-type {
+	color: var(--text-muted);
+	background: var(--background-secondary-alt);
+	padding: 1px 6px;
+	border-radius: 3px;
+}
+
+.bangumi-search-result-rating {
+	color: var(--text-accent);
+	font-weight: 600;
+}
+
+.bangumi-search-result-meta-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.bangumi-search-result-add-btn {
+	padding: 6px 18px;
+	font-size: 13px;
+	font-weight: 600;
+	white-space: nowrap;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.bangumi-search-result-add-btn:hover {
+	opacity: 0.9;
+}
+
+.bangumi-search-result-add-btn.is-editing {
+	background: var(--background-secondary-alt);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.bangumi-search-load-more {
+	display: none;
+	width: 100%;
+	padding: 5px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	color: var(--text-muted);
+	transition: all 0.2s;
+}
+
+.bangumi-search-load-more:hover {
+	background: var(--background-secondary-alt);
+}
+
+.bangumi-search-load-more:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.bangumi-search-load-more.visible {
+	display: block;
+}
+
+.bangumi-search-filter {
+	padding: 8px 10px;
+	margin-bottom: 8px;
+}
+
+/* ==================== Add to Collection Modal ==================== */
+
+.bangumi-add-collection-modal {
+	width: 100%;
+	max-width: none;
+}
+
+.bangumi-add-collection-type {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+	margin-bottom: 15px;
+}
+
+.bangumi-add-collection-type-btn {
+	padding: 6px 14px;
+	cursor: pointer;
+	font-size: 13px;
+}
+
+.bangumi-add-collection-type-btn:hover {
+	background: var(--background-secondary-alt);
+}
+
+.bangumi-add-collection-type-btn:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.bangumi-add-collection-type-btn-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.bangumi-add-collection-rate-value {
+	margin-left: 10px;
+	font-weight: 500;
+	color: var(--text-accent);
+}
+
+.bangumi-add-collection-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 8px;
+}
+
+.bangumi-add-collection-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 10px;
+	font-size: 12px;
+}
+
+.bangumi-add-collection-tag-remove {
+	padding: 0;
+	background: transparent;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 14px;
+	line-height: 1;
+}
+
+.bangumi-add-collection-tag-remove:hover {
+	color: var(--text-error);
+}
+
+.bangumi-add-collection-section {
+	margin-top: 20px;
+	margin-bottom: 10px;
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--text-muted);
+}
+
+/* ==================== Status Badges ==================== */
+
+.bangumi-status-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-size: 11px;
+	margin-right: 6px;
+}
+
+.bangumi-status-synced {
+	background: var(--text-success);
+	color: var(--background-primary);
+}
+
+.bangumi-status-collected {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.bangumi-status-not-collected {
+	background: var(--background-secondary-alt);
+	color: var(--text-muted);
+}
+
+/* ==================== Template Editor ==================== */
+
+.bangumi-template-textarea {
+	height: 400px;
+	width: 100%;
+	font-family: monospace;
+}
+
+.bangumi-template-help {
+	padding: 10px;
+	margin-bottom: 10px;
+}
+
+.bangumi-template-help p {
+	margin: 0 0 8px 0;
+	font-weight: bold;
+}
+
+.bangumi-var-tag {
+	display: inline-block;
+	margin: 2px;
+	padding: 2px 6px;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-radius: 3px;
+	font-size: 12px;
+}
+
+.bangumi-export-template-input {
+	width: 100%;
+	margin: 10px 0;
+}
+
+.bangumi-export-template-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+/* ==================== Path Template ==================== */
+
+.bangumi-path-input {
+	width: 100%;
+}
+
 .bangumi-path-template-setting {
 	padding: 0 10px;
 }
@@ -1070,8 +758,6 @@
 .bangumi-path-preview {
 	padding: 8px 12px;
 	margin: 0 0 15px 0;
-	background: var(--background-secondary);
-	border-radius: 4px;
 	font-size: 13px;
 }
 
@@ -1080,37 +766,47 @@
 	margin-right: 8px;
 }
 
-/* 文件路径提示 */
 .bangumi-file-path {
 	color: var(--text-muted);
 	font-size: 11px;
 }
 
-/* V2 版本信息 */
-.bangumi-v2-info {
+.bangumi-current-setting {
 	padding: 8px 12px;
-	margin: 10px 0;
-	background: var(--background-secondary-alt);
-	border-left: 3px solid var(--interactive-accent);
-	border-radius: 4px;
+	margin-bottom: 10px;
 	font-size: 13px;
 	color: var(--text-muted);
 }
 
-/* V2 预览弹窗 */
+/* ==================== Info Boxes ==================== */
+
+.bangumi-v2-info {
+	padding: 8px 12px;
+	margin: 10px 0;
+	border-left: 3px solid var(--interactive-accent);
+	font-size: 13px;
+	color: var(--text-muted);
+}
+
 .bangumi-preview-info {
 	padding: 8px 12px;
 	margin-bottom: 15px;
-	background: var(--background-secondary);
-	border-radius: 4px;
 	font-size: 13px;
 }
+
+.bangumi-batch-editor-info {
+	padding: 8px 12px;
+	margin-bottom: 15px;
+	font-size: 13px;
+}
+
+/* ==================== Preview Modal ==================== */
 
 .bangumi-preview-list {
 	max-height: 400px;
 	overflow-y: auto;
 	border: 1px solid var(--background-modifier-border);
-	border-radius: 6px;
+	border-radius: 4px;
 	margin-bottom: 15px;
 }
 
@@ -1182,9 +878,6 @@
 	width: 40px;
 	padding: 2px 4px;
 	font-size: 12px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 3px;
-	background: var(--background-primary);
 }
 
 .bangumi-preview-detail-input:focus {
@@ -1198,378 +891,150 @@
 	margin-bottom: 15px;
 }
 
-/* V3 控制面板样式 */
-.modal:has(.bangumi-control-panel) {
-	width: 1440px !important;
-	max-width: 95vw !important;
-	height: 90vh !important;
-}
+/* ==================== Local Property Modal ==================== */
 
-.modal:has(.bangumi-status-sync-modal) {
-	width: 1280px !important;
-	max-width: 96vw !important;
-	height: 88vh !important;
-}
-
-.modal:has(.bangumi-status-sync-modal) .modal-content,
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
-	height: 100% !important;
-	min-height: 0 !important;
-}
-
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
-	display: flex !important;
-	flex-direction: column !important;
-	gap: 12px;
+.bangumi-local-property-modal {
 	width: 100%;
-	box-sizing: border-box;
+	max-width: none;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-actions,
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-footer {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	align-items: center;
-}
-
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-status {
-	padding: 8px 12px;
-	background: var(--background-secondary);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 8px;
-	color: var(--text-muted);
-}
-
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table {
-	flex: 1 1 auto;
-	min-height: 0;
-	overflow: auto;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 10px;
-	background: var(--background-primary);
-}
-
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table table,
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table .bangumi-detail-table {
-	width: 100%;
-	border-collapse: collapse;
-	table-layout: fixed;
-}
-
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table th,
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table td {
+.bangumi-local-property-section {
+	margin-bottom: 14px;
 	padding: 10px 12px;
-	border-bottom: 1px solid var(--background-modifier-border);
-	vertical-align: top;
-	text-align: left;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table thead th {
-	position: sticky;
-	top: 0;
-	z-index: 1;
-	background: var(--background-secondary);
+.bangumi-local-property-section .bangumi-add-collection-section {
+	margin-top: 0;
+	margin-bottom: 10px;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-name-cell {
-	width: 28%;
+.bangumi-local-property-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: 10px 12px;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-fields-cell {
-	width: 44%;
-	color: var(--text-muted);
-}
-
-.modal:has(.bangumi-status-sync-modal) .bangumi-action-cell {
-	width: 28%;
-}
-
-.modal:has(.bangumi-status-sync-modal) .bangumi-detail-row td {
-	background: color-mix(in srgb, var(--background-secondary) 45%, transparent);
-}
-
-.modal:has(.bangumi-status-sync-modal) .bangumi-sync-value {
-	white-space: pre-wrap;
-	word-break: break-word;
-	line-height: 1.55;
-}
-
-.modal:has(.bangumi-status-sync-modal) .bangumi-sync-decision-select {
-	width: 100%;
-	min-width: 120px;
-}
-
-.modal:has(.bangumi-status-sync-modal) .bangumi-expand-btn {
-	width: 100%;
-}
-
-.bangumi-control-panel {
-	height: 100%;
+.bangumi-local-property-field {
 	display: flex;
 	flex-direction: column;
-}
-
-.bangumi-control-panel h2 {
-	margin-bottom: 6px;
-	padding-bottom: 4px;
-	border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.bangumi-panel-filter-bar {
-	display: flex;
-	flex-wrap: nowrap;
-	gap: 8px;
-	padding: 8px 10px;
-	background: var(--background-secondary);
-	border-radius: 6px;
-	margin-bottom: 6px;
-}
-
-.bangumi-filter-select {
-	padding: 4px 8px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 4px;
-	background: var(--background-primary);
-	font-size: 13px;
-	flex: 0 0 auto;
-}
-
-.bangumi-filter-search {
-	flex: 1 1 0;
+	gap: 4px;
 	min-width: 0;
-	padding: 4px 8px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 4px;
-	background: var(--background-primary);
-	font-size: 13px;
 }
 
-.bangumi-panel-action-bar {
+.bangumi-local-property-label {
+	font-size: 12px;
+	color: var(--text-muted);
+	line-height: 1.2;
+}
+
+.bangumi-local-property-input {
+	width: 100%;
+	min-width: 0;
+	padding: 6px 8px;
+	font-size: 12px;
+}
+
+.bangumi-local-property-input:focus {
+	border-color: var(--interactive-accent);
+	outline: none;
+}
+
+.bangumi-local-property-toggle {
+	display: flex;
+	align-items: center;
+	height: 30px;
+}
+
+.bangumi-local-property-field-toggle {
+	justify-content: space-between;
+}
+
+/* ==================== Checkbox Group ==================== */
+
+.bangumi-checkbox-group {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
-	padding: 8px 10px;
-	background: var(--background-secondary);
-	border-radius: 6px;
-	margin-bottom: 6px;
+	gap: 10px;
+	padding: 10px;
+	margin-bottom: 10px;
 }
 
-.bangumi-action-btn {
-	padding: 6px 10px;
-	background: var(--interactive-accent);
-	color: var(--text-on-accent);
-	border: none;
+.bangumi-checkbox-label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 12px;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+
+.bangumi-checkbox-label:hover {
+	background: var(--background-secondary);
+}
+
+.bangumi-checkbox-label input[type="checkbox"] {
+	margin: 0;
+	cursor: pointer;
+}
+
+.bangumi-checkbox-label span {
+	font-size: 14px;
+	user-select: none;
+}
+
+/* ==================== Quick Select ==================== */
+
+.bangumi-quick-select {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 15px;
+}
+
+.bangumi-quick-btn {
+	padding: 4px 12px;
+	font-size: 12px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
 	cursor: pointer;
-	font-size: 13px;
-	text-align: center;
-	white-space: nowrap;
-	transition: opacity 0.2s;
+	transition: all 0.2s;
 }
 
-.bangumi-action-btn:hover {
-	opacity: 0.9;
-}
-
-.bangumi-action-btn:focus-visible {
-	outline: 2px solid var(--text-on-accent);
-	outline-offset: 2px;
-}
-
-.bangumi-action-btn-small {
-	padding: 4px 8px;
-	font-size: 11px;
+.bangumi-quick-btn:hover {
 	background: var(--background-secondary-alt);
-	color: var(--text-normal);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 3px;
-	cursor: pointer;
+	border-color: var(--interactive-accent);
 }
 
-.bangumi-action-btn-small:focus-visible {
+.bangumi-quick-btn:focus-visible {
 	outline: 2px solid var(--interactive-accent);
 	outline-offset: 2px;
 }
 
-.bangumi-selected-count {
-	margin-left: auto;
-	color: var(--text-muted);
-	font-size: 13px;
-}
+/* ==================== Modal Buttons ==================== */
 
-.bangumi-panel-footer-bar {
+.bangumi-modal-buttons {
 	display: flex;
-	align-items: center;
-	gap: 8px;
-	margin-top: 4px;
-	padding: 4px 0;
-	font-size: 12px;
-	line-height: 1.3;
+	justify-content: flex-end;
+	gap: 10px;
+	margin-top: 20px;
+	padding-top: 8px;
 }
 
-.bangumi-panel-status {
-	flex: 1;
-	min-width: 0;
-	padding: 0;
-	background: transparent;
-	border: none;
-	border-radius: 0;
-	font-size: 12px;
-	color: var(--text-muted);
-	margin-bottom: 0;
-	text-align: center;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+.bangumi-modal-buttons button {
+	padding: 6px 14px;
 }
 
-.bangumi-panel-footer-bar.no-pagination .bangumi-panel-status {
-	text-align: center;
-}
+/* ==================== Batch Editor ==================== */
 
-.bangumi-panel-status.loading {
-	color: var(--text-accent);
-}
-
-.bangumi-panel-table {
-	flex: 1;
-}
-
-.bangumi-table-loading,
-.bangumi-table-empty,
-.bangumi-table-error {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	height: 200px;
-	color: var(--text-muted);
-	font-size: 14px;
-}
-
-.bangumi-collection-table {
-	width: 100%;
-	border-collapse: collapse;
-	font-size: 13px;
-}
-
-.bangumi-collection-table th {
-	position: sticky;
-	top: 0;
-	background: var(--background-secondary);
-	padding: 6px 8px;
-	text-align: left;
-	font-weight: 500;
-	border-bottom: 1px solid var(--background-modifier-border);
-	z-index: 1;
-}
-
-.bangumi-collection-table td {
-	padding: 5px 8px;
-	border-bottom: 1px solid var(--background-modifier-border);
-	vertical-align: middle;
-}
-
-.bangumi-collection-table tr:hover {
-	background: var(--background-secondary);
-}
-
-.bangumi-mobile-meta {
-	display: none;
-}
-
-.bangumi-cover-thumb {
-	width: 50px;
-	height: 70px;
-	object-fit: cover;
-	border-radius: 3px;
-}
-
-.bangumi-name-cell {
-	max-width: 300px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.bangumi-tags-cell {
-	max-width: 150px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-size: 12px;
-	color: var(--text-muted);
-}
-
-.bangumi-name-original {
-	color: var(--text-muted);
-	font-size: 11px;
-}
-
-.bangumi-my-rate {
-	color: var(--text-success);
-	font-size: 11px;
-}
-
-.bangumi-sync-status.synced {
-	color: var(--text-success);
-}
-
-.bangumi-sync-status.unsynced {
-	color: var(--text-muted);
-}
-
-.bangumi-action-cell {
-	white-space: nowrap;
-}
-
-.bangumi-panel-pagination {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	padding: 0;
-	background: transparent;
-	border-radius: 0;
-	margin-top: 0;
-}
-
-.bangumi-pagination-info {
-	color: var(--text-muted);
-	font-size: 12px;
-	text-align: center;
-}
-
-.bangumi-pagination-btn {
-	padding: 3px 10px;
-	font-size: 12px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 6px;
-	background: var(--background-primary);
-}
-
-.bangumi-pagination-prev {
-}
-
-.bangumi-pagination-next {
-}
-
-/* V3 批量编辑器样式 */
 .bangumi-batch-editor {
 	width: 500px;
-}
-
-.bangumi-batch-editor-info {
-	padding: 8px 12px;
-	background: var(--background-secondary);
-	border-radius: 4px;
-	margin-bottom: 15px;
-	font-size: 13px;
 }
 
 .bangumi-operation-list {
 	max-height: 200px;
 	overflow-y: auto;
 	border: 1px solid var(--background-modifier-border);
-	border-radius: 6px;
+	border-radius: 4px;
 	margin-bottom: 15px;
 }
 
@@ -1652,8 +1117,6 @@
 	gap: 8px;
 	align-items: center;
 	padding: 10px;
-	background: var(--background-secondary);
-	border-radius: 6px;
 	margin-bottom: 15px;
 }
 
@@ -1675,7 +1138,99 @@
 	min-width: 150px;
 }
 
-/* V4 集数框样式 */
+/* ==================== Status Sync Modal ==================== */
+
+.modal:has(.bangumi-status-sync-modal) .modal-content,
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
+	height: 100% !important;
+	min-height: 0 !important;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: 12px;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-actions,
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-footer {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-status {
+	padding: 8px 12px;
+	color: var(--text-muted);
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table table,
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table .bangumi-detail-table {
+	width: 100%;
+	border-collapse: collapse;
+	table-layout: fixed;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table th,
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table td {
+	padding: 10px 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	vertical-align: top;
+	text-align: left;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table thead th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: var(--background-secondary);
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-name-cell {
+	width: 28%;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-fields-cell {
+	width: 44%;
+	color: var(--text-muted);
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-action-cell {
+	width: 28%;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-detail-row td {
+	background: color-mix(in srgb, var(--background-secondary) 45%, transparent);
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-sync-value {
+	white-space: pre-wrap;
+	word-break: break-word;
+	line-height: 1.55;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-sync-decision-select {
+	width: 100%;
+	min-width: 120px;
+}
+
+.modal:has(.bangumi-status-sync-modal) .bangumi-expand-btn {
+	width: 100%;
+}
+
+/* ==================== Episode Box ==================== */
+
 .markdown-rendered .ep-box,
 .callout .ep-box,
 .ep-box {
@@ -1716,7 +1271,21 @@
 	opacity: 0.9;
 }
 
-/* Bangumi Info Callout 响应式布局 */
+/* ==================== Episode Sync Button ==================== */
+
+.bangumi-episode-sync-btn {
+	background: var(--background-secondary-alt);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.bangumi-episode-sync-btn:hover {
+	background: var(--background-secondary);
+	border-color: var(--interactive-accent);
+}
+
+/* ==================== Callout: bangumi-info ==================== */
+
 .callout[data-callout="bangumi-info"],
 .markdown-rendered .callout[data-callout="bangumi-info"] {
 	--callout-color: var(--text-accent);
@@ -1759,7 +1328,6 @@
 	table-layout: fixed;
 }
 
-/* 宽屏布局：图片在左，表格在右，高度一致 */
 @media (min-width: 1000px) {
 	.callout[data-callout="bangumi-info"] .callout-content,
 	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content {
@@ -1809,22 +1377,80 @@
 	}
 }
 
-/* 单集状态同步按钮 */
-.bangumi-episode-sync-btn {
-	background: var(--background-secondary-alt);
-	color: var(--text-normal);
-	border: 1px solid var(--background-modifier-border);
+/* ==================== Callout: tip tables ==================== */
+
+.markdown-rendered .callout[data-callout="tip"] table,
+.callout[data-callout="tip"] table {
+	width: 100%;
+	table-layout: fixed;
+	margin: 0 auto;
 }
 
-.bangumi-episode-sync-btn:hover {
-	background: var(--background-secondary);
-	border-color: var(--interactive-accent);
+.markdown-rendered .callout[data-callout="tip"] table th,
+.markdown-rendered .callout[data-callout="tip"] table td,
+.callout[data-callout="tip"] table th,
+.callout[data-callout="tip"] table td {
+	text-align: center;
+	vertical-align: middle;
 }
 
-/* ==================== 移动端适配 ==================== */
+.markdown-rendered .callout[data-callout="tip"] table img,
+.callout[data-callout="tip"] table img {
+	display: block;
+	max-width: 100%;
+	max-height: 180px;
+	margin: 0 auto;
+	object-fit: contain;
+}
 
-/* 通用弹窗适配 */
+.markdown-rendered .callout[data-callout="tip"] .callout-content > *,
+.callout[data-callout="tip"] .callout-content > * {
+	width: 100%;
+}
+
+/* ==================== Settings Page ==================== */
+
+.bangumi-settings-page {
+	padding-bottom: 48px;
+}
+
+.bangumi-help-links {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.bangumi-help-links .setting-item {
+	margin: 0;
+	min-height: 100%;
+}
+
+.bangumi-multiselect .setting-item-control {
+	flex-wrap: wrap;
+}
+
+.setting-item-control .progress-bar {
+	width: 100%;
+}
+
+/* ==================== Swipe Gesture ==================== */
+
+.is-swiping {
+	transform: translateY(var(--swipe-y, 0));
+	opacity: var(--swipe-opacity, 1);
+	transition: none;
+}
+
+/* ==================== Mobile ==================== */
+
 @media (max-width: 767px) {
+	:root {
+		--bangumi-mobile-sticky-top: 0px;
+		--bangumi-mobile-filter-height: 72px;
+		--bangumi-mobile-action-height: 80px;
+	}
+
 	.modal {
 		width: 95vw !important;
 		max-width: none !important;
@@ -1832,10 +1458,10 @@
 	}
 
 	.modal-content {
-		padding: 12px;
+		padding: 10px;
 	}
 
-	/* 按钮容器垂直排列 */
+	/* Buttons - larger touch targets */
 	.bangumi-modal-buttons {
 		flex-direction: column;
 		gap: 8px;
@@ -1845,12 +1471,13 @@
 		width: 100%;
 	}
 
-	/* 更大的点击区域 */
 	.bangumi-action-btn,
 	.bangumi-action-btn-small,
-	.bangumi-search-btn {
-		min-height: 44px;
-		min-width: 44px;
+	.bangumi-search-btn,
+	.bangumi-pagination-btn,
+	.bangumi-quick-btn {
+		min-height: 40px;
+		min-width: 40px;
 		padding: 10px 16px;
 	}
 
@@ -1858,17 +1485,15 @@
 	.bangumi-search-input,
 	.bangumi-local-property-input {
 		min-height: 44px;
-		font-size: 16px; /* 防止 iOS 缩放 */
+		font-size: 16px;
 	}
 
-	/* 复选框更大 */
 	.bangumi-collection-table input[type="checkbox"],
 	.bangumi-preview-checkbox {
 		width: 24px;
 		height: 24px;
 	}
 
-	/* 滚动优化 */
 	.bangumi-panel-table,
 	.bangumi-search-results,
 	.bangumi-preview-list,
@@ -1876,825 +1501,24 @@
 		-webkit-overflow-scrolling: touch;
 		overscroll-behavior: contain;
 	}
-}
 
-	/* 控制面板适配 */
-	@media (max-width: 767px) {
-		.modal:has(.bangumi-control-panel) {
-			width: 100vw !important;
-			height: 100vh !important;
-			max-width: none !important;
-			max-height: none !important;
-		}
-
-		.modal:has(.bangumi-control-panel) .modal-close-button {
-			top: calc(env(safe-area-inset-top, 0px) + 16px) !important;
-			right: 16px !important;
-			z-index: 10;
-		}
-
-		.bangumi-control-panel h2 {
-			font-size: 18px;
-			margin-bottom: 10px;
-		}
-
-		/* 筛选栏 */
-		.bangumi-panel-filter-bar {
-			flex-wrap: wrap;
-			gap: 6px;
-			padding: 6px 8px;
-		}
-
-		.bangumi-filter-select {
-			flex: 1 1 0;
-			min-width: 0;
-		}
-
-		.bangumi-filter-search {
-			flex: 1 1 100%;
-			min-width: 0;
-			order: -1;
-		}
-
-		/* 操作栏 */
-		.bangumi-panel-action-bar {
-			display: grid;
-			grid-template-columns: repeat(4, 1fr);
-			gap: 4px;
-			padding: 6px 8px;
-		}
-
-		.bangumi-action-btn {
-			width: 100%;
-			min-height: 32px;
-			padding: 4px 6px;
-			font-size: 12px;
-			line-height: 1.2;
-		}
-
-		.bangumi-selected-count {
-			flex: 0 0 auto;
-			color: var(--text-muted);
-			font-size: 12px;
-		}
-
-		.bangumi-panel-status {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			padding: 0;
-			font-size: 12px;
-		}
-
-		.bangumi-status-message {
-			min-width: 0;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-		}
-
-		/* 表格改卡片 - 纵向布局优化 */
-		.bangumi-collection-table thead {
-			display: none;
-		}
-
-		.bangumi-collection-table {
-			width: 100%;
-			table-layout: fixed;
-		}
-
-		.bangumi-collection-table tbody {
-			display: flex;
-			flex-direction: column;
-			gap: 8px;
-			width: 100%;
-		}
-
-		.bangumi-collection-table tr {
-			display: grid;
-			grid-template-columns: 48px minmax(0, 1fr);
-			padding: 10px;
-			border: 1px solid var(--background-modifier-border);
-			border-radius: 8px;
-			column-gap: 8px;
-			row-gap: 2px;
-			width: 100%;
-			box-sizing: border-box;
-			align-items: start;
-		}
-
-		.bangumi-collection-table tr:hover {
-			background: var(--background-secondary);
-		}
-
-		.bangumi-collection-table td {
-			display: block;
-			border: none;
-			padding: 0;
-			min-width: 0;
-			max-width: 100%;
-		}
-
-		/* 左侧：选择框 */
-		.bangumi-collection-table td:first-child {
-			grid-column: 1;
-			grid-row: 1;
-			display: flex;
-			align-items: flex-start;
-			justify-content: center;
-			width: auto;
-			padding-top: 2px;
-		}
-
-		.bangumi-collection-table input[type="checkbox"] {
-			appearance: none;
-			-webkit-appearance: none;
-			display: grid;
-			place-items: center;
-			width: 28px;
-			height: 28px;
-			margin: 0;
-			border: 1.5px solid var(--background-modifier-border-hover);
-			border-radius: 6px;
-			background: var(--background-primary);
-		}
-
-		.bangumi-collection-table input[type="checkbox"]:checked {
-			border-color: var(--interactive-accent);
-			background: var(--interactive-accent);
-			background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E");
-			background-position: center;
-			background-repeat: no-repeat;
-			background-size: 21px 21px;
-		}
-
-		.bangumi-collection-table input[type="checkbox"]:checked::after {
-			content: none;
-		}
-
-		/* 右侧第一行：标题，填满选择框右侧宽度 */
-		.bangumi-name-cell {
-			grid-column: 2;
-			grid-row: 1;
-			display: block;
-			min-width: 0;
-			width: 100%;
-			max-width: none !important;
-			inline-size: 100%;
-			font-weight: 500;
-			line-height: 1.25;
-			/* 允许标题在空间不足时截断，而不是换行 */
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-		}
-
-		.bangumi-name-cell > span {
-			display: block;
-			min-width: 0;
-			max-width: 100%;
-			inline-size: 100%;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-		}
-
-		/* 隐藏原标题（日语标题） */
-		.bangumi-name-original {
-			display: none;
-		}
-
-		/* 元数据行：将类型、状态、评分、同步状态放在同一行 */
-		.bangumi-mobile-meta {
-			grid-column: 2;
-			grid-row: 2;
-			display: flex;
-			flex-wrap: wrap;
-			gap: 4px 8px;
-			font-size: 12px;
-			line-height: 1.25;
-			color: var(--text-muted);
-			width: 100%;
-		}
-
-		.bangumi-mobile-meta-item {
-			display: inline-flex;
-			align-items: center;
-			gap: 4px;
-		}
-
-		.bangumi-mobile-meta-item:not(:last-child)::after {
-			content: '·';
-			margin-left: 4px;
-			color: var(--text-faint);
-		}
-
-		/* 隐藏原始的元数据单元格（移动端用 .bangumi-mobile-meta 替代） */
-		.bangumi-collection-table td:nth-child(3),
-		.bangumi-collection-table td:nth-child(4),
-		.bangumi-collection-table td:nth-child(5),
-		.bangumi-collection-table td:nth-child(8) {
-			display: none;
-		}
-
-		/* 短评 - 拉满宽度，在行末截断 */
-		.bangumi-comment-cell {
-			grid-column: 2;
-			grid-row: 3;
-			width: 100%;
-			font-size: 12px;
-			line-height: 1.3;
-			color: var(--text-muted);
-			white-space: nowrap;
-			overflow: hidden;
-			text-overflow: ellipsis;
-		}
-
-		/* 标签 - 拉满宽度，在行末截断 */
-		.bangumi-tags-cell {
-			grid-column: 2;
-			grid-row: 4;
-			width: 100%;
-			white-space: nowrap;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			font-size: 12px;
-			line-height: 1.3;
-		}
-
-		/* 操作按钮 */
-		.bangumi-collection-table .bangumi-action-cell {
-			grid-column: 1;
-			grid-row: 2 / span 3;
-			display: flex;
-			flex-direction: column;
-			flex-wrap: nowrap;
-			align-items: center;
-			justify-content: flex-start;
-			gap: 3px;
-			width: 100%;
-			max-width: 100%;
-			justify-self: center;
-			padding-top: 2px;
-			margin-top: 0;
-			border-top: none;
-		}
-
-		.bangumi-collection-table .bangumi-action-cell:empty {
-			display: none;
-		}
-
-		.bangumi-collection-table .bangumi-action-cell .bangumi-action-btn-small {
-			display: block;
-			width: 40px;
-			min-width: 40px;
-			min-height: 24px;
-			height: 24px;
-			padding: 2px 4px;
-			font-size: 11px;
-			line-height: 1;
-			text-align: center;
-			flex: 0 0 auto;
-			border: 1px solid var(--background-modifier-border);
-			border-radius: 5px;
-			background: var(--background-primary);
-		}
-
-		/* 分页 */
-		.bangumi-panel-pagination {
-			display: flex;
-			align-items: center;
-			gap: 4px;
-			padding: 0;
-		}
-
-		.bangumi-pagination-info {
-			text-align: center;
-			color: var(--text-muted);
-			font-size: 12px;
-		}
-
-		.bangumi-pagination-btn {
-			min-width: 56px;
-			min-height: 28px;
-			padding: 3px 8px;
-			border: 1px solid var(--background-modifier-border);
-			border-radius: 6px;
-			background: var(--background-primary);
-		}
-
-		.bangumi-panel-footer-bar {
-			display: grid;
-			grid-template-columns: auto 1fr auto;
-			grid-template-rows: auto auto;
-			gap: 2px 6px;
-			padding: 4px 8px;
-			font-size: 11px;
-			line-height: 1.25;
-		}
-
-		.bangumi-panel-status {
-			grid-column: 1 / -1;
-			grid-row: 1;
-			z-index: 1;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			gap: 6px;
-			padding: 0;
-			font-size: 11px;
-		}
-
-		.bangumi-panel-pagination {
-			grid-column: 1 / -1;
-			grid-row: 1 / span 2;
-			display: grid;
-			grid-template-columns: auto 1fr auto;
-			align-items: center;
-			gap: 4px;
-			padding: 0;
-		}
-
-		.bangumi-pagination-prev {
-			grid-column: 1;
-		}
-
-		.bangumi-pagination-info {
-			grid-column: 2;
-			text-align: center;
-			font-size: 11px;
-		}
-
-		.bangumi-pagination-next {
-			grid-column: 3;
-		}
-
-		.bangumi-pagination-btn {
-			min-width: 48px;
-			min-height: 24px;
-			padding: 2px 8px;
-			font-size: 11px;
-		}
+	/* Control Panel */
+	.modal:has(.bangumi-control-panel) {
+		width: 100vw !important;
+		height: 100vh !important;
+		max-width: none !important;
+		max-height: none !important;
 	}
 
-		/* 搜索弹窗适配 */
-		@media (max-width: 767px) {
-			.modal:has(.bangumi-search-modal) {
-				width: 95vw !important;
-				max-width: none !important;
-			}
-
-			.bangumi-search-input-container {
-				flex-wrap: wrap;
-				gap: 6px;
-			}
-
-			.bangumi-search-input {
-				width: 100%;
-				min-width: 0;
-			}
-
-			.bangumi-search-btn {
-				min-width: 52px;
-				min-height: 36px;
-				padding: 5px 9px;
-			}
-
-			.bangumi-search-filter {
-				display: grid;
-				grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
-				gap: 8px;
-				padding: 8px;
-			}
-
-			.bangumi-search-filter span {
-				white-space: nowrap;
-			}
-
-			.bangumi-search-filter.collapsed {
-				display: none;
-			}
-
-			.bangumi-search-filter-toggle {
-				display: flex;
-				width: 100%;
-				justify-content: center;
-				padding: 8px;
-				background: var(--background-secondary);
-				border-radius: 4px;
-				margin-bottom: 8px;
-			}
-
-			.bangumi-search-select {
-				flex: 1 1 48%;
-				min-width: 0;
-			}
-
-			/* 搜索结果 */
-			.bangumi-search-results {
-				max-height: 50vh;
-			}
-
-			.bangumi-search-result-item {
-				display: grid;
-				grid-template-columns: 44px minmax(0, 1fr);
-				align-items: start;
-				gap: 10px;
-				padding: 10px;
-			}
-
-			.bangumi-search-result-cover {
-				width: 44px;
-				height: 62px;
-			}
-
-			.bangumi-search-result-info {
-				width: 100%;
-				min-width: 0;
-			}
-
-			.bangumi-search-result-name {
-				white-space: nowrap;
-				overflow: hidden;
-				text-overflow: ellipsis;
-				margin-bottom: 4px;
-			}
-
-			.bangumi-search-result-meta-row {
-				gap: 6px;
-				margin-top: 2px;
-			}
-
-			.bangumi-search-result-meta {
-				flex: 1;
-				gap: 5px;
-				white-space: nowrap;
-				overflow: hidden;
-			}
-
-			.bangumi-search-result-meta .bangumi-status-badge {
-				margin-right: 0;
-				padding: 0;
-				border-radius: 0;
-				background: transparent;
-				color: var(--text-muted);
-				font-size: 12px;
-			}
-
-			.bangumi-search-result-add-btn {
-				width: auto;
-				min-width: 48px;
-				min-height: 30px;
-				margin-top: 0;
-				padding: 4px 8px;
-			}
-		}
-
-		/* 添加收藏弹窗适配 */
-		@media (max-width: 767px) {
-			.modal:has(.bangumi-add-collection-modal) {
-				width: 95vw !important;
-				max-width: none !important;
-			}
-
-			.bangumi-add-collection-type {
-				flex-wrap: wrap;
-			}
-
-			.bangumi-add-collection-type-btn {
-				flex: 1;
-				min-width: 60px;
-			}
-
-			.bangumi-add-collection-tags {
-				flex-wrap: wrap;
-			}
-
-			.bangumi-template-textarea {
-				height: 250px;
-			}
-		}
-
-		/* 本地属性弹窗适配 */
-		@media (max-width: 767px) {
-			.modal:has(.bangumi-local-property-modal) {
-				width: 95vw !important;
-				max-width: none !important;
-			}
-
-			.bangumi-local-property-grid {
-				grid-template-columns: 1fr;
-				gap: 12px;
-			}
-
-			.bangumi-local-property-section {
-				padding: 10px;
-			}
-
-			.bangumi-local-property-section h3 {
-				font-size: 14px;
-			}
-		}
-
-		/* 状态同步弹窗适配 */
-		@media (max-width: 767px) {
-			.modal:has(.bangumi-status-sync-modal) {
-				width: 100vw !important;
-				height: 100vh !important;
-				max-width: none !important;
-				max-height: none !important;
-			}
-
-			.bangumi-status-sync-actions {
-				flex-wrap: wrap;
-				gap: 6px;
-			}
-
-			.bangumi-status-sync-actions button {
-				flex: 1;
-				min-width: 80px;
-			}
-
-			.bangumi-status-sync-table {
-				flex: 1;
-			}
-
-			.bangumi-status-sync-table th,
-			.bangumi-status-sync-table td {
-				padding: 8px;
-				font-size: 12px;
-			}
-
-			.modal:has(.bangumi-status-sync-modal) .bangumi-name-cell {
-				width: 40% !important;
-			}
-
-			.modal:has(.bangumi-status-sync-modal) .bangumi-fields-cell {
-				width: 60% !important;
-			}
-
-			.modal:has(.bangumi-status-sync-modal) .bangumi-action-cell {
-				width: 100% !important;
-				display: flex;
-				flex-wrap: wrap;
-				gap: 8px;
-				padding-top: 8px;
-				border-top: 1px solid var(--background-modifier-border);
-			}
-
-			.bangumi-detail-row td {
-				padding: 6px;
-			}
-
-			.bangumi-sync-decision-select {
-				min-width: 100px;
-			}
-
-			.bangumi-status-sync-footer {
-				flex-direction: column;
-				gap: 8px;
-			}
-
-			.bangumi-status-sync-footer button {
-				width: 100%;
-			}
-		}
-
-		/* 同步预览弹窗适配 */
-		@media (max-width: 767px) {
-			.bangumi-preview-list {
-				max-height: 50vh;
-			}
-
-			.bangumi-preview-item {
-				flex-wrap: wrap;
-				gap: 8px;
-				padding: 10px;
-			}
-
-			.bangumi-preview-item-header {
-				width: 100%;
-			}
-
-			.bangumi-preview-details {
-				width: 100%;
-				margin-left: 0;
-				flex-wrap: wrap;
-				gap: 6px;
-			}
-
-			.bangumi-preview-detail-field {
-				flex: 1;
-				min-width: 80px;
-			}
-
-			.bangumi-preview-quick {
-				flex-wrap: wrap;
-				gap: 6px;
-			}
-
-			.bangumi-preview-quick button {
-				flex: 1;
-			}
-		}
-
-		/* 设置面板适配 */
-		@media (max-width: 767px) {
-			.bangumi-help-links {
-				flex-direction: column;
-				gap: 8px;
-			}
-
-			.bangumi-help-links .setting-item {
-				flex-direction: column;
-				align-items: flex-start;
-				gap: 8px;
-			}
-
-			.bangumi-help-links .setting-item-control {
-				width: 100%;
-			}
-
-			.bangumi-help-links .setting-item-control button {
-				width: 100%;
-			}
-
-			.bangumi-path-template-setting {
-				padding: 0;
-			}
-
-			.bangumi-path-input {
-				font-size: 14px;
-			}
-
-			.bangumi-checkbox-group {
-				flex-direction: column;
-				gap: 8px;
-				padding: 8px;
-			}
-
-			.bangumi-checkbox-label {
-				width: 100%;
-				padding: 10px 12px;
-			}
-
-			.bangumi-template-help {
-				padding: 8px;
-			}
-
-			.bangumi-var-tag {
-				font-size: 11px;
-				padding: 2px 4px;
-				margin: 1px;
-			}
-
-			.bangumi-template-textarea {
-				height: 250px;
-				font-size: 12px;
-			}
-
-			.bangumi-setting-desc {
-				font-size: 12px;
-			}
-		}
-
-		/* 模板正文 bangumi-info callout 适配 */
-		@media (max-width: 767px) {
-			.callout[data-callout="bangumi-info"] .callout-content,
-			.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content {
-				flex-direction: column !important;
-				align-items: center !important;
-			}
-
-			.callout[data-callout="bangumi-info"] .callout-content > :first-child,
-			.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :first-child {
-				flex: none !important;
-				width: 100% !important;
-			}
-
-			.callout[data-callout="bangumi-info"] .callout-content > :last-child,
-			.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :last-child {
-				flex: none !important;
-				width: 100% !important;
-			}
-
-			.callout[data-callout="bangumi-info"] img,
-			.markdown-rendered .callout[data-callout="bangumi-info"] img {
-				width: 100% !important;
-				max-width: 280px !important;
-				height: auto !important;
-				margin: 0 auto !important;
-				display: block !important;
-			}
-
-			.callout[data-callout="bangumi-info"] .callout-content > p,
-			.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > p {
-				text-align: center !important;
-				flex-shrink: 0 !important;
-				display: flex !important;
-				justify-content: center !important;
-			}
-		}
-
-		/* 批量编辑器适配 */
-		@media (max-width: 767px) {
-			.bangumi-batch-editor {
-				width: 100%;
-			}
-
-			.bangumi-batch-editor-info {
-				font-size: 12px;
-				padding: 8px;
-			}
-
-			.bangumi-operation-list {
-				max-height: 150px;
-			}
-
-			.bangumi-operation-item {
-				flex-wrap: wrap;
-				gap: 6px;
-				padding: 8px;
-				font-size: 12px;
-			}
-
-			.bangumi-add-operation {
-				flex-wrap: wrap;
-				gap: 6px;
-				padding: 8px;
-			}
-
-			.bangumi-property-input,
-			.bangumi-value-input {
-				width: 100%;
-				min-width: 0;
-			}
-		}
-
-		/* 模板编辑器适配 */
-		@media (max-width: 767px) {
-			.bangumi-template-textarea {
-				height: 200px;
-				font-size: 12px;
-			}
-		}
-
-/* 滑动关闭手势样式 */
-.is-swiping {
-	transform: translateY(var(--swipe-y, 0));
-	opacity: var(--swipe-opacity, 1);
-	transition: none;
-}
-
-/* 移动端精修覆盖 */
-@media (max-width: 767px) {
-	:root {
-		--bangumi-mobile-sticky-top: 0px;
-		--bangumi-mobile-filter-height: 72px;
-		--bangumi-mobile-action-height: 80px;
+	.modal:has(.bangumi-control-panel) .modal-close-button {
+		top: calc(env(safe-area-inset-top, 0px) + 16px) !important;
+		right: 16px !important;
+		z-index: 10;
 	}
 
-	.modal-content {
-		padding: 10px;
-		border-radius: 16px;
-	}
-
-	.bangumi-modal-buttons {
-		gap: 10px;
-		padding-top: 10px;
-	}
-
-	.bangumi-modal-buttons button,
-	.bangumi-search-btn,
-	.bangumi-search-result-add-btn,
-	.bangumi-action-btn,
-	.bangumi-action-btn-small,
-	.bangumi-pagination-btn,
-	.bangumi-quick-btn {
-		min-height: 40px;
-		box-shadow: none;
-	}
-
-	.bangumi-control-panel h2,
-	.bangumi-search-modal .setting-item-heading,
-	.bangumi-settings-page .setting-item-heading {
-		letter-spacing: 0.02em;
-	}
-
-	.bangumi-panel-filter-bar,
-	.bangumi-panel-action-bar,
-	.bangumi-panel-status,
-	.bangumi-search-filter,
-	.bangumi-search-status,
-	.bangumi-template-help,
-	.bangumi-path-preview,
-	.bangumi-current-setting,
-	.bangumi-settings-page > .setting-item,
-	.bangumi-settings-page > .setting-item-heading,
-	.bangumi-local-property-section,
-	.bangumi-batch-editor-info {
-		border-radius: 12px;
-		box-shadow: none;
+	.bangumi-control-panel h2 {
+		font-size: 18px;
+		margin-bottom: 10px;
 	}
 
 	.bangumi-panel-filter-bar {
@@ -2706,15 +1530,15 @@
 		z-index: 3;
 	}
 
+	.bangumi-filter-select {
+		flex: 1 1 0;
+		min-width: 0;
+	}
+
 	.bangumi-filter-search {
 		flex: 1 1 100%;
 		min-width: 0;
 		order: -1;
-	}
-
-	.bangumi-filter-select {
-		flex: 1 1 0;
-		min-width: 0;
 	}
 
 	.bangumi-panel-action-bar {
@@ -2755,11 +1579,215 @@
 	}
 
 	.bangumi-action-btn-delete {
-		background: linear-gradient(180deg, color-mix(in srgb, var(--background-primary) 78%, #fff6f3 22%), color-mix(in srgb, var(--background-secondary) 80%, #ead0ca 20%));
-		color: color-mix(in srgb, var(--text-error) 76%, #6e2015 24%);
-		border-color: color-mix(in srgb, var(--text-error) 24%, var(--bangumi-line) 76%);
+		background: color-mix(in srgb, var(--text-error) 72%, var(--background-primary) 28%);
+		color: var(--text-error);
+		border: 1px solid color-mix(in srgb, var(--text-error) 30%, var(--background-modifier-border) 70%);
 	}
 
+	.bangumi-selected-count {
+		flex: 0 0 auto;
+		font-size: 12px;
+	}
+
+	/* Table -> Cards */
+	.bangumi-collection-table thead {
+		display: none;
+	}
+
+	.bangumi-collection-table {
+		width: 100%;
+		table-layout: fixed;
+	}
+
+	.bangumi-collection-table tbody {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		width: 100%;
+	}
+
+	.bangumi-collection-table tr {
+		display: grid;
+		grid-template-columns: 42px minmax(0, 1fr);
+		padding: 12px;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 8px;
+		column-gap: 10px;
+		row-gap: 6px;
+		width: 100%;
+		box-sizing: border-box;
+		align-items: start;
+	}
+
+	.bangumi-collection-table tr:hover {
+		background: var(--background-secondary);
+	}
+
+	.bangumi-collection-table td {
+		display: block;
+		border: none;
+		padding: 0;
+		min-width: 0;
+		max-width: 100%;
+	}
+
+	.bangumi-collection-table td:first-child {
+		grid-column: 1;
+		grid-row: 1;
+		display: flex;
+		align-items: flex-start;
+		justify-content: center;
+		width: auto;
+		padding-top: 0;
+	}
+
+	.bangumi-collection-table input[type="checkbox"] {
+		appearance: none;
+		-webkit-appearance: none;
+		display: grid;
+		place-items: center;
+		width: 28px;
+		height: 28px;
+		margin: 0;
+		border: 1.5px solid var(--background-modifier-border-hover);
+		border-radius: 6px;
+		background: var(--background-primary);
+	}
+
+	.bangumi-collection-table input[type="checkbox"]:checked {
+		border-color: var(--interactive-accent);
+		background: var(--interactive-accent);
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E");
+		background-position: center;
+		background-repeat: no-repeat;
+		background-size: 21px 21px;
+	}
+
+	.bangumi-collection-table input[type="checkbox"]:checked::after {
+		content: none;
+	}
+
+	.bangumi-name-cell {
+		grid-column: 2;
+		grid-row: 1;
+		display: block;
+		min-width: 0;
+		width: 100%;
+		max-width: none !important;
+		inline-size: 100%;
+		font-weight: 500;
+		line-height: 1.25;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.bangumi-name-cell > span {
+		display: block;
+		min-width: 0;
+		max-width: 100%;
+		inline-size: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.bangumi-name-original {
+		display: none;
+	}
+
+	.bangumi-mobile-meta {
+		grid-column: 2;
+		grid-row: 2;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px 8px;
+		font-size: 12px;
+		line-height: 1.25;
+		color: var(--text-muted);
+		width: 100%;
+	}
+
+	.bangumi-mobile-meta-item {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.bangumi-mobile-meta-item:not(:last-child)::after {
+		content: '·';
+		margin-left: 4px;
+		color: var(--text-faint);
+	}
+
+	.bangumi-collection-table td:nth-child(3),
+	.bangumi-collection-table td:nth-child(4),
+	.bangumi-collection-table td:nth-child(5),
+	.bangumi-collection-table td:nth-child(8) {
+		display: none;
+	}
+
+	.bangumi-comment-cell {
+		grid-column: 2;
+		grid-row: 3;
+		width: 100%;
+		font-size: 12px;
+		line-height: 1.3;
+		color: var(--text-muted);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.bangumi-tags-cell {
+		grid-column: 2;
+		grid-row: 4;
+		width: 100%;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		font-size: 12px;
+		line-height: 1.3;
+	}
+
+	.bangumi-collection-table .bangumi-action-cell {
+		grid-column: 1;
+		grid-row: 2 / span 3;
+		display: flex;
+		flex-direction: column;
+		flex-wrap: nowrap;
+		align-items: center;
+		justify-content: flex-start;
+		gap: 6px;
+		width: 100%;
+		max-width: 100%;
+		justify-self: center;
+		padding-top: 0;
+		margin-top: 0;
+		border-top: none;
+	}
+
+	.bangumi-collection-table .bangumi-action-cell:empty {
+		display: none;
+	}
+
+	.bangumi-collection-table .bangumi-action-cell .bangumi-action-btn-small {
+		display: block;
+		width: 36px;
+		min-width: 36px;
+		min-height: 30px;
+		height: 30px;
+		padding: 4px;
+		font-size: 11px;
+		line-height: 1;
+		text-align: center;
+		flex: 0 0 auto;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 999px;
+		background: var(--background-primary);
+	}
+
+	/* Footer & Pagination */
 	.bangumi-panel-footer-bar {
 		display: grid;
 		grid-template-columns: auto 1fr auto;
@@ -2784,10 +1812,6 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-	}
-
-	.bangumi-selected-count {
-		font-size: 11px;
 	}
 
 	.bangumi-panel-pagination {
@@ -2829,64 +1853,14 @@
 		font-size: 11px;
 	}
 
-	.bangumi-panel-table,
-	.bangumi-search-results,
-	.bangumi-preview-list,
-	.bangumi-status-sync-table {
-		border-radius: 14px;
+	.bangumi-panel-table {
 		scroll-padding-top: calc(var(--bangumi-mobile-filter-height) + var(--bangumi-mobile-action-height) + 12px);
 	}
 
-	.bangumi-collection-table tbody {
-		gap: 10px;
-	}
-
-	.bangumi-collection-table tr {
-		grid-template-columns: 42px minmax(0, 1fr);
-		padding: 12px;
-		column-gap: 10px;
-		row-gap: 6px;
-		border-radius: 14px;
-		box-shadow: none;
-	}
-
-	.bangumi-collection-table td:first-child {
-		padding-top: 0;
-	}
-
-	.bangumi-collection-table .bangumi-action-cell {
-		grid-row: 2 / span 3;
-		gap: 6px;
-		padding-top: 0;
-	}
-
-	.bangumi-collection-table .bangumi-action-cell .bangumi-action-btn-small {
-		width: 36px;
-		min-width: 36px;
-		min-height: 30px;
-		height: 30px;
-		padding: 4px;
-		border-radius: 999px;
-	}
-
-	.bangumi-mobile-meta {
-		gap: 6px;
-		font-size: 11px;
-		line-height: 1.35;
-	}
-
-	.bangumi-mobile-meta-item {
-		padding: 2px 0;
-	}
-
-	.bangumi-mobile-meta-item:not(:last-child)::after {
-		margin-left: 6px;
-	}
-
-	.bangumi-comment-cell,
-	.bangumi-tags-cell {
-		font-size: 11px;
-		line-height: 1.45;
+	/* Search Modal */
+	.modal:has(.bangumi-search-modal) {
+		width: 95vw !important;
+		max-width: none !important;
 	}
 
 	.bangumi-search-input-container {
@@ -2896,8 +1870,7 @@
 		top: var(--bangumi-mobile-sticky-top);
 		z-index: 3;
 		padding: 4px 0 8px;
-		background: var(--background-primary);
-		border-bottom: 1px solid var(--bangumi-line);
+		border-bottom: 1px solid var(--background-modifier-border);
 		margin-bottom: 8px;
 	}
 
@@ -2926,11 +1899,6 @@
 		display: flex;
 		gap: 6px;
 		margin-top: 2px;
-	}
-
-	.bangumi-search-filter span {
-		font-size: 11px;
-		color: var(--text-muted);
 	}
 
 	.bangumi-search-select {
@@ -2996,61 +1964,277 @@
 	}
 
 	.bangumi-search-result-add-btn.is-editing {
-		background: color-mix(in srgb, var(--background-secondary) 76%, #efe2cc 24%);
+		background: var(--background-secondary-alt);
 	}
 
+	/* Add Collection Modal */
+	.modal:has(.bangumi-add-collection-modal) {
+		width: 95vw !important;
+		max-width: none !important;
+	}
+
+	.bangumi-add-collection-type {
+		flex-wrap: wrap;
+	}
+
+	.bangumi-add-collection-type-btn {
+		flex: 1;
+		min-width: 60px;
+	}
+
+	.bangumi-add-collection-tags {
+		flex-wrap: wrap;
+	}
+
+	.bangumi-template-textarea {
+		height: 250px;
+	}
+
+	/* Local Property Modal */
+	.modal:has(.bangumi-local-property-modal) {
+		width: 95vw !important;
+		max-width: none !important;
+	}
+
+	.bangumi-local-property-grid {
+		grid-template-columns: 1fr;
+		gap: 12px;
+	}
+
+	.bangumi-local-property-section {
+		padding: 10px;
+	}
+
+	.bangumi-local-property-section h3 {
+		font-size: 14px;
+	}
+
+	/* Status Sync Modal */
+	.modal:has(.bangumi-status-sync-modal) {
+		width: 100vw !important;
+		height: 100vh !important;
+		max-width: none !important;
+		max-height: none !important;
+	}
+
+	.bangumi-status-sync-actions {
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.bangumi-status-sync-actions button {
+		flex: 1;
+		min-width: 80px;
+	}
+
+	.bangumi-status-sync-table {
+		flex: 1;
+	}
+
+	.bangumi-status-sync-table th,
+	.bangumi-status-sync-table td {
+		padding: 8px;
+		font-size: 12px;
+	}
+
+	.modal:has(.bangumi-status-sync-modal) .bangumi-name-cell {
+		width: 40% !important;
+	}
+
+	.modal:has(.bangumi-status-sync-modal) .bangumi-fields-cell {
+		width: 60% !important;
+	}
+
+	.modal:has(.bangumi-status-sync-modal) .bangumi-action-cell {
+		width: 100% !important;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		padding-top: 8px;
+		border-top: 1px solid var(--background-modifier-border);
+	}
+
+	.bangumi-detail-row td {
+		padding: 6px;
+	}
+
+	.bangumi-sync-decision-select {
+		min-width: 100px;
+	}
+
+	.bangumi-status-sync-footer {
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.bangumi-status-sync-footer button {
+		width: 100%;
+	}
+
+	/* Preview Modal */
+	.bangumi-preview-list {
+		max-height: 50vh;
+	}
+
+	.bangumi-preview-item {
+		flex-wrap: wrap;
+		gap: 8px;
+		padding: 10px;
+	}
+
+	.bangumi-preview-item-header {
+		width: 100%;
+	}
+
+	.bangumi-preview-details {
+		width: 100%;
+		margin-left: 0;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.bangumi-preview-detail-field {
+		flex: 1;
+		min-width: 80px;
+	}
+
+	.bangumi-preview-quick {
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.bangumi-preview-quick button {
+		flex: 1;
+	}
+
+	/* Settings Page */
 	.bangumi-settings-page {
 		padding-bottom: 28px;
 	}
 
-	.bangumi-settings-page > .setting-item-heading {
-		margin-bottom: 10px;
-		padding: 14px 14px;
-	}
-
-	.bangumi-settings-page > .setting-item {
-		margin-bottom: 10px;
-		padding: 12px 14px;
-	}
-
-	.bangumi-settings-page .setting-item {
-		gap: 10px;
-		align-items: flex-start;
-	}
-
-	.bangumi-settings-page .setting-item-info,
-	.bangumi-settings-page .setting-item-control {
-		width: 100%;
-	}
-
 	.bangumi-help-links {
-		display: grid;
-		grid-template-columns: 1fr;
-		gap: 10px;
+		flex-direction: column;
+		gap: 8px;
 	}
 
-	.bangumi-help-links .setting-item,
-	.bangumi-settings-page .setting-item-control,
-	.bangumi-settings-page .setting-item-control button {
+	.bangumi-help-links .setting-item {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+	}
+
+	.bangumi-help-links .setting-item-control {
 		width: 100%;
+	}
+
+	.bangumi-help-links .setting-item-control button {
+		width: 100%;
+	}
+
+	.bangumi-path-template-setting {
+		padding: 0;
+	}
+
+	.bangumi-path-input {
+		font-size: 14px;
 	}
 
 	.bangumi-checkbox-group {
-		gap: 10px;
-		padding: 10px;
+		flex-direction: column;
+		gap: 8px;
+		padding: 8px;
 	}
 
 	.bangumi-checkbox-label {
-		padding: 12px 14px;
-		border-radius: 14px;
+		width: 100%;
+		padding: 10px 12px;
 	}
 
 	.bangumi-template-help {
-		padding: 12px 14px;
+		padding: 8px;
 	}
 
 	.bangumi-var-tag {
-		padding: 4px 8px;
-		font-size: 10px;
+		font-size: 11px;
+		padding: 2px 4px;
+		margin: 1px;
+	}
+
+	.bangumi-template-textarea {
+		height: 200px;
+		font-size: 12px;
+	}
+
+	.bangumi-setting-desc {
+		font-size: 12px;
+	}
+
+	/* bangumi-info callout */
+	.callout[data-callout="bangumi-info"] .callout-content,
+	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content {
+		flex-direction: column !important;
+		align-items: center !important;
+	}
+
+	.callout[data-callout="bangumi-info"] .callout-content > :first-child,
+	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :first-child {
+		flex: none !important;
+		width: 100% !important;
+	}
+
+	.callout[data-callout="bangumi-info"] .callout-content > :last-child,
+	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :last-child {
+		flex: none !important;
+		width: 100% !important;
+	}
+
+	.callout[data-callout="bangumi-info"] img,
+	.markdown-rendered .callout[data-callout="bangumi-info"] img {
+		width: 100% !important;
+		max-width: 280px !important;
+		height: auto !important;
+		margin: 0 auto !important;
+		display: block !important;
+	}
+
+	.callout[data-callout="bangumi-info"] .callout-content > p,
+	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > p {
+		text-align: center !important;
+		flex-shrink: 0 !important;
+		display: flex !important;
+		justify-content: center !important;
+	}
+
+	/* Batch Editor */
+	.bangumi-batch-editor {
+		width: 100%;
+	}
+
+	.bangumi-batch-editor-info {
+		font-size: 12px;
+		padding: 8px;
+	}
+
+	.bangumi-operation-list {
+		max-height: 150px;
+	}
+
+	.bangumi-operation-item {
+		flex-wrap: wrap;
+		gap: 6px;
+		padding: 8px;
+		font-size: 12px;
+	}
+
+	.bangumi-add-operation {
+		flex-wrap: wrap;
+		gap: 6px;
+		padding: 8px;
+	}
+
+	.bangumi-property-input,
+	.bangumi-value-input {
+		width: 100%;
+		min-width: 0;
 	}
 }
