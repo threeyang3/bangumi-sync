@@ -167,7 +167,7 @@ export class BatchEditorModal extends Modal {
 			}
 
 			// 删除按钮
-			item.createEl('button', { text: '×', cls: 'bangumi-operation-remove' }, btn => {
+			item.createEl('button', { text: '×', cls: 'bangumi-operation-remove', attr: { 'aria-label': tn('batchEditor', 'removeOperation') } }, btn => {
 				btn.addEventListener('click', () => {
 					this.operations.splice(index, 1);
 					this.renderOperationList();

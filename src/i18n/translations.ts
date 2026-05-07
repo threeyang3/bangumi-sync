@@ -437,6 +437,7 @@ export interface TranslationStrings {
 		noticeProperty: string;
 		noticeValue: string;
 		noticeNoOp: string;
+		removeOperation: string;
 	};
 
 	// 短评同步
@@ -942,6 +943,7 @@ const en: TranslationStrings = {
 		noticeProperty: 'Please enter property name',
 		noticeValue: 'Add or modify requires a value',
 		noticeNoOp: 'Please add at least one operation',
+		removeOperation: 'Remove operation',
 	},
 
 	commentSync: {
@@ -1440,6 +1442,7 @@ const zhCN: TranslationStrings = {
 		noticeProperty: '请输入属性名',
 		noticeValue: '新增或修改属性需要输入属性值',
 		noticeNoOp: '请至少添加一个操作',
+		removeOperation: '移除操作',
 	},
 
 	commentSync: {
