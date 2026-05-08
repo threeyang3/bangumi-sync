@@ -696,6 +696,7 @@ export default class BangumiPlugin extends Plugin {
 		});
 
 		if (showPreview) {
+			try {
 			const prepareResult = await this.syncManager.prepareSync({
 				subjectTypes: options.subjectTypes,
 				collectionTypes: options.collectionTypes,
@@ -705,34 +706,37 @@ export default class BangumiPlugin extends Plugin {
 
 			if (!prepareResult.success) {
 				new Notice(`${tn('notices', 'syncFailed')}: ${prepareResult.error}`);
-				this.syncModal.close();
-				this.syncModal = null;
-				this.cancellationSignal = null;
-				this.syncManager.setCancellationSignal(null);
-				this.hideStatusBar(0);
+				this.cleanupSyncState(0);
 				return;
 			}
 
 			if (!prepareResult.previewItems || prepareResult.previewItems.length === 0) {
 				new Notice(tn('notices', 'noItemsToSync'));
-				this.syncModal.close();
-				this.syncModal = null;
-				this.cancellationSignal = null;
-				this.syncManager.setCancellationSignal(null);
-				this.hideStatusBar(0);
+				this.cleanupSyncState(0);
 				return;
 			}
 
-			this.syncModal.close();
-			this.syncModal = null;
+			// keep sync modal open with preparing message
+			if (this.syncModal) {
+				this.syncModal.updateProgress({ current: 0, total: 0, status: 'preparing', message: 'Preparing preview...' });
+			}
+
+			console.debug(`[Bangumi Sync] Preview items: ${prepareResult.previewItems.length}, collecting custom properties`);
 
 			const localPropertyResult = await this.collectLocalPropertyValuesForCollections(
 				prepareResult.previewItems.map(item => item.collection)
 			);
 			if (localPropertyResult === null) {
+				console.debug('[Bangumi Sync] User cancelled custom properties');
 				new Notice(tn('notices', 'syncCancelled'));
+				this.cleanupSyncState(0);
 				return;
 			}
+
+			console.debug('[Bangumi Sync] Custom properties done, opening preview modal');
+
+			this.syncModal.close();
+			this.syncModal = null;
 
 			const previewModal = new SyncPreviewModal(
 				this.app,
@@ -779,6 +783,12 @@ export default class BangumiPlugin extends Plugin {
 			);
 			previewModal.open();
 
+			} catch (error) {
+				console.error('[Bangumi Sync] Preview flow error:', error);
+				new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
+				this.cleanupSyncState(0);
+			}
+
 		} else {
 			const result = await this.syncManager.sync({
 				subjectTypes: options.subjectTypes,
@@ -798,6 +808,18 @@ export default class BangumiPlugin extends Plugin {
 			this.syncManager.setCancellationSignal(null);
 			this.hideStatusBar();
 		}
+	}
+
+	private cleanupSyncState(statusBarDelay: number = 0): void {
+		if (this.syncModal) {
+			this.syncModal.close();
+			this.syncModal = null;
+		}
+		this.cancellationSignal = null;
+		if (this.syncManager) {
+			this.syncManager.setCancellationSignal(null);
+		}
+		this.hideStatusBar(statusBarDelay);
 	}
 
 	private async collectLocalPropertyValuesForCollections(
