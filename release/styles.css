@@ -14,6 +14,10 @@
 	height: 90vh !important;
 }
 
+.modal:has(.bangumi-control-panel) .modal-content {
+	overflow: hidden !important;
+}
+
 .modal:has(.bangumi-search-modal) {
 	width: 800px !important;
 	max-width: 95vw !important;
@@ -1295,15 +1299,9 @@
 .callout[data-callout="bangumi-info"] .callout-content,
 .markdown-rendered .callout[data-callout="bangumi-info"] .callout-content {
 	display: flex;
-	flex-direction: column;
-	align-items: center;
+	flex-wrap: wrap;
+	justify-content: center;
 	gap: 16px;
-}
-
-.callout[data-callout="bangumi-info"] .callout-content > *,
-.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > * {
-	width: 100%;
-	min-width: 0;
 }
 
 .callout[data-callout="bangumi-info"] .callout-content > p,
@@ -1312,10 +1310,22 @@
 	text-align: center;
 }
 
+.callout[data-callout="bangumi-info"] .callout-content > :first-child,
+.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :first-child {
+	flex: 1 1 300px;
+	max-width: 400px;
+	align-self: center;
+}
+
+.callout[data-callout="bangumi-info"] .callout-content > :last-child,
+.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :last-child {
+	flex: 1 1 300px;
+	min-width: 0;
+}
+
 .callout[data-callout="bangumi-info"] img,
 .markdown-rendered .callout[data-callout="bangumi-info"] img {
-	width: 400px;
-	max-width: 100%;
+	width: 100%;
 	height: auto;
 	object-fit: cover;
 	border-radius: 4px;
@@ -1325,56 +1335,23 @@
 .markdown-rendered .callout[data-callout="bangumi-info"] table {
 	width: 100%;
 	border-collapse: collapse;
-	table-layout: fixed;
+	table-layout: auto;
 }
 
-@media (min-width: 1000px) {
-	.callout[data-callout="bangumi-info"] .callout-content,
-	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content {
-		flex-direction: row;
-		align-items: stretch;
-		gap: 16px;
-	}
+.callout[data-callout="bangumi-info"] td,
+.callout[data-callout="bangumi-info"] th,
+.markdown-rendered .callout[data-callout="bangumi-info"] td,
+.markdown-rendered .callout[data-callout="bangumi-info"] th {
+	vertical-align: middle;
+	text-align: center;
+}
 
-	.callout[data-callout="bangumi-info"] .callout-content > *,
-	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > * {
-		min-height: 0;
-	}
-
-	.callout[data-callout="bangumi-info"] .callout-content > :first-child,
-	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :first-child {
-		flex: 0 0 400px;
-		width: 400px;
-		max-width: 100%;
-	}
-
-	.callout[data-callout="bangumi-info"] .callout-content > :last-child,
-	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :last-child {
-		flex: 1 1 0;
-		min-width: 0;
-	}
-
-	.callout[data-callout="bangumi-info"] .callout-content > p,
-	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > p {
-		flex-shrink: 0;
-		text-align: left;
-		display: flex;
-		align-items: stretch;
-	}
-
-	.callout[data-callout="bangumi-info"] img,
-	.markdown-rendered .callout[data-callout="bangumi-info"] img {
-		flex-shrink: 0;
-		width: 400px;
-		height: 100%;
-		object-fit: cover;
-	}
-
-	.callout[data-callout="bangumi-info"] table,
-	.markdown-rendered .callout[data-callout="bangumi-info"] table {
-		flex: 1;
-		min-width: 0;
-	}
+.callout[data-callout="bangumi-info"] td:first-child,
+.callout[data-callout="bangumi-info"] th:first-child,
+.markdown-rendered .callout[data-callout="bangumi-info"] td:first-child,
+.markdown-rendered .callout[data-callout="bangumi-info"] th:first-child {
+	width: 1%;
+	white-space: nowrap;
 }
 
 /* ==================== Callout: tip tables ==================== */
@@ -1412,6 +1389,60 @@
 
 .bangumi-settings-page {
 	padding-bottom: 48px;
+}
+
+/* ---------- Settings Tabs ---------- */
+
+.bangumi-settings-tab-container {
+	display: flex;
+	flex-direction: column;
+}
+
+.bangumi-settings-tab-headers {
+	display: flex;
+	flex-wrap: wrap;
+	border-bottom: 2px solid var(--background-modifier-border);
+}
+
+.bangumi-settings-tab-header {
+	padding: 8px 18px;
+	cursor: pointer;
+	font-size: 14px;
+	color: var(--text-muted);
+	border-radius: 6px 6px 0 0;
+	margin-right: 2px;
+	transition: background-color 0.15s, color 0.15s;
+	user-select: none;
+}
+
+.bangumi-settings-tab-header:hover {
+	background: var(--background-secondary-alt);
+	color: var(--text-normal);
+}
+
+.bangumi-settings-tab-header.active {
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	font-weight: 600;
+	border: 1px solid var(--background-modifier-border);
+	border-bottom-color: var(--background-secondary);
+	margin-bottom: -1px;
+}
+
+.bangumi-settings-tab-contents {
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-top: none;
+	border-radius: 0 0 6px 6px;
+	padding: 16px 20px;
+}
+
+.bangumi-settings-tab-content {
+	display: none;
+}
+
+.bangumi-settings-tab-content.active {
+	display: block;
 }
 
 .bangumi-help-links {
@@ -2112,6 +2143,23 @@
 		padding-bottom: 28px;
 	}
 
+	.bangumi-settings-tab-headers {
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.bangumi-settings-tab-header {
+		padding: 8px 12px;
+		font-size: 13px;
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.bangumi-settings-tab-contents {
+		padding: 12px 14px;
+	}
+
 	.bangumi-help-links {
 		flex-direction: column;
 		gap: 8px;
@@ -2170,39 +2218,11 @@
 	}
 
 	/* bangumi-info callout */
-	.callout[data-callout="bangumi-info"] .callout-content,
-	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content {
-		flex-direction: column !important;
-		align-items: center !important;
-	}
-
-	.callout[data-callout="bangumi-info"] .callout-content > :first-child,
-	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :first-child {
-		flex: none !important;
-		width: 100% !important;
-	}
-
-	.callout[data-callout="bangumi-info"] .callout-content > :last-child,
-	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > :last-child {
-		flex: none !important;
-		width: 100% !important;
-	}
-
 	.callout[data-callout="bangumi-info"] img,
 	.markdown-rendered .callout[data-callout="bangumi-info"] img {
-		width: 100% !important;
-		max-width: 280px !important;
-		height: auto !important;
-		margin: 0 auto !important;
-		display: block !important;
-	}
-
-	.callout[data-callout="bangumi-info"] .callout-content > p,
-	.markdown-rendered .callout[data-callout="bangumi-info"] .callout-content > p {
-		text-align: center !important;
-		flex-shrink: 0 !important;
-		display: flex !important;
-		justify-content: center !important;
+		max-width: 280px;
+		margin: 0 auto;
+		display: block;
 	}
 
 	/* Batch Editor */

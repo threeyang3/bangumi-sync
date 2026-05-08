@@ -1,5 +1,32 @@
 # 版本历史
 
+## v5.9.0
+
+### 改进
+- 全局样式全面采用 Obsidian 原生视觉风格，移除自定义主题（渐变、衬线字体、装饰性阴影、自定义 CSS 变量）
+- bangumi-info callout 改用 flex-wrap 响应式布局，替代硬编码 `@media (min-width: 1000px)` 断点，图片和表格按空间自动换列
+- callout 内表格列宽按内容自适应（`table-layout: auto`），标签列自动收缩
+- callout 内图片改为 `width: 100%` 响应式，移除宽屏下 `height: 100%` 导致的拉伸变形
+
+### 修复
+- 桌面端控制面板外层多余纵向滚动条
+- popout 窗口兼容性：`window` → `activeWindow`（mobile.ts / timing.ts）
+- 批量编辑器移除按钮补充 `aria-label`
+
+### 代码质量
+- 通过 Obsidian ESLint 规范审查（零错误）
+- 无 `innerHTML`、无 `fetch()`、无 `as any`、无 lookbehind 正则
+
+## v5.8.5
+
+### 修复
+- 修复模板正文 callout 内表格因 `table-layout: auto` 导致宽度溢出产生纵向滚动条。
+- 修复宽屏布局下 flex 子项 `min-height: auto` 阻止缩小，导致 callout 固定高度时图片溢出。
+
+### 改进
+- 补充 GitHub Release `targetCommitish` 发布规范文档，避免从 `adv` 分支发布时错误指向 `main`。
+- 新增 `AGENTS.md` 发布流程检查项。
+
 ## v5.8.3
 
 ### 改进

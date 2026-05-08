@@ -48,7 +48,7 @@ const TEMPLATE_TYPES: TemplateTypeOption[] = [
 ];
 
 /**
- * 设置面板
+ * 设置面板（分页布局）
  */
 export class BangumiSettingTab extends PluginSettingTab {
 	private settings: BangumiPluginSettings;
@@ -68,12 +68,50 @@ export class BangumiSettingTab extends PluginSettingTab {
 		// 标题
 		new Setting(containerEl).setName(tn('settings', 'heading')).setHeading();
 
-		// ==================== 帮助链接 ====================
+		// 标签页定义
+		const tabs: Array<{ name: string; build: (el: HTMLElement) => void }> = [
+			{ name: tn('settings', 'tabGeneral'), build: this.buildGeneralTab.bind(this) },
+			{ name: tn('settings', 'tabPaths'), build: this.buildPathsTab.bind(this) },
+			{ name: tn('settings', 'tabTemplates'), build: this.buildTemplatesTab.bind(this) },
+			{ name: tn('settings', 'tabSync'), build: this.buildSyncTab.bind(this) },
+			{ name: tn('settings', 'tabAdvanced'), build: this.buildAdvancedTab.bind(this) },
+		];
+
+		// 标签页容器
+		const tabContainer = containerEl.createDiv({ cls: 'bangumi-settings-tab-container' });
+		const tabHeaders = tabContainer.createDiv({ cls: 'bangumi-settings-tab-headers' });
+		const tabContents = tabContainer.createDiv({ cls: 'bangumi-settings-tab-contents' });
+
+		tabs.forEach((tab, index) => {
+			const tabHeader = tabHeaders.createDiv({ cls: 'bangumi-settings-tab-header', text: tab.name });
+			const tabContent = tabContents.createDiv({ cls: 'bangumi-settings-tab-content' });
+
+			if (index === 0) {
+				tabHeader.addClass('active');
+				tabContent.addClass('active');
+			}
+
+			// 立即构建标签页内容
+			tab.build(tabContent);
+
+			// 切换事件
+			tabHeader.addEventListener('click', () => {
+				tabHeaders.querySelectorAll('.bangumi-settings-tab-header').forEach(h => h.removeClass('active'));
+				tabContents.querySelectorAll('.bangumi-settings-tab-content').forEach(c => c.removeClass('active'));
+				tabHeader.addClass('active');
+				tabContent.addClass('active');
+			});
+		});
+	}
+
+	// ==================== 标签页：通用 ====================
+
+	private buildGeneralTab(containerEl: HTMLElement): void {
+		// 帮助链接
 		new Setting(containerEl).setName(tn('settings', 'helpLinks')).setHeading();
 
 		const helpLinksDiv = containerEl.createDiv({ cls: 'bangumi-help-links' });
 
-		// 模板设计指南
 		new Setting(helpLinksDiv)
 			.setName(tn('settings', 'templateGuide'))
 			.addButton(button => {
@@ -84,7 +122,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 					});
 			});
 
-		// GitHub 仓库
 		new Setting(helpLinksDiv)
 			.setName(tn('settings', 'githubRepo'))
 			.addButton(button => {
@@ -95,7 +132,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 					});
 			});
 
-		// 获取 Access Token
 		new Setting(helpLinksDiv)
 			.setName(tn('settings', 'getAccessToken'))
 			.addButton(button => {
@@ -106,7 +142,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 					});
 			});
 
-		// ==================== 认证设置 ====================
+		// 认证设置
 		new Setting(containerEl).setName(tn('settings', 'authentication')).setHeading();
 
 		new Setting(containerEl)
@@ -120,7 +156,21 @@ export class BangumiSettingTab extends PluginSettingTab {
 					await this.onSave();
 				}));
 
-		// ==================== 路径设置 ====================
+		// 同步状态
+		new Setting(containerEl).setName(tn('settings', 'syncStatus')).setHeading();
+
+		const lastSyncText = this.settings.lastSyncTime
+			? `${tn('settings', 'lastSync')}: ${new Date(this.settings.lastSyncTime).toLocaleString()} (${this.settings.lastSyncCount} items)`
+			: tn('settings', 'notSyncedYet');
+
+		new Setting(containerEl)
+			.setName(tn('settings', 'syncStatus'))
+			.setDesc(lastSyncText);
+	}
+
+	// ==================== 标签页：路径 ====================
+
+	private buildPathsTab(containerEl: HTMLElement): void {
 		new Setting(containerEl).setName(tn('settings', 'pathSettings')).setHeading();
 
 		// 文件路径模板
@@ -157,7 +207,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 					await this.onSave();
 				}));
 
-		// 图片设置
+		// 下载封面图片
 		new Setting(containerEl)
 			.setName(tn('settings', 'downloadCoverImages'))
 			.setDesc(tn('settings', 'downloadCoverImagesDesc'))
@@ -168,7 +218,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 					await this.onSave();
 				}));
 
-		// 图片质量选择
+		// 图片质量
 		const imageQuality = t('settings');
 		new Setting(containerEl)
 			.setName(tn('settings', 'imageQuality'))
@@ -207,6 +257,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 					await this.onSave();
 				}));
 
+		// 图片路径模板
 		new Setting(containerEl)
 			.setName(tn('settings', 'imagePathTemplate'))
 			.setDesc(tn('settings', 'imagePathTemplateDesc'))
@@ -218,6 +269,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 					await this.onSave();
 				}));
 
+		// 笔记路径模板
 		new Setting(containerEl)
 			.setName(tn('settings', 'notePathTemplate'))
 			.setDesc(tn('settings', 'notePathTemplateDesc'))
@@ -229,6 +281,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 					await this.onSave();
 				}));
 
+		// 笔记模板内容
 		new Setting(containerEl)
 			.setName(tn('settings', 'noteTemplateContent'))
 			.setDesc(tn('settings', 'noteTemplateContentDesc'))
@@ -239,8 +292,11 @@ export class BangumiSettingTab extends PluginSettingTab {
 						this.openNoteTemplateEditor();
 					});
 			});
+	}
 
-		// ==================== 模板设置 ====================
+	// ==================== 标签页：模板 ====================
+
+	private buildTemplatesTab(containerEl: HTMLElement): void {
 		new Setting(containerEl).setName(tn('settings', 'templateSettings')).setHeading();
 
 		// 模板变量帮助
@@ -271,8 +327,11 @@ export class BangumiSettingTab extends PluginSettingTab {
 						void this.exportAllTemplates();
 					});
 			});
+	}
 
-		// ==================== 同步选项 ====================
+	// ==================== 标签页：同步 ====================
+
+	private buildSyncTab(containerEl: HTMLElement): void {
 		new Setting(containerEl).setName(tn('settings', 'syncOptions')).setHeading();
 
 		// 条目类型选择
@@ -327,6 +386,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 			label.createSpan({ text: getCollectionTypeName(type) });
 		});
 
+		// 同步数量限制
 		const syncLimitSetting = new Setting(containerEl)
 			.setName(tn('settings', 'syncLimit'))
 			.setDesc(tn('settings', 'syncLimitDesc'))
@@ -351,6 +411,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 					await this.onSave();
 				}));
 
+		// 同步并发数
 		new Setting(containerEl)
 			.setName(tn('settings', 'syncConcurrency'))
 			.setDesc(tn('settings', 'syncConcurrencyDesc'))
@@ -363,7 +424,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 					await this.onSave();
 				}));
 
-		// ==================== 自动同步 ====================
+		// 自动同步
 		new Setting(containerEl).setName(tn('settings', 'autoSync')).setHeading();
 
 		new Setting(containerEl)
@@ -389,88 +450,82 @@ export class BangumiSettingTab extends PluginSettingTab {
 						await this.onSave();
 					}
 				}));
+	}
 
+	// ==================== 标签页：高级 ====================
 
-			// ==================== 相关条目链接 ====================
-			new Setting(containerEl).setName(tn('settings', 'relatedLinks')).setHeading();
-
-			new Setting(containerEl)
-				.setName(tn('settings', 'enableRelatedLinks'))
-				.setDesc(tn('settings', 'enableRelatedLinksDesc'))
-				.addToggle(toggle => toggle
-					.setValue(this.settings.enableRelatedLinks)
-					.onChange(async (value) => {
-						this.settings.enableRelatedLinks = value;
-						await this.onSave();
-					}));
-
-			// ==================== 数据保护设置 ====================
-			new Setting(containerEl).setName(tn('settings', 'dataProtection')).setHeading();
-			containerEl.createEl('p', { text: tn('settings', 'dataProtectionDesc'), cls: 'bangumi-setting-desc' });
-
-			new Setting(containerEl)
-				.setName(tn('settings', 'preserveRatingDetails'))
-				.setDesc(tn('settings', 'preserveRatingDetailsDesc'))
-				.addToggle(toggle => toggle
-					.setValue(this.settings.dataProtection?.preserveRatingDetails ?? true)
-					.onChange(async (value) => {
-						this.settings.dataProtection = {
-							...this.settings.dataProtection,
-							preserveRatingDetails: value,
-						};
-						await this.onSave();
-					}));
-
-			new Setting(containerEl)
-				.setName(tn('settings', 'preserveCustomProperties'))
-				.setDesc(tn('settings', 'preserveCustomPropertiesDesc'))
-				.addToggle(toggle => toggle
-					.setValue(this.settings.dataProtection?.preserveCustomProperties ?? true)
-					.onChange(async (value) => {
-						this.settings.dataProtection = {
-							...this.settings.dataProtection,
-							preserveCustomProperties: value,
-						};
-						await this.onSave();
-					}));
-
-			new Setting(containerEl)
-				.setName(tn('settings', 'preserveRecord'))
-				.setDesc(tn('settings', 'preserveRecordDesc'))
-				.addToggle(toggle => toggle
-					.setValue(this.settings.dataProtection?.preserveRecord ?? true)
-					.onChange(async (value) => {
-						this.settings.dataProtection = {
-							...this.settings.dataProtection,
-							preserveRecord: value,
-						};
-						await this.onSave();
-					}));
-
-			new Setting(containerEl)
-				.setName(tn('settings', 'preserveThoughts'))
-				.setDesc(tn('settings', 'preserveThoughtsDesc'))
-				.addToggle(toggle => toggle
-					.setValue(this.settings.dataProtection?.preserveThoughts ?? true)
-					.onChange(async (value) => {
-						this.settings.dataProtection = {
-							...this.settings.dataProtection,
-							preserveThoughts: value,
-						};
-						await this.onSave();
-					}));
-		// ==================== 同步状态 ====================
-		new Setting(containerEl).setName(tn('settings', 'syncStatus')).setHeading();
-
-		const lastSyncText = this.settings.lastSyncTime
-			? `${tn('settings', 'lastSync')}: ${new Date(this.settings.lastSyncTime).toLocaleString()} (${this.settings.lastSyncCount} items)`
-			: tn('settings', 'notSyncedYet');
+	private buildAdvancedTab(containerEl: HTMLElement): void {
+		// 相关条目链接
+		new Setting(containerEl).setName(tn('settings', 'relatedLinks')).setHeading();
 
 		new Setting(containerEl)
-			.setName(tn('settings', 'syncStatus'))
-			.setDesc(lastSyncText);
+			.setName(tn('settings', 'enableRelatedLinks'))
+			.setDesc(tn('settings', 'enableRelatedLinksDesc'))
+			.addToggle(toggle => toggle
+				.setValue(this.settings.enableRelatedLinks)
+				.onChange(async (value) => {
+					this.settings.enableRelatedLinks = value;
+					await this.onSave();
+				}));
 
+		// 数据保护设置
+		new Setting(containerEl).setName(tn('settings', 'dataProtection')).setHeading();
+		containerEl.createEl('p', { text: tn('settings', 'dataProtectionDesc'), cls: 'bangumi-setting-desc' });
+
+		new Setting(containerEl)
+			.setName(tn('settings', 'preserveRatingDetails'))
+			.setDesc(tn('settings', 'preserveRatingDetailsDesc'))
+			.addToggle(toggle => toggle
+				.setValue(this.settings.dataProtection?.preserveRatingDetails ?? true)
+				.onChange(async (value) => {
+					this.settings.dataProtection = {
+						...this.settings.dataProtection,
+						preserveRatingDetails: value,
+					};
+					await this.onSave();
+				}));
+
+		new Setting(containerEl)
+			.setName(tn('settings', 'preserveCustomProperties'))
+			.setDesc(tn('settings', 'preserveCustomPropertiesDesc'))
+			.addToggle(toggle => toggle
+				.setValue(this.settings.dataProtection?.preserveCustomProperties ?? true)
+				.onChange(async (value) => {
+					this.settings.dataProtection = {
+						...this.settings.dataProtection,
+						preserveCustomProperties: value,
+					};
+					await this.onSave();
+				}));
+
+		new Setting(containerEl)
+			.setName(tn('settings', 'preserveRecord'))
+			.setDesc(tn('settings', 'preserveRecordDesc'))
+			.addToggle(toggle => toggle
+				.setValue(this.settings.dataProtection?.preserveRecord ?? true)
+				.onChange(async (value) => {
+					this.settings.dataProtection = {
+						...this.settings.dataProtection,
+						preserveRecord: value,
+					};
+					await this.onSave();
+				}));
+
+		new Setting(containerEl)
+			.setName(tn('settings', 'preserveThoughts'))
+			.setDesc(tn('settings', 'preserveThoughtsDesc'))
+			.addToggle(toggle => toggle
+				.setValue(this.settings.dataProtection?.preserveThoughts ?? true)
+				.onChange(async (value) => {
+					this.settings.dataProtection = {
+						...this.settings.dataProtection,
+						preserveThoughts: value,
+					};
+					await this.onSave();
+				}));
 	}
+
+	// ==================== 工具方法 ====================
 
 	/**
 	 * 更新路径预览
@@ -558,7 +613,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 		const config = this.settings[templateType.key];
 		let templateContent: string;
 
-		// 根据当前配置获取模板内容
 		switch (config.source) {
 			case 'standard':
 				templateContent = this.getStandardTemplate(templateType.key);
@@ -592,7 +646,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 				templateContent = templateType.defaultTemplate;
 		}
 
-		// 设置为自定义内容并保存
 		const newConfig: TemplateConfig = {
 			source: 'custom',
 			customContent: templateContent,
@@ -608,7 +661,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 	 * 导出所有模板到指定文件夹
 	 */
 	private async exportAllTemplates(): Promise<void> {
-		// 使用简单的输入弹窗让用户输入文件夹路径
 		const folderPath = await new Promise<string | null>((resolve) => {
 			const modal = new Modal(this.app);
 			modal.titleEl.setText(tn('settings', 'exportTemplates'));
@@ -639,13 +691,11 @@ export class BangumiSettingTab extends PluginSettingTab {
 		if (!folderPath) return;
 
 		try {
-			// 确保文件夹存在
 			const normalizedPath = folderPath.replace(/\/+$/, '');
 			if (!await this.app.vault.adapter.exists(normalizedPath)) {
 				await this.app.vault.createFolder(normalizedPath);
 			}
 
-			// 导出每个模板
 			const templateNames: Record<TemplateKey, string> = {
 				animeTemplateConfig: 'anime-template.md',
 				novelTemplateConfig: 'novel-template.md',
@@ -661,7 +711,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 				const fileName = templateNames[templateType.key];
 				const filePath = `${normalizedPath}/${fileName}`;
 
-				// 检查文件是否存在
 				if (await this.app.vault.adapter.exists(filePath)) {
 					const file = this.app.vault.getAbstractFileByPath(filePath);
 					if (file instanceof TFile) {
@@ -744,9 +793,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 		externalWindow?.open(url, '_blank', 'noopener,noreferrer');
 	}
 
-	/**
-	 * 打开文件选择建议
-	 */
 	private openFileSuggest(templateType: TemplateTypeOption): void {
 		const modal = new FileSuggestModal(
 			this.app,
@@ -763,9 +809,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 		modal.open();
 	}
 
-	/**
-	 * 打开模板编辑器
-	 */
 	private openTemplateEditor(templateType: TemplateTypeOption): void {
 		const config = this.settings[templateType.key];
 		const initialContent = config.customContent || templateType.defaultTemplate;
@@ -783,9 +826,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 		modal.open();
 	}
 
-	/**
-	 * 打开模板预览
-	 */
 	private openTemplatePreview(templateType: TemplateTypeOption): void {
 		const modal = new TemplateEditorModal(
 			this.app,
@@ -854,7 +894,6 @@ class TemplateEditorModal extends Modal {
 
 		new Setting(contentEl).setName(tn('templateEditor', 'editTemplate')).setHeading();
 
-		// 模板变量说明
 		const helpDiv = contentEl.createDiv({ cls: 'bangumi-template-help' });
 		helpDiv.createEl('p', { text: tn('templateEditor', 'templateVarTip') });
 		const vars = [
@@ -866,14 +905,12 @@ class TemplateEditorModal extends Modal {
 		];
 		vars.forEach(v => helpDiv.createEl('span', { text: v, cls: 'bangumi-var-tag' }));
 
-		// 文本区域
 		const textArea = new TextAreaComponent(contentEl);
 		textArea
 			.setValue(this.template)
 			.setPlaceholder(tn('templateEditor', 'enterTemplate'));
 		textArea.inputEl.addClass('bangumi-template-textarea');
 
-		// 按钮
 		const buttonDiv = contentEl.createDiv({ cls: 'bangumi-modal-buttons' });
 
 		const saveBtn = buttonDiv.createEl('button', { text: tn('templateEditor', 'save') });

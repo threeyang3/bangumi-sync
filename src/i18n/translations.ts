@@ -59,6 +59,11 @@ export interface TranslationStrings {
 	// 设置
 	settings: {
 		heading: string;
+		tabGeneral: string;
+		tabPaths: string;
+		tabTemplates: string;
+		tabSync: string;
+		tabAdvanced: string;
 		helpLinks: string;
 		templateGuide: string;
 		githubRepo: string;
@@ -583,6 +588,11 @@ const en: TranslationStrings = {
 
 	settings: {
 		heading: 'Settings',
+		tabGeneral: 'General',
+		tabPaths: 'Paths',
+		tabTemplates: 'Templates',
+		tabSync: 'Sync',
+		tabAdvanced: 'Advanced',
 		helpLinks: 'Help & Documentation',
 		templateGuide: 'Template Guide',
 		githubRepo: 'GitHub Repository',
@@ -1082,6 +1092,11 @@ const zhCN: TranslationStrings = {
 
 	settings: {
 		heading: '设置',
+		tabGeneral: '通用',
+		tabPaths: '路径',
+		tabTemplates: '模板',
+		tabSync: '同步',
+		tabAdvanced: '高级',
 		helpLinks: '帮助与文档',
 		templateGuide: '模板设计指南',
 		githubRepo: 'GitHub 仓库',
