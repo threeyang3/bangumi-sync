@@ -55,7 +55,7 @@ Bangumi链接: "{{bangumi_url}}"
 > | 音乐 | {{music}} |
 
 > [!abstract]+ **短评**
-> {{my_comment}}
+> {{my_comment_raw}}
 
 > [!abstract]- **简介**
 > {{summary}}
@@ -122,7 +122,7 @@ Bangumi链接: "{{bangumi_url}}"
 > | 册数 |{{volumes}}|
 
 > [!abstract]+ **短评**
-> {{my_comment}}
+> {{my_comment_raw}}
 
 > [!abstract]- **简介**
 > {{summary}}
@@ -179,7 +179,7 @@ Bangumi链接: "{{bangumi_url}}"
 > | 进度 |\`= this.进度\`|
 
 > [!abstract]+ **短评**
-> {{my_comment}}
+> {{my_comment_raw}}
 
 > [!abstract]- **简介**
 > {{summary}}
@@ -234,7 +234,7 @@ Bangumi链接: "{{bangumi_url}}"
 > | 官网 |\`= this.官网\`|
 
 > [!abstract]+ **短评**
-> {{my_comment}}
+> {{my_comment_raw}}
 
 > [!abstract]- **简介**
 > {{summary}}
@@ -291,7 +291,7 @@ ISBN: "{{isbn}}"
 > | 出版社 |{{publish}}|
 
 > [!abstract]+ **短评**
-> {{my_comment}}
+> {{my_comment_raw}}
 
 > [!abstract]+ **简介**
 > {{summary}}
@@ -329,7 +329,7 @@ Bangumi链接: "{{bangumi_url}}"
 > | 发行 |{{date}}|
 
 > [!abstract]+ **短评**
-> {{my_comment}}
+> {{my_comment_raw}}
 
 > [!abstract]+ **简介**
 > {{summary}}
@@ -364,7 +364,7 @@ Bangumi链接: "{{bangumi_url}}"
 > | 上映 |{{date}}|
 
 > [!abstract]+ **短评**
-> {{my_comment}}
+> {{my_comment_raw}}
 
 > [!abstract]+ **简介**
 > {{summary}}
@@ -426,7 +426,7 @@ Bangumi链接: "{{bangumi_url}}"
 > | 相关 | \`= this.相关\` |
 
 > [!abstract]+ **短评**
-> {{my_comment}}
+> {{my_comment_raw}}
 
 > [!abstract]- **简介**
 > {{summary}}
@@ -513,7 +513,7 @@ Bangumi链接: "{{bangumi_url}}"
 > | 相关 | \`= this.相关\` |
 
 > [!abstract]+ **短评**
-> {{my_comment}}
+> {{my_comment_raw}}
 
 > [!abstract]- **简介**
 > {{summary}}
@@ -589,7 +589,7 @@ Bangumi链接: "{{bangumi_url}}"
 > | 相关 | \`= this.相关\`|
 
 > [!abstract]+ **短评**
-> {{my_comment}}
+> {{my_comment_raw}}
 
 > [!abstract]- **简介**
 > {{summary}}
@@ -661,7 +661,7 @@ Bangumi链接: "{{bangumi_url}}"
 > | 相关 | \`= this.相关\`|
 
 > [!abstract]+ **短评**
-> {{my_comment}}
+> {{my_comment_raw}}
 
 > [!abstract]- **简介**
 > {{summary}}
@@ -727,7 +727,7 @@ ISBN: "{{isbn}}"
 > | 相关 | \`= this.相关\`|
 
 > [!abstract]+ **短评**
-> {{my_comment}}
+> {{my_comment_raw}}
 
 > [!abstract]+ **简介**
 > {{summary}}

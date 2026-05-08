@@ -198,25 +198,50 @@ function parseListInput(value: string): string[] | undefined {
 	return items.length > 0 ? items : undefined;
 }
 
+const SUBJECT_FETCH_TIMEOUT_MS = 15000;
+
 export async function loadSubjectsForCollections(
 	collections: UserCollection[],
 	client: BangumiClient,
 	onWarning?: (message: string) => void
 ): Promise<Map<number, Subject>> {
 	const subjectsById = new Map<number, Subject>();
+	let warned = false;
 
 	for (const collection of collections) {
 		try {
-			const subject = await client.getSubject(collection.subject_id);
+			const subject = await fetchSubjectWithTimeout(client, collection.subject_id, SUBJECT_FETCH_TIMEOUT_MS);
 			subjectsById.set(collection.subject_id, subject);
 		} catch (error) {
 			console.warn(`[Bangumi Sync] 获取条目详情失败，使用收藏中的简版信息回退: ${collection.subject_id}`, error);
-			onWarning?.(`部分条目详情获取失败，已使用简版信息继续：${collection.subject.name_cn || collection.subject.name}`);
+			if (!warned) {
+				warned = true;
+				const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
+				onWarning?.(`部分条目详情获取失败，已使用简版信息继续：${name}`);
+			}
 			subjectsById.set(collection.subject_id, createFallbackSubject(collection));
 		}
 	}
 
 	return subjectsById;
+}
+
+function fetchSubjectWithTimeout(client: BangumiClient, subjectId: number, timeoutMs: number): Promise<Subject> {
+	return new Promise((resolve, reject) => {
+		const timer = activeWindow.setTimeout(() => {
+			reject(new Error(`获取条目 ${subjectId} 超时`));
+		}, timeoutMs);
+
+		client.getSubject(subjectId)
+			.then(subject => {
+				activeWindow.clearTimeout(timer);
+				resolve(subject);
+			})
+			.catch((error: unknown) => {
+				activeWindow.clearTimeout(timer);
+				reject(error instanceof Error ? error : new Error(String(error)));
+			});
+	});
 }
 
 function createFallbackSubject(collection: UserCollection): Subject {

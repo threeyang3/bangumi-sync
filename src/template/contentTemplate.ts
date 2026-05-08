@@ -47,6 +47,19 @@ interface ContentTemplateVars {
  * 支持章节显示
  * 支持相关条目链接
  */
+/**
+ * 转义字符串以放入 YAML 双引号值中
+ * 保留信息以便云端对比时还原
+ */
+function escapeForYamlDoubleQuoted(value: string): string {
+	if (!value) { return ''; }
+	return value
+		.replace(/\\/g, '\\\\')
+		.replace(/"/g, '\\"')
+		.replace(/\r\n?/g, '\n')
+		.replace(/\n/g, '\\n');
+}
+
 export function extractTemplateVars(
 	subject: Subject,
 	collection?: UserCollection,
@@ -87,10 +100,11 @@ export function extractTemplateVars(
 		}
 
 	// 收藏信息
-	const my_rate = collection?.rate ? String(collection.rate) : '';
-	// 短评保留原始换行（放在正文 callout 中）
-	const my_comment = collection?.comment || '';
-	const my_status = collection
+		const my_rate = collection?.rate ? String(collection.rate) : '';
+		// 短评：frontmatter 使用转义版本，正文 callout 使用原始换行
+		const my_comment_raw = collection?.comment || '';
+		const my_comment = escapeForYamlDoubleQuoted(my_comment_raw);
+		const my_status = collection
 		? getCollectionStatusLabel(collection.type, subject.type)
 		: '';
 
@@ -144,6 +158,7 @@ export function extractTemplateVars(
 		// 收藏信息
 		my_rate,
 		my_comment,
+		my_comment_raw,
 		my_status,
 		my_tags: my_tags_array.join(', '),  // 兼容旧模板
 

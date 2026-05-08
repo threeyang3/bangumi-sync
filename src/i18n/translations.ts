@@ -64,6 +64,7 @@ export interface TranslationStrings {
 		tabTemplates: string;
 		tabSync: string;
 		tabAdvanced: string;
+		tabFields: string;
 		helpLinks: string;
 		templateGuide: string;
 		githubRepo: string;
@@ -154,6 +155,14 @@ export interface TranslationStrings {
 		preserveRecordDesc: string;
 		preserveThoughts: string;
 		preserveThoughtsDesc: string;
+		// 字段参考
+		fieldsIntro: string;
+		fieldsPathVars: string;
+		fieldsBasicVars: string;
+		fieldsCollectionVars: string;
+		fieldsSubjectVars: string;
+		fieldsCharacterVars: string;
+		fieldsEpisodeVars: string;
 	};
 
 	// 同步选项弹窗
@@ -593,6 +602,7 @@ const en: TranslationStrings = {
 		tabTemplates: 'Templates',
 		tabSync: 'Sync',
 		tabAdvanced: 'Advanced',
+		tabFields: 'Fields',
 		helpLinks: 'Help & Documentation',
 		templateGuide: 'Template Guide',
 		githubRepo: 'GitHub Repository',
@@ -681,6 +691,13 @@ const en: TranslationStrings = {
 		preserveRecordDesc: 'Keep the Record section content when force syncing',
 		preserveThoughts: 'Preserve thoughts',
 		preserveThoughtsDesc: 'Keep the Thoughts section content when force syncing',
+		fieldsIntro: 'Available variables for path templates and content templates. Use {{variable}} syntax in your templates.',
+		fieldsPathVars: 'Path Variables',
+		fieldsBasicVars: 'Basic Info',
+		fieldsCollectionVars: 'Collection / My Data',
+		fieldsSubjectVars: 'Subject-Specific Fields',
+		fieldsCharacterVars: 'Character & Staff',
+		fieldsEpisodeVars: 'Episodes & Progress',
 	},
 
 	syncOptions: {
@@ -1097,6 +1114,7 @@ const zhCN: TranslationStrings = {
 		tabTemplates: '模板',
 		tabSync: '同步',
 		tabAdvanced: '高级',
+		tabFields: '字段',
 		helpLinks: '帮助与文档',
 		templateGuide: '模板设计指南',
 		githubRepo: 'GitHub 仓库',
@@ -1184,7 +1202,14 @@ const zhCN: TranslationStrings = {
 		preserveRecord: '保留记录',
 		preserveRecordDesc: '强制同步时保留“记录”部分内容',
 		preserveThoughts: '保留感想',
-		preserveThoughtsDesc: '强制同步时保留“感想”部分内容',
+		preserveThoughtsDesc: '强制同步时保留”感想”部分内容',
+		fieldsIntro: '路径模板和内容模板中可用的变量。在模板中使用 {{变量名}} 语法引用。',
+		fieldsPathVars: '路径变量',
+		fieldsBasicVars: '基础信息',
+		fieldsCollectionVars: '收藏 / 我的数据',
+		fieldsSubjectVars: '条目特定字段',
+		fieldsCharacterVars: '角色与 staff',
+		fieldsEpisodeVars: '章节与进度',
 	},
 
 	syncOptions: {

@@ -75,6 +75,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 			{ name: tn('settings', 'tabTemplates'), build: this.buildTemplatesTab.bind(this) },
 			{ name: tn('settings', 'tabSync'), build: this.buildSyncTab.bind(this) },
 			{ name: tn('settings', 'tabAdvanced'), build: this.buildAdvancedTab.bind(this) },
+			{ name: tn('settings', 'tabFields'), build: this.buildFieldsTab.bind(this) },
 		];
 
 		// 标签页容器
@@ -523,6 +524,123 @@ export class BangumiSettingTab extends PluginSettingTab {
 					};
 					await this.onSave();
 				}));
+	}
+
+	// ==================== 标签页：字段参考 ====================
+
+	private buildFieldsTab(containerEl: HTMLElement): void {
+		containerEl.createEl('p', { text: tn('settings', 'fieldsIntro'), cls: 'bangumi-setting-desc' });
+
+		// 路径变量
+		this.addFieldTable(containerEl, tn('settings', 'fieldsPathVars'), [
+			['{{type}}', '条目类型英文名', 'anime'],
+			['{{typeLabel}}', '条目类型中文标签', '动画'],
+			['{{category}}', '细分类别', 'TV'],
+			['{{name}}', '原名', '進撃の巨人'],
+			['{{name_cn}}', '中文名', '进击的巨人'],
+			['{{name_cn_with_type}}', '中文名+类型后缀', '进击的巨人(动画)'],
+			['{{year}}', '发行年份', '2013'],
+			['{{month}}', '发行月份', '04'],
+			['{{author}}', '作者/创作者', '谏山创'],
+			['{{id}}', '条目 ID', '10060'],
+		]);
+
+		// 基础信息
+		this.addFieldTable(containerEl, tn('settings', 'fieldsBasicVars'), [
+			['{{name}}', '原名', '進撃の巨人'],
+			['{{name_cn}}', '中文名', '进击的巨人'],
+			['{{alias}}', '别名', 'Attack on Titan'],
+			['{{summary}}', '简介（HTML 已清洗）', '巨人支配着的世界...'],
+			['{{rating}}', 'Bangumi 评分', '8.5'],
+			['{{rank}}', 'Bangumi 排名', '#42'],
+			['{{cover}}', '封面图片 URL', 'https://...'],
+			['{{bangumi_url}}', '条目链接', 'https://bgm.tv/subject/10060'],
+			['{{date}}', '发行日期', '2013-04-06'],
+		]);
+
+		// 收藏信息
+		this.addFieldTable(containerEl, tn('settings', 'fieldsCollectionVars'), [
+			['{{my_rate}}', '我的评分（0-10）', '9'],
+			['{{my_comment}}', '短评（YAML 安全，多行转义为 \\n）', '值得一看'],
+			['{{my_comment_raw}}', '短评（保留原始换行，用于正文 callout）', '值得一看'],
+			['{{my_status}}', '收藏状态', '在看'],
+			['{{my_tags}}', '我的标签（逗号分隔）', '神作, 热血'],
+			['{{tags}}', '我的标签（YAML 数组格式）', '  - 神作\n  - 热血'],
+		]);
+
+		// 条目特定字段
+		this.addFieldTable(containerEl, tn('settings', 'fieldsSubjectVars'), [
+			['{{episode}}', '话数/集数', '25'],
+			['{{director}}', '导演', '荒木哲郎'],
+			['{{music}}', '音乐', '泽野弘之'],
+			['{{animeMake}}', '动画制作', 'WIT STUDIO'],
+			['{{author}}', '作者', '谏山创'],
+			['{{illustration}}', '插图', ''],
+			['{{publish}}', '出版社', '讲谈社'],
+			['{{series}}', '系列', ''],
+			['{{platform}}', '平台', 'PC'],
+			['{{develop}}', '开发商', ''],
+			['{{publisher}}', '发行商', ''],
+			['{{volumes}}', '卷数', '34'],
+			['{{pages}}', '页数', ''],
+			['{{isbn}}', 'ISBN', ''],
+			['{{status}}', '连载状态', '完结'],
+			['{{website}}', '官方网站', ''],
+			['{{start}}', '开始日期', ''],
+			['{{end}}', '结束日期', ''],
+			['{{staff}}', 'staff 信息', ''],
+			['{{price}}', '价格', ''],
+			['{{playerNum}}', '游玩人数', ''],
+			['{{from}}', '原作', ''],
+			['{{animeChief}}', '总导演', ''],
+		]);
+
+		// 角色与 staff
+		this.addFieldTable(containerEl, tn('settings', 'fieldsCharacterVars'), [
+			['{{character1}} ~ {{character9}}', '角色名（最多 9 位）', '艾伦·耶格尔'],
+			['{{characterCV1}} ~ {{characterCV9}}', '角色 CV', '梶裕贵'],
+			['{{characterPhoto1}} ~ {{characterPhoto9}}', '角色照片', 'https://...'],
+		]);
+
+		// 章节与进度
+		this.addFieldTable(containerEl, tn('settings', 'fieldsEpisodeVars'), [
+			['{{episodes}}', '章节显示（动画/漫画）', '`.ep-box` HTML'],
+			['{{volumes_display}}', '单行本显示（小说）', '`.ep-box` HTML'],
+			['{{progress}}', '进度信息', ''],
+		]);
+
+		// 模板语法
+		new Setting(containerEl).setName('模板语法').setHeading();
+		const syntaxTable = this.createFieldTable([
+			['{{变量名}}', '普通变量，值为空时输出空白'],
+			['{{变量名|默认值}}', '带默认值的变量，值为空时输出默认值', '{{rating|未评分}}'],
+			['{{#if 变量名}}...{{/if}}', '条件渲染，变量非空时才输出内容', '{{#if my_rate}}评分: {{my_rate}}{{/if}}'],
+		]);
+		new Setting(containerEl).setDesc(syntaxTable);
+	}
+
+	private addFieldTable(containerEl: HTMLElement, title: string, rows: string[][]): void {
+		new Setting(containerEl).setName(title).setHeading();
+		const table = this.createFieldTable(rows);
+		new Setting(containerEl).setDesc(table);
+	}
+
+	private createFieldTable(rows: string[][]): DocumentFragment {
+		const frag = new DocumentFragment();
+		const table = frag.createEl('table', { cls: 'bangumi-field-table' });
+		const thead = table.createEl('thead');
+		const headerRow = thead.createEl('tr');
+		headerRow.createEl('th', { text: '变量' });
+		headerRow.createEl('th', { text: '说明' });
+		headerRow.createEl('th', { text: '示例' });
+		const tbody = table.createEl('tbody');
+		for (const row of rows) {
+			const tr = tbody.createEl('tr');
+			tr.createEl('td').createEl('code', { text: row[0] });
+			tr.createEl('td', { text: row[1] });
+			tr.createEl('td', { text: row[2] || '', cls: 'bangumi-field-example' });
+		}
+		return frag;
 	}
 
 	// ==================== 工具方法 ====================

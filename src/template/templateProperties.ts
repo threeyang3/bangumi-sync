@@ -58,6 +58,7 @@ export const AUTO_FILLED_TEMPLATE_VARS = new Set([
 	'month',
 	'my_rate',
 	'my_comment',
+	'my_comment_raw',
 	'my_status',
 	'my_tags',
 	'episode',
