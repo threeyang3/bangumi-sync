@@ -1401,40 +1401,32 @@
 .bangumi-settings-tab-headers {
 	display: flex;
 	flex-wrap: wrap;
-	border-bottom: 2px solid var(--background-modifier-border);
+	border-bottom: 1px solid var(--background-modifier-border);
+	margin-bottom: 20px;
 }
 
 .bangumi-settings-tab-header {
-	padding: 8px 18px;
+	padding: 6px 16px;
 	cursor: pointer;
 	font-size: 14px;
 	color: var(--text-muted);
-	border-radius: 6px 6px 0 0;
-	margin-right: 2px;
-	transition: background-color 0.15s, color 0.15s;
+	border-bottom: 2px solid transparent;
+	margin-bottom: -1px;
+	transition: color 0.15s, border-color 0.15s;
 	user-select: none;
 }
 
 .bangumi-settings-tab-header:hover {
-	background: var(--background-secondary-alt);
 	color: var(--text-normal);
 }
 
 .bangumi-settings-tab-header.active {
-	background: var(--background-secondary);
-	color: var(--text-normal);
-	font-weight: 600;
-	border: 1px solid var(--background-modifier-border);
-	border-bottom-color: var(--background-secondary);
-	margin-bottom: -1px;
+	color: var(--text-accent);
+	border-bottom-color: var(--interactive-accent);
 }
 
 .bangumi-settings-tab-contents {
-	background: var(--background-secondary);
-	border: 1px solid var(--background-modifier-border);
-	border-top: none;
-	border-radius: 0 0 6px 6px;
-	padding: 16px 20px;
+	/* no extra chrome — let setting items breathe natively */
 }
 
 .bangumi-settings-tab-content {
@@ -1443,6 +1435,12 @@
 
 .bangumi-settings-tab-content.active {
 	display: block;
+	animation: bangumi-fade-in 0.15s ease;
+}
+
+@keyframes bangumi-fade-in {
+	from { opacity: 0.6; }
+	to { opacity: 1; }
 }
 
 .bangumi-help-links {
@@ -2147,17 +2145,14 @@
 		flex-wrap: nowrap;
 		overflow-x: auto;
 		-webkit-overflow-scrolling: touch;
+		margin-bottom: 16px;
 	}
 
 	.bangumi-settings-tab-header {
-		padding: 8px 12px;
+		padding: 6px 12px;
 		font-size: 13px;
 		white-space: nowrap;
 		flex-shrink: 0;
-	}
-
-	.bangumi-settings-tab-contents {
-		padding: 12px 14px;
 	}
 
 	.bangumi-help-links {
