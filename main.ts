@@ -16,7 +16,7 @@ import { SyncModal } from './src/ui/syncModal';
 import { SyncOptionsModal, SyncOptionsInput } from './src/ui/syncOptionsModal';
 import { SyncPreviewModal, SyncPreviewResult } from './src/ui/syncPreviewModal';
 import { SearchModal } from './src/ui/searchModal';
-import { hasLocalPropertyFieldsForCollections, loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult } from './src/ui/localPropertyModal';
+import { loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult } from './src/ui/localPropertyModal';
 import { ControlPanel } from './src/panel/controlPanel';
 import { SyncProgress, createCancellationSignal } from './src/sync/syncStatus';
 import { UserCollection } from './common/api/types';
@@ -844,17 +844,7 @@ export default class BangumiPlugin extends Plugin {
 			}
 		);
 
-		const hasDynamicFields = hasLocalPropertyFieldsForCollections(
-			collections,
-			subjectsById,
-			syncManager.getCustomTemplates()
-		);
-
-		if (!hasDynamicFields) {
-			return {
-				propertyValuesBySubjectId: new Map(),
-			};
-		}
+		console.debug(`[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
 
 		return new Promise<LocalPropertyModalResult | null>(resolve => {
 			const modal = new LocalPropertyModal(

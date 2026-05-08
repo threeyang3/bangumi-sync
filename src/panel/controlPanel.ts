@@ -17,7 +17,7 @@ import { SearchModal } from '../ui/searchModal';
 import { getLocale, tn } from '../i18n';
 import { EpisodeStatusManager } from '../episode/episodeStatusManager';
 import { SubjectNoteManager } from '../note/subjectNoteManager';
-import { hasLocalPropertyFieldsForCollections, loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult } from '../ui/localPropertyModal';
+import { loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult } from '../ui/localPropertyModal';
 import { isMobile } from '../utils/mobile';
 
 /**
@@ -848,17 +848,7 @@ export class ControlPanel extends Modal {
 			}
 		);
 
-		const hasDynamicFields = hasLocalPropertyFieldsForCollections(
-			collections,
-			subjectsById,
-			this.syncManager.getCustomTemplates()
-		);
-
-		if (!hasDynamicFields) {
-			return {
-				propertyValuesBySubjectId: new Map(),
-			};
-		}
+		console.debug(`[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
 
 		return new Promise<LocalPropertyModalResult | null>(resolve => {
 			const modal = new LocalPropertyModal(

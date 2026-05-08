@@ -176,11 +176,18 @@ export class ImageHandler {
 
 	/**
 	 * 清理路径中的非法字符
+	 * 目录部分保留路径分隔符，文件名部分替换所有 OS 不允許的字符
 	 */
 	private sanitizePath(path: string): string {
-		// Windows 不允许的字符: < > : " / \ | ? *
-		// 这里只处理文件名部分，保留路径分隔符
-		return path.replace(/[<>:"|?*]/g, '_');
+		const normalized = path.replace(/\\/g, '/');
+		const lastSlash = normalized.lastIndexOf('/');
+		if (lastSlash === -1) {
+			return normalized.replace(/[<>:"|?*\\/]/g, '_');
+		}
+		const dir = normalized.substring(0, lastSlash);
+		const filename = normalized.substring(lastSlash + 1)
+			.replace(/[<>:"|?*\\/]/g, '_');
+		return dir + '/' + filename;
 	}
 
 	/**

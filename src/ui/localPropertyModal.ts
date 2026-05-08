@@ -184,10 +184,19 @@ export function hasLocalPropertyFieldsForCollections(
 	subjectsById: Map<number, Subject>,
 	customTemplates: CustomTemplates | undefined
 ): boolean {
-	return collections.some(collection => {
+	let totalCustom = 0;
+	const result = collections.some(collection => {
 		const subject = subjectsById.get(collection.subject_id);
-		return subject !== undefined && getTemplatePropertyGroupsForSubject(subject, customTemplates).customProperties.length > 0;
+		if (!subject) { return false; }
+		const groups = getTemplatePropertyGroupsForSubject(subject, customTemplates);
+		if (groups.customProperties.length > 0) {
+			totalCustom += groups.customProperties.length;
+			return true;
+		}
+		return false;
 	});
+	console.debug(`[Bangumi Sync] hasLocalPropertyFields: ${result}, custom property count across ${collections.length} collections: ${totalCustom}, customTemplates: ${customTemplates ? 'configured' : 'none'}`);
+	return result;
 }
 
 function parseListInput(value: string): string[] | undefined {

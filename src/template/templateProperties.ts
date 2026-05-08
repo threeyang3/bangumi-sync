@@ -237,7 +237,8 @@ function classifyTemplateProperty(
 }
 
 function extractFrontmatter(template: string): string | null {
-	const match = template.match(/^---\n([\s\S]*?)\n---/);
+	const normalized = template.replace(/\r\n?/g, '\n');
+	const match = normalized.match(/^---\n([\s\S]*?)\n---/);
 	return match ? match[1] : null;
 }
 
