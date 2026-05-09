@@ -280,8 +280,8 @@ function parseTemplateInitialValue(rawValue: string): string | boolean | string[
 	}
 
 	const singleVarMatch = rawValue.match(SINGLE_TEMPLATE_VAR_REGEX);
-	if (singleVarMatch && typeof singleVarMatch[2] === 'string') {
-		return singleVarMatch[2];
+	if (singleVarMatch) {
+		return typeof singleVarMatch[2] === 'string' ? singleVarMatch[2] : undefined;
 	}
 
 	if (
