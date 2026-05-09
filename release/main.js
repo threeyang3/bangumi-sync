@@ -1638,9 +1638,8 @@ tags:
 \u7CBE\u5F69\u7247\u6BB5:
 \u5B58\u50A8:
 \u8D44\u6E90\u5C5E\u6027: []
-{{#if related}}\u76F8\u5173:
+\u76F8\u5173:
 {{related}}
-{{/if}}
 \u4F5C\u54C1\u5927\u7C7B: Anime
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
@@ -1720,9 +1719,9 @@ tags:
 \u7248\u672C:
 Kindle: false
 \u4FDD\u5B58: true
-{{#if related}}\u76F8\u5173:
+\u76F8\u5173:
 {{related}}
-{{/if}}\u6E20\u9053:
+\u6E20\u9053:
 \u5B98\u7F51: "{{website}}"
 \u5DF2\u8D2D: false
 \u4F5C\u54C1\u5927\u7C7B: Novel
@@ -1795,9 +1794,9 @@ tags:
 \u7248\u672C:
 \u683C\u5F0F:
 Kindle: false
-{{#if related}}\u76F8\u5173:
+\u76F8\u5173:
 {{related}}
-{{/if}}\u6E20\u9053:
+\u6E20\u9053:
 \u5DF2\u8D2D: false
 \u4F5C\u54C1\u5927\u7C7B: Comic
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
@@ -1868,9 +1867,8 @@ tags:
 \u5355\u8BC4: false
 \u5B58\u50A8:
 \u8D44\u6E90\u5C5E\u6027: []
-{{#if related}}\u76F8\u5173:
+\u76F8\u5173:
 {{related}}
-{{/if}}
 \u4F5C\u54C1\u5927\u7C7B: Game
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
@@ -1934,9 +1932,9 @@ tags:
 \u5355\u8BC4: false
 \u7248\u672C:
 \u683C\u5F0F:
-{{#if related}}\u76F8\u5173:
+\u76F8\u5173:
 {{related}}
-{{/if}}\u5DF2\u8D2D: false
+\u5DF2\u8D2D: false
 \u4F5C\u54C1\u5927\u7C7B: Album
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
@@ -6657,6 +6655,7 @@ var SyncManager = class {
     try {
       console.debug(`[Bangumi Sync] \u5F00\u59CB\u6309\u6536\u85CF\u5217\u8868\u540C\u6B65 ${collections.length} \u4E2A\u6761\u76EE\uFF0C\u8986\u76D6\u6A21\u5F0F: ${overwrite}\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
       this.incrementalSync.startBatch();
+      const batchRelations = [];
       await this.processConcurrently(
         collections,
         concurrency,
@@ -6675,11 +6674,14 @@ var SyncManager = class {
             message: `\u540C\u6B65\u6761\u76EE... (${i + 1}/${collections.length})`
           });
           try {
-            await this.processCollection(collection, {
+            const processResult = await this.processCollection(collection, {
               overwrite,
               preserveUserDataOnOverwrite: true,
               localPropertyValues: localPropertyValuesBySubjectId == null ? void 0 : localPropertyValuesBySubjectId.get(collection.subject_id)
             });
+            if (processResult) {
+              batchRelations.push(processResult);
+            }
             result.added++;
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
@@ -6689,6 +6691,9 @@ var SyncManager = class {
           }
         }
       );
+      if (batchRelations.length > 1) {
+        await this.postProcessBatchRelations(batchRelations);
+      }
       result.errors = result.errorDetails.length;
       if (!wasCancelled) {
         result.success = true;
@@ -6770,6 +6775,7 @@ var SyncManager = class {
       result.total = itemsToSync.length;
       console.debug(`[Bangumi Sync] \u5F00\u59CB\u540C\u6B65 ${itemsToSync.length} \u4E2A\u6761\u76EE\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
       this.incrementalSync.startBatch();
+      const batchRelations = [];
       await this.processConcurrently(
         itemsToSync,
         concurrency,
@@ -6787,11 +6793,14 @@ var SyncManager = class {
             message: `\u5904\u7406\u6761\u76EE... (${i + 1}/${itemsToSync.length})`
           });
           try {
-            await this.processCollection(item.collection, {
+            const processResult = await this.processCollection(item.collection, {
               overwrite: false,
               preserveUserDataOnOverwrite: false,
               localPropertyValues: (_a = localPropertyResult == null ? void 0 : localPropertyResult.propertyValuesBySubjectId) == null ? void 0 : _a.get(item.collection.subject_id)
             });
+            if (processResult) {
+              batchRelations.push(processResult);
+            }
             result.added++;
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
@@ -6801,6 +6810,9 @@ var SyncManager = class {
           }
         }
       );
+      if (batchRelations.length > 1) {
+        await this.postProcessBatchRelations(batchRelations);
+      }
       result.errors = result.errorDetails.length;
       if (!wasCancelled) {
         result.success = true;
@@ -6875,6 +6887,7 @@ var SyncManager = class {
     if (this.config.enableRelatedLinks !== false && relations && relations.length > 0) {
       await this.updateRelatedItemsBidirectional(subject.id, filePath, subject.name_cn || subject.name, relations);
     }
+    return { subjectId: subject.id, filePath, relations };
   }
   /**
    * 更新已同步相关条目的链接（双向链接）
@@ -6905,6 +6918,55 @@ var SyncManager = class {
         }
       } catch (error) {
         console.error(`[Bangumi Sync] \u66F4\u65B0\u76F8\u5173\u6761\u76EE\u94FE\u63A5\u5931\u8D25: ${path}`, error);
+      }
+    }
+  }
+  /**
+   * 后处理同批次相关条目的双向链接
+   * 解决并发同步时相关条目互相检测不到的问题
+   * 按目标文件分组，每个文件只读写一次
+   */
+  async postProcessBatchRelations(batchItems) {
+    if (this.config.enableRelatedLinks === false)
+      return;
+    const batchSubjectIds = new Set(batchItems.map((item) => item.subjectId));
+    const updatesByFile = /* @__PURE__ */ new Map();
+    for (const item of batchItems) {
+      const batchRelations = item.relations.filter((r) => batchSubjectIds.has(r.id));
+      if (batchRelations.length === 0)
+        continue;
+      const currentDisplayName = this.extractDisplayNameFromPath(item.filePath);
+      const currentLink = `[[${item.filePath}|${currentDisplayName}]]`;
+      for (const relation of batchRelations) {
+        const relatedPath = this.resolveRelatedLocalPath(relation.id);
+        if (!relatedPath)
+          continue;
+        const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
+        const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
+        const existing1 = updatesByFile.get(item.filePath) || [];
+        existing1.push(relatedLink);
+        updatesByFile.set(item.filePath, existing1);
+        const existing2 = updatesByFile.get(relatedPath) || [];
+        existing2.push(currentLink);
+        updatesByFile.set(relatedPath, existing2);
+      }
+    }
+    if (updatesByFile.size === 0)
+      return;
+    console.debug(`[Bangumi Sync] \u540E\u5904\u7406\u540C\u6279\u6B21\u76F8\u5173\u94FE\u63A5: ${updatesByFile.size} \u4E2A\u6587\u4EF6\u9700\u8981\u66F4\u65B0`);
+    for (const [path, links] of updatesByFile) {
+      try {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (!(file instanceof import_obsidian11.TFile))
+          continue;
+        const content = await this.app.vault.read(file);
+        const updatedContent = this.incrementalSync.updateRelated(content, links);
+        if (updatedContent !== content) {
+          await this.app.vault.process(file, () => updatedContent);
+          console.debug(`[Bangumi Sync] \u540E\u5904\u7406\u66F4\u65B0\u76F8\u5173\u94FE\u63A5: ${path} (+${links.length})`);
+        }
+      } catch (error) {
+        console.error(`[Bangumi Sync] \u540E\u5904\u7406\u66F4\u65B0\u76F8\u5173\u94FE\u63A5\u5931\u8D25: ${path}`, error);
       }
     }
   }

@@ -390,9 +390,8 @@ tags:
 精彩片段:
 存储:
 资源属性: []
-{{#if related}}相关:
+相关:
 {{related}}
-{{/if}}
 作品大类: Anime
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"
@@ -474,9 +473,9 @@ tags:
 版本:
 Kindle: false
 保存: true
-{{#if related}}相关:
+相关:
 {{related}}
-{{/if}}渠道:
+渠道:
 官网: "{{website}}"
 已购: false
 作品大类: Novel
@@ -551,9 +550,9 @@ tags:
 版本:
 格式:
 Kindle: false
-{{#if related}}相关:
+相关:
 {{related}}
-{{/if}}渠道:
+渠道:
 已购: false
 作品大类: Comic
 具体类型: "{{category}}"
@@ -626,9 +625,8 @@ tags:
 单评: false
 存储:
 资源属性: []
-{{#if related}}相关:
+相关:
 {{related}}
-{{/if}}
 作品大类: Game
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"
@@ -694,9 +692,9 @@ tags:
 单评: false
 版本:
 格式:
-{{#if related}}相关:
+相关:
 {{related}}
-{{/if}}已购: false
+已购: false
 作品大类: Album
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"

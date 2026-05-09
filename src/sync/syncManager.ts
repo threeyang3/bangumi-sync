@@ -12,7 +12,7 @@
 
 import { Notice, App, TFile } from 'obsidian';
 import { BangumiClient } from '../api/client';
-import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType } from '../../common/api/types';
+import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType, RelatedSubject } from '../../common/api/types';
 import { FileManager } from '../../common/file/fileManager';
 import { ImageHandler } from '../../common/file/imageHandler';
 import { IncrementalSync } from './incrementalSync';
@@ -525,6 +525,9 @@ export class SyncManager {
 			// 开始批次同步
 			this.incrementalSync.startBatch();
 
+			// 收集每个条目的 relations 数据，用于后处理同批次相关条目的双向链接
+			const batchRelations: { subjectId: number; filePath: string; relations: RelatedSubject[] }[] = [];
+
 			// 使用并发控制处理条目
 			await this.processConcurrently(
 				collections,
@@ -547,11 +550,14 @@ export class SyncManager {
 					});
 
 					try {
-						await this.processCollection(collection, {
+						const processResult = await this.processCollection(collection, {
 							overwrite,
 							preserveUserDataOnOverwrite: true,
 							localPropertyValues: localPropertyValuesBySubjectId?.get(collection.subject_id),
 						});
+						if (processResult) {
+							batchRelations.push(processResult);
+						}
 						result.added++;
 					} catch (error) {
 						const errorMsg = error instanceof Error ? error.message : String(error);
@@ -561,6 +567,11 @@ export class SyncManager {
 					}
 				}
 			);
+
+			// 后处理：为同批次相关条目补充双向链接
+			if (batchRelations.length > 1) {
+				await this.postProcessBatchRelations(batchRelations);
+			}
 
 			result.errors = result.errorDetails.length;
 
@@ -669,6 +680,9 @@ export class SyncManager {
 			// 开始批次同步
 			this.incrementalSync.startBatch();
 
+			// 收集每个条目的 relations 数据，用于后处理同批次相关条目的双向链接
+			const batchRelations: { subjectId: number; filePath: string; relations: RelatedSubject[] }[] = [];
+
 			// 使用并发控制处理条目
 			await this.processConcurrently(
 				itemsToSync,
@@ -688,11 +702,14 @@ export class SyncManager {
 					});
 
 					try {
-						await this.processCollection(item.collection, {
+						const processResult = await this.processCollection(item.collection, {
 							overwrite: false,
 							preserveUserDataOnOverwrite: false,
 							localPropertyValues: localPropertyResult?.propertyValuesBySubjectId?.get(item.collection.subject_id),
 						});
+						if (processResult) {
+							batchRelations.push(processResult);
+						}
 						result.added++;
 					} catch (error) {
 						const errorMsg = error instanceof Error ? error.message : String(error);
@@ -702,6 +719,11 @@ export class SyncManager {
 					}
 				}
 			);
+
+			// 后处理：为同批次相关条目补充双向链接
+			if (batchRelations.length > 1) {
+				await this.postProcessBatchRelations(batchRelations);
+			}
 
 			result.errors = result.errorDetails.length;
 
@@ -729,7 +751,7 @@ export class SyncManager {
 	private async processCollection(
 		collection: UserCollection,
 		options: { overwrite: boolean; localPropertyValues?: LocalPropertyValueMap; preserveUserDataOnOverwrite: boolean }
-	): Promise<void> {
+	): Promise<{ subjectId: number; filePath: string; relations: RelatedSubject[] } | undefined> {
 		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
@@ -818,6 +840,8 @@ export class SyncManager {
 		if (this.config.enableRelatedLinks !== false && relations && relations.length > 0) {
 			await this.updateRelatedItemsBidirectional(subject.id, filePath, subject.name_cn || subject.name, relations);
 		}
+
+		return { subjectId: subject.id, filePath, relations };
 	}
 
 	/**
@@ -859,6 +883,64 @@ export class SyncManager {
 				}
 			} catch (error) {
 				console.error(`[Bangumi Sync] 更新相关条目链接失败: ${path}`, error);
+			}
+		}
+	}
+
+	/**
+	 * 后处理同批次相关条目的双向链接
+	 * 解决并发同步时相关条目互相检测不到的问题
+	 * 按目标文件分组，每个文件只读写一次
+	 */
+	private async postProcessBatchRelations(
+		batchItems: { subjectId: number; filePath: string; relations: RelatedSubject[] }[]
+	): Promise<void> {
+		if (this.config.enableRelatedLinks === false) return;
+
+		const batchSubjectIds = new Set(batchItems.map(item => item.subjectId));
+		const updatesByFile = new Map<string, string[]>();
+
+		for (const item of batchItems) {
+			const batchRelations = item.relations.filter(r => batchSubjectIds.has(r.id));
+			if (batchRelations.length === 0) continue;
+
+			const currentDisplayName = this.extractDisplayNameFromPath(item.filePath);
+			const currentLink = `[[${item.filePath}|${currentDisplayName}]]`;
+
+			for (const relation of batchRelations) {
+				const relatedPath = this.resolveRelatedLocalPath(relation.id);
+				if (!relatedPath) continue;
+
+				// 当前条目 → 相关条目
+				const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
+				const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
+				const existing1 = updatesByFile.get(item.filePath) || [];
+				existing1.push(relatedLink);
+				updatesByFile.set(item.filePath, existing1);
+
+				// 相关条目 → 当前条目（反向）
+				const existing2 = updatesByFile.get(relatedPath) || [];
+				existing2.push(currentLink);
+				updatesByFile.set(relatedPath, existing2);
+			}
+		}
+
+		if (updatesByFile.size === 0) return;
+
+		console.debug(`[Bangumi Sync] 后处理同批次相关链接: ${updatesByFile.size} 个文件需要更新`);
+
+		for (const [path, links] of updatesByFile) {
+			try {
+				const file = this.app.vault.getAbstractFileByPath(path);
+				if (!(file instanceof TFile)) continue;
+				const content = await this.app.vault.read(file);
+				const updatedContent = this.incrementalSync.updateRelated(content, links);
+				if (updatedContent !== content) {
+					await this.app.vault.process(file, () => updatedContent);
+					console.debug(`[Bangumi Sync] 后处理更新相关链接: ${path} (+${links.length})`);
+				}
+			} catch (error) {
+				console.error(`[Bangumi Sync] 后处理更新相关链接失败: ${path}`, error);
 			}
 		}
 	}
