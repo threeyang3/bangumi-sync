@@ -445,7 +445,7 @@ export function parseInfoByType(
 
 		case SubjectType.Real:
 			return {
-				category: getInfoboxValue(infobox, '类型') || '三次元',
+				category: platform || '三次元',
 			};
 
 		default:

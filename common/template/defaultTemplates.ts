@@ -346,10 +346,13 @@ tags:
 {{tags}}
 评分: {{my_rate}}
 短评: "{{my_comment}}"
+作品大类: Real
+具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 封面: "{{cover}}"
 上映日期: "{{date}}"
+集数: "{{episode}}"
 ---
 
 > [!bangumi-info]+ 🎬 **{{name}}**
@@ -361,6 +364,8 @@ Bangumi链接: "{{bangumi_url}}"
 > | 状态 |\`= this.观看状态\`|
 > | 标签 |\`= this.tags\`|
 > | 评分 |\`= this.评分\`|
+> | 类型 | {{category}} |
+> | 集数 | 共{{episode}}集 |
 > | 上映 |{{date}}|
 
 > [!abstract]+ **短评**
@@ -368,6 +373,14 @@ Bangumi链接: "{{bangumi_url}}"
 
 > [!abstract]+ **简介**
 > {{summary}}
+
+## 集数
+
+{{episodes}}
+
+## 记录
+
+## 感想
 `;
 
 // ==================== 作者自用模板（含自定义变量）====================
@@ -737,7 +750,65 @@ ISBN: "{{isbn}}"
 
 // 音乐作者自用模板（与标准模板相同）
 
-// 三次元作者自用模板（与标准模板相同）
+// 三次元作者自用模板
+export const REAL_TEMPLATE_AUTHOR = `---
+id: {{id}}
+中文名: "{{name_cn}}"
+原名: "{{name}}"
+观看状态: {{my_status}}
+tags:
+{{tags}}
+评分: {{my_rate}}
+剧情评分:
+演技评分:
+制作评分:
+标语:
+单评: false
+精彩片段:
+存储:
+资源属性: []
+相关:
+{{related}}
+作品大类: Real
+具体类型: "{{category}}"
+Bangumi评分: "{{rating}}"
+Bangumi链接: "{{bangumi_url}}"
+封面: "{{cover}}"
+上映日期: "{{date}}"
+集数: "{{episode}}"
+---
+
+> [!bangumi-info]+ 🎬 **{{name}}**
+>
+> ![cover|400]({{cover}})
+>
+> | | |
+> |:------:|:------------------------------------------:|
+> | 标语 |\`= this.标语\`|
+> | 状态 |\`= this.观看状态\`|
+> | 标签 |\`= this.tags\`|
+> | 评分 |\`= this.评分\`|
+> | 明细 |剧情: \`= this.剧情评分\` 演技: \`= this.演技评分\` 制作: \`= this.制作评分\`|
+> | 类型 | {{category}} |
+> | 集数 | 共{{episode}}集 |
+> | 精彩片段 | \`= this.精彩片段\` |
+> | 存储 | \`= this.存储\`·\`=this.资源属性\` |
+> | 相关 | \`= this.相关\` |
+
+> [!abstract]+ **短评**
+> {{my_comment_raw}}
+
+> [!abstract]- **简介**
+> {{summary}}
+
+## 集数
+
+{{episodes}}
+
+## 记录
+
+## 感想
+`;
 
 // ==================== 兼容旧版本的导出 ====================
 
@@ -748,7 +819,7 @@ export const COMIC_TEMPLATE = COMIC_TEMPLATE_AUTHOR;
 export const GAME_TEMPLATE = GAME_TEMPLATE_AUTHOR;
 export const ALBUM_TEMPLATE = ALBUM_TEMPLATE_AUTHOR;
 export const MUSIC_TEMPLATE = MUSIC_TEMPLATE_STANDARD;
-export const REAL_TEMPLATE = REAL_TEMPLATE_STANDARD;
+export const REAL_TEMPLATE = REAL_TEMPLATE_AUTHOR;
 
 // ==================== 辅助函数 ====================
 
@@ -783,7 +854,7 @@ export function getDefaultTemplate(subjectType: number, category?: string, useAu
 		case 4: // Game
 			return useAuthorTemplate ? GAME_TEMPLATE_AUTHOR : GAME_TEMPLATE_STANDARD;
 		case 6: // Real
-			return REAL_TEMPLATE_STANDARD;
+			return useAuthorTemplate ? REAL_TEMPLATE_AUTHOR : REAL_TEMPLATE_STANDARD;
 		default:
 			return useAuthorTemplate ? NOVEL_TEMPLATE_AUTHOR : NOVEL_TEMPLATE_STANDARD;
 	}
