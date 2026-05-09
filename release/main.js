@@ -4792,7 +4792,8 @@ function extractPathVars(subject, _collection) {
       year = match[1];
     }
   }
-  let nameCnWithType = subject.name_cn || "";
+  const effectiveNameCn = subject.name_cn || subject.name || String(subject.id);
+  let nameCnWithType = effectiveNameCn;
   if (nameCnWithType) {
     const typeSuffix = getTypeSuffixForName(subject.type, parsedInfo.category, subject.platform);
     if (typeSuffix) {
@@ -4803,7 +4804,7 @@ function extractPathVars(subject, _collection) {
     type: typeLabel,
     category: parsedInfo.category || "",
     name: subject.name || "",
-    name_cn: subject.name_cn || "",
+    name_cn: effectiveNameCn,
     name_cn_with_type: nameCnWithType,
     year,
     author: parsedInfo.author || "",
@@ -8156,6 +8157,23 @@ var LocalPropertyModal = class extends import_obsidian17.Modal {
     this.propertyValuesBySubjectId.set(subjectId, current);
   }
 };
+function hasLocalPropertyFieldsForCollections(collections, subjectsById, customTemplates) {
+  let totalCustom = 0;
+  const result = collections.some((collection) => {
+    const subject = subjectsById.get(collection.subject_id);
+    if (!subject) {
+      return false;
+    }
+    const groups = getTemplatePropertyGroupsForSubject(subject, customTemplates);
+    if (groups.customProperties.length > 0) {
+      totalCustom += groups.customProperties.length;
+      return true;
+    }
+    return false;
+  });
+  console.debug(`[Bangumi Sync] hasLocalPropertyFields: ${result}, custom property count across ${collections.length} collections: ${totalCustom}, customTemplates: ${customTemplates ? "configured" : "none"}`);
+  return result;
+}
 function parseListInput2(value) {
   const items = value.split(",").map((item) => item.trim()).filter(Boolean);
   return items.length > 0 ? items : void 0;
@@ -9617,8 +9635,13 @@ var ControlPanel = class extends import_obsidian20.Modal {
         }
       }
     );
+    if (!hasLocalPropertyFieldsForCollections(collections, subjectsById, this.syncManager.getCustomTemplates())) {
+      console.debug(`[Bangumi Sync] No custom property fields, skipping modal`);
+      return { propertyValuesBySubjectId: /* @__PURE__ */ new Map() };
+    }
     console.debug(`[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
     return new Promise((resolve) => {
+      let resolved = false;
       const modal = new LocalPropertyModal(
         this.app,
         collections,
@@ -9630,7 +9653,6 @@ var ControlPanel = class extends import_obsidian20.Modal {
         }
       );
       const originalOnClose = modal.onClose.bind(modal);
-      let resolved = false;
       modal.onClose = () => {
         originalOnClose();
         if (!resolved) {
