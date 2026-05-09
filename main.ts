@@ -636,8 +636,10 @@ export default class BangumiPlugin extends Plugin {
 		try {
 			const result = await this.syncManager.batchDownloadCovers();
 
-			this.syncModal.close();
-			this.syncModal = null;
+			if (this.syncModal) {
+				this.syncModal.close();
+				this.syncModal = null;
+			}
 			this.cancellationSignal = null;
 			this.syncManager.setCancellationSignal(null);
 			this.hideStatusBar();
@@ -688,8 +690,10 @@ export default class BangumiPlugin extends Plugin {
 		try {
 			const result = await this.syncManager.scanAndLinkRelated();
 
-			this.syncModal.close();
-			this.syncModal = null;
+			if (this.syncModal) {
+				this.syncModal.close();
+				this.syncModal = null;
+			}
 			this.cancellationSignal = null;
 			this.syncManager.setCancellationSignal(null);
 			this.hideStatusBar();

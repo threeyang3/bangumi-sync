@@ -1,6 +1,6 @@
 {
 	"name": "bangumi-sync",
-	"version": "6.2.3",
+	"version": "6.2.4",
 	"description": "Obsidian plugin to sync Bangumi collections",
 	"main": "main.js",
 	"scripts": {
