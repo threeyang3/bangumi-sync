@@ -170,7 +170,7 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 
 测试版 tag 也必须与 `manifest.json` 版本一致。不要复用正在等待 Obsidian 官方审查的版本号。
 
-2026-05-08 当前最新稳定版为 `v5.9.0`（在 `adv` 分支发布，已合并至 `main`）。
+2026-05-09 当前最新稳定版为 `v6.0.9`（在 `adv` 分支发布）。
 
 ### 标准发布流程 (Preventing Sorting/Encoding Issues)
 为确保 GitHub Releases 顺序正确且无乱码，必须遵循以下步骤：

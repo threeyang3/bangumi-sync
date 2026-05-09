@@ -836,6 +836,12 @@ export class ControlPanel extends Modal {
 	private async collectLocalPropertyValues(
 		collections: UserCollection[]
 	): Promise<LocalPropertyModalResult | null> {
+		// 批量同步超过 10 条时跳过自定义属性弹窗，直接使用默认值
+		if (collections.length > 10) {
+			console.debug(`[Bangumi Sync] 批量同步 ${collections.length} 条，跳过自定义属性弹窗`);
+			return { propertyValuesBySubjectId: new Map() };
+		}
+
 		let warned = false;
 		const subjectsById = await loadSubjectsForCollections(
 			collections,

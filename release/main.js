@@ -2090,18 +2090,18 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
   buildGeneralTab(containerEl) {
     new import_obsidian2.Setting(containerEl).setName(tn("settings", "helpLinks")).setHeading();
     const helpLinksDiv = containerEl.createDiv({ cls: "bangumi-help-links" });
-    new import_obsidian2.Setting(helpLinksDiv).setName(tn("settings", "templateGuide")).addButton((button) => {
-      button.setButtonText(tn("settings", "templateGuide")).onClick(() => {
+    helpLinksDiv.createEl("button", { text: tn("settings", "templateGuide"), cls: "mod-cta" }, (btn) => {
+      btn.addEventListener("click", () => {
         this.openExternalLink("https://github.com/threeyang3/bangumi-sync/blob/main/docs/TEMPLATE_GUIDE.md");
       });
     });
-    new import_obsidian2.Setting(helpLinksDiv).setName(tn("settings", "githubRepo")).addButton((button) => {
-      button.setButtonText(tn("settings", "githubRepo")).onClick(() => {
+    helpLinksDiv.createEl("button", { text: tn("settings", "githubRepo"), cls: "mod-cta" }, (btn) => {
+      btn.addEventListener("click", () => {
         this.openExternalLink("https://github.com/threeyang3/bangumi-sync");
       });
     });
-    new import_obsidian2.Setting(helpLinksDiv).setName(tn("settings", "getAccessToken")).addButton((button) => {
-      button.setButtonText(tn("settings", "getAccessToken")).onClick(() => {
+    helpLinksDiv.createEl("button", { text: tn("settings", "getAccessToken"), cls: "mod-cta" }, (btn) => {
+      btn.addEventListener("click", () => {
         this.openExternalLink("https://next.bgm.tv/demo/access-token");
       });
     });
@@ -4526,10 +4526,16 @@ function getInfoboxNumber(infobox, key, alternateKeys) {
   }
   return void 0;
 }
-function parseAnimeInfo(infobox, platform) {
+function parseAnimeInfo(infobox, platform, persons) {
   let animeMake = getInfoboxValue(infobox, "\u52A8\u753B\u5236\u4F5C");
   if (!animeMake) {
     animeMake = extractAnimeMakeFromCopyright(infobox);
+  }
+  if (!animeMake && persons) {
+    const studioPersons = persons.filter((p) => p.relation === "\u52A8\u753B\u5236\u4F5C");
+    if (studioPersons.length > 0) {
+      animeMake = studioPersons.map((p) => p.name).join("\u3001");
+    }
   }
   let category = "";
   if (platform) {
@@ -4678,10 +4684,10 @@ function parseAlbumInfo(infobox) {
     website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"])
   };
 }
-function parseInfoByType(infobox, subjectType, platform) {
+function parseInfoByType(infobox, subjectType, platform, persons) {
   switch (subjectType) {
     case 2 /* Anime */:
-      return parseAnimeInfo(infobox, platform);
+      return parseAnimeInfo(infobox, platform, persons);
     case 4 /* Game */:
       return parseGameInfo(infobox);
     case 1 /* Book */:
@@ -4756,7 +4762,7 @@ function parseDate(dateStr) {
 function cleanSummary(summary) {
   if (!summary)
     return "";
-  return summary.replace(/&nbsp;/g, "\n").replace(/\s{4,}/g, "\n").trim();
+  return summary.replace(/&nbsp;/g, "\n").replace(/\s{4,}/g, "\n").replace(/^(-{3,}|\*{3,}|_{3,})$/gm, "\\$1").trim();
 }
 
 // common/template/pathTemplate.ts
@@ -4913,9 +4919,9 @@ function escapeForYamlDoubleQuoted(value) {
   }
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r\n?/g, "\n").replace(/\n/g, "\\n");
 }
-function extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, _notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars) {
+function extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, _notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars, persons) {
   var _a, _b, _c, _d, _e, _f;
-  const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+  const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform, persons);
   const typeLabel = getTypeLabel(subject.type, parsedInfo.category);
   const { year, month } = parseDate(subject.date);
   const my_tags_array = (collection == null ? void 0 : collection.tags) && collection.tags.length > 0 ? collection.tags : [];
@@ -5035,7 +5041,7 @@ function renderContentTemplate(template, vars) {
     if (ifKey !== void 0 && ifContent !== void 0) {
       const value = vars[ifKey];
       if (value !== void 0 && value !== null && value !== "") {
-        return ifContent;
+        return renderContentTemplate(ifContent, vars);
       }
       return "";
     }
@@ -5056,15 +5062,15 @@ function renderContentTemplate(template, vars) {
     return _match;
   });
 }
-function generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars) {
-  const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars);
+function generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars, persons) {
+  const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars, persons);
   return renderContentTemplate(template, vars);
 }
-function generateContentByType(subject, collection, characters, customTemplates, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars) {
-  const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+function generateContentByType(subject, collection, characters, customTemplates, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars, persons) {
+  const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform, persons);
   const category = parsedInfo.category || "";
   const template = resolveTemplateForSubject(subject, customTemplates, category);
-  return generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars);
+  return generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars, persons);
 }
 function resolveTemplateForSubject(subject, customTemplates, resolvedCategory) {
   const category = resolvedCategory || parseInfoByType(subject.infobox, subject.type, subject.platform).category || "";
@@ -6263,8 +6269,8 @@ function parseTemplateInitialValue(rawValue) {
     return [];
   }
   const singleVarMatch = rawValue.match(SINGLE_TEMPLATE_VAR_REGEX);
-  if (singleVarMatch && typeof singleVarMatch[2] === "string") {
-    return singleVarMatch[2];
+  if (singleVarMatch) {
+    return typeof singleVarMatch[2] === "string" ? singleVarMatch[2] : void 0;
   }
   if (rawValue.startsWith('"') && rawValue.endsWith('"') || rawValue.startsWith("'") && rawValue.endsWith("'")) {
     return rawValue.slice(1, -1);
@@ -6816,7 +6822,7 @@ var SyncManager = class {
    */
   async processCollection(collection, options) {
     console.debug(`[Bangumi Sync] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
-    const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
+    const { subject, characters: relatedCharacters, relations, persons } = await this.client.getFullSubjectInfo(collection.subject_id);
     console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
     const characters = parseCharacters(relatedCharacters, 9);
     const typeLabel = getTypeLabel(subject.type);
@@ -6841,7 +6847,8 @@ var SyncManager = class {
       this.config.coverLinkType,
       localCoverPath,
       relatedLinks,
-      extraTemplateVars
+      extraTemplateVars,
+      persons
     );
     const explicitLocalPropertyValues = options.localPropertyValues && Object.keys(options.localPropertyValues).length > 0 ? options.localPropertyValues : void 0;
     if (explicitLocalPropertyValues) {
@@ -6921,7 +6928,7 @@ var SyncManager = class {
         console.debug(`[Bangumi Sync] \u5DF2\u540C\u6B65\u5230\u4E91\u7AEF: ${subjectId}`);
       }
       if (input.createLocal) {
-        const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(subjectId);
+        const { subject, characters: relatedCharacters, relations, persons } = await this.client.getFullSubjectInfo(subjectId);
         const characters = parseCharacters(relatedCharacters, 9);
         const typeLabel = getTypeLabel(subject.type);
         const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
@@ -6969,7 +6976,8 @@ var SyncManager = class {
           this.config.coverLinkType,
           localCoverPath,
           relatedLinks,
-          extraTemplateVars
+          extraTemplateVars,
+          persons
         );
         const finalContent = input.localPropertyValues && Object.keys(input.localPropertyValues).length > 0 ? applyNamedPropertyValuesToContent(content, input.localPropertyValues) : content;
         await this.fileManager.createOrUpdateFile(filePath, finalContent, { overwrite: false });
@@ -9624,6 +9632,10 @@ var ControlPanel = class extends import_obsidian20.Modal {
     }
   }
   async collectLocalPropertyValues(collections) {
+    if (collections.length > 10) {
+      console.debug(`[Bangumi Sync] \u6279\u91CF\u540C\u6B65 ${collections.length} \u6761\uFF0C\u8DF3\u8FC7\u81EA\u5B9A\u4E49\u5C5E\u6027\u5F39\u7A97`);
+      return { propertyValuesBySubjectId: /* @__PURE__ */ new Map() };
+    }
     let warned = false;
     const subjectsById = await loadSubjectsForCollections(
       collections,

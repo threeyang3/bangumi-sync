@@ -497,6 +497,7 @@ export function cleanSummary(summary: string | undefined): string {
 	return summary
 		.replace(/&nbsp;/g, '\n')
 		.replace(/\s{4,}/g, '\n')
+		.replace(/^(-{3,}|\*{3,}|_{3,})$/gm, '\\$1')
 		.trim();
 }
 

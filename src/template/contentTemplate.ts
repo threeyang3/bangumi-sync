@@ -251,7 +251,7 @@ export function renderContentTemplate(template: string, vars: ContentTemplateVar
 		if (ifKey !== undefined && ifContent !== undefined) {
 			const value = vars[ifKey];
 			if (value !== undefined && value !== null && value !== '') {
-				return ifContent;
+				return renderContentTemplate(ifContent, vars);
 			}
 			return '';
 		}
