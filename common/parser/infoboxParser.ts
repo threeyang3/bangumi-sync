@@ -367,9 +367,9 @@ export function parseGameInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 /**
  * 解析画集信息
  */
-export function parseAlbumInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
+export function parseAlbumInfo(infobox: InfoboxItem[] | undefined, platform?: string): ParsedInfo {
 	return {
-		category: getInfoboxValue(infobox, '类型') || '画集',
+		category: platform || getInfoboxValue(infobox, '类型') || '画集',
 		author: getInfoboxValue(infobox, '作者', ['原作', '插图', '插画']),
 		publish: getInfoboxValue(infobox, '出版社'),
 		pages: getInfoboxNumber(infobox, '页数'),
@@ -406,7 +406,7 @@ export function parseInfoByType(
 					return parseComicInfo(infobox);
 				}
 				if (platform.includes('画集') || platform.includes('画本') || platform.includes('画册')) {
-					return parseAlbumInfo(infobox);
+					return parseAlbumInfo(infobox, platform);
 				}
 			}
 			// 尝试从 infobox 判断
@@ -420,7 +420,7 @@ export function parseInfoByType(
 						return parseComicInfo(infobox);
 					}
 					if (type.includes('画集') || type.includes('画本') || type.includes('画册')) {
-						return parseAlbumInfo(infobox);
+						return parseAlbumInfo(infobox, platform);
 					}
 				}
 				// 检查是否有画集特征字段
@@ -431,7 +431,7 @@ export function parseInfoByType(
 					// 但需要排除小说（小说通常有作者、出版社等）
 					const author = getInfoboxValue(infobox, '作者', ['原作']);
 					if (!author && (pages || isbn)) {
-						return parseAlbumInfo(infobox);
+						return parseAlbumInfo(infobox, platform);
 					}
 				}
 			}
