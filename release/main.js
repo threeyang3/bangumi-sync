@@ -4790,9 +4790,9 @@ function parseGameInfo(infobox) {
     website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"])
   };
 }
-function parseAlbumInfo(infobox) {
+function parseAlbumInfo(infobox, platform) {
   return {
-    category: getInfoboxValue(infobox, "\u7C7B\u578B") || "\u753B\u96C6",
+    category: platform || getInfoboxValue(infobox, "\u7C7B\u578B") || "\u753B\u96C6",
     author: getInfoboxValue(infobox, "\u4F5C\u8005", ["\u539F\u4F5C", "\u63D2\u56FE", "\u63D2\u753B"]),
     publish: getInfoboxValue(infobox, "\u51FA\u7248\u793E"),
     pages: getInfoboxNumber(infobox, "\u9875\u6570"),
@@ -4815,7 +4815,7 @@ function parseInfoByType(infobox, subjectType, platform, persons) {
           return parseComicInfo(infobox);
         }
         if (platform.includes("\u753B\u96C6") || platform.includes("\u753B\u672C") || platform.includes("\u753B\u518C")) {
-          return parseAlbumInfo(infobox);
+          return parseAlbumInfo(infobox, platform);
         }
       }
       if (infobox) {
@@ -4828,7 +4828,7 @@ function parseInfoByType(infobox, subjectType, platform, persons) {
             return parseComicInfo(infobox);
           }
           if (type.includes("\u753B\u96C6") || type.includes("\u753B\u672C") || type.includes("\u753B\u518C")) {
-            return parseAlbumInfo(infobox);
+            return parseAlbumInfo(infobox, platform);
           }
         }
         const pages = getInfoboxNumber(infobox, "\u9875\u6570");
@@ -4836,7 +4836,7 @@ function parseInfoByType(infobox, subjectType, platform, persons) {
         if (pages || isbn) {
           const author = getInfoboxValue(infobox, "\u4F5C\u8005", ["\u539F\u4F5C"]);
           if (!author && (pages || isbn)) {
-            return parseAlbumInfo(infobox);
+            return parseAlbumInfo(infobox, platform);
           }
         }
       }
@@ -6997,7 +6997,7 @@ var SyncManager = class {
     if (explicitLocalPropertyValues) {
       content = applyNamedPropertyValuesToContent(content, explicitLocalPropertyValues);
     }
-    if (options.overwrite && options.preserveUserDataOnOverwrite) {
+    if (options.preserveUserDataOnOverwrite) {
       const existingFile = this.fileManager.getFile(filePath);
       if (existingFile) {
         const localUserData = await this.userDataExtractor.extractFromFileAsync(existingFile);
@@ -7012,7 +7012,8 @@ var SyncManager = class {
       }
     }
     const fileExisted = this.fileManager.getFile(filePath) !== null;
-    await this.fileManager.createOrUpdateFile(filePath, content, { overwrite: options.overwrite });
+    const shouldOverwrite = options.overwrite || options.preserveUserDataOnOverwrite && fileExisted;
+    await this.fileManager.createOrUpdateFile(filePath, content, { overwrite: shouldOverwrite });
     console.debug(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
     this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name, !fileExisted);
     if (this.config.enableRelatedLinks !== false && relations && relations.length > 0) {

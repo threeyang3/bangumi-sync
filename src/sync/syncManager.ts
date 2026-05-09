@@ -824,8 +824,8 @@ export class SyncManager {
 			content = applyNamedPropertyValuesToContent(content, explicitLocalPropertyValues);
 		}
 
-		// 强制同步时保护用户数据
-		if (options.overwrite && options.preserveUserDataOnOverwrite) {
+		// 文件已存在时保护用户数据（记录、感想等）
+		if (options.preserveUserDataOnOverwrite) {
 			const existingFile = this.fileManager.getFile(filePath);
 			if (existingFile) {
 				const localUserData = await this.userDataExtractor.extractFromFileAsync(existingFile);
@@ -843,8 +843,10 @@ export class SyncManager {
 		// 判断文件是否已存在（用于回滚跟踪）
 		const fileExisted = this.fileManager.getFile(filePath) !== null;
 
-		// 创建文件
-		await this.fileManager.createOrUpdateFile(filePath, content, { overwrite: options.overwrite });
+		// 创建或更新文件
+		// 当 preserveUserDataOnOverwrite 为 true 且文件已存在时，使用 overwrite 确保 API 数据（如具体类型）更新
+		const shouldOverwrite = options.overwrite || (options.preserveUserDataOnOverwrite && fileExisted);
+		await this.fileManager.createOrUpdateFile(filePath, content, { overwrite: shouldOverwrite });
 		console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
 
 		// 添加到批次已同步列表
