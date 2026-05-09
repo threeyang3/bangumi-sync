@@ -4925,6 +4925,7 @@ function extractPathVars(subject, _collection) {
   return {
     type: typeLabel,
     category: parsedInfo.category || "",
+    platform: subject.platform || "",
     name: subject.name || "",
     name_cn: effectiveNameCn,
     name_cn_with_type: nameCnWithType,
@@ -4961,6 +4962,7 @@ function renderPathTemplate(template, vars) {
   const varMap = {
     type: sanitizeFileName(vars.type),
     category: sanitizeFileName(vars.category),
+    platform: sanitizeFileName(vars.platform),
     name: sanitizeFileName(vars.name),
     name_cn: sanitizeFileName(vars.name_cn),
     name_cn_with_type: sanitizeFileName(vars.name_cn_with_type),
@@ -5116,7 +5118,7 @@ function extractTemplateVars(subject, collection, characters, ratingDetails, epi
     start: parsedInfo.start || "",
     end: parsedInfo.end || "",
     staff: parsedInfo.staff2 || parsedInfo.staff || "",
-    platform: parsedInfo.platform || "",
+    platform: subject.platform || "",
     develop: parsedInfo.develop || "",
     playerNum: parsedInfo.playerNum || "",
     script: parsedInfo.script || "",

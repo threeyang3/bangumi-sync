@@ -185,7 +185,7 @@ export function extractTemplateVars(
 		start: parsedInfo.start || '',
 		end: parsedInfo.end || '',
 		staff: parsedInfo.staff2 || parsedInfo.staff || '',
-		platform: parsedInfo.platform || '',
+		platform: subject.platform || '',
 		develop: parsedInfo.develop || '',
 		playerNum: parsedInfo.playerNum || '',
 		script: parsedInfo.script || '',

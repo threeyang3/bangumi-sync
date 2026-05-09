@@ -12,6 +12,7 @@ import { parseInfoByType } from '../parser/infoboxParser';
 interface PathTemplateVars {
 	type: string;      // 条目类型 (anime/game/novel/comic/album/music/real)
 	category: string;  // 细分类别
+	platform: string;  // 平台/具体类型 (如: 公式书、TV、电影)
 	name: string;      // 原名
 	name_cn: string;   // 中文名
 	name_cn_with_type: string; // 中文名带类型后缀 (如: 金牌得主(动画))
@@ -86,6 +87,7 @@ export function extractPathVars(
 	return {
 		type: typeLabel,
 		category: parsedInfo.category || '',
+		platform: subject.platform || '',
 		name: subject.name || '',
 		name_cn: effectiveNameCn,
 		name_cn_with_type: nameCnWithType,
@@ -151,6 +153,7 @@ export function renderPathTemplate(template: string, vars: PathTemplateVars): st
 	const varMap: Record<string, string> = {
 		type: sanitizeFileName(vars.type),
 		category: sanitizeFileName(vars.category),
+		platform: sanitizeFileName(vars.platform),
 		name: sanitizeFileName(vars.name),
 		name_cn: sanitizeFileName(vars.name_cn),
 		name_cn_with_type: sanitizeFileName(vars.name_cn_with_type),
