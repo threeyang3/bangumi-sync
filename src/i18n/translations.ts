@@ -219,6 +219,9 @@ export interface TranslationStrings {
 		rollbackFailed: string;
 		completedStats: string;
 		errorDetails: string;
+		scanCompleted: string;
+		scanCompletedStats: string;
+		updateDetails: string;
 	};
 
 	// 模板编辑器
@@ -752,6 +755,9 @@ const en: TranslationStrings = {
 		rollbackFailed: 'Rollback failed',
 		completedStats: 'Added: {added}, Skipped: {skipped}, Errors: {errors}',
 		errorDetails: 'Error details',
+		scanCompleted: 'Scan completed',
+		scanCompletedStats: 'Checked {checked} items, updated {linked}, skipped {skipped}, failed {failed}',
+		updateDetails: 'Update details',
 	},
 
 	templateEditor: {
@@ -1265,6 +1271,9 @@ const zhCN: TranslationStrings = {
 		rollbackFailed: '回滚失败',
 		completedStats: '新增 {added}，跳过 {skipped}，失败 {errors}',
 		errorDetails: '错误详情',
+		scanCompleted: '扫描关联完成',
+		scanCompletedStats: '检查 {checked} 个条目，更新 {linked} 个，跳过 {skipped} 个，失败 {failed} 个',
+		updateDetails: '更新详情',
 	},
 
 	templateEditor: {

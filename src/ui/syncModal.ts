@@ -231,13 +231,15 @@ export class SyncModal extends Modal {
 			this.completedEl.empty();
 
 			this.completedEl.createEl('p', {
-				text: `检查 ${checked} 个条目，更新 ${linked} 个，跳过 ${skipped} 个，失败 ${failed} 个`,
+				text: tnFormat('syncModal', 'scanCompletedStats', {
+					checked, linked, skipped, failed,
+				}),
 				cls: 'bangumi-sync-stats',
 			});
 
 			if (details && details.length > 0) {
 				const detailsEl = this.completedEl.createEl('details', { cls: 'bangumi-sync-error-details' });
-				detailsEl.createEl('summary', { text: `更新详情 (${details.length})` });
+				detailsEl.createEl('summary', { text: `${tn('syncModal', 'updateDetails')} (${details.length})` });
 				const listEl = detailsEl.createEl('ul', { cls: 'bangumi-sync-error-list' });
 				for (const item of details) {
 					listEl.createEl('li', {
@@ -257,7 +259,7 @@ export class SyncModal extends Modal {
 			this.progressBar.addClass('bangumi-progress-complete');
 		}
 		if (this.statusText) {
-			this.updateStatus('扫描关联完成');
+			this.updateStatus(tn('syncModal', 'scanCompleted'));
 		}
 	}
 
