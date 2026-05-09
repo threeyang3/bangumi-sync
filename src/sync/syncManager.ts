@@ -301,7 +301,7 @@ export class SyncManager {
 		// 3. 扫描本地文件夹
 		this.reportProgress({ status: 'scanning', message: tn('syncModal', 'scanningLocal') });
 
-		const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
+		const scanPath = this.config.scanFolderPath || 'ACGN';
 		console.debug(`[Bangumi Sync] 扫描路径: ${scanPath}`);
 
 		await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
@@ -1075,7 +1075,7 @@ export class SyncManager {
 	 * 扫描所有本地条目，将网络封面下载到本地，并替换 frontmatter 和正文中的链接
 	 */
 	async batchDownloadCovers(): Promise<{ downloaded: number; skipped: number; failed: number }> {
-		const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
+		const scanPath = this.config.scanFolderPath || 'ACGN';
 		await this.incrementalSync.scanLocalFolder(scanPath);
 
 		const localSubjects = this.incrementalSync.getLocalSubjects();
@@ -1152,10 +1152,12 @@ export class SyncManager {
 	 * 用于修复批量同步时遗漏的相关链接
 	 */
 	async scanAndLinkRelated(): Promise<{ linked: number; skipped: number; failed: number }> {
-		const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
+		const scanPath = this.config.scanFolderPath || 'ACGN';
+		console.debug(`[Bangumi Sync] 扫描关联条目，扫描路径: ${scanPath}`);
 		await this.incrementalSync.scanLocalFolder(scanPath);
 
 		const localSubjects = this.incrementalSync.getLocalSubjects();
+		console.debug(`[Bangumi Sync] 扫描到 ${localSubjects.size} 个本地条目`);
 		const result = { linked: 0, skipped: 0, failed: 0 };
 		let processed = 0;
 

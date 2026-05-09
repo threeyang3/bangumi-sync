@@ -6484,7 +6484,7 @@ var SyncManager = class {
     });
     console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
     this.reportProgress({ status: "scanning", message: tn("syncModal", "scanningLocal") });
-    const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
+    const scanPath = this.config.scanFolderPath || "ACGN";
     console.debug(`[Bangumi Sync] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
     await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
       this.reportProgress({
@@ -7060,7 +7060,7 @@ var SyncManager = class {
    * 扫描所有本地条目，将网络封面下载到本地，并替换 frontmatter 和正文中的链接
    */
   async batchDownloadCovers() {
-    const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
+    const scanPath = this.config.scanFolderPath || "ACGN";
     await this.incrementalSync.scanLocalFolder(scanPath);
     const localSubjects = this.incrementalSync.getLocalSubjects();
     const result = { downloaded: 0, skipped: 0, failed: 0 };
@@ -7123,9 +7123,11 @@ var SyncManager = class {
    * 用于修复批量同步时遗漏的相关链接
    */
   async scanAndLinkRelated() {
-    const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
+    const scanPath = this.config.scanFolderPath || "ACGN";
+    console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u6761\u76EE\uFF0C\u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
     await this.incrementalSync.scanLocalFolder(scanPath);
     const localSubjects = this.incrementalSync.getLocalSubjects();
+    console.debug(`[Bangumi Sync] \u626B\u63CF\u5230 ${localSubjects.size} \u4E2A\u672C\u5730\u6761\u76EE`);
     const result = { linked: 0, skipped: 0, failed: 0 };
     let processed = 0;
     const localPathMap = /* @__PURE__ */ new Map();
