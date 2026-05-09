@@ -73,7 +73,9 @@ export function extractPathVars(
 	// 生成带类型后缀的文件名
 	// 对于动画，使用具体类型（TV、OVA、剧场版等）
 	// 对于其他类型，使用大类（小说、漫画等）
-	let nameCnWithType = subject.name_cn || '';
+	// 当中文名为空时，依次回退到原名和 ID
+	const effectiveNameCn = subject.name_cn || subject.name || String(subject.id);
+	let nameCnWithType = effectiveNameCn;
 	if (nameCnWithType) {
 		const typeSuffix = getTypeSuffixForName(subject.type, parsedInfo.category, subject.platform);
 		if (typeSuffix) {
@@ -85,7 +87,7 @@ export function extractPathVars(
 		type: typeLabel,
 		category: parsedInfo.category || '',
 		name: subject.name || '',
-		name_cn: subject.name_cn || '',
+		name_cn: effectiveNameCn,
 		name_cn_with_type: nameCnWithType,
 		year,
 		author: parsedInfo.author || '',

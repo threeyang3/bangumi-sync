@@ -17,7 +17,7 @@ import { SearchModal } from '../ui/searchModal';
 import { getLocale, tn } from '../i18n';
 import { EpisodeStatusManager } from '../episode/episodeStatusManager';
 import { SubjectNoteManager } from '../note/subjectNoteManager';
-import { loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult } from '../ui/localPropertyModal';
+import { loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult, hasLocalPropertyFieldsForCollections } from '../ui/localPropertyModal';
 import { isMobile } from '../utils/mobile';
 
 /**
@@ -848,9 +848,16 @@ export class ControlPanel extends Modal {
 			}
 		);
 
+		// 没有可填写的自定义属性时跳过弹窗
+		if (!hasLocalPropertyFieldsForCollections(collections, subjectsById, this.syncManager.getCustomTemplates())) {
+			console.debug(`[Bangumi Sync] No custom property fields, skipping modal`);
+			return { propertyValuesBySubjectId: new Map() };
+		}
+
 		console.debug(`[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
 
 		return new Promise<LocalPropertyModalResult | null>(resolve => {
+			let resolved = false;
 			const modal = new LocalPropertyModal(
 				this.app,
 				collections,
@@ -863,7 +870,6 @@ export class ControlPanel extends Modal {
 			);
 
 			const originalOnClose = modal.onClose.bind(modal);
-			let resolved = false;
 			modal.onClose = () => {
 				originalOnClose();
 				if (!resolved) {
