@@ -1148,6 +1148,101 @@ export class SyncManager {
 	}
 
 	/**
+	 * 扫描所有本地已同步条目，为相关条目补充双向链接
+	 * 用于修复批量同步时遗漏的相关链接
+	 */
+	async scanAndLinkRelated(): Promise<{ linked: number; skipped: number; failed: number }> {
+		const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
+		await this.incrementalSync.scanLocalFolder(scanPath);
+
+		const localSubjects = this.incrementalSync.getLocalSubjects();
+		const result = { linked: 0, skipped: 0, failed: 0 };
+		let processed = 0;
+
+		// 构建 subjectId → path 映射
+		const localPathMap = new Map<number, string>();
+		for (const [id, info] of localSubjects) {
+			if (info.path) {
+				localPathMap.set(id, info.path);
+			}
+		}
+
+		// 按目标文件分组收集需要更新的链接
+		const updatesByFile = new Map<string, string[]>();
+
+		for (const [subjectId, info] of localSubjects) {
+			processed++;
+			this.reportProgress({
+				status: 'processing',
+				current: processed,
+				total: localSubjects.size,
+				currentItem: info.name_cn || String(subjectId),
+			});
+
+			try {
+				// 获取条目的关联关系
+				const relations = await this.client.getSubjectRelations(subjectId);
+
+				// 找出已同步到本地的相关条目
+				for (const relation of relations) {
+					const relatedPath = localPathMap.get(relation.id);
+					if (!relatedPath || relatedPath === info.path) continue;
+
+					// 生成双向链接
+					const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
+					const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
+
+					const currentDisplayName = this.extractDisplayNameFromPath(info.path);
+					const currentLink = `[[${info.path}|${currentDisplayName}]]`;
+
+					// 当前条目 → 相关条目
+					const existing1 = updatesByFile.get(info.path) || [];
+					existing1.push(relatedLink);
+					updatesByFile.set(info.path, existing1);
+
+					// 相关条目 → 当前条目（反向）
+					const existing2 = updatesByFile.get(relatedPath) || [];
+					existing2.push(currentLink);
+					updatesByFile.set(relatedPath, existing2);
+				}
+			} catch (error) {
+				console.warn(`[Bangumi Sync] 获取关联关系失败: ${info.name_cn} (${subjectId})`, error);
+				result.failed++;
+			}
+		}
+
+		// 批量更新文件（每个文件只读写一次）
+		for (const [path, links] of updatesByFile) {
+			try {
+				const file = this.app.vault.getAbstractFileByPath(path);
+				if (!(file instanceof TFile)) {
+					result.skipped++;
+					continue;
+				}
+				const content = await this.app.vault.read(file);
+				const updatedContent = this.incrementalSync.updateRelated(content, links);
+				if (updatedContent !== content) {
+					await this.app.vault.process(file, () => updatedContent);
+					result.linked++;
+					console.debug(`[Bangumi Sync] 扫描关联更新: ${path} (+${links.length})`);
+				} else {
+					result.skipped++;
+				}
+			} catch (error) {
+				console.error(`[Bangumi Sync] 扫描关联更新失败: ${path}`, error);
+				result.failed++;
+			}
+		}
+
+		this.reportProgress({
+			status: 'completed',
+			message: `关联完成: ${result.linked} 个文件已更新，${result.skipped} 个跳过，${result.failed} 个失败`,
+		});
+
+		return result;
+	}
+
+	/**
 	 * 从 frontmatter 提取封面值
 	 */
 	private extractCoverValue(content: string): string {

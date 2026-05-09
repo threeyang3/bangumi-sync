@@ -183,6 +183,12 @@ export default class BangumiPlugin extends Plugin {
 			callback: () => void this.batchDownloadCovers(),
 		});
 
+		this.addCommand({
+			id: 'scan-and-link-related',
+			name: tn('commands', 'scanAndLinkRelated'),
+			callback: () => void this.scanAndLinkRelated(),
+		});
+
 		// 添加 Ribbon 图标
 		this.addRibbonIcon('database', tn('ribbon', 'collectionManager'), () => {
 			this.openControlPanel();
@@ -654,6 +660,50 @@ export default class BangumiPlugin extends Plugin {
 			this.syncManager.setCancellationSignal(null);
 			this.hideStatusBar(0);
 			console.error('[Bangumi Sync] 批量下载封面失败:', error);
+			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	/**
+	 * 扫描所有本地已同步条目，为相关条目补充双向链接
+	 */
+	async scanAndLinkRelated() {
+		if (!this.syncManager) {
+			new Notice(tn('notices', 'syncManagerNotInit'));
+			return;
+		}
+
+		this.cancellationSignal = createCancellationSignal();
+		this.syncManager.setCancellationSignal(this.cancellationSignal);
+		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
+		this.syncModal.open();
+
+		this.syncManager.setProgressCallback((progress: SyncProgress) => {
+			if (this.syncModal) {
+				this.syncModal.updateProgress(progress);
+			}
+			this.updateStatusBar(progress);
+		});
+
+		try {
+			const result = await this.syncManager.scanAndLinkRelated();
+
+			this.syncModal.close();
+			this.syncModal = null;
+			this.cancellationSignal = null;
+			this.syncManager.setCancellationSignal(null);
+			this.hideStatusBar();
+
+			new Notice(`关联完成: ${result.linked} 个文件已更新，${result.skipped} 个跳过，${result.failed} 个失败`);
+		} catch (error) {
+			if (this.syncModal) {
+				this.syncModal.close();
+				this.syncModal = null;
+			}
+			this.cancellationSignal = null;
+			this.syncManager.setCancellationSignal(null);
+			this.hideStatusBar(0);
+			console.error('[Bangumi Sync] 扫描关联失败:', error);
 			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}

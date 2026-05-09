@@ -22,6 +22,7 @@ export interface TranslationStrings {
 		checkAndSyncStatus: string;
 		createSubjectNote: string;
 		batchDownloadCovers: string;
+		scanAndLinkRelated: string;
 	};
 
 	// Ribbon
@@ -563,6 +564,7 @@ const en: TranslationStrings = {
 		checkAndSyncStatus: 'Check and sync status',
 		createSubjectNote: 'Create or append subject note',
 		batchDownloadCovers: 'Batch download cover images',
+		scanAndLinkRelated: 'Scan and link related subjects',
 	},
 
 	ribbon: {
@@ -1075,6 +1077,7 @@ const zhCN: TranslationStrings = {
 		checkAndSyncStatus: '检查并同步状态',
 		createSubjectNote: '创建或追加条目笔记',
 		batchDownloadCovers: '批量下载封面图片',
+		scanAndLinkRelated: '扫描并关联相关条目',
 	},
 
 	ribbon: {

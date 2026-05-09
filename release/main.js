@@ -286,7 +286,8 @@ var en = {
     searchSubjects: "Search and add subjects",
     checkAndSyncStatus: "Check and sync status",
     createSubjectNote: "Create or append subject note",
-    batchDownloadCovers: "Batch download cover images"
+    batchDownloadCovers: "Batch download cover images",
+    scanAndLinkRelated: "Scan and link related subjects"
   },
   ribbon: {
     collectionManager: "Bangumi collection manager"
@@ -774,7 +775,8 @@ var zhCN = {
     searchSubjects: "\u641C\u7D22\u5E76\u6DFB\u52A0\u6761\u76EE",
     checkAndSyncStatus: "\u68C0\u67E5\u5E76\u540C\u6B65\u72B6\u6001",
     createSubjectNote: "\u521B\u5EFA\u6216\u8FFD\u52A0\u6761\u76EE\u7B14\u8BB0",
-    batchDownloadCovers: "\u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u56FE\u7247"
+    batchDownloadCovers: "\u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u56FE\u7247",
+    scanAndLinkRelated: "\u626B\u63CF\u5E76\u5173\u8054\u76F8\u5173\u6761\u76EE"
   },
   ribbon: {
     collectionManager: "Bangumi \u6536\u85CF\u7BA1\u7406"
@@ -7117,6 +7119,80 @@ var SyncManager = class {
     return result;
   }
   /**
+   * 扫描所有本地已同步条目，为相关条目补充双向链接
+   * 用于修复批量同步时遗漏的相关链接
+   */
+  async scanAndLinkRelated() {
+    const scanPath = this.config.scanFolderPath || this.extractBasePath(this.config.pathTemplate);
+    await this.incrementalSync.scanLocalFolder(scanPath);
+    const localSubjects = this.incrementalSync.getLocalSubjects();
+    const result = { linked: 0, skipped: 0, failed: 0 };
+    let processed = 0;
+    const localPathMap = /* @__PURE__ */ new Map();
+    for (const [id, info] of localSubjects) {
+      if (info.path) {
+        localPathMap.set(id, info.path);
+      }
+    }
+    const updatesByFile = /* @__PURE__ */ new Map();
+    for (const [subjectId, info] of localSubjects) {
+      processed++;
+      this.reportProgress({
+        status: "processing",
+        current: processed,
+        total: localSubjects.size,
+        currentItem: info.name_cn || String(subjectId)
+      });
+      try {
+        const relations = await this.client.getSubjectRelations(subjectId);
+        for (const relation of relations) {
+          const relatedPath = localPathMap.get(relation.id);
+          if (!relatedPath || relatedPath === info.path)
+            continue;
+          const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
+          const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
+          const currentDisplayName = this.extractDisplayNameFromPath(info.path);
+          const currentLink = `[[${info.path}|${currentDisplayName}]]`;
+          const existing1 = updatesByFile.get(info.path) || [];
+          existing1.push(relatedLink);
+          updatesByFile.set(info.path, existing1);
+          const existing2 = updatesByFile.get(relatedPath) || [];
+          existing2.push(currentLink);
+          updatesByFile.set(relatedPath, existing2);
+        }
+      } catch (error) {
+        console.warn(`[Bangumi Sync] \u83B7\u53D6\u5173\u8054\u5173\u7CFB\u5931\u8D25: ${info.name_cn} (${subjectId})`, error);
+        result.failed++;
+      }
+    }
+    for (const [path, links] of updatesByFile) {
+      try {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (!(file instanceof import_obsidian11.TFile)) {
+          result.skipped++;
+          continue;
+        }
+        const content = await this.app.vault.read(file);
+        const updatedContent = this.incrementalSync.updateRelated(content, links);
+        if (updatedContent !== content) {
+          await this.app.vault.process(file, () => updatedContent);
+          result.linked++;
+          console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u66F4\u65B0: ${path} (+${links.length})`);
+        } else {
+          result.skipped++;
+        }
+      } catch (error) {
+        console.error(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u66F4\u65B0\u5931\u8D25: ${path}`, error);
+        result.failed++;
+      }
+    }
+    this.reportProgress({
+      status: "completed",
+      message: `\u5173\u8054\u5B8C\u6210: ${result.linked} \u4E2A\u6587\u4EF6\u5DF2\u66F4\u65B0\uFF0C${result.skipped} \u4E2A\u8DF3\u8FC7\uFF0C${result.failed} \u4E2A\u5931\u8D25`
+    });
+    return result;
+  }
+  /**
    * 从 frontmatter 提取封面值
    */
   extractCoverValue(content) {
@@ -11217,6 +11293,11 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
       name: tn("commands", "batchDownloadCovers"),
       callback: () => void this.batchDownloadCovers()
     });
+    this.addCommand({
+      id: "scan-and-link-related",
+      name: tn("commands", "scanAndLinkRelated"),
+      callback: () => void this.scanAndLinkRelated()
+    });
     this.addRibbonIcon("database", tn("ribbon", "collectionManager"), () => {
       this.openControlPanel();
     });
@@ -11631,6 +11712,44 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u5931\u8D25:", error);
+      new import_obsidian23.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  /**
+   * 扫描所有本地已同步条目，为相关条目补充双向链接
+   */
+  async scanAndLinkRelated() {
+    if (!this.syncManager) {
+      new import_obsidian23.Notice(tn("notices", "syncManagerNotInit"));
+      return;
+    }
+    this.cancellationSignal = createCancellationSignal();
+    this.syncManager.setCancellationSignal(this.cancellationSignal);
+    this.syncModal = new SyncModal(this.app, this.cancellationSignal);
+    this.syncModal.open();
+    this.syncManager.setProgressCallback((progress) => {
+      if (this.syncModal) {
+        this.syncModal.updateProgress(progress);
+      }
+      this.updateStatusBar(progress);
+    });
+    try {
+      const result = await this.syncManager.scanAndLinkRelated();
+      this.syncModal.close();
+      this.syncModal = null;
+      this.cancellationSignal = null;
+      this.syncManager.setCancellationSignal(null);
+      this.hideStatusBar();
+      new import_obsidian23.Notice(`\u5173\u8054\u5B8C\u6210: ${result.linked} \u4E2A\u6587\u4EF6\u5DF2\u66F4\u65B0\uFF0C${result.skipped} \u4E2A\u8DF3\u8FC7\uFF0C${result.failed} \u4E2A\u5931\u8D25`);
+    } catch (error) {
+      if (this.syncModal) {
+        this.syncModal.close();
+        this.syncModal = null;
+      }
+      this.cancellationSignal = null;
+      this.syncManager.setCancellationSignal(null);
+      this.hideStatusBar(0);
+      console.error("[Bangumi Sync] \u626B\u63CF\u5173\u8054\u5931\u8D25:", error);
       new import_obsidian23.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
