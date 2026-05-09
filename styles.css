@@ -1496,14 +1496,17 @@
 	margin: 0;
 	padding: 4px;
 	min-height: auto;
-}
-
-.bangumi-help-links .setting-item-control {
 	justify-content: stretch;
 }
 
-.bangumi-help-links .setting-item-control button {
+.bangumi-help-links .setting-item .setting-item-control {
+	flex: 1;
+	justify-content: stretch;
+}
+
+.bangumi-help-links .setting-item .setting-item-control button {
 	width: 100%;
+	flex: 1;
 }
 
 .bangumi-multiselect .setting-item-control {
@@ -2211,7 +2214,7 @@
 		gap: 6px;
 	}
 
-	.bangumi-help-links .setting-item-control button {
+	.bangumi-help-links .setting-item .setting-item-control button {
 		width: 100%;
 	}
 
