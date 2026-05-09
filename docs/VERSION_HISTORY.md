@@ -4,6 +4,7 @@
 
 ### 修复
 - 画集类型的"具体类型"改为优先使用 `platform` 字段（如"公式书"），回退到 infobox `类型` 字段
+- 确保所有调用 `parseAlbumInfo` 的路径都传递 `platform` 参数
 
 ## v6.5.1
 
