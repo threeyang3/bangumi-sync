@@ -113,32 +113,23 @@ export class BangumiSettingTab extends PluginSettingTab {
 
 		const helpLinksDiv = containerEl.createDiv({ cls: 'bangumi-help-links' });
 
-		new Setting(helpLinksDiv)
-			.addButton(button => {
-				button
-					.setButtonText(tn('settings', 'templateGuide'))
-					.onClick(() => {
-						this.openExternalLink('https://github.com/threeyang3/bangumi-sync/blob/main/docs/TEMPLATE_GUIDE.md');
-					});
+		helpLinksDiv.createEl('button', { text: tn('settings', 'templateGuide'), cls: 'mod-cta' }, btn => {
+			btn.addEventListener('click', () => {
+				this.openExternalLink('https://github.com/threeyang3/bangumi-sync/blob/main/docs/TEMPLATE_GUIDE.md');
 			});
+		});
 
-		new Setting(helpLinksDiv)
-			.addButton(button => {
-				button
-					.setButtonText(tn('settings', 'githubRepo'))
-					.onClick(() => {
-						this.openExternalLink('https://github.com/threeyang3/bangumi-sync');
-					});
+		helpLinksDiv.createEl('button', { text: tn('settings', 'githubRepo'), cls: 'mod-cta' }, btn => {
+			btn.addEventListener('click', () => {
+				this.openExternalLink('https://github.com/threeyang3/bangumi-sync');
 			});
+		});
 
-		new Setting(helpLinksDiv)
-			.addButton(button => {
-				button
-					.setButtonText(tn('settings', 'getAccessToken'))
-					.onClick(() => {
-						this.openExternalLink('https://next.bgm.tv/demo/access-token');
-					});
+		helpLinksDiv.createEl('button', { text: tn('settings', 'getAccessToken'), cls: 'mod-cta' }, btn => {
+			btn.addEventListener('click', () => {
+				this.openExternalLink('https://next.bgm.tv/demo/access-token');
 			});
+		});
 
 		// 认证设置
 		new Setting(containerEl).setName(tn('settings', 'authentication')).setHeading();
