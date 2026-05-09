@@ -7133,7 +7133,7 @@ var SyncManager = class {
     }
     const allIds = [...localSubjects.keys()];
     console.debug(`[Bangumi Sync] \u672C\u5730\u6761\u76EE ID: ${allIds.join(", ")}`);
-    const result = { linked: 0, skipped: 0, failed: 0 };
+    const result = { checked: localSubjects.size, linked: 0, skipped: 0, failed: 0 };
     let processed = 0;
     const localPathMap = /* @__PURE__ */ new Map();
     for (const [id, info] of localSubjects) {
@@ -7199,6 +7199,7 @@ var SyncManager = class {
       }).join(", ")}`);
     }
     const updatesByFile = /* @__PURE__ */ new Map();
+    let alreadyCorrect = 0;
     for (const [, componentIds] of multiComponents) {
       const allLinks = [];
       for (const id of componentIds) {
@@ -7225,16 +7226,19 @@ var SyncManager = class {
         if (missingLinks.length > 0) {
           updatesByFile.set(info.path, missingLinks);
           console.debug(`[Bangumi Sync] ${info.name_cn || id}: \u8865\u5145 ${missingLinks.length} \u4E2A\u94FE\u63A5`);
+        } else {
+          alreadyCorrect++;
         }
       }
     }
+    result.skipped = alreadyCorrect;
     console.debug(`[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u9700\u8981\u66F4\u65B0 ${updatesByFile.size} \u4E2A\u6587\u4EF6`);
     for (const [path, links] of updatesByFile) {
       try {
         const file = this.app.vault.getAbstractFileByPath(path);
         if (!(file instanceof import_obsidian11.TFile)) {
           console.warn(`[Bangumi Sync] \u6587\u4EF6\u4E0D\u5B58\u5728\u6216\u975E TFile: ${path}`);
-          result.skipped++;
+          result.failed++;
           continue;
         }
         const content = await this.app.vault.read(file);
@@ -7254,7 +7258,7 @@ var SyncManager = class {
     }
     this.reportProgress({
       status: "completed",
-      message: `\u5173\u8054\u5B8C\u6210: ${result.linked} \u4E2A\u6587\u4EF6\u5DF2\u66F4\u65B0\uFF0C${result.skipped} \u4E2A\u8DF3\u8FC7\uFF0C${result.failed} \u4E2A\u5931\u8D25`
+      message: `\u5173\u8054\u5B8C\u6210: \u68C0\u67E5 ${result.checked} \u4E2A\u6761\u76EE\uFF0C\u66F4\u65B0 ${result.linked} \u4E2A\uFF0C\u8DF3\u8FC7 ${result.skipped} \u4E2A\uFF0C\u5931\u8D25 ${result.failed} \u4E2A`
     });
     return result;
   }
@@ -7457,6 +7461,34 @@ var SyncModal = class extends import_obsidian12.Modal {
       } else {
         this.updateStatus(tn("syncModal", "completed"));
       }
+    }
+  }
+  /**
+   * 显示扫描完成状态
+   */
+  showScanCompleted(checked, linked, skipped, failed) {
+    this.isCompleted = true;
+    if (this.actionsEl) {
+      this.actionsEl.addClass("bangumi-hidden");
+    }
+    if (this.completedEl) {
+      this.completedEl.removeClass("bangumi-hidden");
+      this.completedEl.empty();
+      this.completedEl.createEl("p", {
+        text: `\u68C0\u67E5 ${checked} \u4E2A\u6761\u76EE\uFF0C\u66F4\u65B0 ${linked} \u4E2A\uFF0C\u8DF3\u8FC7 ${skipped} \u4E2A\uFF0C\u5931\u8D25 ${failed} \u4E2A`,
+        cls: "bangumi-sync-stats"
+      });
+      const closeBtn = this.completedEl.createEl("button", {
+        cls: "bangumi-sync-close-btn mod-cta",
+        text: tn("syncModal", "completed")
+      });
+      closeBtn.addEventListener("click", () => this.close());
+    }
+    if (this.progressBar) {
+      this.progressBar.addClass("bangumi-progress-complete");
+    }
+    if (this.statusText) {
+      this.updateStatus("\u626B\u63CF\u5173\u8054\u5B8C\u6210");
     }
   }
   /**
@@ -11804,13 +11836,12 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
     try {
       const result = await this.syncManager.scanAndLinkRelated();
       if (this.syncModal) {
-        this.syncModal.close();
+        this.syncModal.showScanCompleted(result.checked, result.linked, result.skipped, result.failed);
         this.syncModal = null;
       }
       this.cancellationSignal = null;
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar();
-      new import_obsidian23.Notice(`\u5173\u8054\u5B8C\u6210: ${result.linked} \u4E2A\u6587\u4EF6\u5DF2\u66F4\u65B0\uFF0C${result.skipped} \u4E2A\u8DF3\u8FC7\uFF0C${result.failed} \u4E2A\u5931\u8D25`);
     } catch (error) {
       if (this.syncModal) {
         this.syncModal.close();

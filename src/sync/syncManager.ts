@@ -1151,7 +1151,7 @@ export class SyncManager {
 	 * 扫描所有本地已同步条目，为相关条目补充双向链接
 	 * 使用并查集查找连通分量，确保同系列所有条目互相关联
 	 */
-	async scanAndLinkRelated(): Promise<{ linked: number; skipped: number; failed: number }> {
+	async scanAndLinkRelated(): Promise<{ checked: number; linked: number; skipped: number; failed: number }> {
 		const scanPath = this.config.scanFolderPath || 'ACGN';
 		console.debug(`[Bangumi Sync] 扫描关联条目，scanFolderPath: "${this.config.scanFolderPath}"，实际扫描路径: "${scanPath}"，pathTemplate: "${this.config.pathTemplate}"`);
 		await this.incrementalSync.scanLocalFolder(scanPath);
@@ -1166,7 +1166,7 @@ export class SyncManager {
 		const allIds = [...localSubjects.keys()];
 		console.debug(`[Bangumi Sync] 本地条目 ID: ${allIds.join(', ')}`);
 
-		const result = { linked: 0, skipped: 0, failed: 0 };
+		const result = { checked: localSubjects.size, linked: 0, skipped: 0, failed: 0 };
 		let processed = 0;
 
 		// 构建 subjectId → path 映射
@@ -1245,6 +1245,7 @@ export class SyncManager {
 		// === 第三阶段：为每组补全所有互链 ===
 
 		const updatesByFile = new Map<string, string[]>();
+		let alreadyCorrect = 0;
 
 		for (const [, componentIds] of multiComponents) {
 			// 收集该组中所有条目的链接
@@ -1275,9 +1276,13 @@ export class SyncManager {
 				if (missingLinks.length > 0) {
 					updatesByFile.set(info.path, missingLinks);
 					console.debug(`[Bangumi Sync] ${info.name_cn || id}: 补充 ${missingLinks.length} 个链接`);
+				} else {
+					alreadyCorrect++;
 				}
 			}
 		}
+
+		result.skipped = alreadyCorrect;
 
 		console.debug(`[Bangumi Sync] 扫描完成，需要更新 ${updatesByFile.size} 个文件`);
 
@@ -1288,7 +1293,7 @@ export class SyncManager {
 				const file = this.app.vault.getAbstractFileByPath(path);
 				if (!(file instanceof TFile)) {
 					console.warn(`[Bangumi Sync] 文件不存在或非 TFile: ${path}`);
-					result.skipped++;
+					result.failed++;
 					continue;
 				}
 				const content = await this.app.vault.read(file);
@@ -1309,7 +1314,7 @@ export class SyncManager {
 
 		this.reportProgress({
 			status: 'completed',
-			message: `关联完成: ${result.linked} 个文件已更新，${result.skipped} 个跳过，${result.failed} 个失败`,
+			message: `关联完成: 检查 ${result.checked} 个条目，更新 ${result.linked} 个，跳过 ${result.skipped} 个，失败 ${result.failed} 个`,
 		});
 
 		return result;

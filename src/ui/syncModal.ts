@@ -217,6 +217,40 @@ export class SyncModal extends Modal {
 	}
 
 	/**
+	 * 显示扫描完成状态
+	 */
+	showScanCompleted(checked: number, linked: number, skipped: number, failed: number): void {
+		this.isCompleted = true;
+
+		if (this.actionsEl) {
+			this.actionsEl.addClass('bangumi-hidden');
+		}
+
+		if (this.completedEl) {
+			this.completedEl.removeClass('bangumi-hidden');
+			this.completedEl.empty();
+
+			this.completedEl.createEl('p', {
+				text: `检查 ${checked} 个条目，更新 ${linked} 个，跳过 ${skipped} 个，失败 ${failed} 个`,
+				cls: 'bangumi-sync-stats',
+			});
+
+			const closeBtn = this.completedEl.createEl('button', {
+				cls: 'bangumi-sync-close-btn mod-cta',
+				text: tn('syncModal', 'completed'),
+			});
+			closeBtn.addEventListener('click', () => this.close());
+		}
+
+		if (this.progressBar) {
+			this.progressBar.addClass('bangumi-progress-complete');
+		}
+		if (this.statusText) {
+			this.updateStatus('扫描关联完成');
+		}
+	}
+
+	/**
 	 * 更新状态文本
 	 */
 	private updateStatus(text: string): void {

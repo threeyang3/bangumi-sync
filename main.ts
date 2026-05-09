@@ -691,14 +691,12 @@ export default class BangumiPlugin extends Plugin {
 			const result = await this.syncManager.scanAndLinkRelated();
 
 			if (this.syncModal) {
-				this.syncModal.close();
+				this.syncModal.showScanCompleted(result.checked, result.linked, result.skipped, result.failed);
 				this.syncModal = null;
 			}
 			this.cancellationSignal = null;
 			this.syncManager.setCancellationSignal(null);
 			this.hideStatusBar();
-
-			new Notice(`关联完成: ${result.linked} 个文件已更新，${result.skipped} 个跳过，${result.failed} 个失败`);
 		} catch (error) {
 			if (this.syncModal) {
 				this.syncModal.close();
