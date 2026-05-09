@@ -1153,11 +1153,20 @@ export class SyncManager {
 	 */
 	async scanAndLinkRelated(): Promise<{ linked: number; skipped: number; failed: number }> {
 		const scanPath = this.config.scanFolderPath || 'ACGN';
-		console.debug(`[Bangumi Sync] 扫描关联条目，扫描路径: ${scanPath}`);
+		console.debug(`[Bangumi Sync] 扫描关联条目，scanFolderPath: "${this.config.scanFolderPath}"，实际扫描路径: "${scanPath}"，pathTemplate: "${this.config.pathTemplate}"`);
 		await this.incrementalSync.scanLocalFolder(scanPath);
 
 		const localSubjects = this.incrementalSync.getLocalSubjects();
 		console.debug(`[Bangumi Sync] 扫描到 ${localSubjects.size} 个本地条目`);
+
+		if (localSubjects.size === 0) {
+			console.warn(`[Bangumi Sync] 未扫描到任何本地条目，扫描路径: "${scanPath}"`);
+		}
+
+		// 打印所有本地条目 ID 列表，便于调试
+		const allIds = [...localSubjects.keys()];
+		console.debug(`[Bangumi Sync] 本地条目 ID: ${allIds.join(', ')}`);
+
 		const result = { linked: 0, skipped: 0, failed: 0 };
 		let processed = 0;
 
@@ -1184,11 +1193,20 @@ export class SyncManager {
 			try {
 				// 获取条目的关联关系
 				const relations = await this.client.getSubjectRelations(subjectId);
+				console.debug(`[Bangumi Sync] [${processed}/${localSubjects.size}] ${info.name_cn || subjectId} (ID:${subjectId}): ${relations.length} 个关联`);
 
 				// 找出已同步到本地的相关条目
+				let localMatchCount = 0;
 				for (const relation of relations) {
 					const relatedPath = localPathMap.get(relation.id);
-					if (!relatedPath || relatedPath === info.path) continue;
+					if (!relatedPath) {
+						console.debug(`[Bangumi Sync]   关联 ${relation.name_cn || relation.name} (ID:${relation.id}) → 未同步`);
+						continue;
+					}
+					if (relatedPath === info.path) continue;
+
+					localMatchCount++;
+					console.debug(`[Bangumi Sync]   关联 ${relation.name_cn || relation.name} (ID:${relation.id}) → ${relatedPath}`);
 
 					// 生成双向链接
 					const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
@@ -1207,17 +1225,24 @@ export class SyncManager {
 					existing2.push(currentLink);
 					updatesByFile.set(relatedPath, existing2);
 				}
+
+				if (localMatchCount > 0) {
+					console.debug(`[Bangumi Sync]   → 本地匹配 ${localMatchCount} 个关联条目`);
+				}
 			} catch (error) {
 				console.warn(`[Bangumi Sync] 获取关联关系失败: ${info.name_cn} (${subjectId})`, error);
 				result.failed++;
 			}
 		}
 
+		console.debug(`[Bangumi Sync] 扫描完成，需要更新 ${updatesByFile.size} 个文件`);
+
 		// 批量更新文件（每个文件只读写一次）
 		for (const [path, links] of updatesByFile) {
 			try {
 				const file = this.app.vault.getAbstractFileByPath(path);
 				if (!(file instanceof TFile)) {
+					console.warn(`[Bangumi Sync] 文件不存在或非 TFile: ${path}`);
 					result.skipped++;
 					continue;
 				}
@@ -1228,6 +1253,7 @@ export class SyncManager {
 					result.linked++;
 					console.debug(`[Bangumi Sync] 扫描关联更新: ${path} (+${links.length})`);
 				} else {
+					console.debug(`[Bangumi Sync] 文件无需更新（链接已存在）: ${path}`);
 					result.skipped++;
 				}
 			} catch (error) {

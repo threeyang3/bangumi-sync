@@ -7124,10 +7124,15 @@ var SyncManager = class {
    */
   async scanAndLinkRelated() {
     const scanPath = this.config.scanFolderPath || "ACGN";
-    console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u6761\u76EE\uFF0C\u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
+    console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u6761\u76EE\uFF0CscanFolderPath: "${this.config.scanFolderPath}"\uFF0C\u5B9E\u9645\u626B\u63CF\u8DEF\u5F84: "${scanPath}"\uFF0CpathTemplate: "${this.config.pathTemplate}"`);
     await this.incrementalSync.scanLocalFolder(scanPath);
     const localSubjects = this.incrementalSync.getLocalSubjects();
     console.debug(`[Bangumi Sync] \u626B\u63CF\u5230 ${localSubjects.size} \u4E2A\u672C\u5730\u6761\u76EE`);
+    if (localSubjects.size === 0) {
+      console.warn(`[Bangumi Sync] \u672A\u626B\u63CF\u5230\u4EFB\u4F55\u672C\u5730\u6761\u76EE\uFF0C\u626B\u63CF\u8DEF\u5F84: "${scanPath}"`);
+    }
+    const allIds = [...localSubjects.keys()];
+    console.debug(`[Bangumi Sync] \u672C\u5730\u6761\u76EE ID: ${allIds.join(", ")}`);
     const result = { linked: 0, skipped: 0, failed: 0 };
     let processed = 0;
     const localPathMap = /* @__PURE__ */ new Map();
@@ -7147,10 +7152,18 @@ var SyncManager = class {
       });
       try {
         const relations = await this.client.getSubjectRelations(subjectId);
+        console.debug(`[Bangumi Sync] [${processed}/${localSubjects.size}] ${info.name_cn || subjectId} (ID:${subjectId}): ${relations.length} \u4E2A\u5173\u8054`);
+        let localMatchCount = 0;
         for (const relation of relations) {
           const relatedPath = localPathMap.get(relation.id);
-          if (!relatedPath || relatedPath === info.path)
+          if (!relatedPath) {
+            console.debug(`[Bangumi Sync]   \u5173\u8054 ${relation.name_cn || relation.name} (ID:${relation.id}) \u2192 \u672A\u540C\u6B65`);
             continue;
+          }
+          if (relatedPath === info.path)
+            continue;
+          localMatchCount++;
+          console.debug(`[Bangumi Sync]   \u5173\u8054 ${relation.name_cn || relation.name} (ID:${relation.id}) \u2192 ${relatedPath}`);
           const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
           const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
           const currentDisplayName = this.extractDisplayNameFromPath(info.path);
@@ -7162,15 +7175,20 @@ var SyncManager = class {
           existing2.push(currentLink);
           updatesByFile.set(relatedPath, existing2);
         }
+        if (localMatchCount > 0) {
+          console.debug(`[Bangumi Sync]   \u2192 \u672C\u5730\u5339\u914D ${localMatchCount} \u4E2A\u5173\u8054\u6761\u76EE`);
+        }
       } catch (error) {
         console.warn(`[Bangumi Sync] \u83B7\u53D6\u5173\u8054\u5173\u7CFB\u5931\u8D25: ${info.name_cn} (${subjectId})`, error);
         result.failed++;
       }
     }
+    console.debug(`[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u9700\u8981\u66F4\u65B0 ${updatesByFile.size} \u4E2A\u6587\u4EF6`);
     for (const [path, links] of updatesByFile) {
       try {
         const file = this.app.vault.getAbstractFileByPath(path);
         if (!(file instanceof import_obsidian11.TFile)) {
+          console.warn(`[Bangumi Sync] \u6587\u4EF6\u4E0D\u5B58\u5728\u6216\u975E TFile: ${path}`);
           result.skipped++;
           continue;
         }
@@ -7181,6 +7199,7 @@ var SyncManager = class {
           result.linked++;
           console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u66F4\u65B0: ${path} (+${links.length})`);
         } else {
+          console.debug(`[Bangumi Sync] \u6587\u4EF6\u65E0\u9700\u66F4\u65B0\uFF08\u94FE\u63A5\u5DF2\u5B58\u5728\uFF09: ${path}`);
           result.skipped++;
         }
       } catch (error) {
