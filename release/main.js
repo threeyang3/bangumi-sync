@@ -468,7 +468,10 @@ var en = {
     rollbackComplete: "Rollback complete: {deleted} deleted, {failed} failed",
     rollbackFailed: "Rollback failed",
     completedStats: "Added: {added}, Skipped: {skipped}, Errors: {errors}",
-    errorDetails: "Error details"
+    errorDetails: "Error details",
+    scanCompleted: "Scan completed",
+    scanCompletedStats: "Checked {checked} items, updated {linked}, skipped {skipped}, failed {failed}",
+    updateDetails: "Update details"
   },
   templateEditor: {
     editTemplate: "Edit template",
@@ -957,7 +960,10 @@ var zhCN = {
     rollbackComplete: "\u56DE\u6EDA\u5B8C\u6210\uFF1A\u5220\u9664 {deleted} \u4E2A\uFF0C\u5931\u8D25 {failed} \u4E2A",
     rollbackFailed: "\u56DE\u6EDA\u5931\u8D25",
     completedStats: "\u65B0\u589E {added}\uFF0C\u8DF3\u8FC7 {skipped}\uFF0C\u5931\u8D25 {errors}",
-    errorDetails: "\u9519\u8BEF\u8BE6\u60C5"
+    errorDetails: "\u9519\u8BEF\u8BE6\u60C5",
+    scanCompleted: "\u626B\u63CF\u5173\u8054\u5B8C\u6210",
+    scanCompletedStats: "\u68C0\u67E5 {checked} \u4E2A\u6761\u76EE\uFF0C\u66F4\u65B0 {linked} \u4E2A\uFF0C\u8DF3\u8FC7 {skipped} \u4E2A\uFF0C\u5931\u8D25 {failed} \u4E2A",
+    updateDetails: "\u66F4\u65B0\u8BE6\u60C5"
   },
   templateEditor: {
     editTemplate: "\u7F16\u8F91\u6A21\u677F",
@@ -7481,12 +7487,17 @@ var SyncModal = class extends import_obsidian12.Modal {
       this.completedEl.removeClass("bangumi-hidden");
       this.completedEl.empty();
       this.completedEl.createEl("p", {
-        text: `\u68C0\u67E5 ${checked} \u4E2A\u6761\u76EE\uFF0C\u66F4\u65B0 ${linked} \u4E2A\uFF0C\u8DF3\u8FC7 ${skipped} \u4E2A\uFF0C\u5931\u8D25 ${failed} \u4E2A`,
+        text: tnFormat("syncModal", "scanCompletedStats", {
+          checked,
+          linked,
+          skipped,
+          failed
+        }),
         cls: "bangumi-sync-stats"
       });
       if (details && details.length > 0) {
         const detailsEl = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details" });
-        detailsEl.createEl("summary", { text: `\u66F4\u65B0\u8BE6\u60C5 (${details.length})` });
+        detailsEl.createEl("summary", { text: `${tn("syncModal", "updateDetails")} (${details.length})` });
         const listEl = detailsEl.createEl("ul", { cls: "bangumi-sync-error-list" });
         for (const item of details) {
           listEl.createEl("li", {
@@ -7504,7 +7515,7 @@ var SyncModal = class extends import_obsidian12.Modal {
       this.progressBar.addClass("bangumi-progress-complete");
     }
     if (this.statusText) {
-      this.updateStatus("\u626B\u63CF\u5173\u8054\u5B8C\u6210");
+      this.updateStatus(tn("syncModal", "scanCompleted"));
     }
   }
   /**

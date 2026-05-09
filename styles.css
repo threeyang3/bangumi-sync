@@ -903,39 +903,51 @@
 }
 
 .bangumi-local-property-section {
-	margin-bottom: 14px;
-	padding: 10px 12px;
+	margin-bottom: 6px;
+	padding: 4px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background: var(--background-secondary);
 }
 
 .bangumi-local-property-section .bangumi-add-collection-section {
 	margin-top: 0;
-	margin-bottom: 10px;
+	margin-bottom: 2px;
+	padding-bottom: 2px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	font-size: 12px;
 }
 
 .bangumi-local-property-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-	gap: 10px 12px;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 1px 4px;
 }
 
 .bangumi-local-property-field {
 	display: flex;
-	flex-direction: column;
+	flex-direction: row;
+	align-items: center;
 	gap: 4px;
 	min-width: 0;
 }
 
 .bangumi-local-property-label {
-	font-size: 12px;
+	font-size: 11px;
 	color: var(--text-muted);
 	line-height: 1.2;
+	white-space: nowrap;
+	min-width: 56px;
+	flex-shrink: 0;
 }
 
 .bangumi-local-property-input {
-	width: 100%;
+	flex: 1;
 	min-width: 0;
-	padding: 6px 8px;
+	padding: 2px 6px;
 	font-size: 12px;
+	height: 26px;
+	box-sizing: border-box;
 }
 
 .bangumi-local-property-input:focus {
@@ -946,7 +958,14 @@
 .bangumi-local-property-toggle {
 	display: flex;
 	align-items: center;
-	height: 30px;
+	gap: 4px;
+	height: 18px;
+}
+
+.bangumi-local-property-toggle input[type="checkbox"] {
+	width: 14px;
+	height: 14px;
+	margin: 0;
 }
 
 .bangumi-local-property-field-toggle {
@@ -2067,16 +2086,30 @@
 	}
 
 	.bangumi-local-property-grid {
-		grid-template-columns: 1fr;
-		gap: 12px;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 1px 4px;
 	}
 
 	.bangumi-local-property-section {
-		padding: 10px;
+		padding: 4px 6px;
 	}
 
 	.bangumi-local-property-section h3 {
-		font-size: 14px;
+		font-size: 12px;
+	}
+
+	.bangumi-local-property-input {
+		min-height: 44px;
+		font-size: 16px;
+	}
+
+	.bangumi-local-property-toggle {
+		height: 44px;
+	}
+
+	.bangumi-local-property-toggle input[type="checkbox"] {
+		width: 20px;
+		height: 20px;
 	}
 
 	/* Status Sync Modal */
