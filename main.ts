@@ -691,7 +691,7 @@ export default class BangumiPlugin extends Plugin {
 			const result = await this.syncManager.scanAndLinkRelated();
 
 			if (this.syncModal) {
-				this.syncModal.showScanCompleted(result.checked, result.linked, result.skipped, result.failed);
+				this.syncModal.showScanCompleted(result.checked, result.linked, result.skipped, result.failed, result.details);
 				this.syncModal = null;
 			}
 			this.cancellationSignal = null;

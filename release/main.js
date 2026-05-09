@@ -7133,7 +7133,7 @@ var SyncManager = class {
     }
     const allIds = [...localSubjects.keys()];
     console.debug(`[Bangumi Sync] \u672C\u5730\u6761\u76EE ID: ${allIds.join(", ")}`);
-    const result = { checked: localSubjects.size, linked: 0, skipped: 0, failed: 0 };
+    const result = { checked: localSubjects.size, linked: 0, skipped: 0, failed: 0, details: [] };
     let processed = 0;
     const localPathMap = /* @__PURE__ */ new Map();
     for (const [id, info] of localSubjects) {
@@ -7246,6 +7246,12 @@ var SyncManager = class {
         if (updatedContent !== content) {
           await this.app.vault.process(file, () => updatedContent);
           result.linked++;
+          const name = this.extractFrontmatterString(content, "\u4E2D\u6587\u540D") || file.basename;
+          const addedNames = links.map((link) => {
+            const match = link.match(/\[\[.*?\|(.+?)\]\]/);
+            return match ? match[1] : link;
+          });
+          result.details.push({ name, addedLinks: addedNames });
           console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u66F4\u65B0: ${path} (+${links.length})`);
         } else {
           console.debug(`[Bangumi Sync] \u6587\u4EF6\u65E0\u9700\u66F4\u65B0\uFF08\u94FE\u63A5\u5DF2\u5B58\u5728\uFF09: ${path}`);
@@ -7466,7 +7472,7 @@ var SyncModal = class extends import_obsidian12.Modal {
   /**
    * 显示扫描完成状态
    */
-  showScanCompleted(checked, linked, skipped, failed) {
+  showScanCompleted(checked, linked, skipped, failed, details) {
     this.isCompleted = true;
     if (this.actionsEl) {
       this.actionsEl.addClass("bangumi-hidden");
@@ -7478,6 +7484,16 @@ var SyncModal = class extends import_obsidian12.Modal {
         text: `\u68C0\u67E5 ${checked} \u4E2A\u6761\u76EE\uFF0C\u66F4\u65B0 ${linked} \u4E2A\uFF0C\u8DF3\u8FC7 ${skipped} \u4E2A\uFF0C\u5931\u8D25 ${failed} \u4E2A`,
         cls: "bangumi-sync-stats"
       });
+      if (details && details.length > 0) {
+        const detailsEl = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details" });
+        detailsEl.createEl("summary", { text: `\u66F4\u65B0\u8BE6\u60C5 (${details.length})` });
+        const listEl = detailsEl.createEl("ul", { cls: "bangumi-sync-error-list" });
+        for (const item of details) {
+          listEl.createEl("li", {
+            text: `${item.name} \u2192 \u65B0\u589E: ${item.addedLinks.join("\u3001")}`
+          });
+        }
+      }
       const closeBtn = this.completedEl.createEl("button", {
         cls: "bangumi-sync-close-btn mod-cta",
         text: tn("syncModal", "completed")
@@ -11836,7 +11852,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
     try {
       const result = await this.syncManager.scanAndLinkRelated();
       if (this.syncModal) {
-        this.syncModal.showScanCompleted(result.checked, result.linked, result.skipped, result.failed);
+        this.syncModal.showScanCompleted(result.checked, result.linked, result.skipped, result.failed, result.details);
         this.syncModal = null;
       }
       this.cancellationSignal = null;

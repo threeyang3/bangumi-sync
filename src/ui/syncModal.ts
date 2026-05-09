@@ -219,7 +219,7 @@ export class SyncModal extends Modal {
 	/**
 	 * 显示扫描完成状态
 	 */
-	showScanCompleted(checked: number, linked: number, skipped: number, failed: number): void {
+	showScanCompleted(checked: number, linked: number, skipped: number, failed: number, details?: { name: string; addedLinks: string[] }[]): void {
 		this.isCompleted = true;
 
 		if (this.actionsEl) {
@@ -234,6 +234,17 @@ export class SyncModal extends Modal {
 				text: `检查 ${checked} 个条目，更新 ${linked} 个，跳过 ${skipped} 个，失败 ${failed} 个`,
 				cls: 'bangumi-sync-stats',
 			});
+
+			if (details && details.length > 0) {
+				const detailsEl = this.completedEl.createEl('details', { cls: 'bangumi-sync-error-details' });
+				detailsEl.createEl('summary', { text: `更新详情 (${details.length})` });
+				const listEl = detailsEl.createEl('ul', { cls: 'bangumi-sync-error-list' });
+				for (const item of details) {
+					listEl.createEl('li', {
+						text: `${item.name} → 新增: ${item.addedLinks.join('、')}`,
+					});
+				}
+			}
 
 			const closeBtn = this.completedEl.createEl('button', {
 				cls: 'bangumi-sync-close-btn mod-cta',

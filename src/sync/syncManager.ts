@@ -1151,7 +1151,7 @@ export class SyncManager {
 	 * 扫描所有本地已同步条目，为相关条目补充双向链接
 	 * 使用并查集查找连通分量，确保同系列所有条目互相关联
 	 */
-	async scanAndLinkRelated(): Promise<{ checked: number; linked: number; skipped: number; failed: number }> {
+	async scanAndLinkRelated(): Promise<{ checked: number; linked: number; skipped: number; failed: number; details: { name: string; addedLinks: string[] }[] }> {
 		const scanPath = this.config.scanFolderPath || 'ACGN';
 		console.debug(`[Bangumi Sync] 扫描关联条目，scanFolderPath: "${this.config.scanFolderPath}"，实际扫描路径: "${scanPath}"，pathTemplate: "${this.config.pathTemplate}"`);
 		await this.incrementalSync.scanLocalFolder(scanPath);
@@ -1166,7 +1166,7 @@ export class SyncManager {
 		const allIds = [...localSubjects.keys()];
 		console.debug(`[Bangumi Sync] 本地条目 ID: ${allIds.join(', ')}`);
 
-		const result = { checked: localSubjects.size, linked: 0, skipped: 0, failed: 0 };
+		const result = { checked: localSubjects.size, linked: 0, skipped: 0, failed: 0, details: [] as { name: string; addedLinks: string[] }[] };
 		let processed = 0;
 
 		// 构建 subjectId → path 映射
@@ -1301,6 +1301,14 @@ export class SyncManager {
 				if (updatedContent !== content) {
 					await this.app.vault.process(file, () => updatedContent);
 					result.linked++;
+					// 提取条目名（从文件路径或 frontmatter）
+					const name = this.extractFrontmatterString(content, '中文名') || file.basename;
+					// 提取新增链接的显示名称
+					const addedNames = links.map(link => {
+						const match = link.match(/\[\[.*?\|(.+?)\]\]/);
+						return match ? match[1] : link;
+					});
+					result.details.push({ name, addedLinks: addedNames });
 					console.debug(`[Bangumi Sync] 扫描关联更新: ${path} (+${links.length})`);
 				} else {
 					console.debug(`[Bangumi Sync] 文件无需更新（链接已存在）: ${path}`);
