@@ -7120,7 +7120,7 @@ var SyncManager = class {
   }
   /**
    * 扫描所有本地已同步条目，为相关条目补充双向链接
-   * 用于修复批量同步时遗漏的相关链接
+   * 使用并查集查找连通分量，确保同系列所有条目互相关联
    */
   async scanAndLinkRelated() {
     const scanPath = this.config.scanFolderPath || "ACGN";
@@ -7141,11 +7141,24 @@ var SyncManager = class {
         localPathMap.set(id, info.path);
       }
     }
-    const updatesByFile = /* @__PURE__ */ new Map();
+    const parent = /* @__PURE__ */ new Map();
+    const find = (x) => {
+      if (!parent.has(x))
+        parent.set(x, x);
+      if (parent.get(x) !== x)
+        parent.set(x, find(parent.get(x)));
+      return parent.get(x);
+    };
+    const union = (a, b) => {
+      const ra = find(a), rb = find(b);
+      if (ra !== rb)
+        parent.set(ra, rb);
+    };
+    const localRelationMap = /* @__PURE__ */ new Map();
     for (const [subjectId, info] of localSubjects) {
       processed++;
       this.reportProgress({
-        status: "processing",
+        status: "scanning",
         current: processed,
         total: localSubjects.size,
         currentItem: info.name_cn || String(subjectId)
@@ -7153,34 +7166,66 @@ var SyncManager = class {
       try {
         const relations = await this.client.getSubjectRelations(subjectId);
         console.debug(`[Bangumi Sync] [${processed}/${localSubjects.size}] ${info.name_cn || subjectId} (ID:${subjectId}): ${relations.length} \u4E2A\u5173\u8054`);
-        let localMatchCount = 0;
+        const localRelatedIds = [];
         for (const relation of relations) {
-          const relatedPath = localPathMap.get(relation.id);
-          if (!relatedPath) {
-            console.debug(`[Bangumi Sync]   \u5173\u8054 ${relation.name_cn || relation.name} (ID:${relation.id}) \u2192 \u672A\u540C\u6B65`);
+          if (!localPathMap.has(relation.id) || relation.id === subjectId)
             continue;
-          }
-          if (relatedPath === info.path)
-            continue;
-          localMatchCount++;
-          console.debug(`[Bangumi Sync]   \u5173\u8054 ${relation.name_cn || relation.name} (ID:${relation.id}) \u2192 ${relatedPath}`);
-          const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
-          const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
-          const currentDisplayName = this.extractDisplayNameFromPath(info.path);
-          const currentLink = `[[${info.path}|${currentDisplayName}]]`;
-          const existing1 = updatesByFile.get(info.path) || [];
-          existing1.push(relatedLink);
-          updatesByFile.set(info.path, existing1);
-          const existing2 = updatesByFile.get(relatedPath) || [];
-          existing2.push(currentLink);
-          updatesByFile.set(relatedPath, existing2);
+          localRelatedIds.push(relation.id);
+          union(subjectId, relation.id);
         }
-        if (localMatchCount > 0) {
-          console.debug(`[Bangumi Sync]   \u2192 \u672C\u5730\u5339\u914D ${localMatchCount} \u4E2A\u5173\u8054\u6761\u76EE`);
+        localRelationMap.set(subjectId, localRelatedIds);
+        if (localRelatedIds.length > 0) {
+          console.debug(`[Bangumi Sync]   \u672C\u5730\u5173\u8054: ${localRelatedIds.join(", ")}`);
         }
       } catch (error) {
         console.warn(`[Bangumi Sync] \u83B7\u53D6\u5173\u8054\u5173\u7CFB\u5931\u8D25: ${info.name_cn} (${subjectId})`, error);
         result.failed++;
+        localRelationMap.set(subjectId, []);
+      }
+    }
+    const components = /* @__PURE__ */ new Map();
+    for (const subjectId of localSubjects.keys()) {
+      const root = find(subjectId);
+      if (!components.has(root))
+        components.set(root, []);
+      components.get(root).push(subjectId);
+    }
+    const multiComponents = [...components.entries()].filter(([, ids]) => ids.length >= 2);
+    console.debug(`[Bangumi Sync] \u8FDE\u901A\u5206\u91CF: ${components.size} \u7EC4\uFF0C\u5176\u4E2D ${multiComponents.length} \u7EC4\u542B 2+ \u6761\u76EE`);
+    for (const [root, ids] of multiComponents) {
+      console.debug(`[Bangumi Sync] \u5206\u91CF (root:${root}): ${ids.map((id) => {
+        var _a;
+        return `${((_a = localSubjects.get(id)) == null ? void 0 : _a.name_cn) || id}(${id})`;
+      }).join(", ")}`);
+    }
+    const updatesByFile = /* @__PURE__ */ new Map();
+    for (const [, componentIds] of multiComponents) {
+      const allLinks = [];
+      for (const id of componentIds) {
+        const info = localSubjects.get(id);
+        if (!(info == null ? void 0 : info.path))
+          continue;
+        const displayName = this.extractDisplayNameFromPath(info.path);
+        allLinks.push({ subjectId: id, link: `[[${info.path}|${displayName}]]` });
+      }
+      for (const id of componentIds) {
+        const info = localSubjects.get(id);
+        if (!(info == null ? void 0 : info.path))
+          continue;
+        const existingRelated = localRelationMap.get(id) || [];
+        const existingSet = new Set(existingRelated);
+        const missingLinks = [];
+        for (const { subjectId: otherId, link } of allLinks) {
+          if (otherId === id)
+            continue;
+          if (!existingSet.has(otherId)) {
+            missingLinks.push(link);
+          }
+        }
+        if (missingLinks.length > 0) {
+          updatesByFile.set(info.path, missingLinks);
+          console.debug(`[Bangumi Sync] ${info.name_cn || id}: \u8865\u5145 ${missingLinks.length} \u4E2A\u94FE\u63A5`);
+        }
       }
     }
     console.debug(`[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u9700\u8981\u66F4\u65B0 ${updatesByFile.size} \u4E2A\u6587\u4EF6`);

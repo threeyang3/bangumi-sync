@@ -1149,7 +1149,7 @@ export class SyncManager {
 
 	/**
 	 * 扫描所有本地已同步条目，为相关条目补充双向链接
-	 * 用于修复批量同步时遗漏的相关链接
+	 * 使用并查集查找连通分量，确保同系列所有条目互相关联
 	 */
 	async scanAndLinkRelated(): Promise<{ linked: number; skipped: number; failed: number }> {
 		const scanPath = this.config.scanFolderPath || 'ACGN';
@@ -1163,7 +1163,6 @@ export class SyncManager {
 			console.warn(`[Bangumi Sync] 未扫描到任何本地条目，扫描路径: "${scanPath}"`);
 		}
 
-		// 打印所有本地条目 ID 列表，便于调试
 		const allIds = [...localSubjects.keys()];
 		console.debug(`[Bangumi Sync] 本地条目 ID: ${allIds.join(', ')}`);
 
@@ -1178,66 +1177,112 @@ export class SyncManager {
 			}
 		}
 
-		// 按目标文件分组收集需要更新的链接
-		const updatesByFile = new Map<string, string[]>();
+		// === 第一阶段：获取所有本地条目的关联关系，用并查集构建连通分量 ===
+
+		// 并查集
+		const parent = new Map<number, number>();
+		const find = (x: number): number => {
+			if (!parent.has(x)) parent.set(x, x);
+			if (parent.get(x) !== x) parent.set(x, find(parent.get(x)!));
+			return parent.get(x)!;
+		};
+		const union = (a: number, b: number) => {
+			const ra = find(a), rb = find(b);
+			if (ra !== rb) parent.set(ra, rb);
+		};
+
+		// 存储每个条目的本地关联 ID 列表（用于后续补全链接）
+		const localRelationMap = new Map<number, number[]>();
 
 		for (const [subjectId, info] of localSubjects) {
 			processed++;
 			this.reportProgress({
-				status: 'processing',
+				status: 'scanning',
 				current: processed,
 				total: localSubjects.size,
 				currentItem: info.name_cn || String(subjectId),
 			});
 
 			try {
-				// 获取条目的关联关系
 				const relations = await this.client.getSubjectRelations(subjectId);
 				console.debug(`[Bangumi Sync] [${processed}/${localSubjects.size}] ${info.name_cn || subjectId} (ID:${subjectId}): ${relations.length} 个关联`);
 
-				// 找出已同步到本地的相关条目
-				let localMatchCount = 0;
+				const localRelatedIds: number[] = [];
 				for (const relation of relations) {
-					const relatedPath = localPathMap.get(relation.id);
-					if (!relatedPath) {
-						console.debug(`[Bangumi Sync]   关联 ${relation.name_cn || relation.name} (ID:${relation.id}) → 未同步`);
-						continue;
-					}
-					if (relatedPath === info.path) continue;
-
-					localMatchCount++;
-					console.debug(`[Bangumi Sync]   关联 ${relation.name_cn || relation.name} (ID:${relation.id}) → ${relatedPath}`);
-
-					// 生成双向链接
-					const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
-					const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
-
-					const currentDisplayName = this.extractDisplayNameFromPath(info.path);
-					const currentLink = `[[${info.path}|${currentDisplayName}]]`;
-
-					// 当前条目 → 相关条目
-					const existing1 = updatesByFile.get(info.path) || [];
-					existing1.push(relatedLink);
-					updatesByFile.set(info.path, existing1);
-
-					// 相关条目 → 当前条目（反向）
-					const existing2 = updatesByFile.get(relatedPath) || [];
-					existing2.push(currentLink);
-					updatesByFile.set(relatedPath, existing2);
+					if (!localPathMap.has(relation.id) || relation.id === subjectId) continue;
+					localRelatedIds.push(relation.id);
+					union(subjectId, relation.id);
 				}
 
-				if (localMatchCount > 0) {
-					console.debug(`[Bangumi Sync]   → 本地匹配 ${localMatchCount} 个关联条目`);
+				localRelationMap.set(subjectId, localRelatedIds);
+				if (localRelatedIds.length > 0) {
+					console.debug(`[Bangumi Sync]   本地关联: ${localRelatedIds.join(', ')}`);
 				}
 			} catch (error) {
 				console.warn(`[Bangumi Sync] 获取关联关系失败: ${info.name_cn} (${subjectId})`, error);
 				result.failed++;
+				localRelationMap.set(subjectId, []);
+			}
+		}
+
+		// === 第二阶段：按连通分量分组 ===
+
+		const components = new Map<number, number[]>();
+		for (const subjectId of localSubjects.keys()) {
+			const root = find(subjectId);
+			if (!components.has(root)) components.set(root, []);
+			components.get(root)!.push(subjectId);
+		}
+
+		// 过滤出含 2+ 条目的分量（需要补全链接的组）
+		const multiComponents = [...components.entries()].filter(([, ids]) => ids.length >= 2);
+		console.debug(`[Bangumi Sync] 连通分量: ${components.size} 组，其中 ${multiComponents.length} 组含 2+ 条目`);
+
+		for (const [root, ids] of multiComponents) {
+			console.debug(`[Bangumi Sync] 分量 (root:${root}): ${ids.map(id => `${localSubjects.get(id)?.name_cn || id}(${id})`).join(', ')}`);
+		}
+
+		// === 第三阶段：为每组补全所有互链 ===
+
+		const updatesByFile = new Map<string, string[]>();
+
+		for (const [, componentIds] of multiComponents) {
+			// 收集该组中所有条目的链接
+			const allLinks: { subjectId: number; link: string }[] = [];
+			for (const id of componentIds) {
+				const info = localSubjects.get(id);
+				if (!info?.path) continue;
+				const displayName = this.extractDisplayNameFromPath(info.path);
+				allLinks.push({ subjectId: id, link: `[[${info.path}|${displayName}]]` });
+			}
+
+			// 为每个条目检查是否缺少对组内其他条目的链接
+			for (const id of componentIds) {
+				const info = localSubjects.get(id);
+				if (!info?.path) continue;
+
+				const existingRelated = localRelationMap.get(id) || [];
+				const existingSet = new Set(existingRelated);
+				const missingLinks: string[] = [];
+
+				for (const { subjectId: otherId, link } of allLinks) {
+					if (otherId === id) continue;
+					if (!existingSet.has(otherId)) {
+						missingLinks.push(link);
+					}
+				}
+
+				if (missingLinks.length > 0) {
+					updatesByFile.set(info.path, missingLinks);
+					console.debug(`[Bangumi Sync] ${info.name_cn || id}: 补充 ${missingLinks.length} 个链接`);
+				}
 			}
 		}
 
 		console.debug(`[Bangumi Sync] 扫描完成，需要更新 ${updatesByFile.size} 个文件`);
 
-		// 批量更新文件（每个文件只读写一次）
+		// === 第四阶段：批量更新文件 ===
+
 		for (const [path, links] of updatesByFile) {
 			try {
 				const file = this.app.vault.getAbstractFileByPath(path);
