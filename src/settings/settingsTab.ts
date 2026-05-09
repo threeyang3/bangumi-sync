@@ -114,7 +114,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 		const helpLinksDiv = containerEl.createDiv({ cls: 'bangumi-help-links' });
 
 		new Setting(helpLinksDiv)
-			.setName(tn('settings', 'templateGuide'))
 			.addButton(button => {
 				button
 					.setButtonText(tn('settings', 'templateGuide'))
@@ -124,7 +123,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(helpLinksDiv)
-			.setName(tn('settings', 'githubRepo'))
 			.addButton(button => {
 				button
 					.setButtonText(tn('settings', 'githubRepo'))
@@ -134,7 +132,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(helpLinksDiv)
-			.setName(tn('settings', 'getAccessToken'))
 			.addButton(button => {
 				button
 					.setButtonText(tn('settings', 'getAccessToken'))
