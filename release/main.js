@@ -336,6 +336,8 @@ var en = {
     pathSettings: "Path settings",
     filePathTemplate: "File path template",
     filePathTemplateDesc: "Supported variables: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}",
+    pathTemplateByType: "Per-type path templates",
+    pathTemplateByTypeDesc: "Optional overrides; empty falls back to the default template above",
     scanFolderPath: "Scan folder path",
     scanFolderPathDesc: "Folder path for detecting synced items (leave empty to use base path from file path template)",
     downloadCoverImages: "Download cover images",
@@ -828,6 +830,8 @@ var zhCN = {
     pathSettings: "\u8DEF\u5F84\u8BBE\u7F6E",
     filePathTemplate: "\u6587\u4EF6\u8DEF\u5F84\u6A21\u677F",
     filePathTemplateDesc: "\u652F\u6301\u53D8\u91CF: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}",
+    pathTemplateByType: "\u5404\u7C7B\u578B\u8DEF\u5F84\u6A21\u677F",
+    pathTemplateByTypeDesc: "\u53EF\u9009\u8986\u76D6\uFF0C\u4E3A\u7A7A\u5219\u4F7F\u7528\u4E0A\u65B9\u9ED8\u8BA4\u6A21\u677F",
     scanFolderPath: "\u626B\u63CF\u6587\u4EF6\u5939\u8DEF\u5F84",
     scanFolderPathDesc: "\u7528\u4E8E\u68C0\u6D4B\u5DF2\u540C\u6B65\u6761\u76EE\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\uFF08\u7559\u7A7A\u5219\u4F7F\u7528\u6587\u4EF6\u8DEF\u5F84\u6A21\u677F\u7684\u57FA\u7840\u8DEF\u5F84\uFF09",
     downloadCoverImages: "\u4E0B\u8F7D\u5C01\u9762\u56FE\u7247",
@@ -1606,10 +1610,13 @@ tags:
 {{tags}}
 \u8BC4\u5206: {{my_rate}}
 \u77ED\u8BC4: "{{my_comment}}"
+\u4F5C\u54C1\u5927\u7C7B: Real
+\u5177\u4F53\u7C7B\u578B: "{{category}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u5C01\u9762: "{{cover}}"
 \u4E0A\u6620\u65E5\u671F: "{{date}}"
+\u96C6\u6570: "{{episode}}"
 ---
 
 > [!bangumi-info]+ \u{1F3AC} **{{name}}**
@@ -1621,6 +1628,8 @@ Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 > | \u72B6\u6001 |\`= this.\u89C2\u770B\u72B6\u6001\`|
 > | \u6807\u7B7E |\`= this.tags\`|
 > | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
+> | \u7C7B\u578B | {{category}} |
+> | \u96C6\u6570 | \u5171{{episode}}\u96C6 |
 > | \u4E0A\u6620 |{{date}}|
 
 > [!abstract]+ **\u77ED\u8BC4**
@@ -1628,6 +1637,14 @@ Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 
 > [!abstract]+ **\u7B80\u4ECB**
 > {{summary}}
+
+## \u96C6\u6570
+
+{{episodes}}
+
+## \u8BB0\u5F55
+
+## \u611F\u60F3
 `;
 var ANIME_TEMPLATE_AUTHOR = `---
 id: {{id}}
@@ -1982,13 +1999,71 @@ ISBN: "{{isbn}}"
 
 ## \u611F\u60F3
 `;
+var REAL_TEMPLATE_AUTHOR = `---
+id: {{id}}
+\u4E2D\u6587\u540D: "{{name_cn}}"
+\u539F\u540D: "{{name}}"
+\u89C2\u770B\u72B6\u6001: {{my_status}}
+tags:
+{{tags}}
+\u8BC4\u5206: {{my_rate}}
+\u5267\u60C5\u8BC4\u5206:
+\u6F14\u6280\u8BC4\u5206:
+\u5236\u4F5C\u8BC4\u5206:
+\u6807\u8BED:
+\u5355\u8BC4: false
+\u7CBE\u5F69\u7247\u6BB5:
+\u5B58\u50A8:
+\u8D44\u6E90\u5C5E\u6027: []
+\u76F8\u5173:
+{{related}}
+\u4F5C\u54C1\u5927\u7C7B: Real
+\u5177\u4F53\u7C7B\u578B: "{{category}}"
+Bangumi\u8BC4\u5206: "{{rating}}"
+Bangumi\u94FE\u63A5: "{{bangumi_url}}"
+\u5C01\u9762: "{{cover}}"
+\u4E0A\u6620\u65E5\u671F: "{{date}}"
+\u96C6\u6570: "{{episode}}"
+---
+
+> [!bangumi-info]+ \u{1F3AC} **{{name}}**
+>
+> ![cover|400]({{cover}})
+>
+> | | |
+> |:------:|:------------------------------------------:|
+> | \u6807\u8BED |\`= this.\u6807\u8BED\`|
+> | \u72B6\u6001 |\`= this.\u89C2\u770B\u72B6\u6001\`|
+> | \u6807\u7B7E |\`= this.tags\`|
+> | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
+> | \u660E\u7EC6 |\u5267\u60C5: \`= this.\u5267\u60C5\u8BC4\u5206\` \u6F14\u6280: \`= this.\u6F14\u6280\u8BC4\u5206\` \u5236\u4F5C: \`= this.\u5236\u4F5C\u8BC4\u5206\`|
+> | \u7C7B\u578B | {{category}} |
+> | \u96C6\u6570 | \u5171{{episode}}\u96C6 |
+> | \u7CBE\u5F69\u7247\u6BB5 | \`= this.\u7CBE\u5F69\u7247\u6BB5\` |
+> | \u5B58\u50A8 | \`= this.\u5B58\u50A8\`\xB7\`=this.\u8D44\u6E90\u5C5E\u6027\` |
+> | \u76F8\u5173 | \`= this.\u76F8\u5173\` |
+
+> [!abstract]+ **\u77ED\u8BC4**
+> {{my_comment_raw}}
+
+> [!abstract]- **\u7B80\u4ECB**
+> {{summary}}
+
+## \u96C6\u6570
+
+{{episodes}}
+
+## \u8BB0\u5F55
+
+## \u611F\u60F3
+`;
 var ANIME_TEMPLATE = ANIME_TEMPLATE_AUTHOR;
 var NOVEL_TEMPLATE = NOVEL_TEMPLATE_AUTHOR;
 var COMIC_TEMPLATE = COMIC_TEMPLATE_AUTHOR;
 var GAME_TEMPLATE = GAME_TEMPLATE_AUTHOR;
 var ALBUM_TEMPLATE = ALBUM_TEMPLATE_AUTHOR;
 var MUSIC_TEMPLATE = MUSIC_TEMPLATE_STANDARD;
-var REAL_TEMPLATE = REAL_TEMPLATE_STANDARD;
+var REAL_TEMPLATE = REAL_TEMPLATE_AUTHOR;
 function getDefaultTemplate(subjectType, category, useAuthorTemplate = true) {
   if (category) {
     if (category.includes("\u5C0F\u8BF4")) {
@@ -2011,7 +2086,7 @@ function getDefaultTemplate(subjectType, category, useAuthorTemplate = true) {
     case 4:
       return useAuthorTemplate ? GAME_TEMPLATE_AUTHOR : GAME_TEMPLATE_STANDARD;
     case 6:
-      return REAL_TEMPLATE_STANDARD;
+      return useAuthorTemplate ? REAL_TEMPLATE_AUTHOR : REAL_TEMPLATE_STANDARD;
     default:
       return useAuthorTemplate ? NOVEL_TEMPLATE_AUTHOR : NOVEL_TEMPLATE_STANDARD;
   }
@@ -2122,6 +2197,7 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
   }
   // ==================== 标签页：路径 ====================
   buildPathsTab(containerEl) {
+    var _a;
     new import_obsidian2.Setting(containerEl).setName(tn("settings", "pathSettings")).setHeading();
     new import_obsidian2.Setting(containerEl).setName(tn("settings", "filePathTemplate")).setDesc(tn("settings", "filePathTemplateDesc"));
     const pathTemplateDiv = containerEl.createDiv({ cls: "bangumi-path-template-setting" });
@@ -2135,6 +2211,40 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
     });
     const previewEl = containerEl.createDiv({ cls: "bangumi-path-preview" });
     this.updatePathPreview(previewEl, this.settings.syncPathTemplate);
+    new import_obsidian2.Setting(containerEl).setName(tn("settings", "pathTemplateByType")).setDesc(tn("settings", "pathTemplateByTypeDesc"));
+    const TYPE_PATH_KEYS = [
+      { key: "anime", label: "\u52A8\u753B" },
+      { key: "novel", label: "\u5C0F\u8BF4" },
+      { key: "comic", label: "\u6F2B\u753B" },
+      { key: "album", label: "\u753B\u96C6" },
+      { key: "game", label: "\u6E38\u620F" },
+      { key: "music", label: "\u97F3\u4E50" },
+      { key: "real", label: "\u4E09\u6B21\u5143" }
+    ];
+    for (const { key, label } of TYPE_PATH_KEYS) {
+      const typeDiv = containerEl.createDiv({ cls: "bangumi-path-template-setting" });
+      new import_obsidian2.Setting(typeDiv).setName(label).addText((text) => {
+        var _a2;
+        text.setPlaceholder(this.settings.syncPathTemplate).setValue(((_a2 = this.settings.pathTemplateByType) == null ? void 0 : _a2[key]) || "").onChange(async (value) => {
+          if (!this.settings.pathTemplateByType) {
+            this.settings.pathTemplateByType = {};
+          }
+          if (value) {
+            this.settings.pathTemplateByType[key] = value;
+          } else {
+            delete this.settings.pathTemplateByType[key];
+            if (Object.keys(this.settings.pathTemplateByType).length === 0) {
+              this.settings.pathTemplateByType = void 0;
+            }
+          }
+          await this.onSave();
+          this.updatePathPreview(typePreviewEl, value || this.settings.syncPathTemplate);
+        });
+        text.inputEl.addClass("bangumi-path-input");
+      });
+      const typePreviewEl = typeDiv.createDiv({ cls: "bangumi-path-preview" });
+      this.updatePathPreview(typePreviewEl, ((_a = this.settings.pathTemplateByType) == null ? void 0 : _a[key]) || this.settings.syncPathTemplate);
+    }
     new import_obsidian2.Setting(containerEl).setName(tn("settings", "scanFolderPath")).setDesc(tn("settings", "scanFolderPathDesc")).addText((text) => text.setPlaceholder("ACGN").setValue(this.settings.scanFolderPath).onChange(async (value) => {
       this.settings.scanFolderPath = value;
       await this.onSave();
@@ -4737,7 +4847,7 @@ function parseInfoByType(infobox, subjectType, platform, persons) {
       };
     case 6 /* Real */:
       return {
-        category: getInfoboxValue(infobox, "\u7C7B\u578B") || "\u4E09\u6B21\u5143"
+        category: platform || "\u4E09\u6B21\u5143"
       };
     default:
       return { category: "\u672A\u77E5" };
@@ -6533,6 +6643,19 @@ var SyncManager = class {
     return match ? match[1] : "";
   }
   /**
+   * 根据条目类型解析路径模板
+   * 优先使用类型独立模板，回退到默认模板
+   */
+  resolvePathTemplate(subject) {
+    if (this.config.pathTemplateByType) {
+      const vars = extractPathVars(subject);
+      const typeTemplate = this.config.pathTemplateByType[vars.type];
+      if (typeTemplate)
+        return typeTemplate;
+    }
+    return this.config.pathTemplate;
+  }
+  /**
    * V4: 获取章节数据
    * 仅对动画、小说、漫画类型获取
    */
@@ -6847,7 +6970,7 @@ var SyncManager = class {
     const characters = parseCharacters(relatedCharacters, 9);
     const typeLabel = getTypeLabel(subject.type);
     const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
-    const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
+    const filePath = generateFilePath(this.resolvePathTemplate(subject), subject, collection);
     const episodeData = await this.fetchEpisodeData(subject);
     let extraTemplateVars;
     if (options.localPropertyValues || options.overwrite) {
@@ -7029,7 +7152,7 @@ var SyncManager = class {
             tags: subject.tags
           }
         };
-        const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
+        const filePath = generateFilePath(this.resolvePathTemplate(subject), subject, collection);
         const episodeData = await this.fetchEpisodeData(subject);
         const templateProperties = getTemplatePropertyGroupsForSubject(subject, this.config.customTemplates).customProperties;
         const extraTemplateVars = buildExtraTemplateVarsFromPropertyValues(templateProperties, input.localPropertyValues);
@@ -8203,9 +8326,12 @@ var SearchModal = class extends import_obsidian16.Modal {
    * 检查条目是否已同步到本地
    */
   checkLocalSyncStatus(subject) {
+    var _a;
     try {
+      const typeLabel = extractPathVars(subject).type;
+      const template = ((_a = this.settings.pathTemplateByType) == null ? void 0 : _a[typeLabel]) || this.settings.syncPathTemplate;
       const filePath = generateFilePath(
-        this.settings.syncPathTemplate,
+        template,
         subject
       );
       const file = this.app.vault.getAbstractFileByPath(filePath);
@@ -11537,6 +11663,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
     const config = {
       accessToken: this.settings.accessToken,
       pathTemplate: this.settings.syncPathTemplate,
+      pathTemplateByType: this.settings.pathTemplateByType,
       imagePathTemplate: this.settings.imagePathTemplate,
       notePathTemplate: this.settings.notePathTemplate,
       downloadImages: this.settings.downloadImages,
