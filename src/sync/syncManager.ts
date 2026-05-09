@@ -733,7 +733,7 @@ export class SyncManager {
 		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
-		const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(collection.subject_id);
+		const { subject, characters: relatedCharacters, relations, persons } = await this.client.getFullSubjectInfo(collection.subject_id);
 		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
 
 		// 解析角色信息
@@ -776,7 +776,8 @@ export class SyncManager {
 			this.config.coverLinkType,
 			localCoverPath,
 			relatedLinks,
-			extraTemplateVars
+			extraTemplateVars,
+			persons
 		);
 
 		// 应用自定义属性值
@@ -897,7 +898,7 @@ export class SyncManager {
 			// 2. 创建本地文件
 			if (input.createLocal) {
 				// 获取完整条目信息
-				const { subject, characters: relatedCharacters, relations } = await this.client.getFullSubjectInfo(subjectId);
+				const { subject, characters: relatedCharacters, relations, persons } = await this.client.getFullSubjectInfo(subjectId);
 
 				// 解析角色信息
 				const characters = parseCharacters(relatedCharacters, 9);
@@ -963,7 +964,8 @@ export class SyncManager {
 					this.config.coverLinkType,
 					localCoverPath,
 					relatedLinks,
-					extraTemplateVars
+					extraTemplateVars,
+					persons
 				);
 
 				const finalContent = input.localPropertyValues && Object.keys(input.localPropertyValues).length > 0

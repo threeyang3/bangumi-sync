@@ -3,7 +3,7 @@
  * 从 Bangumi API 返回的 infobox 中解析各类型条目的特定字段
  */
 
-import { InfoboxItem, SubjectType } from '../api/types';
+import { InfoboxItem, RelatedPerson, SubjectType } from '../api/types';
 
 /**
  * 解析后的条目信息
@@ -197,13 +197,21 @@ function getInfoboxNumber(infobox: InfoboxItem[] | undefined, key: string, alter
 /**
  * 解析动画信息
  */
-export function parseAnimeInfo(infobox: InfoboxItem[] | undefined, platform?: string): ParsedInfo {
+export function parseAnimeInfo(infobox: InfoboxItem[] | undefined, platform?: string, persons?: RelatedPerson[]): ParsedInfo {
 	// 首先尝试获取动画制作字段
 	let animeMake = getInfoboxValue(infobox, '动画制作');
 
 	// 如果没有动画制作字段，尝试从 Copyright 提取（针对吉卜力等作品）
 	if (!animeMake) {
 		animeMake = extractAnimeMakeFromCopyright(infobox);
+	}
+
+	// 如果仍然没有，从关联人物中提取 relation 为"动画制作"的条目
+	if (!animeMake && persons) {
+		const studioPersons = persons.filter(p => p.relation === '动画制作');
+		if (studioPersons.length > 0) {
+			animeMake = studioPersons.map(p => p.name).join('、');
+		}
 	}
 
 	// 获取具体类型：优先使用 platform 字段，其次从 infobox 获取
@@ -376,12 +384,13 @@ export function parseAlbumInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 export function parseInfoByType(
 	infobox: InfoboxItem[] | undefined,
 	subjectType: SubjectType,
-	platform?: string
+	platform?: string,
+	persons?: RelatedPerson[]
 ): ParsedInfo {
 	// 先根据条目类型判断
 	switch (subjectType) {
 		case SubjectType.Anime:
-			return parseAnimeInfo(infobox, platform);
+			return parseAnimeInfo(infobox, platform, persons);
 
 		case SubjectType.Game:
 			return parseGameInfo(infobox);

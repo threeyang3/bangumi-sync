@@ -5,7 +5,7 @@
  * 支持章节显示
  */
 
-import { Subject, UserCollection, getCollectionStatusLabel, Episode, UserEpisodeCollection, SubjectType } from '../../common/api/types';
+import { Subject, UserCollection, getCollectionStatusLabel, Episode, UserEpisodeCollection, SubjectType, RelatedPerson } from '../../common/api/types';
 import { parseInfoByType, parseDate, cleanSummary } from '../../common/parser/infoboxParser';
 import { getCharacterTemplateVars, CharacterInfo } from '../../common/parser/characterParser';
 import { getDefaultTemplate, getTypeLabel } from '../../common/template/defaultTemplates';
@@ -71,10 +71,11 @@ export function extractTemplateVars(
 	coverLinkType?: CoverLinkType,
 	localCoverPath?: string,
 	relatedLinks?: string[],
-	extraTemplateVars?: Record<string, string>
+	extraTemplateVars?: Record<string, string>,
+	persons?: RelatedPerson[]
 ): ContentTemplateVars {
 	// 解析 infobox 获取详细信息
-	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform, persons);
 
 	// 获取类型标签
 	const typeLabel = getTypeLabel(subject.type, parsedInfo.category);
@@ -292,9 +293,10 @@ export function generateContent(
 	coverLinkType?: CoverLinkType,
 	localCoverPath?: string,
 	relatedLinks?: string[],
-	extraTemplateVars?: Record<string, string>
+	extraTemplateVars?: Record<string, string>,
+	persons?: RelatedPerson[]
 ): string {
-	const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars);
+	const vars = extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars, persons);
 	return renderContentTemplate(template, vars);
 }
 
@@ -314,15 +316,16 @@ export function generateContentByType(
 	coverLinkType?: CoverLinkType,
 	localCoverPath?: string,
 	relatedLinks?: string[],
-	extraTemplateVars?: Record<string, string>
+	extraTemplateVars?: Record<string, string>,
+	persons?: RelatedPerson[]
 ): string {
 	// 解析 infobox 获取详细信息以确定细分类别
-	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform, persons);
 	const category = parsedInfo.category || '';
 
 	// 将 category 传递给 resolveTemplateForSubject，避免重复解析
 	const template = resolveTemplateForSubject(subject, customTemplates, category);
-	return generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars);
+	return generateContent(template, subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars, persons);
 }
 
 export function resolveTemplateForSubject(
