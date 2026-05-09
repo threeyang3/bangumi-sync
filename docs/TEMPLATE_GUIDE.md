@@ -232,7 +232,7 @@ tags:
 | `{{start}}` | 开始日期 | 书籍 |
 | `{{end}}` | 结束日期 | 书籍 |
 | `{{staff}}` | staff 信息 | 通用 |
-| `{{platform}}` | 平台 | 游戏 |
+| `{{platform}}` | Bangumi API 平台字段（如"公式书"、"TV"、"电影"） | 通用 |
 | `{{develop}}` | 开发商 | 游戏 |
 | `{{playerNum}}` | 游玩人数 | 游戏 |
 | `{{script}}` | 剧本 | 游戏 |

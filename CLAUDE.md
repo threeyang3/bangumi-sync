@@ -178,6 +178,8 @@ gh release edit {版本号} --target adv
 | 变量 | 说明 |
 |------|------|
 | `{{type}}` | 条目类型（anime/game/novel/comic/album/music/real） |
+| `{{category}}` | 细分类别（如小说/漫画/画集/TV/电影） |
+| `{{platform}}` | Bangumi API 平台字段（如"公式书"、"TV"、"电影"） |
 | `{{name_cn_with_type}}` | 中文名带类型后缀，如 `进击的巨人(动画)` |
 | `{{id}}` | 条目 ID |
 

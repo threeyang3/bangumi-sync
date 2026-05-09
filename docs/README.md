@@ -18,7 +18,6 @@
 4. [DEVELOPMENT.md](./DEVELOPMENT.md)
 5. [CODE_STANDARDS.md](./CODE_STANDARDS.md)
 6. [STATUS_SYNC_PITFALLS.md](./STATUS_SYNC_PITFALLS.md)
-7. [superpowers/specs/2026-04-30-mobile-optimization-design.md](./superpowers/specs/2026-04-30-mobile-optimization-design.md) 与 [superpowers/plans/2026-04-30-mobile-optimization.md](./superpowers/plans/2026-04-30-mobile-optimization.md)：移动端优化的设计记录和实现进度
 
 ## 文档分工
 
@@ -89,10 +88,6 @@
 ### [VERSION_HISTORY.md](./VERSION_HISTORY.md)
 
 记录对外版本历史。
-
-### `superpowers/`
-
-记录阶段性设计方案和执行计划。移动端优化文档当前是历史计划 + 进度记录，不等同于所有条目都已完成。
 
 ## 文档维护约束
 
