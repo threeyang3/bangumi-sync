@@ -328,6 +328,7 @@ export default class BangumiPlugin extends Plugin {
 		const config: SyncManagerConfig = {
 			accessToken: this.settings.accessToken,
 			pathTemplate: this.settings.syncPathTemplate,
+			pathTemplateByType: this.settings.pathTemplateByType,
 			imagePathTemplate: this.settings.imagePathTemplate,
 			notePathTemplate: this.settings.notePathTemplate,
 			downloadImages: this.settings.downloadImages,

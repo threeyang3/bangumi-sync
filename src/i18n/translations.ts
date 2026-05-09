@@ -77,6 +77,8 @@ export interface TranslationStrings {
 		pathSettings: string;
 		filePathTemplate: string;
 		filePathTemplateDesc: string;
+		pathTemplateByType: string;
+		pathTemplateByTypeDesc: string;
 		scanFolderPath: string;
 		scanFolderPathDesc: string;
 		downloadCoverImages: string;
@@ -619,6 +621,8 @@ const en: TranslationStrings = {
 		pathSettings: 'Path settings',
 		filePathTemplate: 'File path template',
 		filePathTemplateDesc: 'Supported variables: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}',
+		pathTemplateByType: 'Per-type path templates',
+		pathTemplateByTypeDesc: 'Optional overrides; empty falls back to the default template above',
 		scanFolderPath: 'Scan folder path',
 		scanFolderPathDesc: 'Folder path for detecting synced items (leave empty to use base path from file path template)',
 		downloadCoverImages: 'Download cover images',
@@ -1135,6 +1139,8 @@ const zhCN: TranslationStrings = {
 		pathSettings: '路径设置',
 		filePathTemplate: '文件路径模板',
 		filePathTemplateDesc: '支持变量: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}',
+		pathTemplateByType: '各类型路径模板',
+		pathTemplateByTypeDesc: '可选覆盖，为空则使用上方默认模板',
 		scanFolderPath: '扫描文件夹路径',
 		scanFolderPathDesc: '用于检测已同步条目的文件夹路径（留空则使用文件路径模板的基础路径）',
 		downloadCoverImages: '下载封面图片',

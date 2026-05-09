@@ -94,6 +94,9 @@ export interface BangumiPluginSettings {
 
 	// 数据保护设置
 	dataProtection: DataProtectionSettings;
+
+	// 各类型独立路径模板
+	pathTemplateByType?: Record<string, string>;  // key: anime/novel/comic/album/game/music/real
 }
 
 /**

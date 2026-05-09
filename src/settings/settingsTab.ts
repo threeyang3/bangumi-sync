@@ -184,6 +184,50 @@ export class BangumiSettingTab extends PluginSettingTab {
 		const previewEl = containerEl.createDiv({ cls: 'bangumi-path-preview' });
 		this.updatePathPreview(previewEl, this.settings.syncPathTemplate);
 
+		// 各类型路径模板
+		new Setting(containerEl)
+			.setName(tn('settings', 'pathTemplateByType'))
+			.setDesc(tn('settings', 'pathTemplateByTypeDesc'));
+
+		const TYPE_PATH_KEYS = [
+			{ key: 'anime', label: '动画' },
+			{ key: 'novel', label: '小说' },
+			{ key: 'comic', label: '漫画' },
+			{ key: 'album', label: '画集' },
+			{ key: 'game', label: '游戏' },
+			{ key: 'music', label: '音乐' },
+			{ key: 'real', label: '三次元' },
+		];
+
+		for (const { key, label } of TYPE_PATH_KEYS) {
+			const typeDiv = containerEl.createDiv({ cls: 'bangumi-path-template-setting' });
+			new Setting(typeDiv)
+				.setName(label)
+				.addText(text => {
+					text.setPlaceholder(this.settings.syncPathTemplate)
+						.setValue(this.settings.pathTemplateByType?.[key] || '')
+						.onChange(async (value) => {
+							if (!this.settings.pathTemplateByType) {
+								this.settings.pathTemplateByType = {};
+							}
+							if (value) {
+								this.settings.pathTemplateByType[key] = value;
+							} else {
+								delete this.settings.pathTemplateByType[key];
+								if (Object.keys(this.settings.pathTemplateByType).length === 0) {
+									this.settings.pathTemplateByType = undefined;
+								}
+							}
+							await this.onSave();
+							this.updatePathPreview(typePreviewEl, value || this.settings.syncPathTemplate);
+						});
+					text.inputEl.addClass('bangumi-path-input');
+				});
+
+			const typePreviewEl = typeDiv.createDiv({ cls: 'bangumi-path-preview' });
+			this.updatePathPreview(typePreviewEl, this.settings.pathTemplateByType?.[key] || this.settings.syncPathTemplate);
+		}
+
 		// 扫描文件夹路径
 		new Setting(containerEl)
 			.setName(tn('settings', 'scanFolderPath'))

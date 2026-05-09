@@ -18,7 +18,7 @@ import { ImageHandler } from '../../common/file/imageHandler';
 import { IncrementalSync } from './incrementalSync';
 import { SyncOptions, SyncResult, SyncProgress, SyncCancellationSignal, SyncResultWithRollback } from './syncStatus';
 import { parseCharacters } from '../../common/parser/characterParser';
-import { generateFilePath } from '../../common/template/pathTemplate';
+import { generateFilePath, extractPathVars } from '../../common/template/pathTemplate';
 import { applyNamedPropertyValuesToContent, CustomTemplates, generateContentByType } from '../template/contentTemplate';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { SyncPreviewItem } from '../ui/syncPreviewModal';
@@ -40,6 +40,7 @@ export interface SyncManagerConfig {
 	scanFolderPath: string;  // 扫描本地文件夹的路径
 	coverLinkType?: CoverLinkType;  // 封面链接类型
 	enableRelatedLinks?: boolean;  // 是否自动处理关联条目链接
+	pathTemplateByType?: Record<string, string>;  // 各类型独立路径模板
 	customTemplates?: {
 		anime?: string;
 		novel?: string;
@@ -356,6 +357,19 @@ export class SyncManager {
 	private extractBasePath(pathTemplate: string): string {
 		const match = pathTemplate.match(/^([^/{}]+)/);
 		return match ? match[1] : '';
+	}
+
+	/**
+	 * 根据条目类型解析路径模板
+	 * 优先使用类型独立模板，回退到默认模板
+	 */
+	private resolvePathTemplate(subject: Subject): string {
+		if (this.config.pathTemplateByType) {
+			const vars = extractPathVars(subject);
+			const typeTemplate = this.config.pathTemplateByType[vars.type];
+			if (typeTemplate) return typeTemplate;
+		}
+		return this.config.pathTemplate;
 	}
 
 	/**
@@ -768,7 +782,7 @@ export class SyncManager {
 		const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
 
 		// 生成文件路径
-		const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
+		const filePath = generateFilePath(this.resolvePathTemplate(subject), subject, collection);
 
 		// 获取章节信息
 		const episodeData = await this.fetchEpisodeData(subject);
@@ -1021,7 +1035,7 @@ export class SyncManager {
 				};
 
 				// 生成文件路径
-				const filePath = generateFilePath(this.config.pathTemplate, subject, collection);
+				const filePath = generateFilePath(this.resolvePathTemplate(subject), subject, collection);
 
 				// V4: 获取章节信息
 				const episodeData = await this.fetchEpisodeData(subject);

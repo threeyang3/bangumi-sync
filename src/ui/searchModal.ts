@@ -11,7 +11,7 @@ import { SyncManager } from '../sync/syncManager';
 import { AddToCollectionModal, AddToCollectionInput } from './addToCollectionModal';
 import { getLocale, tn, tnFormat } from '../i18n';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
-import { generateFilePath } from '../../common/template/pathTemplate';
+import { generateFilePath, extractPathVars } from '../../common/template/pathTemplate';
 
 /**
  * 条目类型选项
@@ -288,8 +288,10 @@ export class SearchModal extends Modal {
 	 */
 	private checkLocalSyncStatus(subject: Subject): string | null {
 		try {
+			const typeLabel = extractPathVars(subject).type;
+			const template = this.settings.pathTemplateByType?.[typeLabel] || this.settings.syncPathTemplate;
 			const filePath = generateFilePath(
-				this.settings.syncPathTemplate,
+				template,
 				subject
 			);
 
