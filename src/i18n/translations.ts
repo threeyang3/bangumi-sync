@@ -361,6 +361,30 @@ export interface TranslationStrings {
 		skipMissingFields: string;
 		close: string;
 		missingFieldsApplied: string;
+		// 属性管理
+		propertyManageTitle: string;
+		propertyManageDesc: string;
+		propertyName: string;
+		ignore: string;
+		alias: string;
+		continueImport: string;
+		autoImported: string;
+		// 导入对比
+		compareTitle: string;
+		compareDesc: string;
+		diffFieldCount: string;
+		field: string;
+		localValue: string;
+		importValue: string;
+		decision: string;
+		keepLocal: string;
+		keepImport: string;
+		allLocal: string;
+		allImport: string;
+		allSkip: string;
+		executeImport: string;
+		skip: string;
+		noDiff: string;
 	};
 
 	// 状态同步弹窗
@@ -890,6 +914,30 @@ const en: TranslationStrings = {
 		skipMissingFields: 'Skip missing fields',
 		close: 'Close',
 		missingFieldsApplied: 'Applied {count} missing fields',
+		// 属性管理
+		propertyManageTitle: 'Property management',
+		propertyManageDesc: 'Review custom properties before import. You can ignore or alias each property.',
+		propertyName: 'Property name',
+		ignore: 'Ignore',
+		alias: 'Alias to',
+		continueImport: 'Continue import',
+		autoImported: 'Auto-imported {count} items (local empty, import non-empty)',
+		// 导入对比
+		compareTitle: 'Import comparison',
+		compareDesc: 'Found {count} items with property differences. Choose which version to keep.',
+		diffFieldCount: '{count} fields differ',
+		field: 'Field',
+		localValue: 'Local',
+		importValue: 'Import',
+		decision: 'Decision',
+		keepLocal: 'Keep local',
+		keepImport: 'Keep import',
+		allLocal: 'All local',
+		allImport: 'All import',
+		allSkip: 'All skip',
+		executeImport: 'Execute import',
+		skip: 'Skip',
+		noDiff: 'No differences',
 		},
 
 		statusSyncModal: {
@@ -1408,6 +1456,30 @@ const zhCN: TranslationStrings = {
 		skipMissingFields: '跳过缺失字段',
 		close: '关闭',
 		missingFieldsApplied: '已应用 {count} 个缺失字段',
+		// 属性管理
+		propertyManageTitle: '属性管理',
+		propertyManageDesc: '导入前请确认以下自定义属性的处理方式，可忽略或设置别名。',
+		propertyName: '属性名',
+		ignore: '忽略',
+		alias: '别名',
+		continueImport: '继续导入',
+		autoImported: '自动导入 {count} 个条目（本地为空，导入非空）',
+		// 导入对比
+		compareTitle: '导入对比',
+		compareDesc: '发现 {count} 个条目存在属性差异，请选择保留哪个版本。',
+		diffFieldCount: '{count} 个字段有差异',
+		field: '字段',
+		localValue: '本地',
+		importValue: '导入',
+		decision: '选择',
+		keepLocal: '保留本地',
+		keepImport: '保留导入',
+		allLocal: '全部本地',
+		allImport: '全部导入',
+		allSkip: '全部跳过',
+		executeImport: '执行导入',
+		skip: '跳过',
+		noDiff: '没有差异',
 		},
 
 		statusSyncModal: {

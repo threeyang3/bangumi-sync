@@ -603,7 +603,31 @@ var en = {
     handleMissingFields: "Handle missing fields",
     skipMissingFields: "Skip missing fields",
     close: "Close",
-    missingFieldsApplied: "Applied {count} missing fields"
+    missingFieldsApplied: "Applied {count} missing fields",
+    // 属性管理
+    propertyManageTitle: "Property management",
+    propertyManageDesc: "Review custom properties before import. You can ignore or alias each property.",
+    propertyName: "Property name",
+    ignore: "Ignore",
+    alias: "Alias to",
+    continueImport: "Continue import",
+    autoImported: "Auto-imported {count} items (local empty, import non-empty)",
+    // 导入对比
+    compareTitle: "Import comparison",
+    compareDesc: "Found {count} items with property differences. Choose which version to keep.",
+    diffFieldCount: "{count} fields differ",
+    field: "Field",
+    localValue: "Local",
+    importValue: "Import",
+    decision: "Decision",
+    keepLocal: "Keep local",
+    keepImport: "Keep import",
+    allLocal: "All local",
+    allImport: "All import",
+    allSkip: "All skip",
+    executeImport: "Execute import",
+    skip: "Skip",
+    noDiff: "No differences"
   },
   statusSyncModal: {
     title: "Status sync",
@@ -1097,7 +1121,31 @@ var zhCN = {
     handleMissingFields: "\u5904\u7406\u7F3A\u5931\u5B57\u6BB5",
     skipMissingFields: "\u8DF3\u8FC7\u7F3A\u5931\u5B57\u6BB5",
     close: "\u5173\u95ED",
-    missingFieldsApplied: "\u5DF2\u5E94\u7528 {count} \u4E2A\u7F3A\u5931\u5B57\u6BB5"
+    missingFieldsApplied: "\u5DF2\u5E94\u7528 {count} \u4E2A\u7F3A\u5931\u5B57\u6BB5",
+    // 属性管理
+    propertyManageTitle: "\u5C5E\u6027\u7BA1\u7406",
+    propertyManageDesc: "\u5BFC\u5165\u524D\u8BF7\u786E\u8BA4\u4EE5\u4E0B\u81EA\u5B9A\u4E49\u5C5E\u6027\u7684\u5904\u7406\u65B9\u5F0F\uFF0C\u53EF\u5FFD\u7565\u6216\u8BBE\u7F6E\u522B\u540D\u3002",
+    propertyName: "\u5C5E\u6027\u540D",
+    ignore: "\u5FFD\u7565",
+    alias: "\u522B\u540D",
+    continueImport: "\u7EE7\u7EED\u5BFC\u5165",
+    autoImported: "\u81EA\u52A8\u5BFC\u5165 {count} \u4E2A\u6761\u76EE\uFF08\u672C\u5730\u4E3A\u7A7A\uFF0C\u5BFC\u5165\u975E\u7A7A\uFF09",
+    // 导入对比
+    compareTitle: "\u5BFC\u5165\u5BF9\u6BD4",
+    compareDesc: "\u53D1\u73B0 {count} \u4E2A\u6761\u76EE\u5B58\u5728\u5C5E\u6027\u5DEE\u5F02\uFF0C\u8BF7\u9009\u62E9\u4FDD\u7559\u54EA\u4E2A\u7248\u672C\u3002",
+    diffFieldCount: "{count} \u4E2A\u5B57\u6BB5\u6709\u5DEE\u5F02",
+    field: "\u5B57\u6BB5",
+    localValue: "\u672C\u5730",
+    importValue: "\u5BFC\u5165",
+    decision: "\u9009\u62E9",
+    keepLocal: "\u4FDD\u7559\u672C\u5730",
+    keepImport: "\u4FDD\u7559\u5BFC\u5165",
+    allLocal: "\u5168\u90E8\u672C\u5730",
+    allImport: "\u5168\u90E8\u5BFC\u5165",
+    allSkip: "\u5168\u90E8\u8DF3\u8FC7",
+    executeImport: "\u6267\u884C\u5BFC\u5165",
+    skip: "\u8DF3\u8FC7",
+    noDiff: "\u6CA1\u6709\u5DEE\u5F02"
   },
   statusSyncModal: {
     title: "\u72B6\u6001\u540C\u6B65",
@@ -4160,7 +4208,7 @@ ${content}`;
     if (!comment) {
       return null;
     }
-    const normalized = comment.replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ").split("\n").map((line) => line.replace(/\s+$/g, "").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    const normalized = comment.replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ").split("\n\n").map((para) => para.split("\n").map((line) => line.replace(/\s+$/g, "").trim()).join("\n").replace(/\n/g, "\n\n")).join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
     return normalized.length > 0 ? normalized : null;
   }
   findCommentBlock(content) {
@@ -4171,8 +4219,26 @@ ${content}`;
       return null;
     }
     let endIndex = headerIndex + 1;
-    while (endIndex < lines.length && /^> ?/.test(lines[endIndex])) {
-      endIndex++;
+    while (endIndex < lines.length) {
+      const line = lines[endIndex];
+      if (/^> ?/.test(line)) {
+        endIndex++;
+      } else if (line.trim() === "") {
+        let nextNonEmpty = endIndex + 1;
+        while (nextNonEmpty < lines.length && lines[nextNonEmpty].trim() === "") {
+          nextNonEmpty++;
+        }
+        if (nextNonEmpty < lines.length && /^> ?/.test(lines[nextNonEmpty])) {
+          endIndex = nextNonEmpty + 1;
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+    while (endIndex > headerIndex + 1 && lines[endIndex - 1].trim() === "") {
+      endIndex--;
     }
     const start = lines.slice(0, headerIndex).join("\n").length + (headerIndex > 0 ? 1 : 0);
     const end = lines.slice(0, endIndex).join("\n").length + (endIndex < lines.length ? 1 : 0);
@@ -5068,8 +5134,8 @@ function extractTemplateVars(subject, collection, characters, ratingDetails, epi
     cover = ((_b = subject.images) == null ? void 0 : _b.large) || ((_c = subject.images) == null ? void 0 : _c.common) || "";
   }
   const my_rate = (collection == null ? void 0 : collection.rate) ? String(collection.rate) : "";
-  const my_comment_raw = (collection == null ? void 0 : collection.comment) || "";
-  const my_comment = my_comment_raw;
+  const my_comment_raw = (collection == null ? void 0 : collection.comment) ? collection.comment.replace(/\r\n?/g, "\n").split("\n\n").map((para) => para.replace(/\n/g, "\n\n")).join("\n\n") : "";
+  const my_comment = (collection == null ? void 0 : collection.comment) || "";
   const my_status = collection ? getCollectionStatusLabel(collection.type, subject.type) : "";
   let episodesContent = "";
   let volumesContent = "";
@@ -5727,6 +5793,7 @@ var UserDataImporter = class {
     const combinedResult = {
       success: 0,
       skipped: 0,
+      autoImported: 0,
       errors: [],
       missingFields: []
     };
@@ -5737,6 +5804,7 @@ var UserDataImporter = class {
         const result = await this.importFromFile(filePath, options);
         combinedResult.success += result.success;
         combinedResult.skipped += result.skipped;
+        combinedResult.autoImported += result.autoImported;
         combinedResult.errors.push(...result.errors);
         combinedResult.missingFields.push(...result.missingFields);
       } catch (error) {
@@ -5758,6 +5826,7 @@ var UserDataImporter = class {
     const combinedResult = {
       success: 0,
       skipped: 0,
+      autoImported: 0,
       errors: [],
       missingFields: []
     };
@@ -5768,6 +5837,7 @@ var UserDataImporter = class {
         const result = await this.importFromText(file.name, file.content, options);
         combinedResult.success += result.success;
         combinedResult.skipped += result.skipped;
+        combinedResult.autoImported += result.autoImported;
         combinedResult.errors.push(...result.errors);
         combinedResult.missingFields.push(...result.missingFields);
       } catch (error) {
@@ -5787,6 +5857,7 @@ var UserDataImporter = class {
     const result = {
       success: 0,
       skipped: 0,
+      autoImported: 0,
       errors: [],
       missingFields: []
     };
@@ -5840,20 +5911,25 @@ var UserDataImporter = class {
     const missingFields = [];
     let updatedContent = content;
     if (userData.customProperties) {
+      const propertyManage = options.propertyManage;
       for (const [key, value] of Object.entries(userData.customProperties)) {
-        if (this.merger.hasFrontmatterField(updatedContent, key)) {
+        const manage = propertyManage == null ? void 0 : propertyManage[key];
+        if (manage == null ? void 0 : manage.ignore)
+          continue;
+        const effectiveKey = (manage == null ? void 0 : manage.aliasTo) || key;
+        if (this.merger.hasFrontmatterField(updatedContent, effectiveKey)) {
           if (options.mergeStrategy === "prefer_import") {
             updatedContent = this.merger.updateFrontmatterField(
               updatedContent,
-              key,
+              effectiveKey,
               value
             );
           } else if (options.mergeStrategy === "smart") {
-            const localValue = this.merger.getFrontmatterValue(updatedContent, key);
+            const localValue = this.merger.getFrontmatterValue(updatedContent, effectiveKey);
             if (!localValue && value !== void 0 && value !== null && value !== "") {
               updatedContent = this.merger.updateFrontmatterField(
                 updatedContent,
-                key,
+                effectiveKey,
                 value
               );
             }
@@ -5862,7 +5938,7 @@ var UserDataImporter = class {
           missingFields.push({
             subjectId,
             subjectName: userData.identifier.name_cn,
-            fieldName: key,
+            fieldName: effectiveKey,
             fieldValue: value,
             decision: null
           });
@@ -5919,6 +5995,140 @@ var UserDataImporter = class {
     }
   }
   /**
+   * 扫描所有导入文件，收集自定义属性名
+   */
+  collectAllPropertyNames(files) {
+    const propertyNames = /* @__PURE__ */ new Set();
+    for (const file of files) {
+      try {
+        const importData = JSON.parse(file.content);
+        if (!importData.items)
+          continue;
+        for (const userData of Object.values(importData.items)) {
+          if (userData.customProperties) {
+            for (const key of Object.keys(userData.customProperties)) {
+              if (!BANGUMI_FIELDS.has(key)) {
+                propertyNames.add(key);
+              }
+            }
+          }
+        }
+      } catch (e) {
+      }
+    }
+    return propertyNames;
+  }
+  /**
+   * 对比导入数据与本地数据，返回自动导入数和差异列表
+   *
+   * 自动导入规则：本地为空 + 导入不为空 → 直接写入
+   * 其余有差异的情况 → 收集到 ImportItemDiff 供用户决策
+   */
+  async compareImportData(files, options, onProgress) {
+    const propertyManage = options.propertyManage;
+    let autoImported = 0;
+    const diffs = [];
+    let processed = 0;
+    let totalItems = 0;
+    for (const file of files) {
+      try {
+        const importData = JSON.parse(file.content);
+        if (importData.items) {
+          totalItems += Object.keys(importData.items).length;
+        }
+      } catch (e) {
+      }
+    }
+    for (const file of files) {
+      let importData;
+      try {
+        importData = JSON.parse(file.content);
+      } catch (e) {
+        continue;
+      }
+      if (!importData.items)
+        continue;
+      for (const [id, userData] of Object.entries(importData.items)) {
+        const subjectId = parseInt(id, 10);
+        if (Number.isNaN(subjectId)) {
+          processed++;
+          continue;
+        }
+        onProgress == null ? void 0 : onProgress(processed + 1, totalItems);
+        processed++;
+        const localFile = this.findLocalFile(subjectId);
+        if (!localFile)
+          continue;
+        const content = await this.app.vault.read(localFile);
+        const itemDiffs = [];
+        if (userData.customProperties) {
+          for (const [key, value] of Object.entries(userData.customProperties)) {
+            const manage = propertyManage == null ? void 0 : propertyManage[key];
+            if (manage == null ? void 0 : manage.ignore)
+              continue;
+            const effectiveKey = (manage == null ? void 0 : manage.aliasTo) || key;
+            if (!this.merger.hasFrontmatterField(content, effectiveKey)) {
+              if (value !== void 0 && value !== null && value !== "") {
+                const newContent = this.merger.addFrontmatterField(content, effectiveKey, value);
+                await this.app.vault.process(localFile, () => newContent);
+                autoImported++;
+              }
+            } else {
+              const localValue = this.merger.getFrontmatterValue(content, effectiveKey);
+              const localStr = localValue != null ? localValue : "";
+              const importStr = valueToString(value);
+              if (localStr !== importStr) {
+                itemDiffs.push({
+                  fieldName: effectiveKey,
+                  localValue: localStr,
+                  importValue: importStr,
+                  decision: null
+                });
+              }
+            }
+          }
+        }
+        if (itemDiffs.length > 0) {
+          diffs.push({
+            subjectId,
+            name_cn: userData.identifier.name_cn,
+            diffs: itemDiffs,
+            hasDiff: true
+          });
+        }
+      }
+    }
+    return { autoImported, diffs };
+  }
+  /**
+   * 应用用户在对比弹窗中的决策
+   */
+  async applyImportDecisions(diffs) {
+    let applied = 0;
+    for (const item of diffs) {
+      const localFile = this.findLocalFile(item.subjectId);
+      if (!localFile)
+        continue;
+      let content = await this.app.vault.read(localFile);
+      let changed = false;
+      for (const diff of item.diffs) {
+        if (diff.decision === "import") {
+          content = this.merger.updateFrontmatterField(
+            content,
+            diff.fieldName,
+            diff.importValue
+          );
+          changed = true;
+        }
+      }
+      if (changed) {
+        await this.app.vault.process(localFile, () => content);
+        applied++;
+      }
+    }
+    return applied;
+  }
+  /**
    * 查找本地文件
    */
   findLocalFile(subjectId) {
@@ -5935,6 +6145,19 @@ var UserDataImporter = class {
     return null;
   }
 };
+function valueToString(value) {
+  if (value === null || value === void 0)
+    return "";
+  if (Array.isArray(value))
+    return value.join(", ");
+  if (typeof value === "object")
+    return JSON.stringify(value);
+  if (typeof value === "string")
+    return value;
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
+  return "";
+}
 
 // src/userData/userDataModal.ts
 var import_obsidian10 = require("obsidian");
@@ -6024,17 +6247,69 @@ var UserDataImportModal = class extends import_obsidian10.Modal {
     });
   }
   async doImport() {
+    const propertyNames = this.importer.collectAllPropertyNames(this.importFiles);
+    if (propertyNames.size > 0) {
+      this.close();
+      new PropertyManageModal(this.app, propertyNames, (propertyManage) => {
+        void this.continueImport(propertyManage);
+      }).open();
+    } else {
+      await this.continueImport(void 0);
+    }
+  }
+  async continueImport(propertyManage) {
     const options = {
       mergeStrategy: "smart",
-      dataTypes: ["all" /* ALL */]
+      dataTypes: ["all" /* ALL */],
+      propertyManage
     };
-    const result = await this.importer.importFromTexts(this.importFiles, options);
-    if (result.success === 0 && result.skipped === 0 && result.missingFields.length === 0 && result.errors.length === 0) {
-      new import_obsidian10.Notice(tnFormat("userData", "importFailed", { error: "No data imported" }));
-      return;
+    const { autoImported, diffs } = await this.importer.compareImportData(
+      this.importFiles,
+      options
+    );
+    if (diffs.length > 0) {
+      this.close();
+      new ImportCompareModal(this.app, diffs, (resolvedDiffs) => {
+        void (async () => {
+          const applied = await this.importer.applyImportDecisions(resolvedDiffs);
+          const result = {
+            success: applied + autoImported,
+            skipped: 0,
+            autoImported,
+            errors: [],
+            missingFields: []
+          };
+          new ImportResultModal(this.app, result).open();
+        })();
+      }).open();
+    } else if (autoImported > 0) {
+      const result = {
+        success: autoImported,
+        skipped: 0,
+        autoImported,
+        errors: [],
+        missingFields: []
+      };
+      this.onImport(result);
+      this.close();
+    } else {
+      const result = {
+        success: 0,
+        skipped: this.importFiles.reduce((sum, f) => {
+          try {
+            const data = JSON.parse(f.content);
+            return sum + (data.items ? Object.keys(data.items).length : 0);
+          } catch (e) {
+            return sum;
+          }
+        }, 0),
+        autoImported: 0,
+        errors: [],
+        missingFields: []
+      };
+      this.onImport(result);
+      this.close();
     }
-    this.onImport(result);
-    this.close();
   }
   onClose() {
     const { contentEl } = this;
@@ -6125,6 +6400,182 @@ var MissingFieldModal = class extends import_obsidian10.Modal {
     contentEl.empty();
   }
 };
+var PropertyManageModal = class extends import_obsidian10.Modal {
+  constructor(app, propertyNames, onConfirm) {
+    super(app);
+    this.decisions = {};
+    this.propertyNames = propertyNames;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-property-manage-modal");
+    contentEl.createEl("h2", { text: tn("userData", "propertyManageTitle") });
+    contentEl.createEl("p", {
+      text: tn("userData", "propertyManageDesc"),
+      cls: "bangumi-modal-desc"
+    });
+    const table = contentEl.createEl("table", { cls: "bangumi-property-manage-table" });
+    const thead = table.createEl("thead");
+    const headerRow = thead.createEl("tr");
+    headerRow.createEl("th", { text: tn("userData", "propertyName") });
+    headerRow.createEl("th", { text: tn("userData", "ignore") });
+    headerRow.createEl("th", { text: tn("userData", "alias") });
+    const tbody = table.createEl("tbody");
+    for (const name of this.propertyNames) {
+      const row = tbody.createEl("tr");
+      row.createEl("td", { text: name, cls: "bangumi-property-manage-name" });
+      const ignoreCell = row.createEl("td");
+      const ignoreCheckbox = ignoreCell.createEl("input", { type: "checkbox" });
+      ignoreCheckbox.addEventListener("change", () => {
+        if (!this.decisions[name]) {
+          this.decisions[name] = { ignore: false };
+        }
+        this.decisions[name].ignore = ignoreCheckbox.checked;
+      });
+      const aliasCell = row.createEl("td");
+      const aliasInput = aliasCell.createEl("input", {
+        type: "text",
+        placeholder: name,
+        cls: "bangumi-property-manage-alias-input"
+      });
+      aliasInput.addEventListener("input", () => {
+        const alias = aliasInput.value.trim();
+        if (!this.decisions[name]) {
+          this.decisions[name] = { ignore: false };
+        }
+        this.decisions[name].aliasTo = alias || void 0;
+      });
+    }
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    buttonDiv.createEl("button", { text: tn("userData", "cancel") }, (btn) => {
+      btn.addEventListener("click", () => this.close());
+    });
+    buttonDiv.createEl("button", {
+      text: tn("userData", "continueImport"),
+      cls: "mod-cta"
+    }, (btn) => {
+      btn.addEventListener("click", () => {
+        this.onConfirm(this.decisions);
+        this.close();
+      });
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var ImportCompareModal = class extends import_obsidian10.Modal {
+  constructor(app, diffs, onConfirm) {
+    super(app);
+    this.diffs = diffs;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-import-compare-modal");
+    contentEl.createEl("h2", { text: tn("userData", "compareTitle") });
+    contentEl.createEl("p", {
+      text: tnFormat("userData", "compareDesc", { count: this.diffs.length }),
+      cls: "bangumi-modal-desc"
+    });
+    const actionBar = contentEl.createDiv({ cls: "bangumi-import-compare-actions" });
+    actionBar.createEl("button", { text: tn("userData", "allLocal") }, (btn) => {
+      btn.addEventListener("click", () => this.batchDecision("local"));
+    });
+    actionBar.createEl("button", { text: tn("userData", "allImport") }, (btn) => {
+      btn.addEventListener("click", () => this.batchDecision("import"));
+    });
+    actionBar.createEl("button", { text: tn("userData", "allSkip") }, (btn) => {
+      btn.addEventListener("click", () => this.batchDecision("skip"));
+    });
+    const listEl = contentEl.createDiv({ cls: "bangumi-import-compare-list" });
+    this.renderDiffList(listEl);
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    buttonDiv.createEl("button", { text: tn("userData", "cancel") }, (btn) => {
+      btn.addEventListener("click", () => this.close());
+    });
+    buttonDiv.createEl("button", {
+      text: tn("userData", "executeImport"),
+      cls: "mod-cta"
+    }, (btn) => {
+      btn.addEventListener("click", () => {
+        this.onConfirm(this.diffs);
+        this.close();
+      });
+    });
+  }
+  renderDiffList(container) {
+    for (const item of this.diffs) {
+      const itemEl = container.createDiv({ cls: "bangumi-import-compare-item" });
+      const headerRow = itemEl.createDiv({ cls: "bangumi-import-compare-header" });
+      headerRow.createEl("span", {
+        text: `${item.name_cn} (ID: ${item.subjectId})`,
+        cls: "bangumi-import-compare-subject"
+      });
+      headerRow.createEl("span", {
+        text: tnFormat("userData", "diffFieldCount", { count: item.diffs.length }),
+        cls: "bangumi-import-compare-diff-count"
+      });
+      const expandBtn = headerRow.createEl("button", {
+        text: tn("statusSyncModal", "expand"),
+        cls: "bangumi-import-compare-expand-btn"
+      });
+      const detailEl = itemEl.createDiv({ cls: "bangumi-import-compare-detail bangumi-hidden" });
+      expandBtn.addEventListener("click", () => {
+        const isHidden = detailEl.hasClass("bangumi-hidden");
+        detailEl.toggleClass("bangumi-hidden", !isHidden);
+        expandBtn.textContent = isHidden ? tn("statusSyncModal", "collapse") : tn("statusSyncModal", "expand");
+      });
+      const table = detailEl.createEl("table", { cls: "bangumi-import-compare-table" });
+      const thead = table.createEl("thead");
+      const headerTr = thead.createEl("tr");
+      headerTr.createEl("th", { text: tn("userData", "field") });
+      headerTr.createEl("th", { text: tn("userData", "localValue") });
+      headerTr.createEl("th", { text: tn("userData", "importValue") });
+      headerTr.createEl("th", { text: tn("userData", "decision") });
+      const tbody = table.createEl("tbody");
+      for (let j = 0; j < item.diffs.length; j++) {
+        const diff = item.diffs[j];
+        const tr = tbody.createEl("tr");
+        tr.createEl("td", { text: diff.fieldName });
+        const localText = diff.localValue != null && diff.localValue !== "" ? formatDisplayValue(diff.localValue) : tn("statusSyncModal", "empty");
+        const importText = diff.importValue != null && diff.importValue !== "" ? formatDisplayValue(diff.importValue) : tn("statusSyncModal", "empty");
+        tr.createEl("td", {
+          text: localText,
+          cls: "bangumi-import-compare-value"
+        });
+        tr.createEl("td", {
+          text: importText,
+          cls: "bangumi-import-compare-value"
+        });
+        const selectCell = tr.createEl("td");
+        const select = selectCell.createEl("select", { cls: "bangumi-import-compare-select" });
+        select.createEl("option", { value: "local", text: tn("userData", "keepLocal") });
+        select.createEl("option", { value: "import", text: tn("userData", "keepImport") });
+        select.createEl("option", { value: "skip", text: tn("userData", "skip") });
+        select.value = "skip";
+        select.addEventListener("change", () => {
+          diff.decision = select.value;
+        });
+      }
+    }
+  }
+  batchDecision(decision) {
+    for (const item of this.diffs) {
+      for (const diff of item.diffs) {
+        diff.decision = decision;
+      }
+    }
+    const selects = this.contentEl.querySelectorAll(".bangumi-import-compare-select");
+    selects.forEach((select) => {
+      select.value = decision;
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
 var ImportResultModal = class extends import_obsidian10.Modal {
   constructor(app, result) {
     super(app);
@@ -6137,6 +6588,9 @@ var ImportResultModal = class extends import_obsidian10.Modal {
     contentEl.createEl("h2", { text: tn("userData", "importResultTitle") });
     const statsEl = contentEl.createDiv({ cls: "bangumi-import-result-stats" });
     statsEl.createEl("div", { text: tnFormat("userData", "importSuccess", { count: this.result.success }) });
+    if (this.result.autoImported > 0) {
+      statsEl.createEl("div", { text: tnFormat("userData", "autoImported", { count: this.result.autoImported }) });
+    }
     statsEl.createEl("div", { text: tnFormat("userData", "importSkipped", { count: this.result.skipped }) });
     if (this.result.errors.length > 0) {
       statsEl.createEl("div", {
@@ -6185,6 +6639,17 @@ var ImportResultModal = class extends import_obsidian10.Modal {
     contentEl.empty();
   }
 };
+function formatDisplayValue(value) {
+  if (typeof value === "string")
+    return value;
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
+  if (Array.isArray(value))
+    return value.join(", ");
+  if (typeof value === "object" && value !== null)
+    return JSON.stringify(value);
+  return "";
+}
 
 // src/template/templateProperties.ts
 var IDENTIFIER_PROPERTY_NAMES = /* @__PURE__ */ new Set([
@@ -9307,7 +9772,10 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     }
     if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== "skip" && this.episodeStatusManager) {
       if (diff.episodeStatus.decision === "local") {
-        await this.episodeStatusManager.syncStatusToCloud(file);
+        const result = await this.episodeStatusManager.syncStatusToCloud(file);
+        if (result.failed > 0 && result.success === 0) {
+          throw new Error(`\u5355\u96C6\u72B6\u6001\u540C\u6B65\u5230\u4E91\u7AEF\u5168\u90E8\u5931\u8D25 (${result.failed}\u96C6)`);
+        }
       } else if (diff.episodeStatus.decision === "cloud") {
         const synced = await this.episodeStatusManager.syncStatusFromCloud(file, diff.subjectId);
         if (!synced) {
@@ -10975,7 +11443,7 @@ ep_statuses:
     try {
       const userEpisodes = await this.client.getUserEpisodeStatus(subjectId);
       await this.app.vault.process(file, (content) => {
-        const episodes = userEpisodes.filter((userEp) => userEp.type !== 0).map((userEp) => ({
+        const episodes = userEpisodes.filter((userEp) => userEp.type !== 0 && userEp.episode).map((userEp) => ({
           episodeId: userEp.episode.id,
           epNumber: userEp.episode.ep || userEp.episode.sort || 0,
           status: userEp.type

@@ -63,6 +63,7 @@ export interface UserDataExport {
 export interface ImportOptions {
 	mergeStrategy: 'prefer_local' | 'prefer_import' | 'smart';
 	dataTypes: UserDataType[];
+	propertyManage?: PropertyManageMap;
 }
 
 export interface MissingFieldDecision {
@@ -76,8 +77,30 @@ export interface MissingFieldDecision {
 export interface ImportResult {
 	success: number;
 	skipped: number;
+	autoImported: number;
 	errors: Array<{ id: number; name_cn: string; error: string; }>;
 	missingFields: MissingFieldDecision[];
+}
+
+export interface PropertyManageDecision {
+	ignore: boolean;
+	aliasTo?: string;
+}
+
+export type PropertyManageMap = Record<string, PropertyManageDecision>;
+
+export interface PropertyDiff {
+	fieldName: string;
+	localValue: unknown;
+	importValue: unknown;
+	decision: 'local' | 'import' | 'skip' | null;
+}
+
+export interface ImportItemDiff {
+	subjectId: number;
+	name_cn: string;
+	diffs: PropertyDiff[];
+	hasDiff: boolean;
 }
 
 export interface DataProtectionSettings {

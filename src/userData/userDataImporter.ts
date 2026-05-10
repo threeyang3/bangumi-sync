@@ -12,6 +12,9 @@ import {
     ImportOptions,
     ImportResult,
     MissingFieldDecision,
+    PropertyDiff,
+    ImportItemDiff,
+    BANGUMI_FIELDS,
 } from './types';
 import { getFrontmatterNumber, getFrontmatterRecord } from '../../common/utils/frontmatter';
 
@@ -76,6 +79,7 @@ export class UserDataImporter {
         const combinedResult: ImportResult = {
             success: 0,
             skipped: 0,
+            autoImported: 0,
             errors: [],
             missingFields: [],
         };
@@ -88,6 +92,7 @@ export class UserDataImporter {
                 const result = await this.importFromFile(filePath, options);
                 combinedResult.success += result.success;
                 combinedResult.skipped += result.skipped;
+                combinedResult.autoImported += result.autoImported;
                 combinedResult.errors.push(...result.errors);
                 combinedResult.missingFields.push(...result.missingFields);
             } catch (error) {
@@ -116,6 +121,7 @@ export class UserDataImporter {
         const combinedResult: ImportResult = {
             success: 0,
             skipped: 0,
+            autoImported: 0,
             errors: [],
             missingFields: [],
         };
@@ -128,6 +134,7 @@ export class UserDataImporter {
                 const result = await this.importFromText(file.name, file.content, options);
                 combinedResult.success += result.success;
                 combinedResult.skipped += result.skipped;
+                combinedResult.autoImported += result.autoImported;
                 combinedResult.errors.push(...result.errors);
                 combinedResult.missingFields.push(...result.missingFields);
             } catch (error) {
@@ -153,6 +160,7 @@ export class UserDataImporter {
         const result: ImportResult = {
             success: 0,
             skipped: 0,
+            autoImported: 0,
             errors: [],
             missingFields: [],
         };
@@ -227,33 +235,40 @@ export class UserDataImporter {
 
         // 合并自定义属性
         if (userData.customProperties) {
+            const propertyManage = options.propertyManage;
             for (const [key, value] of Object.entries(userData.customProperties)) {
-                if (this.merger.hasFrontmatterField(updatedContent, key)) {
+                // 应用忽略
+                const manage = propertyManage?.[key];
+                if (manage?.ignore) continue;
+
+                // 应用别名
+                const effectiveKey = manage?.aliasTo || key;
+
+                if (this.merger.hasFrontmatterField(updatedContent, effectiveKey)) {
                     // 字段已存在，根据策略处理
                     if (options.mergeStrategy === 'prefer_import') {
                         updatedContent = this.merger.updateFrontmatterField(
                             updatedContent,
-                            key,
+                            effectiveKey,
                             value
                         );
                     } else if (options.mergeStrategy === 'smart') {
-                        const localValue = this.merger.getFrontmatterValue(updatedContent, key);
+                        const localValue = this.merger.getFrontmatterValue(updatedContent, effectiveKey);
                         if (!localValue && value !== undefined && value !== null && value !== '') {
                             updatedContent = this.merger.updateFrontmatterField(
                                 updatedContent,
-                                key,
+                                effectiveKey,
                                 value
                             );
                         }
                     }
                     // prefer_local: 不覆盖
-                    // smart: 比较值，选择非空的
                 } else {
                     // 字段不存在，记录为缺失字段
                     missingFields.push({
                         subjectId,
                         subjectName: userData.identifier.name_cn,
-                        fieldName: key,
+                        fieldName: effectiveKey,
                         fieldValue: value,
                         decision: null,
                     });
@@ -326,6 +341,172 @@ export class UserDataImporter {
     }
 
     /**
+     * 扫描所有导入文件，收集自定义属性名
+     */
+    collectAllPropertyNames(files: Array<{ name: string; content: string }>): Set<string> {
+        const propertyNames = new Set<string>();
+
+        for (const file of files) {
+            try {
+                const importData = JSON.parse(file.content) as UserDataExport;
+                if (!importData.items) continue;
+
+                for (const userData of Object.values(importData.items)) {
+                    if (userData.customProperties) {
+                        for (const key of Object.keys(userData.customProperties)) {
+                            if (!BANGUMI_FIELDS.has(key)) {
+                                propertyNames.add(key);
+                            }
+                        }
+                    }
+                }
+            } catch {
+                // skip unparseable files
+            }
+        }
+
+        return propertyNames;
+    }
+
+    /**
+     * 对比导入数据与本地数据，返回自动导入数和差异列表
+     *
+     * 自动导入规则：本地为空 + 导入不为空 → 直接写入
+     * 其余有差异的情况 → 收集到 ImportItemDiff 供用户决策
+     */
+    async compareImportData(
+        files: Array<{ name: string; content: string }>,
+        options: ImportOptions,
+        onProgress?: (current: number, total: number) => void
+    ): Promise<{ autoImported: number; diffs: ImportItemDiff[] }> {
+        const propertyManage = options.propertyManage;
+        let autoImported = 0;
+        const diffs: ImportItemDiff[] = [];
+
+        let processed = 0;
+        let totalItems = 0;
+
+        // First count total items
+        for (const file of files) {
+            try {
+                const importData = JSON.parse(file.content) as UserDataExport;
+                if (importData.items) {
+                    totalItems += Object.keys(importData.items).length;
+                }
+            } catch {
+                // skip
+            }
+        }
+
+        for (const file of files) {
+            let importData: UserDataExport;
+            try {
+                importData = JSON.parse(file.content) as UserDataExport;
+            } catch {
+                continue;
+            }
+            if (!importData.items) continue;
+
+            for (const [id, userData] of Object.entries(importData.items)) {
+                const subjectId = parseInt(id, 10);
+                if (Number.isNaN(subjectId)) {
+                    processed++;
+                    continue;
+                }
+
+                onProgress?.(processed + 1, totalItems);
+                processed++;
+
+                const localFile = this.findLocalFile(subjectId);
+                if (!localFile) continue;
+
+                const content = await this.app.vault.read(localFile);
+                const itemDiffs: PropertyDiff[] = [];
+
+                if (userData.customProperties) {
+                    for (const [key, value] of Object.entries(userData.customProperties)) {
+                        // Apply ignore
+                        const manage = propertyManage?.[key];
+                        if (manage?.ignore) continue;
+
+                        // Apply alias
+                        const effectiveKey = manage?.aliasTo || key;
+
+                        if (!this.merger.hasFrontmatterField(content, effectiveKey)) {
+                            // Field doesn't exist locally — treat as "local empty"
+                            if (value !== undefined && value !== null && value !== '') {
+                                // Auto-import: local empty + import non-empty
+                                const newContent = this.merger.addFrontmatterField(content, effectiveKey, value);
+                                await this.app.vault.process(localFile, () => newContent);
+                                autoImported++;
+                            }
+                        } else {
+                            // Field exists locally — compare values
+                            const localValue = this.merger.getFrontmatterValue(content, effectiveKey);
+                            const localStr = localValue ?? '';
+                            const importStr = valueToString(value);
+
+                            if (localStr !== importStr) {
+                                itemDiffs.push({
+                                    fieldName: effectiveKey,
+                                    localValue: localStr,
+                                    importValue: importStr,
+                                    decision: null,
+                                });
+                            }
+                        }
+                    }
+                }
+
+                if (itemDiffs.length > 0) {
+                    diffs.push({
+                        subjectId,
+                        name_cn: userData.identifier.name_cn,
+                        diffs: itemDiffs,
+                        hasDiff: true,
+                    });
+                }
+            }
+        }
+
+        return { autoImported, diffs };
+    }
+
+    /**
+     * 应用用户在对比弹窗中的决策
+     */
+    async applyImportDecisions(diffs: ImportItemDiff[]): Promise<number> {
+        let applied = 0;
+
+        for (const item of diffs) {
+            const localFile = this.findLocalFile(item.subjectId);
+            if (!localFile) continue;
+
+            let content = await this.app.vault.read(localFile);
+            let changed = false;
+
+            for (const diff of item.diffs) {
+                if (diff.decision === 'import') {
+                    content = this.merger.updateFrontmatterField(
+                        content,
+                        diff.fieldName,
+                        diff.importValue
+                    );
+                    changed = true;
+                }
+                // 'local' and 'skip' do nothing
+            }
+
+            if (changed) {
+                await this.app.vault.process(localFile, () => content);
+                applied++;
+            }
+        }
+
+        return applied;
+    }
+
+    /**
      * 查找本地文件
      */
     private findLocalFile(subjectId: number): TFile | null {
@@ -343,4 +524,13 @@ export class UserDataImporter {
 
         return null;
     }
+}
+
+function valueToString(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    if (Array.isArray(value)) return value.join(', ');
+    if (typeof value === 'object') return JSON.stringify(value);
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return '';
 }
