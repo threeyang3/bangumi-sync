@@ -569,12 +569,13 @@ export class IncrementalSync {
 			return null;
 		}
 
+		// Bangumi API \u7528 \n \u5206\u6bb5\uff0cMarkdown callout \u9700\u8981 \n\n \u624d\u80fd\u6e32\u67d3\u4e3a\u6bb5\u843d
 		const normalized = comment
 			.replace(/\r\n?/g, '\n')
 			.replace(/\u00a0/g, ' ')
-			.split('\n')
-			.map(line => line.replace(/\s+$/g, '').trim())
-			.join('\n')
+			.split('\n\n')
+			.map(para => para.split('\n').map(line => line.replace(/\s+$/g, '').trim()).join('\n').replace(/\n/g, '\n\n'))
+			.join('\n\n')
 			.replace(/\n{3,}/g, '\n\n')
 			.trim();
 
@@ -590,9 +591,19 @@ export class IncrementalSync {
 			return null;
 		}
 
+		// callout 内空行（段落分隔）可能省略 > 前缀，需要容忍
 		let endIndex = headerIndex + 1;
-		while (endIndex < lines.length && /^> ?/.test(lines[endIndex])) {
-			endIndex++;
+		while (endIndex < lines.length) {
+			const line = lines[endIndex];
+			if (/^> ?/.test(line) || line.trim() === '') {
+				endIndex++;
+			} else {
+				break;
+			}
+		}
+		// 尾部空行不属于 callout 内容，回退
+		while (endIndex > headerIndex + 1 && lines[endIndex - 1].trim() === '') {
+			endIndex--;
 		}
 
 		const start = lines.slice(0, headerIndex).join('\n').length + (headerIndex > 0 ? 1 : 0);

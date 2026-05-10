@@ -1,5 +1,10 @@
 # 版本历史
 
+## v6.7.5
+
+### 修复
+- 多段短评同步到本地时只保留第一段：修复 `findCommentBlock` 在 callout 内遇到无 `>` 前缀的空行时提前截断，以及 `normalizeComment` 和模板渲染未将 Bangumi 单换行段落分隔转为 Markdown 双换行
+
 ## v6.7.4
 
 ### 修复

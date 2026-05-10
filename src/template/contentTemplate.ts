@@ -111,8 +111,15 @@ export function extractTemplateVars(
 	// 收藏信息
 		const my_rate = collection?.rate ? String(collection.rate) : '';
 		// 短评：my_comment 用于 frontmatter（renderContentTemplate 统一转义），my_comment_raw 用于正文 callout
-		const my_comment_raw = collection?.comment || '';
-		const my_comment = my_comment_raw;
+		// Bangumi API 用 \n 分段，Markdown 需要 \n\n 才能渲染为段落，因此 my_comment_raw 需要转换
+		const my_comment_raw = collection?.comment
+			? collection.comment
+				.replace(/\r\n?/g, '\n')
+				.split('\n\n')
+				.map(para => para.replace(/\n/g, '\n\n'))
+				.join('\n\n')
+			: '';
+		const my_comment = collection?.comment || '';
 		const my_status = collection
 		? getCollectionStatusLabel(collection.type, subject.type)
 		: '';
