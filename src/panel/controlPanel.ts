@@ -1060,7 +1060,18 @@ export class ControlPanel extends Modal {
 				const cloudTagsRaw = collection.tags && collection.tags.length > 0 ? collection.tags : null;
 				const cloudTags = this.incrementalSync.normalizeTags(cloudTagsRaw);
 				const cloudStatus = collection.type || null;
-				const episodeStatusDiff = await this.buildEpisodeStatusDiff(file, collection.subject_id, collection.subject_type);
+				let episodeStatusDiff: FieldDiff<string>;
+				try {
+					episodeStatusDiff = await this.buildEpisodeStatusDiff(file, collection.subject_id, collection.subject_type);
+				} catch (epError) {
+					console.warn(`[Bangumi Sync] 获取章节状态失败 (${collection.subject_id}):`, epError);
+					episodeStatusDiff = {
+						localValue: null,
+						cloudValue: null,
+						hasDiff: false,
+						decision: 'skip',
+					};
+				}
 
 				// 构建差异对象
 				const diff = this.buildStatusSyncDiff(
@@ -1189,7 +1200,7 @@ export class ControlPanel extends Modal {
 		subjectId: number,
 		subjectType: SubjectType
 	): Promise<FieldDiff<string>> {
-		if (!this.episodeStatusManager || subjectType !== SubjectType.Anime) {
+		if (!this.episodeStatusManager || (subjectType !== SubjectType.Anime && subjectType !== SubjectType.Real)) {
 			return {
 				localValue: null,
 				cloudValue: null,

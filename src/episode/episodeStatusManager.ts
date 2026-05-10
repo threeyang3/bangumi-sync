@@ -44,7 +44,7 @@ export class EpisodeStatusManager {
 		const statusMap = new Map<number, LocalEpisodeStatus>();
 
 		for (const userEp of userEpisodes) {
-			if (!userEp.type) {
+			if (!userEp.type || !userEp.episode) {
 				continue;
 			}
 
