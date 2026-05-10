@@ -591,17 +591,29 @@ export class IncrementalSync {
 			return null;
 		}
 
-		// callout 内空行（段落分隔）可能省略 > 前缀，需要容忍
+		// callout 内空行（段落分隔）可能省略 > 前缀
+		// 空行后若仍有 > 开头的行，则空行属于 callout 内部；否则空行为 callout 结束
 		let endIndex = headerIndex + 1;
 		while (endIndex < lines.length) {
 			const line = lines[endIndex];
-			if (/^> ?/.test(line) || line.trim() === '') {
+			if (/^> ?/.test(line)) {
 				endIndex++;
+			} else if (line.trim() === '') {
+				// 向前看：空行后是否还有 callout 内容
+				let nextNonEmpty = endIndex + 1;
+				while (nextNonEmpty < lines.length && lines[nextNonEmpty].trim() === '') {
+					nextNonEmpty++;
+				}
+				if (nextNonEmpty < lines.length && /^> ?/.test(lines[nextNonEmpty])) {
+					endIndex = nextNonEmpty + 1;
+				} else {
+					break;
+				}
 			} else {
 				break;
 			}
 		}
-		// 尾部空行不属于 callout 内容，回退
+		// 文件尾部空行不属于 callout 内容，回退
 		while (endIndex > headerIndex + 1 && lines[endIndex - 1].trim() === '') {
 			endIndex--;
 		}
