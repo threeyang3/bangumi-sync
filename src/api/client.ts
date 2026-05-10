@@ -573,7 +573,8 @@ export class BangumiClient {
 		console.debug(`[Bangumi Sync] 获取章节: ${endpoint}`);
 
 		const result = await this.request<PagedEpisodes>('GET', endpoint);
-		console.debug(`[Bangumi Sync] 获取到 ${result.data.length}/${result.total} 个章节`);
+		const data = result?.data ?? [];
+		console.debug(`[Bangumi Sync] 获取到 ${data.length}/${result?.total ?? 0} 个章节`);
 		return result;
 	}
 
@@ -586,8 +587,9 @@ export class BangumiClient {
 		console.debug(`[Bangumi Sync] 获取用户章节状态: ${endpoint}`);
 
 		const result = await this.request<PagedResult<UserEpisodeCollection>>('GET', endpoint);
-		console.debug(`[Bangumi Sync] 获取到 ${result.data.length} 个章节状态`);
-		return result.data;
+		const data = result?.data ?? [];
+		console.debug(`[Bangumi Sync] 获取到 ${data.length} 个章节状态`);
+		return data;
 	}
 
 	/**

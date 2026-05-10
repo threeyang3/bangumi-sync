@@ -3354,10 +3354,12 @@ var BangumiClient = class {
    * @param subjectId 条目 ID
    */
   async getEpisodes(subjectId) {
+    var _a, _b;
     const endpoint = `${ENDPOINTS.EPISODES}?subject_id=${subjectId}`;
     console.debug(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282: ${endpoint}`);
     const result = await this.request("GET", endpoint);
-    console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230 ${result.data.length}/${result.total} \u4E2A\u7AE0\u8282`);
+    const data = (_a = result == null ? void 0 : result.data) != null ? _a : [];
+    console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230 ${data.length}/${(_b = result == null ? void 0 : result.total) != null ? _b : 0} \u4E2A\u7AE0\u8282`);
     return result;
   }
   /**
@@ -3365,11 +3367,13 @@ var BangumiClient = class {
    * @param subjectId 条目 ID
    */
   async getUserEpisodeStatus(subjectId) {
+    var _a;
     const endpoint = ENDPOINTS.USER_SUBJECT_EPISODES(subjectId);
     console.debug(`[Bangumi Sync] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001: ${endpoint}`);
     const result = await this.request("GET", endpoint);
-    console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230 ${result.data.length} \u4E2A\u7AE0\u8282\u72B6\u6001`);
-    return result.data;
+    const data = (_a = result == null ? void 0 : result.data) != null ? _a : [];
+    console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230 ${data.length} \u4E2A\u7AE0\u8282\u72B6\u6001`);
+    return data;
   }
   /**
    * 更新章节收藏状态
@@ -10227,7 +10231,18 @@ var ControlPanel = class extends import_obsidian20.Modal {
         const cloudTagsRaw = collection.tags && collection.tags.length > 0 ? collection.tags : null;
         const cloudTags = this.incrementalSync.normalizeTags(cloudTagsRaw);
         const cloudStatus = collection.type || null;
-        const episodeStatusDiff = await this.buildEpisodeStatusDiff(file, collection.subject_id, collection.subject_type);
+        let episodeStatusDiff;
+        try {
+          episodeStatusDiff = await this.buildEpisodeStatusDiff(file, collection.subject_id, collection.subject_type);
+        } catch (epError) {
+          console.warn(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u72B6\u6001\u5931\u8D25 (${collection.subject_id}):`, epError);
+          episodeStatusDiff = {
+            localValue: null,
+            cloudValue: null,
+            hasDiff: false,
+            decision: "skip"
+          };
+        }
         const diff = this.buildStatusSyncDiff(
           collection,
           localInfo,
@@ -10321,7 +10336,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
     };
   }
   async buildEpisodeStatusDiff(file, subjectId, subjectType) {
-    if (!this.episodeStatusManager || subjectType !== 2 /* Anime */) {
+    if (!this.episodeStatusManager || subjectType !== 2 /* Anime */ && subjectType !== 6 /* Real */) {
       return {
         localValue: null,
         cloudValue: null,
@@ -10718,7 +10733,7 @@ var EpisodeStatusManager = class {
     const userEpisodes = await this.client.getUserEpisodeStatus(subjectId);
     const statusMap = /* @__PURE__ */ new Map();
     for (const userEp of userEpisodes) {
-      if (!userEp.type) {
+      if (!userEp.type || !userEp.episode) {
         continue;
       }
       const epNumber = userEp.episode.ep || userEp.episode.sort || 0;

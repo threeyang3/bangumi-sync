@@ -160,7 +160,7 @@ tags:
 | `{{id}}` | 条目 ID |
 | `{{name}}` | 原名 |
 | `{{name_cn}}` | 中文名 |
-| `{{alias}}` | 当前固定为空 |
+| `{{alias}}` | 从 infobox 提取的别名（支持字符串和数组格式，多个用顿号分隔） |
 | `{{summary}}` | 简介，已做基础清洗 |
 | `{{rating}}` | Bangumi 平均分 |
 | `{{rank}}` | Bangumi 排名 |
