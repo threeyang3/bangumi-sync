@@ -498,7 +498,10 @@ export class StatusSyncModal extends Modal {
 
 		if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== 'skip' && this.episodeStatusManager) {
 			if (diff.episodeStatus.decision === 'local') {
-				await this.episodeStatusManager.syncStatusToCloud(file);
+				const result = await this.episodeStatusManager.syncStatusToCloud(file);
+				if (result.failed > 0 && result.success === 0) {
+					throw new Error(`单集状态同步到云端全部失败 (${result.failed}集)`);
+				}
 			} else if (diff.episodeStatus.decision === 'cloud') {
 				const synced = await this.episodeStatusManager.syncStatusFromCloud(file, diff.subjectId);
 				if (!synced) {

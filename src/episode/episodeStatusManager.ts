@@ -382,7 +382,7 @@ export class EpisodeStatusManager {
 			// 更新本地文件
 			await this.app.vault.process(file, (content) => {
 				const episodes = userEpisodes
-					.filter(userEp => userEp.type !== 0)
+					.filter(userEp => userEp.type !== 0 && userEp.episode)
 					.map(userEp => ({
 						episodeId: userEp.episode.id,
 						epNumber: userEp.episode.ep || userEp.episode.sort || 0,
