@@ -56,17 +56,9 @@ interface CachedData {
 type TemplateKey = 'animeTemplateConfig' | 'novelTemplateConfig' | 'comicTemplateConfig' | 'gameTemplateConfig' | 'albumTemplateConfig' | 'musicTemplateConfig' | 'realTemplateConfig';
 
 /**
- * 模板集合类型
+ * 模板集合类型 — 按 category 键索引
  */
-interface TemplatesMap {
-	anime: string;
-	novel: string;
-	comic: string;
-	game: string;
-	album: string;
-	music: string;
-	real: string;
-}
+type TemplatesMap = Record<string, string>;
 
 const TEMPLATE_CONFIG_MAP_STANDARD: Record<TemplateKey, string> = {
 	animeTemplateConfig: ANIME_TEMPLATE_STANDARD,
@@ -377,35 +369,47 @@ export default class BangumiPlugin extends Plugin {
 	 * 获取各类型模板
 	 */
 	private async getTemplates(): Promise<TemplatesMap> {
-		const templateKeys: TemplateKey[] = [
-			'animeTemplateConfig',
-			'novelTemplateConfig',
-			'comicTemplateConfig',
-			'gameTemplateConfig',
-			'albumTemplateConfig',
-			'musicTemplateConfig',
-			'realTemplateConfig',
-		];
+		// 解析各 typeLabel 的模板内容
+		const anime = await this.resolveTemplate('animeTemplateConfig');
+		const novel = await this.resolveTemplate('novelTemplateConfig');
+		const comic = await this.resolveTemplate('comicTemplateConfig');
+		const game = await this.resolveTemplate('gameTemplateConfig');
+		const album = await this.resolveTemplate('albumTemplateConfig');
+		const music = await this.resolveTemplate('musicTemplateConfig');
+		const real = await this.resolveTemplate('realTemplateConfig');
 
-		const templateNames: (keyof TemplatesMap)[] = [
-			'anime', 'novel', 'comic', 'game', 'album', 'music', 'real'
-		];
-
+		// 按 category 展开，每个 category 继承其 typeLabel 的模板
 		const templates: TemplatesMap = {
-			anime: '',
-			novel: '',
-			comic: '',
-			game: '',
-			album: '',
-			music: '',
-			real: '',
+			// Book 细分
+			'小说': novel,
+			'轻小说': novel,
+			'漫画': comic,
+			'画集': album,
+			'画本': album,
+			'画册': album,
+			'绘本': album,
+			'公式书': album,
+			'写真': album,
+			// Anime 细分
+			'TV': anime,
+			'OVA': anime,
+			'WEB': anime,
+			'剧场版': anime,
+			'其他': anime,
+			// Game
+			'游戏': game,
+			'扩展包': game,
+			// Music
+			'音乐': music,
+			// Real 细分
+			'电影': real,
+			'日剧': real,
+			'欧美剧': real,
+			'华语剧': real,
+			'电视剧': real,
+			'演出': real,
+			'综艺': real,
 		};
-
-		for (let i = 0; i < templateKeys.length; i++) {
-			const key = templateKeys[i];
-			const name = templateNames[i];
-			templates[name] = await this.resolveTemplate(key);
-		}
 
 		return templates;
 	}

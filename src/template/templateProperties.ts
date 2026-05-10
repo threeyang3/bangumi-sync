@@ -52,6 +52,7 @@ export const AUTO_FILLED_TEMPLATE_VARS = new Set([
 	'bangumi_url',
 	'type',
 	'typeLabel',
+	'typeId',
 	'category',
 	'date',
 	'year',

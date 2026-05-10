@@ -2072,7 +2072,7 @@ function getDefaultTemplate(subjectType, category, useAuthorTemplate = true) {
     if (category.includes("\u6F2B\u753B")) {
       return useAuthorTemplate ? COMIC_TEMPLATE_AUTHOR : COMIC_TEMPLATE_STANDARD;
     }
-    if (category.includes("\u753B\u96C6") || category.includes("\u753B\u672C")) {
+    if (category.includes("\u753B\u96C6") || category.includes("\u753B\u672C") || category.includes("\u7ED8\u672C") || category.includes("\u516C\u5F0F\u4E66") || category.includes("\u5199\u771F")) {
       return useAuthorTemplate ? ALBUM_TEMPLATE_AUTHOR : ALBUM_TEMPLATE_STANDARD;
     }
   }
@@ -2099,7 +2099,7 @@ function getTypeLabel(subjectType, category) {
     if (category.includes("\u6F2B\u753B")) {
       return "Comic";
     }
-    if (category.includes("\u753B\u96C6") || category.includes("\u753B\u672C")) {
+    if (category.includes("\u753B\u96C6") || category.includes("\u753B\u672C") || category.includes("\u7ED8\u672C") || category.includes("\u516C\u5F0F\u4E66") || category.includes("\u5199\u771F")) {
       return "Album";
     }
   }
@@ -2213,12 +2213,10 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
     this.updatePathPreview(previewEl, this.settings.syncPathTemplate);
     new import_obsidian2.Setting(containerEl).setName(tn("settings", "pathTemplateByType")).setDesc(tn("settings", "pathTemplateByTypeDesc"));
     const TYPE_PATH_KEYS = [
+      { key: "book", label: "\u4E66\u7C4D" },
       { key: "anime", label: "\u52A8\u753B" },
-      { key: "novel", label: "\u5C0F\u8BF4" },
-      { key: "comic", label: "\u6F2B\u753B" },
-      { key: "album", label: "\u753B\u96C6" },
-      { key: "game", label: "\u6E38\u620F" },
       { key: "music", label: "\u97F3\u4E50" },
+      { key: "game", label: "\u6E38\u620F" },
       { key: "real", label: "\u4E09\u6B21\u5143" }
     ];
     for (const { key, label } of TYPE_PATH_KEYS) {
@@ -4814,7 +4812,7 @@ function parseInfoByType(infobox, subjectType, platform, persons) {
         if (platform.includes("\u6F2B\u753B")) {
           return parseComicInfo(infobox);
         }
-        if (platform.includes("\u753B\u96C6") || platform.includes("\u753B\u672C") || platform.includes("\u753B\u518C")) {
+        if (platform.includes("\u753B\u96C6") || platform.includes("\u753B\u672C") || platform.includes("\u753B\u518C") || platform.includes("\u7ED8\u672C") || platform.includes("\u516C\u5F0F\u4E66") || platform.includes("\u5199\u771F")) {
           return parseAlbumInfo(infobox, platform);
         }
       }
@@ -4827,12 +4825,16 @@ function parseInfoByType(infobox, subjectType, platform, persons) {
           if (type.includes("\u6F2B\u753B")) {
             return parseComicInfo(infobox);
           }
-          if (type.includes("\u753B\u96C6") || type.includes("\u753B\u672C") || type.includes("\u753B\u518C")) {
+          if (type.includes("\u753B\u96C6") || type.includes("\u753B\u672C") || type.includes("\u753B\u518C") || type.includes("\u7ED8\u672C") || type.includes("\u516C\u5F0F\u4E66") || type.includes("\u5199\u771F")) {
             return parseAlbumInfo(infobox, platform);
           }
         }
         const pages = getInfoboxNumber(infobox, "\u9875\u6570");
         const isbn = getInfoboxValue(infobox, "ISBN");
+        const illustration = getInfoboxValue(infobox, "\u63D2\u56FE", ["\u63D2\u753B"]);
+        if (illustration && !getInfoboxValue(infobox, "\u4F5C\u8005", ["\u539F\u4F5C"])) {
+          return parseAlbumInfo(infobox, platform);
+        }
         if (pages || isbn) {
           const author = getInfoboxValue(infobox, "\u4F5C\u8005", ["\u539F\u4F5C"]);
           if (!author && (pages || isbn)) {
@@ -4882,31 +4884,9 @@ function cleanSummary(summary) {
 }
 
 // common/template/pathTemplate.ts
-function getTypeLabelChinese(type) {
-  const typeLabels = {
-    "anime": "\u52A8\u753B",
-    "novel": "\u5C0F\u8BF4",
-    "comic": "\u6F2B\u753B",
-    "album": "\u753B\u96C6",
-    "music": "\u97F3\u4E50",
-    "game": "\u6E38\u620F",
-    "real": "\u4E09\u6B21\u5143",
-    "book": "\u4E66\u7C4D"
-  };
-  return typeLabels[type] || "";
-}
 function extractPathVars(subject, _collection) {
   const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
-  let typeLabel = getSubjectTypeLabel(subject.type);
-  if (parsedInfo.category) {
-    if (parsedInfo.category.includes("\u5C0F\u8BF4")) {
-      typeLabel = "novel";
-    } else if (parsedInfo.category.includes("\u6F2B\u753B")) {
-      typeLabel = "comic";
-    } else if (parsedInfo.category.includes("\u753B\u96C6") || parsedInfo.category.includes("\u753B\u672C")) {
-      typeLabel = "album";
-    }
-  }
+  const typeLabel = getSubjectTypeLabel(subject.type);
   let year = "";
   if (subject.date) {
     const match = subject.date.match(/^(\d{4})/);
@@ -4917,7 +4897,7 @@ function extractPathVars(subject, _collection) {
   const effectiveNameCn = subject.name_cn || subject.name || String(subject.id);
   let nameCnWithType = effectiveNameCn;
   if (nameCnWithType) {
-    const typeSuffix = getTypeSuffixForName(subject.type, parsedInfo.category, subject.platform);
+    const typeSuffix = getTypeSuffixForName(parsedInfo.category || "");
     if (typeSuffix) {
       nameCnWithType = `${nameCnWithType}(${typeSuffix})`;
     }
@@ -4934,26 +4914,8 @@ function extractPathVars(subject, _collection) {
     id: subject.id
   };
 }
-function getTypeSuffixForName(subjectType, category, platform) {
-  if (subjectType === 2 /* Anime */) {
-    if (platform && platform.trim()) {
-      return platform.trim();
-    }
-    if (category && category.trim()) {
-      return category.trim();
-    }
-    return "\u52A8\u753B";
-  }
-  if (subjectType === 1 /* Book */) {
-    if (category && category.trim()) {
-      return category.trim();
-    }
-    return "\u4E66\u7C4D";
-  }
-  if (category && category.trim()) {
-    return category.trim();
-  }
-  return getTypeLabelChinese(getSubjectTypeLabel(subjectType));
+function getTypeSuffixForName(category) {
+  return category.trim() || "";
 }
 function sanitizeFileName(name) {
   return name.replace(/[<>:"/\\|?*]/g, " ").replace(/\s+/g, " ").trim();
@@ -5066,12 +5028,15 @@ function extractTemplateVars(subject, collection, characters, ratingDetails, epi
     }
   }
   const name_cn = subject.name_cn || "";
+  const typeSuffix = getTypeSuffixForName(parsedInfo.category || "");
+  const name_cn_with_type = name_cn ? typeSuffix ? `${name_cn}(${typeSuffix})` : name_cn : "";
   const related = relatedLinks && relatedLinks.length > 0 ? relatedLinks.map((l) => `  - "${l}"`).join("\n") : "";
   const vars = {
     // 基础信息
     id: String(subject.id),
     name: subject.name || "",
     name_cn,
+    name_cn_with_type,
     alias: "",
     summary: cleanSummary(subject.summary),
     rating: ((_e = subject.rating) == null ? void 0 : _e.score) ? String(subject.rating.score) : "",
@@ -5082,8 +5047,9 @@ function extractTemplateVars(subject, collection, characters, ratingDetails, epi
     cover,
     bangumi_url: `https://bgm.tv/subject/${subject.id}`,
     // 类型信息
-    type: String(subject.type),
+    type: getSubjectTypeLabel(subject.type),
     typeLabel,
+    typeId: String(subject.type),
     category: parsedInfo.category || "",
     // 日期
     date: subject.date || "",
@@ -5193,28 +5159,9 @@ function generateContentByType(subject, collection, characters, customTemplates,
 function resolveTemplateForSubject(subject, customTemplates, resolvedCategory) {
   const category = resolvedCategory || parseInfoByType(subject.infobox, subject.type, subject.platform).category || "";
   if (customTemplates) {
-    if (category.includes("\u5C0F\u8BF4") && customTemplates.novel) {
-      return customTemplates.novel;
-    }
-    if (category.includes("\u6F2B\u753B") && customTemplates.comic) {
-      return customTemplates.comic;
-    }
-    if ((category.includes("\u753B\u96C6") || category.includes("\u753B\u672C")) && customTemplates.album) {
-      return customTemplates.album;
-    }
-    switch (subject.type) {
-      case 2 /* Anime */:
-        return customTemplates.anime || getDefaultTemplate(subject.type, category);
-      case 4 /* Game */:
-        return customTemplates.game || getDefaultTemplate(subject.type, category);
-      case 3 /* Music */:
-        return customTemplates.music || getDefaultTemplate(subject.type, category);
-      case 6 /* Real */:
-        return customTemplates.real || getDefaultTemplate(subject.type, category);
-      case 1 /* Book */:
-      default:
-        return customTemplates.novel || getDefaultTemplate(subject.type, category);
-    }
+    const template = customTemplates[category];
+    if (template)
+      return template;
   }
   return getDefaultTemplate(subject.type, category);
 }
@@ -6200,6 +6147,7 @@ var AUTO_FILLED_TEMPLATE_VARS = /* @__PURE__ */ new Set([
   "bangumi_url",
   "type",
   "typeLabel",
+  "typeId",
   "category",
   "date",
   "year",
@@ -11712,38 +11660,44 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
    * 获取各类型模板
    */
   async getTemplates() {
-    const templateKeys = [
-      "animeTemplateConfig",
-      "novelTemplateConfig",
-      "comicTemplateConfig",
-      "gameTemplateConfig",
-      "albumTemplateConfig",
-      "musicTemplateConfig",
-      "realTemplateConfig"
-    ];
-    const templateNames = [
-      "anime",
-      "novel",
-      "comic",
-      "game",
-      "album",
-      "music",
-      "real"
-    ];
+    const anime = await this.resolveTemplate("animeTemplateConfig");
+    const novel = await this.resolveTemplate("novelTemplateConfig");
+    const comic = await this.resolveTemplate("comicTemplateConfig");
+    const game = await this.resolveTemplate("gameTemplateConfig");
+    const album = await this.resolveTemplate("albumTemplateConfig");
+    const music = await this.resolveTemplate("musicTemplateConfig");
+    const real = await this.resolveTemplate("realTemplateConfig");
     const templates = {
-      anime: "",
-      novel: "",
-      comic: "",
-      game: "",
-      album: "",
-      music: "",
-      real: ""
+      // Book 细分
+      "\u5C0F\u8BF4": novel,
+      "\u8F7B\u5C0F\u8BF4": novel,
+      "\u6F2B\u753B": comic,
+      "\u753B\u96C6": album,
+      "\u753B\u672C": album,
+      "\u753B\u518C": album,
+      "\u7ED8\u672C": album,
+      "\u516C\u5F0F\u4E66": album,
+      "\u5199\u771F": album,
+      // Anime 细分
+      "TV": anime,
+      "OVA": anime,
+      "WEB": anime,
+      "\u5267\u573A\u7248": anime,
+      "\u5176\u4ED6": anime,
+      // Game
+      "\u6E38\u620F": game,
+      "\u6269\u5C55\u5305": game,
+      // Music
+      "\u97F3\u4E50": music,
+      // Real 细分
+      "\u7535\u5F71": real,
+      "\u65E5\u5267": real,
+      "\u6B27\u7F8E\u5267": real,
+      "\u534E\u8BED\u5267": real,
+      "\u7535\u89C6\u5267": real,
+      "\u6F14\u51FA": real,
+      "\u7EFC\u827A": real
     };
-    for (let i = 0; i < templateKeys.length; i++) {
-      const key = templateKeys[i];
-      const name = templateNames[i];
-      templates[name] = await this.resolveTemplate(key);
-    }
     return templates;
   }
   /**

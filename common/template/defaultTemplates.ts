@@ -838,7 +838,7 @@ export function getDefaultTemplate(subjectType: number, category?: string, useAu
 		if (category.includes('漫画')) {
 			return useAuthorTemplate ? COMIC_TEMPLATE_AUTHOR : COMIC_TEMPLATE_STANDARD;
 		}
-		if (category.includes('画集') || category.includes('画本')) {
+		if (category.includes('画集') || category.includes('画本') || category.includes('绘本') || category.includes('公式书') || category.includes('写真')) {
 			return useAuthorTemplate ? ALBUM_TEMPLATE_AUTHOR : ALBUM_TEMPLATE_STANDARD;
 		}
 	}
@@ -872,7 +872,7 @@ export function getTypeLabel(subjectType: number, category?: string): string {
 		if (category.includes('漫画')) {
 			return 'Comic';
 		}
-		if (category.includes('画集') || category.includes('画本')) {
+		if (category.includes('画集') || category.includes('画本') || category.includes('绘本') || category.includes('公式书') || category.includes('写真')) {
 			return 'Album';
 		}
 	}

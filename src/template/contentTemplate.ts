@@ -5,21 +5,16 @@
  * 支持章节显示
  */
 
-import { Subject, UserCollection, getCollectionStatusLabel, Episode, UserEpisodeCollection, SubjectType, RelatedPerson } from '../../common/api/types';
+import { Subject, UserCollection, getCollectionStatusLabel, Episode, UserEpisodeCollection, SubjectType, RelatedPerson, getSubjectTypeLabel } from '../../common/api/types';
 import { parseInfoByType, parseDate, cleanSummary } from '../../common/parser/infoboxParser';
 import { getCharacterTemplateVars, CharacterInfo } from '../../common/parser/characterParser';
 import { getDefaultTemplate, getTypeLabel } from '../../common/template/defaultTemplates';
+import { getTypeSuffixForName } from '../../common/template/pathTemplate';
 import { parseEpisodes, createUserStatusMap } from '../../common/parser/episodeParser';
 import { CoverLinkType } from '../settings/settings';
 
 export interface CustomTemplates {
-	anime?: string;
-	novel?: string;
-	comic?: string;
-	game?: string;
-	album?: string;
-	music?: string;
-	real?: string;
+	[category: string]: string | undefined;
 }
 
 export interface RatingDetails {
@@ -126,6 +121,10 @@ export function extractTemplateVars(
 
 	const name_cn = subject.name_cn || '';
 
+	// 生成带类型后缀的名称
+	const typeSuffix = getTypeSuffixForName(parsedInfo.category || '');
+	const name_cn_with_type = name_cn ? (typeSuffix ? `${name_cn}(${typeSuffix})` : name_cn) : '';
+
 	// 相关条目链接（YAML 数组格式，用双引号包围）
 	const related = relatedLinks && relatedLinks.length > 0
 		? relatedLinks.map(l => `  - "${l}"`).join('\n')
@@ -137,6 +136,7 @@ export function extractTemplateVars(
 		id: String(subject.id),
 		name: subject.name || '',
 		name_cn,
+		name_cn_with_type,
 		alias: '',
 		summary: cleanSummary(subject.summary),
 		rating: subject.rating?.score ? String(subject.rating.score) : '',
@@ -147,8 +147,9 @@ export function extractTemplateVars(
 		bangumi_url: `https://bgm.tv/subject/${subject.id}`,
 
 		// 类型信息
-		type: String(subject.type),
+		type: getSubjectTypeLabel(subject.type),
 		typeLabel,
+		typeId: String(subject.type),
 		category: parsedInfo.category || '',
 
 		// 日期
@@ -336,31 +337,9 @@ export function resolveTemplateForSubject(
 	const category = resolvedCategory || parseInfoByType(subject.infobox, subject.type, subject.platform).category || '';
 
 	if (customTemplates) {
-		if (category.includes('小说') && customTemplates.novel) {
-			return customTemplates.novel;
-		}
-
-		if (category.includes('漫画') && customTemplates.comic) {
-			return customTemplates.comic;
-		}
-
-		if ((category.includes('画集') || category.includes('画本')) && customTemplates.album) {
-			return customTemplates.album;
-		}
-
-		switch (subject.type) {
-			case SubjectType.Anime:
-				return customTemplates.anime || getDefaultTemplate(subject.type, category);
-			case SubjectType.Game:
-				return customTemplates.game || getDefaultTemplate(subject.type, category);
-			case SubjectType.Music:
-				return customTemplates.music || getDefaultTemplate(subject.type, category);
-			case SubjectType.Real:
-				return customTemplates.real || getDefaultTemplate(subject.type, category);
-			case SubjectType.Book:
-			default:
-				return customTemplates.novel || getDefaultTemplate(subject.type, category);
-		}
+		// 直接按 category 查找
+		const template = customTemplates[category];
+		if (template) return template;
 	}
 
 	return getDefaultTemplate(subject.type, category);

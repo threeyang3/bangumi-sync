@@ -3,14 +3,14 @@
  * 支持变量替换生成文件路径
  */
 
-import { Subject, UserCollection, SubjectType, getSubjectTypeLabel } from '../api/types';
+import { Subject, UserCollection, getSubjectTypeLabel } from '../api/types';
 import { parseInfoByType } from '../parser/infoboxParser';
 
 /**
  * 路径模板变量
  */
 interface PathTemplateVars {
-	type: string;      // 条目类型 (anime/game/novel/comic/album/music/real)
+	type: string;      // 条目类型大类 (book/anime/music/game/real)
 	category: string;  // 细分类别
 	platform: string;  // 平台/具体类型 (如: 公式书、TV、电影)
 	name: string;      // 原名
@@ -19,23 +19,6 @@ interface PathTemplateVars {
 	year: string;      // 年份
 	author: string;    // 作者
 	id: number;        // 条目 ID
-}
-
-/**
- * 获取类型的中文标签
- */
-function getTypeLabelChinese(type: string): string {
-	const typeLabels: Record<string, string> = {
-		'anime': '动画',
-		'novel': '小说',
-		'comic': '漫画',
-		'album': '画集',
-		'music': '音乐',
-		'game': '游戏',
-		'real': '三次元',
-		'book': '书籍',
-	};
-	return typeLabels[type] || '';
 }
 
 /**
@@ -48,19 +31,8 @@ export function extractPathVars(
 	// 解析 infobox 获取详细信息
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
 
-	// 获取类型标签
-	let typeLabel = getSubjectTypeLabel(subject.type);
-
-	// 根据细分类别调整类型标签
-	if (parsedInfo.category) {
-		if (parsedInfo.category.includes('小说')) {
-			typeLabel = 'novel';
-		} else if (parsedInfo.category.includes('漫画')) {
-			typeLabel = 'comic';
-		} else if (parsedInfo.category.includes('画集') || parsedInfo.category.includes('画本')) {
-			typeLabel = 'album';
-		}
-	}
+	// 获取类型大类标签
+	const typeLabel = getSubjectTypeLabel(subject.type);
 
 	// 提取年份
 	let year = '';
@@ -78,7 +50,7 @@ export function extractPathVars(
 	const effectiveNameCn = subject.name_cn || subject.name || String(subject.id);
 	let nameCnWithType = effectiveNameCn;
 	if (nameCnWithType) {
-		const typeSuffix = getTypeSuffixForName(subject.type, parsedInfo.category, subject.platform);
+		const typeSuffix = getTypeSuffixForName(parsedInfo.category || '');
 		if (typeSuffix) {
 			nameCnWithType = `${nameCnWithType}(${typeSuffix})`;
 		}
@@ -99,37 +71,10 @@ export function extractPathVars(
 
 /**
  * 获取用于文件名的类型后缀
- * 动画使用具体类型（TV、OVA、剧场版），其他类型优先使用细分类别
+ * 直接使用 category（细分类别）
  */
-function getTypeSuffixForName(subjectType: SubjectType, category: string, platform?: string): string {
-	// 对于动画，优先使用 platform（包含具体类型如 TV、OVA、剧场版）
-	if (subjectType === SubjectType.Anime) {
-		if (platform && platform.trim()) {
-			return platform.trim();
-		}
-		// 如果 platform 为空，使用 category
-		if (category && category.trim()) {
-			return category.trim();
-		}
-		// 默认返回"动画"
-		return '动画';
-	}
-
-	// 对于书籍类型，优先使用细分类别（小说、漫画、画集等）
-	if (subjectType === SubjectType.Book) {
-		if (category && category.trim()) {
-			return category.trim();
-		}
-		// 默认返回"书籍"
-		return '书籍';
-	}
-
-	// 对于其他类型，优先使用细分类别，如果没有则使用大类
-	if (category && category.trim()) {
-		return category.trim();
-	}
-
-	return getTypeLabelChinese(getSubjectTypeLabel(subjectType));
+export function getTypeSuffixForName(category: string): string {
+	return category.trim() || '';
 }
 
 /**

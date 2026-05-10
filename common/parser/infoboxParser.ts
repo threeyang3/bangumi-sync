@@ -405,7 +405,7 @@ export function parseInfoByType(
 				if (platform.includes('漫画')) {
 					return parseComicInfo(infobox);
 				}
-				if (platform.includes('画集') || platform.includes('画本') || platform.includes('画册')) {
+				if (platform.includes('画集') || platform.includes('画本') || platform.includes('画册') || platform.includes('绘本') || platform.includes('公式书') || platform.includes('写真')) {
 					return parseAlbumInfo(infobox, platform);
 				}
 			}
@@ -419,13 +419,18 @@ export function parseInfoByType(
 					if (type.includes('漫画')) {
 						return parseComicInfo(infobox);
 					}
-					if (type.includes('画集') || type.includes('画本') || type.includes('画册')) {
+					if (type.includes('画集') || type.includes('画本') || type.includes('画册') || type.includes('绘本') || type.includes('公式书') || type.includes('写真')) {
 						return parseAlbumInfo(infobox, platform);
 					}
 				}
 				// 检查是否有画集特征字段
 				const pages = getInfoboxNumber(infobox, '页数');
 				const isbn = getInfoboxValue(infobox, 'ISBN');
+				const illustration = getInfoboxValue(infobox, '插图', ['插画']);
+				// 有插图字段且无作者，大概率是画集/公式书
+				if (illustration && !getInfoboxValue(infobox, '作者', ['原作'])) {
+					return parseAlbumInfo(infobox, platform);
+				}
 				if (pages || isbn) {
 					// 有页数或 ISBN，可能是画集
 					// 但需要排除小说（小说通常有作者、出版社等）

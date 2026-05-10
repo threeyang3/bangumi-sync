@@ -190,12 +190,10 @@ export class BangumiSettingTab extends PluginSettingTab {
 			.setDesc(tn('settings', 'pathTemplateByTypeDesc'));
 
 		const TYPE_PATH_KEYS = [
+			{ key: 'book', label: '书籍' },
 			{ key: 'anime', label: '动画' },
-			{ key: 'novel', label: '小说' },
-			{ key: 'comic', label: '漫画' },
-			{ key: 'album', label: '画集' },
-			{ key: 'game', label: '游戏' },
 			{ key: 'music', label: '音乐' },
+			{ key: 'game', label: '游戏' },
 			{ key: 'real', label: '三次元' },
 		];
 

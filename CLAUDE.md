@@ -177,16 +177,21 @@ gh release edit {版本号} --target adv
 
 | 变量 | 说明 |
 |------|------|
-| `{{type}}` | 条目类型（anime/game/novel/comic/album/music/real） |
-| `{{category}}` | 细分类别（如小说/漫画/画集/TV/电影） |
+| `{{type}}` | 条目类型大类（小写，如 book/anime/music/game/real） |
+| `{{typeId}}` | 条目类型编号（1/2/3/4/6） |
+| `{{category}}` | 细分类别（如小说/漫画/画集/绘本/公式书/写真/TV/电影） |
 | `{{platform}}` | Bangumi API 平台字段（如"公式书"、"TV"、"电影"） |
-| `{{name_cn_with_type}}` | 中文名带类型后缀，如 `进击的巨人(动画)` |
+| `{{name_cn_with_type}}` | 中文名带类别后缀，如 `进击的巨人(漫画)` |
 | `{{id}}` | 条目 ID |
 
 ### 常用内容变量
 
 | 变量 | 说明 |
 |------|------|
+| `{{type}}` | 条目类型大类（小写，如 book/anime/music/game/real） |
+| `{{typeLabel}}` | 条目类型细分标签（首字母大写，如 Novel/Comic/Album） |
+| `{{typeId}}` | 条目类型编号 |
+| `{{category}}` | 条目细分类别 |
 | `{{my_rate}}` | 我的评分 |
 | `{{my_comment}}` | 我的短评 |
 | `{{my_tags}}` | 我的标签 |

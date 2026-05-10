@@ -41,15 +41,7 @@ export interface SyncManagerConfig {
 	coverLinkType?: CoverLinkType;  // 封面链接类型
 	enableRelatedLinks?: boolean;  // 是否自动处理关联条目链接
 	pathTemplateByType?: Record<string, string>;  // 各类型独立路径模板
-	customTemplates?: {
-		anime?: string;
-		novel?: string;
-		comic?: string;
-		game?: string;
-		album?: string;
-		music?: string;
-		real?: string;
-	};
+	customTemplates?: Record<string, string | undefined>;  // 按 category 键索引的模板
 	dataProtection?: DataProtectionSettings;  // 数据保护设置
 }
 
