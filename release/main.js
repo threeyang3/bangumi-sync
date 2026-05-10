@@ -11420,7 +11420,7 @@ var TEMPLATE_CONFIG_MAP_AUTHOR = {
   gameTemplateConfig: GAME_TEMPLATE_AUTHOR,
   albumTemplateConfig: ALBUM_TEMPLATE_AUTHOR,
   musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
-  realTemplateConfig: REAL_TEMPLATE_STANDARD
+  realTemplateConfig: REAL_TEMPLATE_AUTHOR
 };
 var BangumiPlugin = class extends import_obsidian23.Plugin {
   constructor() {
@@ -11683,7 +11683,6 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
       "OVA": anime,
       "WEB": anime,
       "\u5267\u573A\u7248": anime,
-      "\u5176\u4ED6": anime,
       // Game
       "\u6E38\u620F": game,
       "\u6269\u5C55\u5305": game,
@@ -11696,7 +11695,9 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
       "\u534E\u8BED\u5267": real,
       "\u7535\u89C6\u5267": real,
       "\u6F14\u51FA": real,
-      "\u7EFC\u827A": real
+      "\u7EFC\u827A": real,
+      "\u5176\u4ED6": real,
+      "\u4E09\u6B21\u5143": real
     };
     return templates;
   }

@@ -34,6 +34,7 @@ import {
 	COMIC_TEMPLATE_AUTHOR,
 	GAME_TEMPLATE_AUTHOR,
 	ALBUM_TEMPLATE_AUTHOR,
+	REAL_TEMPLATE_AUTHOR,
 } from './common/template/defaultTemplates';
 import { UserDataExportModal, UserDataImportModal, ImportResultModal } from './src/userData';
 import { EpisodeContextMenu } from './src/episode/episodeContextMenu';
@@ -77,7 +78,7 @@ const TEMPLATE_CONFIG_MAP_AUTHOR: Record<TemplateKey, string> = {
 	gameTemplateConfig: GAME_TEMPLATE_AUTHOR,
 	albumTemplateConfig: ALBUM_TEMPLATE_AUTHOR,
 	musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
-	realTemplateConfig: REAL_TEMPLATE_STANDARD,
+	realTemplateConfig: REAL_TEMPLATE_AUTHOR,
 };
 
 export default class BangumiPlugin extends Plugin {
@@ -395,7 +396,6 @@ export default class BangumiPlugin extends Plugin {
 			'OVA': anime,
 			'WEB': anime,
 			'剧场版': anime,
-			'其他': anime,
 			// Game
 			'游戏': game,
 			'扩展包': game,
@@ -409,6 +409,8 @@ export default class BangumiPlugin extends Plugin {
 			'电视剧': real,
 			'演出': real,
 			'综艺': real,
+			'其他': real,
+			'三次元': real,
 		};
 
 		return templates;
