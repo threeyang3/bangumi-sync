@@ -375,7 +375,8 @@ export class SyncManager {
 		// 判断是否需要获取章节
 		// 动画（type=2）始终获取
 		// 书籍（type=1）需要检查 category 是否为小说或漫画
-		if (subject.type !== SubjectType.Anime && subject.type !== SubjectType.Book) {
+		// 三次元（type=6）始终获取
+		if (subject.type !== SubjectType.Anime && subject.type !== SubjectType.Book && subject.type !== SubjectType.Real) {
 			return null;
 		}
 

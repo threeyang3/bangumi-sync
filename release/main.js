@@ -1610,13 +1610,19 @@ tags:
 {{tags}}
 \u8BC4\u5206: {{my_rate}}
 \u77ED\u8BC4: "{{my_comment}}"
-\u4F5C\u54C1\u5927\u7C7B: Real
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
+\u56FD\u5BB6: "{{country}}"
+\u8BED\u8A00: "{{language}}"
+\u96C6\u6570: "{{episode}}"
+\u6BCF\u96C6\u957F: "{{episodeLength}}"
+\u5BFC\u6F14: "{{director}}"
+\u7F16\u5267: "{{script}}"
+\u4E3B\u6F14: "{{actor}}"
+\u653E\u9001\u65E5\u671F: "{{date}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u5C01\u9762: "{{cover}}"
-\u4E0A\u6620\u65E5\u671F: "{{date}}"
-\u96C6\u6570: "{{episode}}"
+\u5B98\u65B9\u7F51\u7AD9: "{{website}}"
 ---
 
 > [!bangumi-info]+ \u{1F3AC} **{{name}}**
@@ -1626,21 +1632,26 @@ Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 > | | |
 > |:------:|:------------------------------------------:|
 > | \u72B6\u6001 |\`= this.\u89C2\u770B\u72B6\u6001\`|
+> | \u7C7B\u578B | {{category}} |
 > | \u6807\u7B7E |\`= this.tags\`|
 > | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
-> | \u7C7B\u578B | {{category}} |
-> | \u96C6\u6570 | \u5171{{episode}}\u96C6 |
-> | \u4E0A\u6620 |{{date}}|
+> | \u5BFC\u6F14 | {{director}} |
+> | \u4E3B\u6F14 | {{actor}} |
+> | \u56FD\u5BB6 | {{country}} |
+> | \u8BED\u8A00 | {{language}} |
+> | \u96C6\u6570 | {{category}} \u5171{{episode}}\u96C6 |
 
 > [!abstract]+ **\u77ED\u8BC4**
 > {{my_comment_raw}}
 
-> [!abstract]+ **\u7B80\u4ECB**
+> [!abstract]- **\u7B80\u4ECB**
 > {{summary}}
 
+{{#if episodes}}
 ## \u96C6\u6570
 
 {{episodes}}
+{{/if}}
 
 ## \u8BB0\u5F55
 
@@ -2017,13 +2028,20 @@ tags:
 \u8D44\u6E90\u5C5E\u6027: []
 \u76F8\u5173:
 {{related}}
-\u4F5C\u54C1\u5927\u7C7B: Real
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
+\u56FD\u5BB6: "{{country}}"
+\u8BED\u8A00: "{{language}}"
+\u96C6\u6570: "{{episode}}"
+\u6BCF\u96C6\u957F: "{{episodeLength}}"
+\u5BFC\u6F14: "[[{{director}}]]"
+\u7F16\u5267: "{{script}}"
+\u4E3B\u6F14: "{{actor}}"
+\u653E\u9001\u65E5\u671F: "{{date}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u5C01\u9762: "{{cover}}"
-\u4E0A\u6620\u65E5\u671F: "{{date}}"
-\u96C6\u6570: "{{episode}}"
+\u5B98\u65B9\u7F51\u7AD9: "{{website}}"
+IMDb: "{{imdbId}}"
 ---
 
 > [!bangumi-info]+ \u{1F3AC} **{{name}}**
@@ -2034,11 +2052,15 @@ Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 > |:------:|:------------------------------------------:|
 > | \u6807\u8BED |\`= this.\u6807\u8BED\`|
 > | \u72B6\u6001 |\`= this.\u89C2\u770B\u72B6\u6001\`|
+> | \u7C7B\u578B | {{category}} |
 > | \u6807\u7B7E |\`= this.tags\`|
 > | \u8BC4\u5206 |\`= this.\u8BC4\u5206\`|
 > | \u660E\u7EC6 |\u5267\u60C5: \`= this.\u5267\u60C5\u8BC4\u5206\` \u6F14\u6280: \`= this.\u6F14\u6280\u8BC4\u5206\` \u5236\u4F5C: \`= this.\u5236\u4F5C\u8BC4\u5206\`|
-> | \u7C7B\u578B | {{category}} |
-> | \u96C6\u6570 | \u5171{{episode}}\u96C6 |
+> | \u5BFC\u6F14 | {{director}} |
+> | \u4E3B\u6F14 | {{actor}} |
+> | \u56FD\u5BB6 | {{country}} |
+> | \u8BED\u8A00 | {{language}} |
+> | \u96C6\u6570 | {{category}} \u5171{{episode}}\u96C6 |
 > | \u7CBE\u5F69\u7247\u6BB5 | \`= this.\u7CBE\u5F69\u7247\u6BB5\` |
 > | \u5B58\u50A8 | \`= this.\u5B58\u50A8\`\xB7\`=this.\u8D44\u6E90\u5C5E\u6027\` |
 > | \u76F8\u5173 | \`= this.\u76F8\u5173\` |
@@ -2049,9 +2071,11 @@ Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 > [!abstract]- **\u7B80\u4ECB**
 > {{summary}}
 
+{{#if episodes}}
 ## \u96C6\u6570
 
 {{episodes}}
+{{/if}}
 
 ## \u8BB0\u5F55
 
@@ -4608,7 +4632,7 @@ function getWebsiteValue(infobox, keys) {
       }
       if (Array.isArray(item.value)) {
         if (item.value.length > 0 && typeof item.value[0] === "object" && "v" in item.value[0]) {
-          return item.value.map((v) => typeof v === "object" && v !== null && "v" in v ? String(v.v) : String(v)).join("\n");
+          return String(item.value[0].v);
         }
       }
     }
@@ -4798,6 +4822,21 @@ function parseAlbumInfo(infobox, platform) {
     website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"])
   };
 }
+function parseRealInfo(infobox, platform) {
+  return {
+    category: platform || "\u4E09\u6B21\u5143",
+    director: getInfoboxValue(infobox, "\u5BFC\u6F14", ["\u76D1\u7763"]),
+    script: getInfoboxValue(infobox, "\u7F16\u5267", ["\u811A\u672C"]),
+    actor: getInfoboxValue(infobox, "\u4E3B\u6F14"),
+    country: getInfoboxValue(infobox, "\u56FD\u5BB6/\u5730\u533A", ["\u56FD\u5BB6", "\u5730\u533A"]),
+    language: getInfoboxValue(infobox, "\u8BED\u8A00"),
+    episode: getInfoboxNumber(infobox, "\u96C6\u6570"),
+    episodeLength: getInfoboxValue(infobox, "\u6BCF\u96C6\u957F", ["\u5355\u96C6\u7247\u957F", "\u7247\u957F"]),
+    tvStation: getInfoboxValue(infobox, "\u7535\u89C6\u53F0", ["\u64AD\u653E\u7535\u89C6\u53F0", "\u7F51\u7EDC"]),
+    website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"]),
+    imdbId: getInfoboxValue(infobox, "imdb_id", ["IMDb"])
+  };
+}
 function parseInfoByType(infobox, subjectType, platform, persons) {
   switch (subjectType) {
     case 2 /* Anime */:
@@ -4848,9 +4887,7 @@ function parseInfoByType(infobox, subjectType, platform, persons) {
         category: getInfoboxValue(infobox, "\u7C7B\u578B") || "\u97F3\u4E50"
       };
     case 6 /* Real */:
-      return {
-        category: platform || "\u4E09\u6B21\u5143"
-      };
+      return parseRealInfo(infobox, platform);
     default:
       return { category: "\u672A\u77E5" };
   }
@@ -5000,8 +5037,17 @@ function escapeForYamlDoubleQuoted(value) {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r\n?/g, "\n").replace(/\n/g, "\\n");
 }
 function extractTemplateVars(subject, collection, characters, ratingDetails, episodes, userEpisodeStatus, _notePathTemplate, coverLinkType, localCoverPath, relatedLinks, extraTemplateVars, persons) {
-  var _a, _b, _c, _d, _e, _f;
+  var _a, _b, _c, _d, _e, _f, _g;
   const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform, persons);
+  const aliasItem = (_a = subject.infobox) == null ? void 0 : _a.find((i) => i.key === "\u522B\u540D");
+  let alias = "";
+  if (aliasItem) {
+    if (typeof aliasItem.value === "string") {
+      alias = aliasItem.value;
+    } else if (Array.isArray(aliasItem.value)) {
+      alias = aliasItem.value.map((v) => typeof v === "object" && v !== null && "v" in v ? String(v.v) : String(v)).join("\u3001");
+    }
+  }
   const typeLabel = getTypeLabel(subject.type, parsedInfo.category);
   const { year, month } = parseDate(subject.date);
   const my_tags_array = (collection == null ? void 0 : collection.tags) && collection.tags.length > 0 ? collection.tags : [];
@@ -5009,11 +5055,11 @@ function extractTemplateVars(subject, collection, characters, ratingDetails, epi
   if (coverLinkType === "local" && localCoverPath) {
     cover = localCoverPath;
   } else {
-    cover = ((_a = subject.images) == null ? void 0 : _a.large) || ((_b = subject.images) == null ? void 0 : _b.common) || "";
+    cover = ((_b = subject.images) == null ? void 0 : _b.large) || ((_c = subject.images) == null ? void 0 : _c.common) || "";
   }
   const my_rate = (collection == null ? void 0 : collection.rate) ? String(collection.rate) : "";
   const my_comment_raw = (collection == null ? void 0 : collection.comment) || "";
-  const my_comment = escapeForYamlDoubleQuoted(my_comment_raw);
+  const my_comment = my_comment_raw;
   const my_status = collection ? getCollectionStatusLabel(collection.type, subject.type) : "";
   let episodesContent = "";
   let volumesContent = "";
@@ -5021,9 +5067,11 @@ function extractTemplateVars(subject, collection, characters, ratingDetails, epi
     const statusMap = userEpisodeStatus ? createUserStatusMap(userEpisodeStatus) : void 0;
     if (subject.type === 2 /* Anime */) {
       episodesContent = parseEpisodes(episodes, statusMap);
-    } else if ((_c = parsedInfo.category) == null ? void 0 : _c.includes("\u5C0F\u8BF4")) {
+    } else if (subject.type === 6 /* Real */) {
+      episodesContent = parseEpisodes(episodes, statusMap);
+    } else if ((_d = parsedInfo.category) == null ? void 0 : _d.includes("\u5C0F\u8BF4")) {
       volumesContent = parseEpisodes(episodes, statusMap);
-    } else if ((_d = parsedInfo.category) == null ? void 0 : _d.includes("\u6F2B\u753B")) {
+    } else if ((_e = parsedInfo.category) == null ? void 0 : _e.includes("\u6F2B\u753B")) {
       episodesContent = parseEpisodes(episodes, statusMap);
     }
   }
@@ -5037,10 +5085,10 @@ function extractTemplateVars(subject, collection, characters, ratingDetails, epi
     name: subject.name || "",
     name_cn,
     name_cn_with_type,
-    alias: "",
+    alias,
     summary: cleanSummary(subject.summary),
-    rating: ((_e = subject.rating) == null ? void 0 : _e.score) ? String(subject.rating.score) : "",
-    rank: ((_f = subject.rating) == null ? void 0 : _f.rank) ? String(subject.rating.rank) : "",
+    rating: ((_f = subject.rating) == null ? void 0 : _f.score) ? String(subject.rating.score) : "",
+    rank: ((_g = subject.rating) == null ? void 0 : _g.rank) ? String(subject.rating.rank) : "",
     tags: my_tags_array.length > 0 ? my_tags_array.map((t2) => `  - ${t2}`).join("\n") : "",
     tags_inline: my_tags_array.join(", "),
     // 兼容旧模板的内联格式
@@ -5093,6 +5141,13 @@ function extractTemplateVars(subject, collection, characters, ratingDetails, epi
     price: parsedInfo.price || "",
     pages: parsedInfo.pages ? String(parsedInfo.pages) : "",
     isbn: parsedInfo.isbn || "",
+    // 三次元字段
+    actor: parsedInfo.actor || "",
+    country: parsedInfo.country || "",
+    language: parsedInfo.language || "",
+    episodeLength: parsedInfo.episodeLength || "",
+    tvStation: parsedInfo.tvStation || "",
+    imdbId: parsedInfo.imdbId || "",
     // V4: 章节显示
     episodes: episodesContent,
     volumes_display: volumesContent,
@@ -5119,6 +5174,7 @@ function extractTemplateVars(subject, collection, characters, ratingDetails, epi
   }
   return vars;
 }
+var UNESCAPED_TEMPLATE_VARS = /* @__PURE__ */ new Set(["related", "tags", "my_comment_raw", "episodes", "volumes_display", "summary"]);
 function renderContentTemplate(template, vars) {
   const templateRegex = /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}|\{\{(\w+)\|([^}]+)\}\}|\{\{(\w+)\}\}/g;
   return template.replace(templateRegex, (_match, ifKey, ifContent, defaultKey, defaultVal, simpleKey) => {
@@ -5132,7 +5188,8 @@ function renderContentTemplate(template, vars) {
     if (defaultKey !== void 0 && defaultVal !== void 0) {
       const value = vars[defaultKey];
       if (value !== void 0 && value !== null && value !== "") {
-        return String(value);
+        const str = String(value);
+        return UNESCAPED_TEMPLATE_VARS.has(defaultKey) ? str : escapeForYamlDoubleQuoted(str);
       }
       return defaultVal;
     }
@@ -5141,7 +5198,8 @@ function renderContentTemplate(template, vars) {
       if (value === void 0 || value === null) {
         return "";
       }
-      return String(value);
+      const str = String(value);
+      return UNESCAPED_TEMPLATE_VARS.has(simpleKey) ? str : escapeForYamlDoubleQuoted(str);
     }
     return _match;
   });
@@ -6187,6 +6245,13 @@ var AUTO_FILLED_TEMPLATE_VARS = /* @__PURE__ */ new Set([
   "price",
   "pages",
   "isbn",
+  "name_cn_with_type",
+  "actor",
+  "country",
+  "language",
+  "episodeLength",
+  "tvStation",
+  "imdbId",
   "episodes",
   "volumes_display",
   "note_link",
@@ -6610,7 +6675,7 @@ var SyncManager = class {
    * 仅对动画、小说、漫画类型获取
    */
   async fetchEpisodeData(subject) {
-    if (subject.type !== 2 /* Anime */ && subject.type !== 1 /* Book */) {
+    if (subject.type !== 2 /* Anime */ && subject.type !== 1 /* Book */ && subject.type !== 6 /* Real */) {
       return null;
     }
     try {
@@ -9734,6 +9799,8 @@ var ControlPanel = class extends import_obsidian20.Modal {
     const thead = table.createEl("thead");
     const headerRow = thead.createEl("tr");
     headerRow.createEl("th").createEl("input", { type: "checkbox" }, (checkbox) => {
+      const allSelected = pageCollections.length > 0 && pageCollections.every((c) => this.state.selectedIds.has(c.subject_id));
+      checkbox.checked = allSelected;
       checkbox.addEventListener("change", () => {
         if (checkbox.checked) {
           pageCollections.forEach((c) => this.state.selectedIds.add(c.subject_id));

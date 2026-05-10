@@ -53,6 +53,14 @@ export interface ParsedInfo {
 	pages?: number;           // 页数
 	isbn?: string;            // ISBN
 
+	// 三次元字段
+	actor?: string;           // 主演
+	country?: string;         // 国家/地区
+	language?: string;        // 语言
+	episodeLength?: string;   // 每集长
+	tvStation?: string;       // 电视台
+	imdbId?: string;          // IMDb ID
+
 	// 其他
 	[key: string]: unknown;
 }
@@ -141,11 +149,10 @@ function getWebsiteValue(infobox: InfoboxItem[] | undefined, keys: string[]): st
 				return item.value.trim();
 			}
 
-			// 数组类型：提取 URL
+			// 数组类型：提取第一个 URL
 			if (Array.isArray(item.value)) {
 				if (item.value.length > 0 && typeof item.value[0] === 'object' && 'v' in item.value[0]) {
-					// 提取所有 URL，用换行分隔
-					return item.value.map(v => typeof v === 'object' && v !== null && 'v' in v ? String(v.v) : String(v)).join('\n');
+					return String(item.value[0].v);
 				}
 			}
 		}
@@ -379,6 +386,25 @@ export function parseAlbumInfo(infobox: InfoboxItem[] | undefined, platform?: st
 }
 
 /**
+ * 解析三次元信息（电影/电视剧/综艺等）
+ */
+export function parseRealInfo(infobox: InfoboxItem[] | undefined, platform?: string): ParsedInfo {
+	return {
+		category: platform || '三次元',
+		director: getInfoboxValue(infobox, '导演', ['监督']),
+		script: getInfoboxValue(infobox, '编剧', ['脚本']),
+		actor: getInfoboxValue(infobox, '主演'),
+		country: getInfoboxValue(infobox, '国家/地区', ['国家', '地区']),
+		language: getInfoboxValue(infobox, '语言'),
+		episode: getInfoboxNumber(infobox, '集数'),
+		episodeLength: getInfoboxValue(infobox, '每集长', ['单集片长', '片长']),
+		tvStation: getInfoboxValue(infobox, '电视台', ['播放电视台', '网络']),
+		website: getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']),
+		imdbId: getInfoboxValue(infobox, 'imdb_id', ['IMDb']),
+	};
+}
+
+/**
  * 根据条目类型解析信息
  */
 export function parseInfoByType(
@@ -449,9 +475,7 @@ export function parseInfoByType(
 			};
 
 		case SubjectType.Real:
-			return {
-				category: platform || '三次元',
-			};
+			return parseRealInfo(infobox, platform);
 
 		default:
 			return { category: '未知' };

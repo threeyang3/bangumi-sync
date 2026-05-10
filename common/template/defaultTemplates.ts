@@ -346,13 +346,19 @@ tags:
 {{tags}}
 评分: {{my_rate}}
 短评: "{{my_comment}}"
-作品大类: Real
 具体类型: "{{category}}"
+国家: "{{country}}"
+语言: "{{language}}"
+集数: "{{episode}}"
+每集长: "{{episodeLength}}"
+导演: "{{director}}"
+编剧: "{{script}}"
+主演: "{{actor}}"
+放送日期: "{{date}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 封面: "{{cover}}"
-上映日期: "{{date}}"
-集数: "{{episode}}"
+官方网站: "{{website}}"
 ---
 
 > [!bangumi-info]+ 🎬 **{{name}}**
@@ -362,21 +368,26 @@ Bangumi链接: "{{bangumi_url}}"
 > | | |
 > |:------:|:------------------------------------------:|
 > | 状态 |\`= this.观看状态\`|
+> | 类型 | {{category}} |
 > | 标签 |\`= this.tags\`|
 > | 评分 |\`= this.评分\`|
-> | 类型 | {{category}} |
-> | 集数 | 共{{episode}}集 |
-> | 上映 |{{date}}|
+> | 导演 | {{director}} |
+> | 主演 | {{actor}} |
+> | 国家 | {{country}} |
+> | 语言 | {{language}} |
+> | 集数 | {{category}} 共{{episode}}集 |
 
 > [!abstract]+ **短评**
 > {{my_comment_raw}}
 
-> [!abstract]+ **简介**
+> [!abstract]- **简介**
 > {{summary}}
 
+{{#if episodes}}
 ## 集数
 
 {{episodes}}
+{{/if}}
 
 ## 记录
 
@@ -769,13 +780,20 @@ tags:
 资源属性: []
 相关:
 {{related}}
-作品大类: Real
 具体类型: "{{category}}"
+国家: "{{country}}"
+语言: "{{language}}"
+集数: "{{episode}}"
+每集长: "{{episodeLength}}"
+导演: "[[{{director}}]]"
+编剧: "{{script}}"
+主演: "{{actor}}"
+放送日期: "{{date}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 封面: "{{cover}}"
-上映日期: "{{date}}"
-集数: "{{episode}}"
+官方网站: "{{website}}"
+IMDb: "{{imdbId}}"
 ---
 
 > [!bangumi-info]+ 🎬 **{{name}}**
@@ -786,11 +804,15 @@ Bangumi链接: "{{bangumi_url}}"
 > |:------:|:------------------------------------------:|
 > | 标语 |\`= this.标语\`|
 > | 状态 |\`= this.观看状态\`|
+> | 类型 | {{category}} |
 > | 标签 |\`= this.tags\`|
 > | 评分 |\`= this.评分\`|
 > | 明细 |剧情: \`= this.剧情评分\` 演技: \`= this.演技评分\` 制作: \`= this.制作评分\`|
-> | 类型 | {{category}} |
-> | 集数 | 共{{episode}}集 |
+> | 导演 | {{director}} |
+> | 主演 | {{actor}} |
+> | 国家 | {{country}} |
+> | 语言 | {{language}} |
+> | 集数 | {{category}} 共{{episode}}集 |
 > | 精彩片段 | \`= this.精彩片段\` |
 > | 存储 | \`= this.存储\`·\`=this.资源属性\` |
 > | 相关 | \`= this.相关\` |
@@ -801,9 +823,11 @@ Bangumi链接: "{{bangumi_url}}"
 > [!abstract]- **简介**
 > {{summary}}
 
+{{#if episodes}}
 ## 集数
 
 {{episodes}}
+{{/if}}
 
 ## 记录
 

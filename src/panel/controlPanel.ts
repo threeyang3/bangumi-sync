@@ -526,6 +526,10 @@ export class ControlPanel extends Modal {
 
 		// 全选复选框
 		headerRow.createEl('th').createEl('input', { type: 'checkbox' }, checkbox => {
+			// 同步初始状态：当前页全部选中时显示为选中
+			const allSelected = pageCollections.length > 0
+				&& pageCollections.every(c => this.state.selectedIds.has(c.subject_id));
+			checkbox.checked = allSelected;
 			checkbox.addEventListener('change', () => {
 				if (checkbox.checked) {
 					pageCollections.forEach(c => this.state.selectedIds.add(c.subject_id));

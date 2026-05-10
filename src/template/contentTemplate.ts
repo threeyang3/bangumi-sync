@@ -72,6 +72,19 @@ export function extractTemplateVars(
 	// 解析 infobox 获取详细信息
 	const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform, persons);
 
+	// 从 infobox 提取别名
+	const aliasItem = subject.infobox?.find(i => i.key === '别名');
+	let alias = '';
+	if (aliasItem) {
+		if (typeof aliasItem.value === 'string') {
+			alias = aliasItem.value;
+		} else if (Array.isArray(aliasItem.value)) {
+			alias = aliasItem.value
+				.map(v => typeof v === 'object' && v !== null && 'v' in v ? String(v.v) : String(v))
+				.join('、');
+		}
+	}
+
 	// 获取类型标签
 	const typeLabel = getTypeLabel(subject.type, parsedInfo.category);
 
@@ -97,9 +110,9 @@ export function extractTemplateVars(
 
 	// 收藏信息
 		const my_rate = collection?.rate ? String(collection.rate) : '';
-		// 短评：frontmatter 使用转义版本，正文 callout 使用原始换行
+		// 短评：my_comment 用于 frontmatter（renderContentTemplate 统一转义），my_comment_raw 用于正文 callout
 		const my_comment_raw = collection?.comment || '';
-		const my_comment = escapeForYamlDoubleQuoted(my_comment_raw);
+		const my_comment = my_comment_raw;
 		const my_status = collection
 		? getCollectionStatusLabel(collection.type, subject.type)
 		: '';
@@ -111,6 +124,8 @@ export function extractTemplateVars(
 		const statusMap = userEpisodeStatus ? createUserStatusMap(userEpisodeStatus) : undefined;
 		// 根据条目类型决定显示标题
 		if (subject.type === SubjectType.Anime) {  // 动画
+			episodesContent = parseEpisodes(episodes, statusMap);
+		} else if (subject.type === SubjectType.Real) {  // 三次元
 			episodesContent = parseEpisodes(episodes, statusMap);
 		} else if (parsedInfo.category?.includes('小说')) {
 			volumesContent = parseEpisodes(episodes, statusMap);
@@ -137,7 +152,7 @@ export function extractTemplateVars(
 		name: subject.name || '',
 		name_cn,
 		name_cn_with_type,
-		alias: '',
+		alias,
 		summary: cleanSummary(subject.summary),
 		rating: subject.rating?.score ? String(subject.rating.score) : '',
 		rank: subject.rating?.rank ? String(subject.rating.rank) : '',
@@ -196,6 +211,14 @@ export function extractTemplateVars(
 		pages: parsedInfo.pages ? String(parsedInfo.pages) : '',
 		isbn: parsedInfo.isbn || '',
 
+		// 三次元字段
+		actor: parsedInfo.actor || '',
+		country: parsedInfo.country || '',
+		language: parsedInfo.language || '',
+		episodeLength: parsedInfo.episodeLength || '',
+		tvStation: parsedInfo.tvStation || '',
+		imdbId: parsedInfo.imdbId || '',
+
 		// V4: 章节显示
 		episodes: episodesContent,
 		volumes_display: volumesContent,
@@ -235,6 +258,9 @@ export function extractTemplateVars(
  * V4.1 增强：支持条件渲染、默认值
  * 优化：使用单次遍历处理所有模板语法，减少正则匹配次数
  */
+// 已格式化的多行 YAML 值、HTML 内容、正文专用值，不做 YAML 转义
+const UNESCAPED_TEMPLATE_VARS = new Set(['related', 'tags', 'my_comment_raw', 'episodes', 'volumes_display', 'summary']);
+
 export function renderContentTemplate(template: string, vars: ContentTemplateVars): string {
 	// 使用统一的正则表达式匹配所有模板语法
 	// 匹配顺序：条件渲染 > 带默认值的变量 > 普通变量
@@ -261,7 +287,8 @@ export function renderContentTemplate(template: string, vars: ContentTemplateVar
 		if (defaultKey !== undefined && defaultVal !== undefined) {
 			const value = vars[defaultKey];
 			if (value !== undefined && value !== null && value !== '') {
-				return String(value);
+				const str = String(value);
+				return UNESCAPED_TEMPLATE_VARS.has(defaultKey) ? str : escapeForYamlDoubleQuoted(str);
 			}
 			return defaultVal;
 		}
@@ -272,7 +299,8 @@ export function renderContentTemplate(template: string, vars: ContentTemplateVar
 			if (value === undefined || value === null) {
 				return '';
 			}
-			return String(value);
+			const str = String(value);
+			return UNESCAPED_TEMPLATE_VARS.has(simpleKey) ? str : escapeForYamlDoubleQuoted(str);
 		}
 
 		return _match;
