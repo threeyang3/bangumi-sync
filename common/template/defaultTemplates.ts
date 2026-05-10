@@ -416,7 +416,7 @@ tags:
 资源属性: []
 相关:
 {{related}}
-作品大类: Anime
+作品大类: {{typeLabel}}
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
@@ -502,7 +502,7 @@ Kindle: false
 渠道:
 官网: "{{website}}"
 已购: false
-作品大类: Novel
+作品大类: {{typeLabel}}
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
@@ -578,7 +578,7 @@ Kindle: false
 {{related}}
 渠道:
 已购: false
-作品大类: Comic
+作品大类: {{typeLabel}}
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
@@ -651,7 +651,7 @@ tags:
 资源属性: []
 相关:
 {{related}}
-作品大类: Game
+作品大类: {{typeLabel}}
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
@@ -719,7 +719,7 @@ tags:
 相关:
 {{related}}
 已购: false
-作品大类: Album
+作品大类: {{typeLabel}}
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"

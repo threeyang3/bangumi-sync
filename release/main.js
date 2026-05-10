@@ -1676,7 +1676,7 @@ tags:
 \u8D44\u6E90\u5C5E\u6027: []
 \u76F8\u5173:
 {{related}}
-\u4F5C\u54C1\u5927\u7C7B: Anime
+\u4F5C\u54C1\u5927\u7C7B: {{typeLabel}}
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
@@ -1760,7 +1760,7 @@ Kindle: false
 \u6E20\u9053:
 \u5B98\u7F51: "{{website}}"
 \u5DF2\u8D2D: false
-\u4F5C\u54C1\u5927\u7C7B: Novel
+\u4F5C\u54C1\u5927\u7C7B: {{typeLabel}}
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
@@ -1834,7 +1834,7 @@ Kindle: false
 {{related}}
 \u6E20\u9053:
 \u5DF2\u8D2D: false
-\u4F5C\u54C1\u5927\u7C7B: Comic
+\u4F5C\u54C1\u5927\u7C7B: {{typeLabel}}
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
@@ -1905,7 +1905,7 @@ tags:
 \u8D44\u6E90\u5C5E\u6027: []
 \u76F8\u5173:
 {{related}}
-\u4F5C\u54C1\u5927\u7C7B: Game
+\u4F5C\u54C1\u5927\u7C7B: {{typeLabel}}
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
@@ -1971,7 +1971,7 @@ tags:
 \u76F8\u5173:
 {{related}}
 \u5DF2\u8D2D: false
-\u4F5C\u54C1\u5927\u7C7B: Album
+\u4F5C\u54C1\u5927\u7C7B: {{typeLabel}}
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
