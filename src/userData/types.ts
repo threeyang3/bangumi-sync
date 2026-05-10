@@ -33,6 +33,7 @@ export const BANGUMI_FIELDS = new Set([
 	'相关',
 	'平台',
 	'开始',
+	'国家', '语言', '每集长', '电视台', '主演', '编剧',
 ]);
 
 export interface SubjectIdentifier {

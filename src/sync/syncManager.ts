@@ -182,7 +182,7 @@ export class SyncManager {
 						const errorMsg = error instanceof Error ? error.message : String(error);
 						const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
 						console.error(`[Bangumi Sync] 处理条目失败: ${name}`, error);
-						result.errorDetails.push(`${name}: ${errorMsg}`);
+						result.errorDetails.push(`[${collection.subject_id}] ${name}: ${errorMsg}`);
 					}
 				}
 			);

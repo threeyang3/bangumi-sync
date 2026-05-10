@@ -199,7 +199,13 @@ var BANGUMI_FIELDS = /* @__PURE__ */ new Set([
   "\u8FDB\u5EA6",
   "\u76F8\u5173",
   "\u5E73\u53F0",
-  "\u5F00\u59CB"
+  "\u5F00\u59CB",
+  "\u56FD\u5BB6",
+  "\u8BED\u8A00",
+  "\u6BCF\u96C6\u957F",
+  "\u7535\u89C6\u53F0",
+  "\u4E3B\u6F14",
+  "\u7F16\u5267"
 ]);
 var DEFAULT_DATA_PROTECTION_SETTINGS = {
   preserveRatingDetails: true,
@@ -6537,7 +6543,7 @@ var SyncManager = class {
             const errorMsg = error instanceof Error ? error.message : String(error);
             const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
             console.error(`[Bangumi Sync] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${name}`, error);
-            result.errorDetails.push(`${name}: ${errorMsg}`);
+            result.errorDetails.push(`[${collection.subject_id}] ${name}: ${errorMsg}`);
           }
         }
       );
