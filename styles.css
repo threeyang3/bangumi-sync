@@ -69,26 +69,41 @@
 	min-height: 0 !important;
 }
 
+.modal:has(.bangumi-import-compare-modal),
+.modal:has(.bangumi-property-import-review) {
+	width: 1180px !important;
+	max-width: 96vw !important;
+	height: 86vh !important;
+}
+
+.modal:has(.bangumi-import-compare-modal) .modal-content,
+.modal:has(.bangumi-property-import-review) .modal-content,
+.modal:has(.bangumi-import-compare-modal) .bangumi-import-compare-modal,
+.modal:has(.bangumi-property-import-review) .bangumi-property-import-review {
+	height: 100% !important;
+	min-height: 0 !important;
+}
+
 /* ==================== Control Panel ==================== */
 
 .bangumi-control-panel {
 	height: 100%;
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	gap: 6px;
 }
 
 .bangumi-control-panel h2 {
 	margin-bottom: 0;
-	padding-bottom: 6px;
+	padding-bottom: 4px;
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
 .bangumi-panel-toolbar {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
-	padding: 8px;
+	gap: 6px;
+	padding: 6px 8px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;
 	background: var(--background-secondary);
@@ -97,7 +112,7 @@
 .bangumi-toolbar-group {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px;
+	gap: 6px;
 	align-items: center;
 }
 
@@ -105,43 +120,38 @@
 	flex: 1 1 auto;
 }
 
-.bangumi-toolbar-group-sort {
-	padding-top: 8px;
-	border-top: 1px solid var(--background-modifier-border);
-}
-
 .bangumi-filter-select {
-	padding: 5px 8px;
-	font-size: 13px;
+	padding: 4px 8px;
+	font-size: 12px;
 	flex: 0 0 auto;
-	min-width: 100px;
+	min-width: 88px;
 }
 
 .bangumi-filter-search {
-	flex: 1 1 0;
-	min-width: 0;
-	padding: 5px 8px;
-	font-size: 13px;
+	flex: 1 1 200px;
+	min-width: 180px;
+	padding: 4px 8px;
+	font-size: 12px;
 }
 
 .bangumi-panel-action-bar {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
-	padding: 8px;
+	gap: 5px;
+	padding: 6px 8px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;
 	background: var(--background-secondary);
 }
 
 .bangumi-action-btn {
-	padding: 7px 12px;
+	padding: 6px 10px;
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 	border: none;
 	border-radius: 6px;
 	cursor: pointer;
-	font-size: 13px;
+	font-size: 12px;
 	text-align: center;
 	white-space: nowrap;
 	transition: background-color 0.15s ease, opacity 0.15s ease;
@@ -157,7 +167,7 @@
 }
 
 .bangumi-action-btn-small {
-	padding: 4px 8px;
+	padding: 3px 7px;
 	font-size: 11px;
 	background: var(--background-secondary-alt);
 	color: var(--text-normal);
@@ -174,7 +184,7 @@
 .bangumi-selected-count {
 	margin-left: auto;
 	color: var(--text-muted);
-	font-size: 13px;
+	font-size: 12px;
 }
 
 /* ==================== Table ==================== */
@@ -203,7 +213,7 @@
 	width: 100%;
 	border-collapse: separate;
 	border-spacing: 0;
-	font-size: 13px;
+	font-size: 12px;
 }
 
 .bangumi-collection-table th {
@@ -211,7 +221,7 @@
 	top: 0;
 	z-index: 1;
 	background: var(--background-secondary);
-	padding: 8px;
+	padding: 6px 8px;
 	text-align: left;
 	font-weight: 500;
 	font-size: 12px;
@@ -219,7 +229,7 @@
 }
 
 .bangumi-collection-table td {
-	padding: 7px 8px;
+	padding: 5px 8px;
 	border-bottom: 1px solid var(--background-modifier-border);
 	vertical-align: middle;
 }
@@ -235,18 +245,19 @@
 .bangumi-sort-field {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 6px;
 	flex-wrap: nowrap;
+	flex: 0 0 auto;
 }
 
 .bangumi-sort-label {
 	font-size: 12px;
 	color: var(--text-muted);
-	min-width: 4.5em;
+	min-width: 4em;
 }
 
 .bangumi-sort-select {
-	min-width: 120px;
+	min-width: 92px;
 }
 
 .bangumi-cover-thumb {
@@ -1107,6 +1118,146 @@
 
 .bangumi-modal-buttons button {
 	padding: 6px 14px;
+}
+
+/* ==================== Import Compare Modal ==================== */
+
+.bangumi-import-compare-modal,
+.bangumi-property-import-review {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.bangumi-import-compare-modal h2,
+.bangumi-property-import-review h2 {
+	margin-bottom: 0;
+}
+
+.bangumi-import-compare-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	padding: 8px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-secondary);
+}
+
+.bangumi-import-compare-list {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+	padding-right: 2px;
+}
+
+.bangumi-import-compare-item {
+	margin-bottom: 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 10px;
+	background: var(--background-primary);
+	overflow: hidden;
+}
+
+.bangumi-import-compare-item:last-child {
+	margin-bottom: 0;
+}
+
+.bangumi-import-compare-header {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	gap: 10px;
+	align-items: center;
+	padding: 12px 14px;
+	background: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.bangumi-import-compare-subject {
+	font-weight: 600;
+	line-height: 1.4;
+	word-break: break-word;
+}
+
+.bangumi-import-compare-diff-count {
+	color: var(--text-muted);
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.bangumi-import-compare-expand-btn {
+	white-space: nowrap;
+}
+
+.bangumi-import-compare-detail {
+	padding: 10px 14px 14px;
+	background: color-mix(in srgb, var(--background-primary) 92%, var(--background-secondary) 8%);
+}
+
+.bangumi-import-compare-table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	table-layout: fixed;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.bangumi-import-compare-table th,
+.bangumi-import-compare-table td {
+	padding: 10px 12px;
+	vertical-align: top;
+	border-bottom: 1px solid var(--background-modifier-border);
+	text-align: left;
+}
+
+.bangumi-import-compare-table thead th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: var(--background-secondary);
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.bangumi-import-compare-table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+.bangumi-import-compare-table tbody tr:nth-child(even) td {
+	background: color-mix(in srgb, var(--background-secondary) 32%, transparent);
+}
+
+.bangumi-import-compare-table th:nth-child(1),
+.bangumi-import-compare-table td:nth-child(1) {
+	width: 18%;
+}
+
+.bangumi-import-compare-table th:nth-child(2),
+.bangumi-import-compare-table td:nth-child(2),
+.bangumi-import-compare-table th:nth-child(3),
+.bangumi-import-compare-table td:nth-child(3) {
+	width: 31%;
+}
+
+.bangumi-import-compare-table th:nth-child(4),
+.bangumi-import-compare-table td:nth-child(4) {
+	width: 20%;
+}
+
+.bangumi-import-compare-value {
+	white-space: pre-wrap;
+	word-break: break-word;
+	line-height: 1.55;
+	font-size: 13px;
+}
+
+.bangumi-import-compare-select {
+	width: 100%;
+	min-width: 120px;
 }
 
 /* ==================== Batch Editor ==================== */
@@ -2182,6 +2333,13 @@
 		max-height: none !important;
 	}
 
+	.modal:has(.bangumi-import-compare-modal),
+	.modal:has(.bangumi-property-import-review) {
+		width: 95vw !important;
+		height: 90vh !important;
+		max-width: none !important;
+	}
+
 	.bangumi-status-sync-actions {
 		flex-wrap: wrap;
 		gap: 6px;
@@ -2217,6 +2375,39 @@
 		gap: 8px;
 		padding-top: 8px;
 		border-top: 1px solid var(--background-modifier-border);
+	}
+
+	.bangumi-import-compare-header {
+		grid-template-columns: 1fr;
+		align-items: start;
+	}
+
+	.bangumi-import-compare-table,
+	.bangumi-import-compare-table thead,
+	.bangumi-import-compare-table tbody,
+	.bangumi-import-compare-table tr,
+	.bangumi-import-compare-table th,
+	.bangumi-import-compare-table td {
+		display: block;
+		width: 100% !important;
+	}
+
+	.bangumi-import-compare-table thead {
+		display: none;
+	}
+
+	.bangumi-import-compare-table tr {
+		padding: 8px 0;
+		border-bottom: 1px solid var(--background-modifier-border);
+	}
+
+	.bangumi-import-compare-table tbody tr:last-child {
+		border-bottom: none;
+	}
+
+	.bangumi-import-compare-table td {
+		padding: 6px 10px;
+		border-bottom: none;
 	}
 
 	.bangumi-detail-row td {

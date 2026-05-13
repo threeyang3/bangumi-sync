@@ -6,8 +6,11 @@
 
 import { App, TFile } from 'obsidian';
 import { UserDataMerger } from './userDataMerger';
+import { IncrementalSync } from '../sync/incrementalSync';
 import {
 	UserDataExport,
+	UserDataCombinedExport,
+	UserDataCategoryExport,
 	SubjectUserData,
 	ImportOptions,
 	ImportResult,
@@ -66,10 +69,12 @@ const LIST_LIKE_FIELDS = new Set([
 export class UserDataImporter {
 	private app: App;
 	private merger: UserDataMerger;
+	private incrementalSync: IncrementalSync;
 
 	constructor(app: App) {
 		this.app = app;
 		this.merger = new UserDataMerger(app);
+		this.incrementalSync = new IncrementalSync(app);
 	}
 
 	async importFromFile(
@@ -142,22 +147,16 @@ export class UserDataImporter {
 		options?: Pick<ImportOptions, 'dataTypes'>
 	): Set<string> {
 		const propertyNames = new Set<string>();
+		const parsedFiles = this.parseImportFiles(files);
 
-		for (const file of files) {
-			try {
-				const importData = JSON.parse(file.content) as UserDataExport;
-				if (!importData.items) continue;
-
-				for (const userData of Object.values(importData.items)) {
-					const normalized = this.normalizeImportItem(userData, options);
-					for (const key of Object.keys(normalized.frontmatter)) {
-						if (isCustomPropertyField(key)) {
-							propertyNames.add(key);
-						}
+		for (const file of parsedFiles.files) {
+			for (const userData of Object.values(file.data.items ?? {})) {
+				const normalized = this.normalizeImportItem(userData, options);
+				for (const key of Object.keys(normalized.frontmatter)) {
+					if (isCustomPropertyField(key)) {
+						propertyNames.add(key);
 					}
 				}
-			} catch {
-				// Skip unparseable files.
 			}
 		}
 
@@ -296,14 +295,16 @@ export class UserDataImporter {
 
 				if (diff.fieldType === 'section') {
 					const sectionName = diff.fieldName;
+					const localValue = sectionName === '短评'
+						? this.incrementalSync.extractComment(content)
+						: this.getSectionContent(content, sectionName);
 					const nextValue = decision === 'merge'
-						? this.mergeSectionValues(
-							this.getSectionContent(content, sectionName),
-							asString(diff.importValue)
-						)
+						? this.mergeSectionValues(localValue, asString(diff.importValue))
 						: asString(diff.importValue);
-					if (nextValue && nextValue !== this.getSectionContent(content, sectionName)) {
-						content = this.merger.updateSection(content, sectionName, nextValue);
+					if (nextValue && nextValue !== localValue) {
+						content = sectionName === '短评'
+							? this.incrementalSync.updateComment(content, nextValue)
+							: this.merger.updateSection(content, sectionName, nextValue);
 						changed = true;
 					}
 					continue;
@@ -414,11 +415,35 @@ export class UserDataImporter {
 
 		for (const file of files) {
 			try {
-				const data = JSON.parse(file.content) as UserDataExport;
-				if (!data.items || typeof data.items !== 'object') {
+				const parsed = JSON.parse(file.content) as UserDataExport | UserDataCombinedExport;
+				if (this.isCombinedExport(parsed)) {
+					const categoryEntries = Object.entries(parsed.categories ?? {});
+					if (categoryEntries.length === 0) {
+						throw new Error('Invalid import data: missing categories');
+					}
+
+					for (const [categoryName, categoryData] of categoryEntries) {
+						if (!this.isCategoryExport(categoryData)) {
+							throw new Error(`Invalid category export: ${categoryName}`);
+						}
+						parsedFiles.push({
+							name: `${file.name} / ${categoryName}`,
+							data: {
+								version: parsed.version,
+								exportTime: parsed.exportTime,
+								subjectType: categoryData.subjectType,
+								totalCount: categoryData.totalCount ?? Object.keys(categoryData.items ?? {}).length,
+								items: categoryData.items ?? {},
+							},
+						});
+					}
+					continue;
+				}
+
+				if (!this.isSingleExport(parsed)) {
 					throw new Error('Invalid import data: missing items');
 				}
-				parsedFiles.push({ name: file.name, data });
+				parsedFiles.push({ name: file.name, data: parsed });
 			} catch (error: unknown) {
 				errors.push({
 					id: 0,
@@ -429,6 +454,28 @@ export class UserDataImporter {
 		}
 
 		return { files: parsedFiles, errors };
+	}
+
+	private isSingleExport(data: unknown): data is UserDataExport {
+		return !!data
+			&& typeof data === 'object'
+			&& 'items' in data
+			&& typeof (data as UserDataExport).items === 'object';
+	}
+
+	private isCombinedExport(data: unknown): data is UserDataCombinedExport {
+		return !!data
+			&& typeof data === 'object'
+			&& 'categories' in data
+			&& typeof (data as UserDataCombinedExport).categories === 'object'
+			&& !Array.isArray((data as UserDataCombinedExport).categories);
+	}
+
+	private isCategoryExport(data: unknown): data is UserDataCategoryExport {
+		return !!data
+			&& typeof data === 'object'
+			&& 'items' in data
+			&& typeof (data as UserDataCategoryExport).items === 'object';
 	}
 
 	private async compareSingleItem(
@@ -448,6 +495,29 @@ export class UserDataImporter {
 		for (const [rawKey, value] of Object.entries(userData.frontmatter)) {
 			const fieldName = this.getEffectiveFieldName(rawKey, options);
 			if (!fieldName) continue;
+
+			if (fieldName === '短评') {
+				const importValue = asString(value);
+				const localValue = this.incrementalSync.extractComment(content);
+
+				if (this.valuesEqual(localValue, importValue, fieldName)) {
+					continue;
+				}
+
+				if (options.mergeStrategy === 'smart' && this.isEmptyValue(localValue) && !this.isEmptyValue(importValue)) {
+					autoImported++;
+					continue;
+				}
+
+				diffs.push({
+					fieldName,
+					localValue,
+					importValue,
+					fieldType: 'section',
+					decision: null,
+				});
+				continue;
+			}
 
 			if (!this.merger.hasFrontmatterField(content, fieldName)) {
 				missingFields.push({
@@ -547,10 +617,34 @@ export class UserDataImporter {
 	): Promise<boolean> {
 		const originalContent = await this.app.vault.read(localFile);
 		let updatedContent = originalContent;
+		let changed = false;
 
 		for (const [rawKey, value] of Object.entries(userData.frontmatter)) {
 			const fieldName = this.getEffectiveFieldName(rawKey, options);
 			if (!fieldName) continue;
+
+			if (fieldName === '短评') {
+				const localValue = this.incrementalSync.extractComment(updatedContent);
+				const importValue = asString(value);
+				if (this.valuesEqual(localValue, importValue, fieldName)) {
+					continue;
+				}
+
+				const decisionKey = this.buildDiffDecisionKey('section', fieldName);
+				const explicitDecision = diffDecisions.get(decisionKey);
+				const nextValue = this.resolveValueByStrategy(
+					localValue,
+					importValue,
+					fieldName,
+					options.mergeStrategy,
+					explicitDecision
+				);
+				if (nextValue !== undefined && !this.valuesEqual(localValue, nextValue, fieldName)) {
+					updatedContent = this.incrementalSync.updateComment(updatedContent, asString(nextValue));
+					changed = true;
+				}
+				continue;
+			}
 
 			const hasField = this.merger.hasFrontmatterField(updatedContent, fieldName);
 			if (!hasField) {
@@ -597,7 +691,7 @@ export class UserDataImporter {
 			);
 		}
 
-		if (updatedContent !== originalContent) {
+		if (changed || updatedContent !== originalContent) {
 			await this.app.vault.process(localFile, () => updatedContent);
 			return true;
 		}
@@ -924,7 +1018,7 @@ export class UserDataImporter {
 		return localValue;
 	}
 
-	private mergeSectionValues(localValue: string | undefined, importValue: string | undefined): string {
+	private mergeSectionValues(localValue: string | null | undefined, importValue: string | undefined): string {
 		const localText = (localValue ?? '').trim();
 		const importText = (importValue ?? '').trim();
 		if (!localText) return importText;

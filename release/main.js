@@ -155,6 +155,25 @@ function getCollectionStatusLabel(type, subjectType, withIcon = true) {
 }
 
 // src/userData/types.ts
+var IDENTIFIER_FIELDS = /* @__PURE__ */ new Set([
+  "id",
+  "ID",
+  "\u4E2D\u6587\u540D",
+  "name_cn",
+  "\u4F5C\u54C1\u5927\u7C7B",
+  "type"
+]);
+var USER_PROPERTY_FIELDS = /* @__PURE__ */ new Set([
+  "\u89C2\u770B\u72B6\u6001",
+  "\u9605\u8BFB\u72B6\u6001",
+  "\u6E38\u73A9\u72B6\u6001",
+  "\u6536\u85CF\u72B6\u6001",
+  "\u8BC4\u5206",
+  "\u77ED\u8BC4",
+  "tags",
+  "Tags",
+  "\u8FDB\u5EA6"
+]);
 var BANGUMI_FIELDS = /* @__PURE__ */ new Set([
   "id",
   "ID",
@@ -207,6 +226,15 @@ var BANGUMI_FIELDS = /* @__PURE__ */ new Set([
   "\u4E3B\u6F14",
   "\u7F16\u5267"
 ]);
+function hasUserDataType(dataTypes, target) {
+  return dataTypes.includes("all" /* ALL */) || dataTypes.includes(target);
+}
+function isUserPropertyField(fieldName) {
+  return USER_PROPERTY_FIELDS.has(fieldName);
+}
+function isCustomPropertyField(fieldName) {
+  return !IDENTIFIER_FIELDS.has(fieldName) && !BANGUMI_FIELDS.has(fieldName) && !USER_PROPERTY_FIELDS.has(fieldName);
+}
 var DEFAULT_DATA_PROTECTION_SETTINGS = {
   preserveRatingDetails: true,
   preserveCustomProperties: true,
@@ -229,7 +257,9 @@ var DEFAULT_PANEL_FILTERS = {
   subjectType: "all",
   collectionType: "all",
   syncStatus: "all",
-  keyword: ""
+  keyword: "",
+  sortBy: "default",
+  sortDirection: "desc"
 };
 var DEFAULT_SETTINGS = {
   accessToken: "",
@@ -386,6 +416,15 @@ var en = {
     enableRelatedLinks: "Enable related links",
     enableRelatedLinksDesc: "Automatically fetch related subjects and create bidirectional links during sync",
     syncStatus: "Sync status",
+    sortBy: "Sort by",
+    sortDefault: "Original order",
+    sortTime: "Collection time",
+    sortTitle: "Title",
+    sortStatus: "Status",
+    sortRating: "Rating",
+    sortDirection: "Direction",
+    sortAsc: "Ascending",
+    sortDesc: "Descending",
     lastSync: "Last sync",
     notSyncedYet: "Not synced yet",
     preview: "Preview",
@@ -498,6 +537,15 @@ var en = {
     syncComments: "Sync comments",
     syncTags: "Sync tags",
     syncStatus: "Sync status",
+    sortBy: "Sort by",
+    sortDefault: "Original order",
+    sortTime: "Collection time",
+    sortTitle: "Title",
+    sortStatus: "Status",
+    sortRating: "Rating",
+    sortDirection: "Direction",
+    sortAsc: "Ascending",
+    sortDesc: "Descending",
     comparingStatus: "Comparing status...",
     noStatusDiff: "No status differences",
     compareStatusFailed: "Compare status failed",
@@ -575,17 +623,37 @@ var en = {
   },
   userData: {
     exportTitle: "Export user data",
-    exportDesc: "Export local user data in three parts: identifier fields, custom properties, and the Record/Thoughts section content.",
+    exportDesc: "Export selected local data into one combined backup file grouped by category. Identifier fields are always kept for matching during re-import.",
+    exportDataTypes: "Export content",
+    exportDataTypesDesc: "Choose which layers to write into the combined backup file. Enable user properties if you want the backup to be fully re-importable.",
     importTitle: "Import user data",
-    importDesc: "Import user data from backup files. Missing fields will be highlighted for your decision.",
+    importDesc: "Import user data from a combined backup file or legacy multi-file backups. Missing fields will be highlighted for your decision.",
+    importDataTypes: "Import content",
+    importDataTypesDesc: "Choose which layers from the backup should be written back locally.",
     scanFolder: "Scan folder",
     scanFolderDesc: "Folder to scan for user data",
     outputDir: "Output directory",
-    outputDirDesc: "Directory to save export files",
+    outputDirDesc: "Directory to save the combined backup file",
+    userProperties: "User properties",
+    userPropertiesDesc: "Statuses, rating, comment, tags, and progress that usually come from Bangumi after login.",
+    customProperties: "Custom properties",
+    customPropertiesDesc: "Local-only frontmatter properties that Bangumi does not provide, including detailed rating fields and storage/version metadata.",
+    bodyContent: "Body content",
+    bodyContentDesc: "The Record and Thoughts sections in note body.",
+    selectAtLeastOneDataType: "Select at least one content layer",
+    mergeStrategy: "Conflict strategy",
+    mergeStrategyDesc: "Choose how to handle fields that already exist locally before reviewing details.",
+    preferLocal: "Prefer local",
+    preferImport: "Prefer import",
+    smartMerge: "Smart merge",
+    importMode: "Import mode",
+    importModeDesc: "Choose whether to review conflicts by item or property.",
+    itemImportMode: "Review by item",
+    propertyImportMode: "Review by property",
     export: "Export",
     import: "Import",
     cancel: "Cancel",
-    exportSuccess: "Exported {count} files",
+    exportSuccess: "Exported {count} backup file(s)",
     exportFailed: "Export failed: {error}",
     importSuccess: "Imported {count} items",
     importSkipped: "Skipped {count} items",
@@ -627,7 +695,11 @@ var en = {
     allSkip: "All skip",
     executeImport: "Execute import",
     skip: "Skip",
-    noDiff: "No differences"
+    noDiff: "No differences",
+    propertyReviewTitle: "Property-by-property review",
+    propertyReviewProgress: "Reviewing {field} ({current}/{total})",
+    previousProperty: "Previous property",
+    nextProperty: "Next property"
   },
   statusSyncModal: {
     title: "Status sync",
@@ -904,6 +976,15 @@ var zhCN = {
     enableRelatedLinks: "\u542F\u7528\u76F8\u5173\u6761\u76EE\u94FE\u63A5",
     enableRelatedLinksDesc: "\u540C\u6B65\u65F6\u81EA\u52A8\u83B7\u53D6\u76F8\u5173\u6761\u76EE\u5E76\u5EFA\u7ACB\u53CC\u5411\u94FE\u63A5",
     syncStatus: "\u540C\u6B65\u72B6\u6001",
+    sortBy: "\u6392\u5E8F\u4F9D\u636E",
+    sortDefault: "\u539F\u59CB\u987A\u5E8F",
+    sortTime: "\u6536\u85CF\u65F6\u95F4",
+    sortTitle: "\u6807\u9898",
+    sortStatus: "\u72B6\u6001",
+    sortRating: "\u8BC4\u5206",
+    sortDirection: "\u6392\u5E8F\u65B9\u5411",
+    sortAsc: "\u5347\u5E8F",
+    sortDesc: "\u964D\u5E8F",
     lastSync: "\u4E0A\u6B21\u540C\u6B65",
     notSyncedYet: "\u5C1A\u672A\u540C\u6B65",
     preview: "\u9884\u89C8",
@@ -1016,6 +1097,15 @@ var zhCN = {
     syncComments: "\u540C\u6B65\u77ED\u8BC4",
     syncTags: "\u540C\u6B65\u6807\u7B7E",
     syncStatus: "\u540C\u6B65\u72B6\u6001",
+    sortBy: "\u6392\u5E8F\u4F9D\u636E",
+    sortDefault: "\u9ED8\u8BA4\u987A\u5E8F",
+    sortTime: "\u6536\u85CF\u65F6\u95F4",
+    sortTitle: "\u6807\u9898",
+    sortStatus: "\u72B6\u6001",
+    sortRating: "\u8BC4\u5206",
+    sortDirection: "\u65B9\u5411",
+    sortAsc: "\u5347\u5E8F",
+    sortDesc: "\u964D\u5E8F",
     comparingStatus: "\u6B63\u5728\u5BF9\u6BD4\u72B6\u6001\u5DEE\u5F02...",
     noStatusDiff: "\u6CA1\u6709\u72B6\u6001\u5DEE\u5F02",
     compareStatusFailed: "\u5BF9\u6BD4\u72B6\u6001\u5931\u8D25",
@@ -1093,17 +1183,37 @@ var zhCN = {
   },
   userData: {
     exportTitle: "\u5BFC\u51FA\u7528\u6237\u6570\u636E",
-    exportDesc: "\u5C06\u672C\u5730\u7528\u6237\u6570\u636E\u6309\u4E09\u90E8\u5206\u5BFC\u51FA\u5230\u5907\u4EFD\u6587\u4EF6\uFF1A\u8FA8\u8BC6\u5C5E\u6027\u3001\u81EA\u5B9A\u4E49\u5C5E\u6027\uFF0C\u4EE5\u53CA\u201C\u8BB0\u5F55\u201D/\u201C\u611F\u60F3\u201D\u4E24\u90E8\u5206\u5185\u5BB9\u3002",
+    exportDesc: "\u5C06\u9009\u4E2D\u7684\u672C\u5730\u6570\u636E\u5BFC\u51FA\u5230\u4E00\u4E2A\u6309 category \u5206\u7EC4\u7684\u5355\u6587\u4EF6\u5907\u4EFD\u4E2D\u3002\u8FA8\u8BC6\u5C5E\u6027\u4F1A\u59CB\u7EC8\u4FDD\u7559\uFF0C\u7528\u4E8E\u540E\u7EED\u91CD\u65B0\u5BFC\u5165\u65F6\u5339\u914D\u6761\u76EE\u3002",
+    exportDataTypes: "\u5BFC\u51FA\u5185\u5BB9",
+    exportDataTypesDesc: "\u9009\u62E9\u8981\u5199\u5165\u5355\u6587\u4EF6\u5907\u4EFD\u7684\u6570\u636E\u5C42\u3002\u82E5\u5E0C\u671B\u5907\u4EFD\u53EF\u5B8C\u6574\u56DE\u5BFC\uFF0C\u8BF7\u4FDD\u7559\u201C\u7528\u6237\u4FE1\u606F\u201D\u5F00\u5173\u3002",
     importTitle: "\u5BFC\u5165\u7528\u6237\u6570\u636E",
-    importDesc: "\u4ECE\u5907\u4EFD\u6587\u4EF6\u5BFC\u5165\u7528\u6237\u6570\u636E\u3002\u7F3A\u5931\u7684\u5B57\u6BB5\u5C06\u9AD8\u4EAE\u663E\u793A\u4F9B\u60A8\u9009\u62E9\u3002",
+    importDesc: "\u4ECE\u5355\u6587\u4EF6\u5907\u4EFD\u6216\u65E7\u7248\u591A\u6587\u4EF6\u5907\u4EFD\u5BFC\u5165\u7528\u6237\u6570\u636E\u3002\u7F3A\u5931\u7684\u5B57\u6BB5\u5C06\u9AD8\u4EAE\u663E\u793A\u4F9B\u60A8\u9009\u62E9\u3002",
+    importDataTypes: "\u5BFC\u5165\u5185\u5BB9",
+    importDataTypesDesc: "\u9009\u62E9\u672C\u6B21\u8981\u4ECE\u5907\u4EFD\u5199\u56DE\u672C\u5730\u7684\u5185\u5BB9\u5C42\u3002",
     scanFolder: "\u626B\u63CF\u6587\u4EF6\u5939",
     scanFolderDesc: "\u8981\u626B\u63CF\u7528\u6237\u6570\u636E\u7684\u6587\u4EF6\u5939",
     outputDir: "\u8F93\u51FA\u76EE\u5F55",
-    outputDirDesc: "\u4FDD\u5B58\u5BFC\u51FA\u6587\u4EF6\u7684\u76EE\u5F55",
+    outputDirDesc: "\u4FDD\u5B58\u5355\u6587\u4EF6\u5907\u4EFD\u7684\u76EE\u5F55",
+    userProperties: "\u7528\u6237\u4FE1\u606F",
+    userPropertiesDesc: "\u5305\u62EC\u72B6\u6001\u3001\u8BC4\u5206\u3001\u77ED\u8BC4\u3001\u6807\u7B7E\u3001\u8FDB\u5EA6\uFF0C\u901A\u5E38\u90FD\u53EF\u5728\u767B\u5F55 Bangumi \u540E\u83B7\u53D6\u3002",
+    customProperties: "\u81EA\u5B9A\u4E49\u5C5E\u6027",
+    customPropertiesDesc: "Bangumi \u5E73\u53F0\u4E0D\u63D0\u4F9B\u3001\u53EA\u5B58\u5728\u4E8E\u672C\u5730 frontmatter \u7684\u5C5E\u6027\uFF0C\u5305\u62EC\u8BC4\u5206\u660E\u7EC6\u62C6\u5206\u5B57\u6BB5\u4EE5\u53CA\u5B58\u50A8/\u7248\u672C\u7B49\u5143\u6570\u636E\u3002",
+    bodyContent: "\u6B63\u6587\u5185\u5BB9",
+    bodyContentDesc: "\u7B14\u8BB0\u6B63\u6587\u4E2D\u7684\u201C\u8BB0\u5F55\u201D\u548C\u201C\u611F\u60F3\u201D\u4E24\u4E2A\u90E8\u5206\u3002",
+    selectAtLeastOneDataType: "\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u7C7B\u5185\u5BB9",
+    mergeStrategy: "\u51B2\u7A81\u5904\u7406\u7B56\u7565",
+    mergeStrategyDesc: "\u5148\u9009\u62E9\u5DF2\u6709\u672C\u5730\u5C5E\u6027\u7684\u9ED8\u8BA4\u5904\u7406\u65B9\u5F0F\uFF0C\u5BFC\u5165\u524D\u4ECD\u53EF\u7EE7\u7EED\u9010\u9879\u786E\u8BA4\u3002",
+    preferLocal: "\u4F18\u5148\u672C\u5730",
+    preferImport: "\u4F18\u5148\u5BFC\u5165",
+    smartMerge: "\u667A\u80FD\u5408\u5E76",
+    importMode: "\u5BFC\u5165\u6A21\u5F0F",
+    importModeDesc: "\u9009\u62E9\u6309\u6761\u76EE\u5BA1\u67E5\uFF0C\u6216\u6309\u5C5E\u6027\u9010\u4E2A\u5BA1\u67E5\u5BFC\u5165\u6570\u636E\u3002",
+    itemImportMode: "\u6309\u6761\u76EE\u5BA1\u67E5",
+    propertyImportMode: "\u6309\u5C5E\u6027\u5BA1\u67E5",
     export: "\u5BFC\u51FA",
     import: "\u5BFC\u5165",
     cancel: "\u53D6\u6D88",
-    exportSuccess: "\u5DF2\u5BFC\u51FA {count} \u4E2A\u6587\u4EF6",
+    exportSuccess: "\u5DF2\u5BFC\u51FA {count} \u4E2A\u5907\u4EFD\u6587\u4EF6",
     exportFailed: "\u5BFC\u51FA\u5931\u8D25: {error}",
     importSuccess: "\u5DF2\u5BFC\u5165 {count} \u4E2A\u6761\u76EE",
     importSkipped: "\u8DF3\u8FC7 {count} \u4E2A\u6761\u76EE",
@@ -1145,7 +1255,11 @@ var zhCN = {
     allSkip: "\u5168\u90E8\u8DF3\u8FC7",
     executeImport: "\u6267\u884C\u5BFC\u5165",
     skip: "\u8DF3\u8FC7",
-    noDiff: "\u6CA1\u6709\u5DEE\u5F02"
+    noDiff: "\u6CA1\u6709\u5DEE\u5F02",
+    propertyReviewTitle: "\u9010\u4E2A\u5C5E\u6027\u5BFC\u5165",
+    propertyReviewProgress: "\u6B63\u5728\u5904\u7406 {field}\uFF08{current}/{total}\uFF09",
+    previousProperty: "\u4E0A\u4E00\u4E2A\u5C5E\u6027",
+    nextProperty: "\u4E0B\u4E00\u4E2A\u5C5E\u6027"
   },
   statusSyncModal: {
     title: "\u72B6\u6001\u540C\u6B65",
@@ -5386,6 +5500,31 @@ var UserDataExtractor = class {
     }
     return result;
   }
+  async extractForExportAsync(file, dataTypes = ["all" /* ALL */]) {
+    const cache = this.app.metadataCache.getFileCache(file);
+    const frontmatter = getFrontmatterRecord(cache == null ? void 0 : cache.frontmatter);
+    if (!frontmatter)
+      return null;
+    const base = this.extractFromFrontmatter(file, frontmatter);
+    if (!base)
+      return null;
+    const content = await this.app.vault.read(file);
+    const record = this.extractSection(content, "\u8BB0\u5F55");
+    const thoughts = this.extractSection(content, "\u611F\u60F3");
+    const shortComment = this.extractComment(content);
+    if (hasUserDataType(dataTypes, "bodySections" /* BODY_CONTENT */) && (record || thoughts)) {
+      base.bodySections = {
+        record,
+        thoughts
+      };
+    }
+    const exportProperties = this.extractExportProperties(frontmatter, dataTypes, shortComment);
+    base.customProperties = Object.keys(exportProperties).length > 0 ? exportProperties : void 0;
+    if (!base.customProperties && !base.bodySections) {
+      return null;
+    }
+    return base;
+  }
   extractFromFrontmatter(file, frontmatter) {
     if (!frontmatter)
       return null;
@@ -5402,6 +5541,7 @@ var UserDataExtractor = class {
         type,
         workType: this.extractWorkType(frontmatter)
       },
+      category: this.extractCategory(frontmatter),
       customProperties: Object.keys(customProperties).length > 0 ? customProperties : void 0
     };
   }
@@ -5430,6 +5570,31 @@ var UserDataExtractor = class {
     }
     return result;
   }
+  async extractForExportFromFolder(folderPath, dataTypes = ["all" /* ALL */], onProgress) {
+    const result = /* @__PURE__ */ new Map();
+    const normalizedPath = (0, import_obsidian7.normalizePath)(folderPath);
+    const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
+    if (!(folder instanceof import_obsidian7.TFolder)) {
+      console.debug(`[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
+      return result;
+    }
+    const allFiles = this.app.vault.getMarkdownFiles();
+    const targetFiles = allFiles.filter((file) => file.path.startsWith(normalizedPath));
+    let processed = 0;
+    for (const file of targetFiles) {
+      try {
+        const userData = await this.extractForExportAsync(file, dataTypes);
+        if (userData) {
+          result.set(userData.identifier.id, userData);
+        }
+      } catch (error) {
+        console.error(`[Bangumi Sync] \u5BFC\u51FA\u7528\u6237\u6570\u636E\u63D0\u53D6\u5931\u8D25: ${file.path}`, error);
+      }
+      processed++;
+      onProgress == null ? void 0 : onProgress(processed, targetFiles.length);
+    }
+    return result;
+  }
   extractId(frontmatter) {
     var _a;
     const id = (_a = frontmatter["id"]) != null ? _a : frontmatter["ID"];
@@ -5444,11 +5609,37 @@ var UserDataExtractor = class {
   extractCustomProperties(frontmatter) {
     const result = {};
     for (const [key, value] of Object.entries(frontmatter)) {
-      if (BANGUMI_FIELDS.has(key))
+      if (!isCustomPropertyField(key))
         continue;
       if (value === void 0 || value === "" || value === null)
         continue;
       result[key] = value;
+    }
+    return result;
+  }
+  extractExportProperties(frontmatter, dataTypes, shortComment) {
+    const result = {};
+    const includeUserProperties = hasUserDataType(dataTypes, "userProperties" /* USER_PROPERTIES */);
+    const includeCustomProperties = hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */);
+    for (const [key, value] of Object.entries(frontmatter)) {
+      if (value === void 0 || value === "" || value === null)
+        continue;
+      if (IDENTIFIER_FIELDS.has(key))
+        continue;
+      if (isUserPropertyField(key)) {
+        if (includeUserProperties) {
+          result[key] = value;
+        }
+        continue;
+      }
+      if (isCustomPropertyField(key)) {
+        if (includeCustomProperties) {
+          result[key] = value;
+        }
+      }
+    }
+    if (includeUserProperties && shortComment) {
+      result["\u77ED\u8BC4"] = shortComment;
     }
     return result;
   }
@@ -5487,10 +5678,51 @@ var UserDataExtractor = class {
     };
     return typeMap[String(typeStr)] || 1 /* Book */;
   }
+  extractCategory(frontmatter) {
+    const category = this.getString(frontmatter, "\u5177\u4F53\u7C7B\u578B") || this.getString(frontmatter, "category") || this.getString(frontmatter, "\u5E73\u53F0");
+    if (category) {
+      return category;
+    }
+    const workType = this.extractWorkType(frontmatter);
+    if (workType) {
+      return workType;
+    }
+    return void 0;
+  }
   extractWorkType(frontmatter) {
     var _a;
     const typeStr = (_a = frontmatter["\u4F5C\u54C1\u5927\u7C7B"]) != null ? _a : frontmatter["type"];
     return typeof typeStr === "string" && typeStr.trim() ? typeStr.trim() : void 0;
+  }
+  getString(frontmatter, key) {
+    const value = frontmatter[key];
+    return typeof value === "string" && value.trim() ? value.trim() : void 0;
+  }
+  extractComment(content) {
+    const normalizedContent = content.replace(/\r\n?/g, "\n");
+    const lines = normalizedContent.split("\n");
+    const headerIndex = lines.findIndex((line) => /^> \[!abstract\]\+\s*\*\*短评\*\*\s*$/.test(line));
+    if (headerIndex === -1) {
+      return null;
+    }
+    const commentLines = [];
+    for (let i = headerIndex + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^> \[!/.test(line) || /^##\s+/.test(line)) {
+        break;
+      }
+      if (line.startsWith("> ")) {
+        commentLines.push(line.slice(2));
+      } else if (line.trim() === ">") {
+        commentLines.push("");
+      } else if (line.trim() === "") {
+        commentLines.push("");
+      } else {
+        break;
+      }
+    }
+    const comment = commentLines.join("\n").trim();
+    return comment || null;
   }
 };
 
@@ -5531,18 +5763,11 @@ var UserDataMerger = class {
     if (!frontmatterMatch)
       return content;
     const prefix = frontmatterMatch[1];
-    let frontmatter = frontmatterMatch[2];
+    const frontmatter = frontmatterMatch[2];
     const suffix = frontmatterMatch[3];
     const restContent = content.substring(frontmatterMatch[0].length);
-    const formattedValue = this.formatFrontmatterValue(value);
-    const fieldRegex = buildFrontmatterFieldRegex(field);
-    if (fieldRegex.test(frontmatter)) {
-      frontmatter = frontmatter.replace(fieldRegex, `${field}: ${formattedValue}`);
-    } else {
-      frontmatter = `${frontmatter}
-${field}: ${formattedValue}`;
-    }
-    return prefix + frontmatter + suffix + restContent;
+    const nextFrontmatter = this.upsertFrontmatterField(frontmatter, field, value);
+    return prefix + nextFrontmatter + suffix + restContent;
   }
   addFrontmatterField(content, field, value) {
     const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
@@ -5552,9 +5777,9 @@ ${field}: ${formattedValue}`;
     const frontmatter = frontmatterMatch[2];
     const suffix = frontmatterMatch[3];
     const restContent = content.substring(frontmatterMatch[0].length);
-    const formattedValue = this.formatFrontmatterValue(value);
+    const entry = this.serializeFrontmatterField(field, value).join("\n");
     const newFrontmatter = `${frontmatter}
-${field}: ${formattedValue}`;
+${entry}`;
     return prefix + newFrontmatter + suffix + restContent;
   }
   hasFrontmatterField(content, field) {
@@ -5626,7 +5851,11 @@ ${sectionContent.trim()}
   }
   formatFrontmatterValue(value) {
     if (typeof value === "string") {
-      if (value.includes(":") || value.includes("#") || value.includes("\n") || value.includes('"') || value.includes("'") || value.includes("[") || value.includes("{")) {
+      if (value.includes("\n")) {
+        return `|-
+${value.split("\n").map((line) => `  ${line}`).join("\n")}`;
+      }
+      if (value.includes(":") || value.includes("#") || value.includes('"') || value.includes("'") || value.includes("[") || value.includes("{")) {
         return `"${value.replace(/"/g, '\\"')}"`;
       }
       return value;
@@ -5646,9 +5875,42 @@ ${value.map((item) => `  - ${this.formatFrontmatterValue(item)}`).join("\n")}`;
     }
     return String(value);
   }
+  upsertFrontmatterField(frontmatter, field, value) {
+    const lines = frontmatter.split("\n");
+    const startIndex = lines.findIndex((line) => line.startsWith(`${field}:`));
+    const fieldLines = this.serializeFrontmatterField(field, value);
+    if (startIndex === -1) {
+      return `${frontmatter}
+${fieldLines.join("\n")}`;
+    }
+    let endIndex = lines.length;
+    for (let i = startIndex + 1; i < lines.length; i++) {
+      if (isTopLevelFrontmatterLine(lines[i])) {
+        endIndex = i;
+        break;
+      }
+    }
+    const nextLines = [
+      ...lines.slice(0, startIndex),
+      ...fieldLines,
+      ...lines.slice(endIndex)
+    ];
+    return nextLines.join("\n");
+  }
+  serializeFrontmatterField(field, value) {
+    const formattedValue = this.formatFrontmatterValue(value);
+    if (formattedValue.startsWith("|-\n")) {
+      const [firstLine, ...restLines] = formattedValue.split("\n");
+      return [`${field}: ${firstLine}`, ...restLines];
+    }
+    if (formattedValue.startsWith("\n")) {
+      return [`${field}:`, ...formattedValue.slice(1).split("\n")];
+    }
+    return [`${field}: ${formattedValue}`];
+  }
 };
-function buildFrontmatterFieldRegex(field) {
-  return new RegExp(`^${escapeRegExp(field)}:\\s*.*(?:\\n  - .*?)*$`, "m");
+function isTopLevelFrontmatterLine(line) {
+  return /^[^\s-][^:]*:\s*/.test(line);
 }
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -5668,66 +5930,77 @@ var UserDataExporter = class {
     this.extractor = new UserDataExtractor(app);
   }
   /**
-   * 按条目类型分别导出用户数据
+   * 按条目 category 导出用户数据到单个备份文件
    */
-  async exportBySubjectType(folderPath, outputDir, onProgress) {
+  async exportByCategory(folderPath, outputDir, dataTypes = ["all" /* ALL */], onProgress) {
     try {
-      const userDataMap = await this.extractor.extractFromFolder(folderPath, onProgress);
+      const userDataMap = await this.extractor.extractForExportFromFolder(folderPath, dataTypes, onProgress);
       if (userDataMap.size === 0) {
         return { success: false, files: [], error: "No user data found" };
       }
-      const groupedData = this.groupBySubjectType(userDataMap);
+      const groupedData = this.groupByCategory(userDataMap);
       await this.ensureDirectory(outputDir);
-      const files = [];
-      for (const [typeLabel, items] of Object.entries(groupedData)) {
-        if (Object.keys(items).length === 0)
-          continue;
-        const exportData = {
-          version: "1.0",
-          exportTime: new Date().toISOString(),
-          subjectType: typeLabel,
-          totalCount: Object.keys(items).length,
-          items
-        };
-        const fileName = `bangumi-user-data-${typeLabel}.json`;
-        const filePath = (0, import_obsidian8.normalizePath)(`${outputDir}/${fileName}`);
-        await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
-        files.push(filePath);
-      }
-      return { success: true, files };
+      const exportData = {
+        version: "3.0",
+        exportTime: new Date().toISOString(),
+        totalCount: userDataMap.size,
+        categories: groupedData
+      };
+      const filePath = (0, import_obsidian8.normalizePath)(`${outputDir}/bangumi-user-data.json`);
+      await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
+      return { success: true, files: [filePath] };
     } catch (error) {
       return { success: false, files: [], error: String(error) };
     }
   }
   /**
-   * 按条目类型分组
+   * 向后兼容旧接口
    */
-  groupBySubjectType(userDataMap) {
+  async exportBySubjectType(folderPath, outputDir, dataTypes = ["all" /* ALL */], onProgress) {
+    return await this.exportByCategory(folderPath, outputDir, dataTypes, onProgress);
+  }
+  /**
+   * 按条目 category 分组
+   */
+  groupByCategory(userDataMap) {
     var _a;
-    const result = {
-      "anime": {},
-      "novel": {},
-      "comic": {},
-      "game": {},
-      "music": {},
-      "real": {}
-    };
+    const result = /* @__PURE__ */ new Map();
     for (const [id, userData] of userDataMap) {
-      let typeLabel = SUBJECT_TYPE_LABELS[userData.identifier.type] || "novel";
-      if (userData.identifier.type === 1) {
-        const workType = (_a = userData.identifier.workType) == null ? void 0 : _a.toLowerCase();
-        if (workType === "comic") {
-          typeLabel = "comic";
-        } else if (workType === "album") {
-          typeLabel = "album";
-        }
-      }
-      if (!result[typeLabel]) {
-        result[typeLabel] = {};
-      }
-      result[typeLabel][id] = userData;
+      const category = this.resolveCategory(userData);
+      const subjectType = SUBJECT_TYPE_LABELS[userData.identifier.type] || "novel";
+      const existing = (_a = result.get(category)) != null ? _a : {
+        category,
+        subjectType,
+        totalCount: 0,
+        items: {}
+      };
+      existing.items[id] = userData;
+      existing.totalCount = Object.keys(existing.items).length;
+      result.set(category, existing);
     }
-    return result;
+    return Array.from(result.entries()).sort((left, right) => left[0].localeCompare(right[0], "zh-CN")).reduce((acc, [category, data]) => {
+      acc[category] = data;
+      return acc;
+    }, {});
+  }
+  resolveCategory(userData) {
+    var _a, _b;
+    const explicitCategory = (_a = userData.category) == null ? void 0 : _a.trim();
+    if (explicitCategory) {
+      return explicitCategory;
+    }
+    const workType = (_b = userData.identifier.workType) == null ? void 0 : _b.trim();
+    if (workType) {
+      if (userData.identifier.type === 1) {
+        const lowered = workType.toLowerCase();
+        if (lowered === "comic")
+          return "\u6F2B\u753B";
+        if (lowered === "album")
+          return "\u753B\u96C6";
+      }
+      return workType;
+    }
+    return SUBJECT_TYPE_LABELS[userData.identifier.type] || "novel";
   }
   /**
    * 确保目录存在
@@ -5755,14 +6028,35 @@ var UserDataExporter = class {
 
 // src/userData/userDataImporter.ts
 var import_obsidian9 = require("obsidian");
+var PROPERTY_ALIAS_CANDIDATES = {
+  "\u5267\u60C5\u8BC4\u5206": ["\u6545\u4E8B\u8BC4\u5206"],
+  "\u6545\u4E8B\u8BC4\u5206": ["\u5267\u60C5\u8BC4\u5206"],
+  "\u4EBA\u8BBE\u8BC4\u5206": ["\u89D2\u8272\u8BC4\u5206"],
+  "\u89D2\u8272\u8BC4\u5206": ["\u4EBA\u8BBE\u8BC4\u5206"],
+  "\u7F8E\u672F\u8BC4\u5206": ["\u4F5C\u753B\u8BC4\u5206", "\u753B\u5DE5\u8BC4\u5206", "\u5236\u4F5C\u8BC4\u5206", "\u63D2\u753B\u8BC4\u5206"],
+  "\u753B\u5DE5\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206", "\u4F5C\u753B\u8BC4\u5206"],
+  "\u4F5C\u753B\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206", "\u753B\u5DE5\u8BC4\u5206"],
+  "\u5236\u4F5C\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206"],
+  "\u63D2\u753B\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206"]
+};
+var LIST_LIKE_FIELDS = /* @__PURE__ */ new Set([
+  "tags",
+  "Tags",
+  "\u7248\u672C",
+  "\u683C\u5F0F",
+  "\u5E73\u53F0",
+  "\u5B58\u50A8",
+  "\u6E20\u9053",
+  "\u6539\u7F16\u7C7B\u522B",
+  "\u8D44\u6E90",
+  "\u6536\u85CF\u6765\u6E90"
+]);
 var UserDataImporter = class {
   constructor(app) {
     this.app = app;
     this.merger = new UserDataMerger(app);
+    this.incrementalSync = new IncrementalSync(app);
   }
-  /**
-   * 从文件导入用户数据
-   */
   async importFromFile(filePath, options, onProgress) {
     try {
       const file = this.app.vault.getAbstractFileByPath(filePath);
@@ -5775,199 +6069,115 @@ var UserDataImporter = class {
       throw new Error(`Failed to parse import file: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  /**
-   * 从 JSON 文本导入用户数据。
-   */
   async importFromText(fileName, content, options, onProgress) {
-    try {
-      const importData = JSON.parse(content);
-      return await this.importParsedData(importData, options, onProgress);
-    } catch (error) {
-      throw new Error(`Failed to parse import file ${fileName}: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    return await this.importFromTexts([{ name: fileName, content }], options, onProgress);
   }
-  /**
-   * 从多个文件导入用户数据
-   */
   async importFromFiles(filePaths, options, onProgress) {
-    const combinedResult = {
-      success: 0,
-      skipped: 0,
-      autoImported: 0,
-      errors: [],
-      missingFields: []
-    };
-    let processed = 0;
-    const total = filePaths.length;
+    const files = [];
     for (const filePath of filePaths) {
-      try {
-        const result = await this.importFromFile(filePath, options);
-        combinedResult.success += result.success;
-        combinedResult.skipped += result.skipped;
-        combinedResult.autoImported += result.autoImported;
-        combinedResult.errors.push(...result.errors);
-        combinedResult.missingFields.push(...result.missingFields);
-      } catch (error) {
-        combinedResult.errors.push({
-          id: 0,
-          name_cn: filePath,
-          error: String(error)
-        });
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (!(file instanceof import_obsidian9.TFile)) {
+        throw new Error(`Import file not found: ${filePath}`);
       }
-      processed++;
-      onProgress == null ? void 0 : onProgress(processed, total);
+      files.push({
+        name: filePath,
+        content: await this.app.vault.read(file)
+      });
     }
-    return combinedResult;
+    return await this.importFromTexts(files, options, onProgress);
   }
-  /**
-   * 从多个 JSON 文本导入用户数据。
-   */
   async importFromTexts(files, options, onProgress) {
-    const combinedResult = {
-      success: 0,
-      skipped: 0,
-      autoImported: 0,
-      errors: [],
-      missingFields: []
+    const compareResult = await this.compareImportData(files, options, onProgress);
+    const applied = await this.applyImportPlan(files, options);
+    return {
+      success: applied.success,
+      skipped: Math.max(compareResult.skipped, applied.skipped),
+      autoImported: compareResult.autoImported,
+      errors: [...compareResult.errors, ...applied.errors],
+      missingFields: compareResult.missingFields
     };
-    let processed = 0;
-    const total = files.length;
-    for (const file of files) {
-      try {
-        const result = await this.importFromText(file.name, file.content, options);
-        combinedResult.success += result.success;
-        combinedResult.skipped += result.skipped;
-        combinedResult.autoImported += result.autoImported;
-        combinedResult.errors.push(...result.errors);
-        combinedResult.missingFields.push(...result.missingFields);
-      } catch (error) {
-        combinedResult.errors.push({
-          id: 0,
-          name_cn: file.name,
-          error: String(error)
-        });
-      }
-      processed++;
-      onProgress == null ? void 0 : onProgress(processed, total);
-    }
-    return combinedResult;
   }
-  async importParsedData(importData, options, onProgress) {
+  collectAllPropertyNames(files, options) {
     var _a;
-    const result = {
-      success: 0,
-      skipped: 0,
-      autoImported: 0,
-      errors: [],
-      missingFields: []
-    };
-    if (!importData.items || typeof importData.items !== "object") {
-      throw new Error("Invalid import data: missing items");
-    }
-    const items = Object.entries(importData.items);
-    const total = items.length;
-    for (let i = 0; i < items.length; i++) {
-      const [id, userData] = items[i];
-      const subjectId = parseInt(id, 10);
-      onProgress == null ? void 0 : onProgress(i + 1, total);
-      if (Number.isNaN(subjectId)) {
-        result.errors.push({
-          id: 0,
-          name_cn: ((_a = userData.identifier) == null ? void 0 : _a.name_cn) || id,
-          error: "Invalid subject id"
-        });
-        continue;
-      }
-      try {
-        const importResult = await this.importSingleItem(subjectId, userData, options);
-        if (importResult.imported) {
-          result.success++;
-        } else {
-          result.skipped++;
-        }
-        if (importResult.missingFields) {
-          result.missingFields.push(...importResult.missingFields);
-        }
-      } catch (error) {
-        result.errors.push({
-          id: subjectId,
-          name_cn: userData.identifier.name_cn,
-          error: String(error)
-        });
-      }
-    }
-    return result;
-  }
-  /**
-   * 导入单个条目的用户数据
-   */
-  async importSingleItem(subjectId, userData, options) {
-    var _a, _b;
-    const localFile = this.findLocalFile(subjectId);
-    if (!localFile) {
-      return { imported: false };
-    }
-    const content = await this.app.vault.read(localFile);
-    const missingFields = [];
-    let updatedContent = content;
-    if (userData.customProperties) {
-      const propertyManage = options.propertyManage;
-      for (const [key, value] of Object.entries(userData.customProperties)) {
-        const manage = propertyManage == null ? void 0 : propertyManage[key];
-        if (manage == null ? void 0 : manage.ignore)
-          continue;
-        const effectiveKey = (manage == null ? void 0 : manage.aliasTo) || key;
-        if (this.merger.hasFrontmatterField(updatedContent, effectiveKey)) {
-          if (options.mergeStrategy === "prefer_import") {
-            updatedContent = this.merger.updateFrontmatterField(
-              updatedContent,
-              effectiveKey,
-              value
-            );
-          } else if (options.mergeStrategy === "smart") {
-            const localValue = this.merger.getFrontmatterValue(updatedContent, effectiveKey);
-            if (!localValue && value !== void 0 && value !== null && value !== "") {
-              updatedContent = this.merger.updateFrontmatterField(
-                updatedContent,
-                effectiveKey,
-                value
-              );
-            }
+    const propertyNames = /* @__PURE__ */ new Set();
+    const parsedFiles = this.parseImportFiles(files);
+    for (const file of parsedFiles.files) {
+      for (const userData of Object.values((_a = file.data.items) != null ? _a : {})) {
+        const normalized = this.normalizeImportItem(userData, options);
+        for (const key of Object.keys(normalized.frontmatter)) {
+          if (isCustomPropertyField(key)) {
+            propertyNames.add(key);
           }
-        } else {
-          missingFields.push({
+        }
+      }
+    }
+    return propertyNames;
+  }
+  getSuggestedPropertyAliases(files, options) {
+    var _a;
+    const propertyNames = this.collectAllPropertyNames(files, options);
+    const localPropertyNames = this.collectLocalFrontmatterNames();
+    const suggestions = {};
+    for (const propertyName of propertyNames) {
+      if (localPropertyNames.has(propertyName))
+        continue;
+      const candidates = (_a = PROPERTY_ALIAS_CANDIDATES[propertyName]) != null ? _a : [];
+      const matchedCandidates = candidates.filter((candidate) => localPropertyNames.has(candidate));
+      if (matchedCandidates.length === 1) {
+        suggestions[propertyName] = matchedCandidates[0];
+      }
+    }
+    return suggestions;
+  }
+  async compareImportData(files, options, onProgress) {
+    var _a, _b, _c;
+    const parsedFiles = this.parseImportFiles(files);
+    const result = {
+      autoImported: 0,
+      diffs: [],
+      missingFields: [],
+      skipped: 0,
+      errors: parsedFiles.errors
+    };
+    let totalItems = 0;
+    for (const parsedFile of parsedFiles.files) {
+      totalItems += Object.keys((_a = parsedFile.data.items) != null ? _a : {}).length;
+    }
+    let processed = 0;
+    for (const parsedFile of parsedFiles.files) {
+      for (const [id, rawUserData] of Object.entries((_b = parsedFile.data.items) != null ? _b : {})) {
+        processed++;
+        onProgress == null ? void 0 : onProgress(processed, totalItems);
+        const subjectId = parseInt(id, 10);
+        if (Number.isNaN(subjectId)) {
+          result.errors.push({
+            id: 0,
+            name_cn: ((_c = rawUserData.identifier) == null ? void 0 : _c.name_cn) || id,
+            error: "Invalid subject id"
+          });
+          continue;
+        }
+        const localFile = this.findLocalFile(subjectId);
+        if (!localFile) {
+          result.skipped++;
+          continue;
+        }
+        const normalized = this.normalizeImportItem(rawUserData, options);
+        const compareItem = await this.compareSingleItem(localFile, normalized, options);
+        result.autoImported += compareItem.autoImported;
+        result.missingFields.push(...compareItem.missingFields);
+        if (compareItem.diffs.length > 0) {
+          result.diffs.push({
             subjectId,
-            subjectName: userData.identifier.name_cn,
-            fieldName: effectiveKey,
-            fieldValue: value,
-            decision: null
+            name_cn: normalized.identifier.name_cn,
+            diffs: compareItem.diffs,
+            hasDiff: true
           });
         }
       }
     }
-    if ((_a = userData.bodySections) == null ? void 0 : _a.record) {
-      updatedContent = this.merger.updateSection(
-        updatedContent,
-        "\u8BB0\u5F55",
-        userData.bodySections.record
-      );
-    }
-    if ((_b = userData.bodySections) == null ? void 0 : _b.thoughts) {
-      updatedContent = this.merger.updateSection(
-        updatedContent,
-        "\u611F\u60F3",
-        userData.bodySections.thoughts
-      );
-    }
-    if (updatedContent !== content) {
-      await this.app.vault.process(localFile, () => updatedContent);
-      return { imported: true, missingFields };
-    }
-    return { imported: false, missingFields };
+    return result;
   }
-  /**
-   * 应用缺失字段决策
-   */
   async applyMissingFieldDecisions(decisions) {
     const grouped = /* @__PURE__ */ new Map();
     for (const decision of decisions) {
@@ -5994,116 +6204,11 @@ var UserDataImporter = class {
       await this.app.vault.process(localFile, () => content);
     }
   }
-  /**
-   * 扫描所有导入文件，收集自定义属性名
-   */
-  collectAllPropertyNames(files) {
-    const propertyNames = /* @__PURE__ */ new Set();
-    for (const file of files) {
-      try {
-        const importData = JSON.parse(file.content);
-        if (!importData.items)
-          continue;
-        for (const userData of Object.values(importData.items)) {
-          if (userData.customProperties) {
-            for (const key of Object.keys(userData.customProperties)) {
-              if (!BANGUMI_FIELDS.has(key)) {
-                propertyNames.add(key);
-              }
-            }
-          }
-        }
-      } catch (e) {
-      }
-    }
-    return propertyNames;
-  }
-  /**
-   * 对比导入数据与本地数据，返回自动导入数和差异列表
-   *
-   * 自动导入规则：本地为空 + 导入不为空 → 直接写入
-   * 其余有差异的情况 → 收集到 ImportItemDiff 供用户决策
-   */
-  async compareImportData(files, options, onProgress) {
-    const propertyManage = options.propertyManage;
-    let autoImported = 0;
-    const diffs = [];
-    let processed = 0;
-    let totalItems = 0;
-    for (const file of files) {
-      try {
-        const importData = JSON.parse(file.content);
-        if (importData.items) {
-          totalItems += Object.keys(importData.items).length;
-        }
-      } catch (e) {
-      }
-    }
-    for (const file of files) {
-      let importData;
-      try {
-        importData = JSON.parse(file.content);
-      } catch (e) {
-        continue;
-      }
-      if (!importData.items)
-        continue;
-      for (const [id, userData] of Object.entries(importData.items)) {
-        const subjectId = parseInt(id, 10);
-        if (Number.isNaN(subjectId)) {
-          processed++;
-          continue;
-        }
-        onProgress == null ? void 0 : onProgress(processed + 1, totalItems);
-        processed++;
-        const localFile = this.findLocalFile(subjectId);
-        if (!localFile)
-          continue;
-        const content = await this.app.vault.read(localFile);
-        const itemDiffs = [];
-        if (userData.customProperties) {
-          for (const [key, value] of Object.entries(userData.customProperties)) {
-            const manage = propertyManage == null ? void 0 : propertyManage[key];
-            if (manage == null ? void 0 : manage.ignore)
-              continue;
-            const effectiveKey = (manage == null ? void 0 : manage.aliasTo) || key;
-            if (!this.merger.hasFrontmatterField(content, effectiveKey)) {
-              if (value !== void 0 && value !== null && value !== "") {
-                const newContent = this.merger.addFrontmatterField(content, effectiveKey, value);
-                await this.app.vault.process(localFile, () => newContent);
-                autoImported++;
-              }
-            } else {
-              const localValue = this.merger.getFrontmatterValue(content, effectiveKey);
-              const localStr = localValue != null ? localValue : "";
-              const importStr = valueToString(value);
-              if (localStr !== importStr) {
-                itemDiffs.push({
-                  fieldName: effectiveKey,
-                  localValue: localStr,
-                  importValue: importStr,
-                  decision: null
-                });
-              }
-            }
-          }
-        }
-        if (itemDiffs.length > 0) {
-          diffs.push({
-            subjectId,
-            name_cn: userData.identifier.name_cn,
-            diffs: itemDiffs,
-            hasDiff: true
-          });
-        }
-      }
-    }
-    return { autoImported, diffs };
-  }
-  /**
-   * 应用用户在对比弹窗中的决策
-   */
-  async applyImportDecisions(diffs) {
+  async applyImportDecisions(diffs, options = {
+    mergeStrategy: "smart",
+    dataTypes: []
+  }) {
+    var _a;
     let applied = 0;
     for (const item of diffs) {
       const localFile = this.findLocalFile(item.subjectId);
@@ -6112,12 +6217,26 @@ var UserDataImporter = class {
       let content = await this.app.vault.read(localFile);
       let changed = false;
       for (const diff of item.diffs) {
-        if (diff.decision === "import") {
-          content = this.merger.updateFrontmatterField(
-            content,
-            diff.fieldName,
-            diff.importValue
-          );
+        const decision = (_a = diff.decision) != null ? _a : "skip";
+        if (decision === "local" || decision === "skip")
+          continue;
+        if (diff.fieldType === "section") {
+          const sectionName = diff.fieldName;
+          const localValue = sectionName === "\u77ED\u8BC4" ? this.incrementalSync.extractComment(content) : this.getSectionContent(content, sectionName);
+          const nextValue2 = decision === "merge" ? this.mergeSectionValues(localValue, asString(diff.importValue)) : asString(diff.importValue);
+          if (nextValue2 && nextValue2 !== localValue) {
+            content = sectionName === "\u77ED\u8BC4" ? this.incrementalSync.updateComment(content, nextValue2) : this.merger.updateSection(content, sectionName, nextValue2);
+            changed = true;
+          }
+          continue;
+        }
+        const nextValue = decision === "merge" ? this.smartMergeValues(
+          this.getFrontmatterValueRaw(localFile, diff.fieldName),
+          diff.importValue,
+          diff.fieldName
+        ) : diff.importValue;
+        if (nextValue !== void 0) {
+          content = this.merger.updateFrontmatterField(content, diff.fieldName, nextValue);
           changed = true;
         }
       }
@@ -6128,9 +6247,662 @@ var UserDataImporter = class {
     }
     return applied;
   }
-  /**
-   * 查找本地文件
-   */
+  async applyImportPlan(files, options, diffs = [], missingFieldDecisions = [], onProgress) {
+    var _a, _b, _c, _d, _e, _f;
+    const parsedFiles = this.parseImportFiles(files);
+    const diffDecisionMap = this.buildDiffDecisionMap(diffs);
+    const missingDecisionMap = this.buildMissingFieldDecisionMap(missingFieldDecisions);
+    const result = {
+      success: 0,
+      skipped: 0,
+      autoImported: 0,
+      errors: parsedFiles.errors,
+      missingFields: []
+    };
+    let totalItems = 0;
+    for (const parsedFile of parsedFiles.files) {
+      totalItems += Object.keys((_a = parsedFile.data.items) != null ? _a : {}).length;
+    }
+    let processed = 0;
+    for (const parsedFile of parsedFiles.files) {
+      for (const [id, rawUserData] of Object.entries((_b = parsedFile.data.items) != null ? _b : {})) {
+        processed++;
+        onProgress == null ? void 0 : onProgress(processed, totalItems);
+        const subjectId = parseInt(id, 10);
+        if (Number.isNaN(subjectId)) {
+          result.errors.push({
+            id: 0,
+            name_cn: ((_c = rawUserData.identifier) == null ? void 0 : _c.name_cn) || id,
+            error: "Invalid subject id"
+          });
+          continue;
+        }
+        const localFile = this.findLocalFile(subjectId);
+        if (!localFile) {
+          result.skipped++;
+          continue;
+        }
+        try {
+          const normalized = this.normalizeImportItem(rawUserData, options);
+          const changed = await this.applySingleItem(
+            localFile,
+            subjectId,
+            normalized,
+            options,
+            (_d = diffDecisionMap.get(subjectId)) != null ? _d : /* @__PURE__ */ new Map(),
+            (_e = missingDecisionMap.get(subjectId)) != null ? _e : /* @__PURE__ */ new Map()
+          );
+          if (changed) {
+            result.success++;
+          } else {
+            result.skipped++;
+          }
+        } catch (error) {
+          result.errors.push({
+            id: subjectId,
+            name_cn: ((_f = rawUserData.identifier) == null ? void 0 : _f.name_cn) || String(subjectId),
+            error: String(error)
+          });
+        }
+      }
+    }
+    return result;
+  }
+  parseImportFiles(files) {
+    var _a, _b, _c, _d;
+    const parsedFiles = [];
+    const errors = [];
+    for (const file of files) {
+      try {
+        const parsed = JSON.parse(file.content);
+        if (this.isCombinedExport(parsed)) {
+          const categoryEntries = Object.entries((_a = parsed.categories) != null ? _a : {});
+          if (categoryEntries.length === 0) {
+            throw new Error("Invalid import data: missing categories");
+          }
+          for (const [categoryName, categoryData] of categoryEntries) {
+            if (!this.isCategoryExport(categoryData)) {
+              throw new Error(`Invalid category export: ${categoryName}`);
+            }
+            parsedFiles.push({
+              name: `${file.name} / ${categoryName}`,
+              data: {
+                version: parsed.version,
+                exportTime: parsed.exportTime,
+                subjectType: categoryData.subjectType,
+                totalCount: (_c = categoryData.totalCount) != null ? _c : Object.keys((_b = categoryData.items) != null ? _b : {}).length,
+                items: (_d = categoryData.items) != null ? _d : {}
+              }
+            });
+          }
+          continue;
+        }
+        if (!this.isSingleExport(parsed)) {
+          throw new Error("Invalid import data: missing items");
+        }
+        parsedFiles.push({ name: file.name, data: parsed });
+      } catch (error) {
+        errors.push({
+          id: 0,
+          name_cn: file.name,
+          error: `Failed to parse import file ${file.name}: ${error instanceof Error ? error.message : String(error)}`
+        });
+      }
+    }
+    return { files: parsedFiles, errors };
+  }
+  isSingleExport(data) {
+    return !!data && typeof data === "object" && "items" in data && typeof data.items === "object";
+  }
+  isCombinedExport(data) {
+    return !!data && typeof data === "object" && "categories" in data && typeof data.categories === "object" && !Array.isArray(data.categories);
+  }
+  isCategoryExport(data) {
+    return !!data && typeof data === "object" && "items" in data && typeof data.items === "object";
+  }
+  async compareSingleItem(localFile, userData, options) {
+    var _a, _b;
+    const content = await this.app.vault.read(localFile);
+    const missingFields = [];
+    const diffs = [];
+    let autoImported = 0;
+    for (const [rawKey, value] of Object.entries(userData.frontmatter)) {
+      const fieldName = this.getEffectiveFieldName(rawKey, options);
+      if (!fieldName)
+        continue;
+      if (fieldName === "\u77ED\u8BC4") {
+        const importValue = asString(value);
+        const localValue2 = this.incrementalSync.extractComment(content);
+        if (this.valuesEqual(localValue2, importValue, fieldName)) {
+          continue;
+        }
+        if (options.mergeStrategy === "smart" && this.isEmptyValue(localValue2) && !this.isEmptyValue(importValue)) {
+          autoImported++;
+          continue;
+        }
+        diffs.push({
+          fieldName,
+          localValue: localValue2,
+          importValue,
+          fieldType: "section",
+          decision: null
+        });
+        continue;
+      }
+      if (!this.merger.hasFrontmatterField(content, fieldName)) {
+        missingFields.push({
+          subjectId: userData.identifier.id,
+          subjectName: userData.identifier.name_cn,
+          fieldName,
+          fieldValue: value,
+          decision: null
+        });
+        continue;
+      }
+      const localValue = this.getFrontmatterValueRaw(localFile, fieldName);
+      if (this.valuesEqual(localValue, value, fieldName)) {
+        continue;
+      }
+      if (options.mergeStrategy === "smart" && this.isEmptyValue(localValue) && !this.isEmptyValue(value)) {
+        autoImported++;
+        continue;
+      }
+      diffs.push({
+        fieldName,
+        localValue,
+        importValue: value,
+        fieldType: "frontmatter",
+        decision: null
+      });
+    }
+    if (hasUserDataType(options.dataTypes, "bodySections" /* BODY_CONTENT */)) {
+      const recordDiff = this.compareSection(
+        content,
+        "\u8BB0\u5F55",
+        (_a = userData.bodySections) == null ? void 0 : _a.record,
+        options
+      );
+      autoImported += recordDiff.autoImported;
+      if (recordDiff.diff)
+        diffs.push(recordDiff.diff);
+      const thoughtsDiff = this.compareSection(
+        content,
+        "\u611F\u60F3",
+        (_b = userData.bodySections) == null ? void 0 : _b.thoughts,
+        options
+      );
+      autoImported += thoughtsDiff.autoImported;
+      if (thoughtsDiff.diff)
+        diffs.push(thoughtsDiff.diff);
+    }
+    return { autoImported, missingFields, diffs };
+  }
+  compareSection(content, sectionName, importValue, options) {
+    if (!importValue) {
+      return { autoImported: 0 };
+    }
+    const localValue = this.getSectionContent(content, sectionName);
+    if (!localValue) {
+      return { autoImported: 1 };
+    }
+    if (localValue === importValue) {
+      return { autoImported: 0 };
+    }
+    if (options.mergeStrategy === "smart" && !localValue.trim()) {
+      return { autoImported: 1 };
+    }
+    return {
+      autoImported: 0,
+      diff: {
+        fieldName: sectionName,
+        localValue,
+        importValue,
+        fieldType: "section",
+        decision: null
+      }
+    };
+  }
+  async applySingleItem(localFile, subjectId, userData, options, diffDecisions, missingDecisions) {
+    var _a, _b;
+    const originalContent = await this.app.vault.read(localFile);
+    let updatedContent = originalContent;
+    let changed = false;
+    for (const [rawKey, value] of Object.entries(userData.frontmatter)) {
+      const fieldName = this.getEffectiveFieldName(rawKey, options);
+      if (!fieldName)
+        continue;
+      if (fieldName === "\u77ED\u8BC4") {
+        const localValue2 = this.incrementalSync.extractComment(updatedContent);
+        const importValue = asString(value);
+        if (this.valuesEqual(localValue2, importValue, fieldName)) {
+          continue;
+        }
+        const decisionKey2 = this.buildDiffDecisionKey("section", fieldName);
+        const explicitDecision2 = diffDecisions.get(decisionKey2);
+        const nextValue2 = this.resolveValueByStrategy(
+          localValue2,
+          importValue,
+          fieldName,
+          options.mergeStrategy,
+          explicitDecision2
+        );
+        if (nextValue2 !== void 0 && !this.valuesEqual(localValue2, nextValue2, fieldName)) {
+          updatedContent = this.incrementalSync.updateComment(updatedContent, asString(nextValue2));
+          changed = true;
+        }
+        continue;
+      }
+      const hasField = this.merger.hasFrontmatterField(updatedContent, fieldName);
+      if (!hasField) {
+        const decision = missingDecisions.get(fieldName);
+        if (decision === "add") {
+          updatedContent = this.merger.addFrontmatterField(updatedContent, fieldName, value);
+        }
+        continue;
+      }
+      const localValue = this.getFrontmatterValueRaw(localFile, fieldName);
+      if (this.valuesEqual(localValue, value, fieldName)) {
+        continue;
+      }
+      const decisionKey = this.buildDiffDecisionKey("frontmatter", fieldName);
+      const explicitDecision = diffDecisions.get(decisionKey);
+      const nextValue = this.resolveValueByStrategy(
+        localValue,
+        value,
+        fieldName,
+        options.mergeStrategy,
+        explicitDecision
+      );
+      if (nextValue !== void 0 && !this.valuesEqual(localValue, nextValue, fieldName)) {
+        updatedContent = this.merger.updateFrontmatterField(updatedContent, fieldName, nextValue);
+      }
+    }
+    if (hasUserDataType(options.dataTypes, "bodySections" /* BODY_CONTENT */)) {
+      updatedContent = this.applySectionChange(
+        updatedContent,
+        "\u8BB0\u5F55",
+        (_a = userData.bodySections) == null ? void 0 : _a.record,
+        options.mergeStrategy,
+        diffDecisions.get(this.buildDiffDecisionKey("section", "\u8BB0\u5F55"))
+      );
+      updatedContent = this.applySectionChange(
+        updatedContent,
+        "\u611F\u60F3",
+        (_b = userData.bodySections) == null ? void 0 : _b.thoughts,
+        options.mergeStrategy,
+        diffDecisions.get(this.buildDiffDecisionKey("section", "\u611F\u60F3"))
+      );
+    }
+    if (changed || updatedContent !== originalContent) {
+      await this.app.vault.process(localFile, () => updatedContent);
+      return true;
+    }
+    return false;
+  }
+  applySectionChange(content, sectionName, importValue, mergeStrategy, explicitDecision) {
+    if (!importValue)
+      return content;
+    const localValue = this.getSectionContent(content, sectionName);
+    if (!localValue) {
+      return this.merger.updateSection(content, sectionName, importValue);
+    }
+    if (localValue === importValue)
+      return content;
+    if (explicitDecision === "local" || explicitDecision === "skip") {
+      return content;
+    }
+    if (explicitDecision === "import") {
+      return this.merger.updateSection(content, sectionName, importValue);
+    }
+    if (explicitDecision === "merge") {
+      return this.merger.updateSection(
+        content,
+        sectionName,
+        this.mergeSectionValues(localValue, importValue)
+      );
+    }
+    switch (mergeStrategy) {
+      case "prefer_import":
+        return this.merger.updateSection(content, sectionName, importValue);
+      case "smart":
+        return this.merger.updateSection(
+          content,
+          sectionName,
+          this.mergeSectionValues(localValue, importValue)
+        );
+      case "prefer_local":
+      default:
+        return content;
+    }
+  }
+  normalizeImportItem(userData, options) {
+    var _a, _b;
+    const dataTypes = (_a = options == null ? void 0 : options.dataTypes) != null ? _a : ["all" /* ALL */];
+    const frontmatter = this.filterImportFrontmatter(
+      { ...(_b = userData.customProperties) != null ? _b : {} },
+      dataTypes
+    );
+    if (userData.legacy) {
+      this.mergeLegacyFields(frontmatter, userData, dataTypes);
+    }
+    return {
+      identifier: userData.identifier,
+      frontmatter,
+      bodySections: hasUserDataType(dataTypes, "bodySections" /* BODY_CONTENT */) ? userData.bodySections : void 0
+    };
+  }
+  mergeLegacyFields(frontmatter, userData, dataTypes) {
+    var _a;
+    const legacy = userData.legacy;
+    if (!legacy)
+      return;
+    if (hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */) && legacy.storage !== void 0 && legacy.storage !== null && legacy.storage !== "") {
+      frontmatter["\u5B58\u50A8"] = legacy.storage;
+    }
+    if (!hasUserDataType(dataTypes, "userProperties" /* USER_PROPERTIES */))
+      return;
+    if (legacy.rate !== void 0 && legacy.rate !== null) {
+      frontmatter["\u8BC4\u5206"] = legacy.rate;
+    }
+    if (legacy.comment) {
+      frontmatter["\u77ED\u8BC4"] = legacy.comment;
+    }
+    if (legacy.tags && legacy.tags.length > 0) {
+      frontmatter.tags = legacy.tags;
+    }
+    if (hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */)) {
+      for (const [ratingKey, ratingValue] of Object.entries((_a = legacy.ratingDetails) != null ? _a : {})) {
+        const mappedKey = this.mapLegacyRatingField(userData.identifier, ratingKey);
+        if (!mappedKey)
+          continue;
+        frontmatter[mappedKey] = ratingValue;
+      }
+    }
+  }
+  filterImportFrontmatter(frontmatter, dataTypes) {
+    const includeAll = hasUserDataType(dataTypes, "all" /* ALL */);
+    const includeUserProperties = includeAll || hasUserDataType(dataTypes, "userProperties" /* USER_PROPERTIES */);
+    const includeCustomProperties = includeAll || hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */);
+    const filtered = {};
+    for (const [key, value] of Object.entries(frontmatter)) {
+      if (isUserPropertyField(key)) {
+        if (includeUserProperties) {
+          filtered[key] = value;
+        }
+        continue;
+      }
+      if (isCustomPropertyField(key)) {
+        if (includeCustomProperties) {
+          filtered[key] = value;
+        }
+        continue;
+      }
+      if (includeUserProperties && this.isImportManagedUserField(key)) {
+        filtered[key] = value;
+      }
+    }
+    return filtered;
+  }
+  isImportManagedUserField(fieldName) {
+    return isUserPropertyField(fieldName);
+  }
+  mapLegacyRatingField(identifier, legacyKey) {
+    var _a, _b;
+    const type = identifier.type;
+    const workType = (_b = (_a = identifier.workType) == null ? void 0 : _a.toLowerCase()) != null ? _b : "";
+    if (type === 2 /* Anime */) {
+      return this.mapRatingFieldByTable(legacyKey, {
+        music: "\u97F3\u4E50\u8BC4\u5206",
+        character: "\u4EBA\u8BBE\u8BC4\u5206",
+        story: "\u5267\u60C5\u8BC4\u5206",
+        art: "\u7F8E\u672F\u8BC4\u5206"
+      });
+    }
+    if (type === 4 /* Game */) {
+      return this.mapRatingFieldByTable(legacyKey, {
+        story: "\u5267\u60C5\u8BC4\u5206",
+        fun: "\u8DA3\u5473\u8BC4\u5206",
+        music: "\u97F3\u4E50\u8BC4\u5206",
+        art: "\u7F8E\u672F\u8BC4\u5206"
+      });
+    }
+    if (type === 6 /* Real */) {
+      return this.mapRatingFieldByTable(legacyKey, {
+        story: "\u5267\u60C5\u8BC4\u5206",
+        character: "\u6F14\u6280\u8BC4\u5206",
+        art: "\u5236\u4F5C\u8BC4\u5206"
+      });
+    }
+    if (type === 1 /* Book */ && workType === "comic") {
+      return this.mapRatingFieldByTable(legacyKey, {
+        story: "\u5267\u60C5\u8BC4\u5206",
+        drawing: "\u753B\u5DE5\u8BC4\u5206",
+        character: "\u4EBA\u8BBE\u8BC4\u5206"
+      });
+    }
+    if (type === 1 /* Book */ && workType === "album") {
+      return this.mapRatingFieldByTable(legacyKey, {
+        story: "\u5267\u60C5\u8BC4\u5206",
+        drawing: "\u753B\u5DE5\u8BC4\u5206",
+        character: "\u4EBA\u8BBE\u8BC4\u5206"
+      });
+    }
+    return this.mapRatingFieldByTable(legacyKey, {
+      story: "\u5267\u60C5\u8BC4\u5206",
+      illustration: "\u63D2\u753B\u8BC4\u5206",
+      writing: "\u6587\u7B14\u8BC4\u5206",
+      character: "\u4EBA\u8BBE\u8BC4\u5206"
+    });
+  }
+  mapRatingFieldByTable(legacyKey, table) {
+    if (table[legacyKey]) {
+      return table[legacyKey];
+    }
+    const genericFallback = this.mapGenericRatingField(legacyKey);
+    return genericFallback ? genericFallback : null;
+  }
+  mapGenericRatingField(legacyKey) {
+    const genericMap = {
+      music: "\u97F3\u4E50\u8BC4\u5206",
+      character: "\u4EBA\u8BBE\u8BC4\u5206",
+      story: "\u5267\u60C5\u8BC4\u5206",
+      art: "\u7F8E\u672F\u8BC4\u5206",
+      illustration: "\u63D2\u753B\u8BC4\u5206",
+      writing: "\u6587\u7B14\u8BC4\u5206",
+      drawing: "\u753B\u5DE5\u8BC4\u5206",
+      fun: "\u8DA3\u5473\u8BC4\u5206"
+    };
+    return genericMap[legacyKey] || null;
+  }
+  getEffectiveFieldName(rawKey, options) {
+    var _a;
+    const manage = (_a = options.propertyManage) == null ? void 0 : _a[rawKey];
+    if (manage == null ? void 0 : manage.ignore)
+      return null;
+    return (manage == null ? void 0 : manage.aliasTo) || rawKey;
+  }
+  buildDiffDecisionMap(diffs) {
+    var _a;
+    const result = /* @__PURE__ */ new Map();
+    for (const item of diffs) {
+      const fieldMap = /* @__PURE__ */ new Map();
+      for (const diff of item.diffs) {
+        fieldMap.set(
+          this.buildDiffDecisionKey((_a = diff.fieldType) != null ? _a : "frontmatter", diff.fieldName),
+          diff.decision
+        );
+      }
+      result.set(item.subjectId, fieldMap);
+    }
+    return result;
+  }
+  buildMissingFieldDecisionMap(decisions) {
+    var _a;
+    const result = /* @__PURE__ */ new Map();
+    for (const decision of decisions) {
+      const fieldMap = (_a = result.get(decision.subjectId)) != null ? _a : /* @__PURE__ */ new Map();
+      fieldMap.set(decision.fieldName, decision.decision);
+      result.set(decision.subjectId, fieldMap);
+    }
+    return result;
+  }
+  buildDiffDecisionKey(fieldType, fieldName) {
+    return `${fieldType}:${fieldName}`;
+  }
+  resolveValueByStrategy(localValue, importValue, fieldName, mergeStrategy, explicitDecision) {
+    switch (explicitDecision) {
+      case "local":
+      case "skip":
+        return void 0;
+      case "import":
+        return importValue;
+      case "merge":
+        return this.smartMergeValues(localValue, importValue, fieldName);
+      default:
+        break;
+    }
+    switch (mergeStrategy) {
+      case "prefer_import":
+        return importValue;
+      case "smart":
+        return this.smartMergeValues(localValue, importValue, fieldName);
+      case "prefer_local":
+      default:
+        return void 0;
+    }
+  }
+  smartMergeValues(localValue, importValue, fieldName) {
+    if (this.isEmptyValue(localValue)) {
+      return this.normalizeForWrite(importValue, fieldName);
+    }
+    if (this.isEmptyValue(importValue)) {
+      return this.normalizeForWrite(localValue, fieldName);
+    }
+    const localArray = this.asArray(localValue, fieldName);
+    const importArray = this.asArray(importValue, fieldName);
+    if (localArray && importArray) {
+      return Array.from(/* @__PURE__ */ new Set([...localArray, ...importArray]));
+    }
+    if (fieldName === "\u77ED\u8BC4" && typeof localValue === "string" && typeof importValue === "string") {
+      return this.mergeSectionValues(localValue, importValue);
+    }
+    if (typeof localValue === "object" && localValue && typeof importValue === "object" && importValue) {
+      return {
+        ...localValue,
+        ...importValue
+      };
+    }
+    return localValue;
+  }
+  mergeSectionValues(localValue, importValue) {
+    const localText = (localValue != null ? localValue : "").trim();
+    const importText = (importValue != null ? importValue : "").trim();
+    if (!localText)
+      return importText;
+    if (!importText)
+      return localText;
+    if (localText === importText)
+      return localText;
+    if (localText.includes(importText))
+      return localText;
+    if (importText.includes(localText))
+      return importText;
+    return `${localText}
+
+---
+
+${importText}`;
+  }
+  valuesEqual(left, right, fieldName) {
+    return stableStringify(this.normalizeComparableValue(left, fieldName)) === stableStringify(this.normalizeComparableValue(right, fieldName));
+  }
+  isEmptyValue(value) {
+    if (value === null || value === void 0)
+      return true;
+    if (typeof value === "string")
+      return value.trim() === "";
+    if (Array.isArray(value))
+      return value.length === 0;
+    if (typeof value === "object")
+      return Object.keys(value).length === 0;
+    return false;
+  }
+  asArray(value, fieldName) {
+    if (Array.isArray(value)) {
+      return normalizeListValues(value);
+    }
+    if (typeof value === "string" && fieldName && this.isListLikeField(fieldName)) {
+      const parsed = splitListString(value);
+      return parsed.length > 0 ? parsed : null;
+    }
+    return null;
+  }
+  normalizeComparableValue(value, fieldName) {
+    const arrayValue = this.asArray(value, fieldName);
+    if (arrayValue) {
+      return Array.from(new Set(arrayValue)).sort((left, right) => left.localeCompare(right, "zh-CN"));
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+        return String(Number(trimmed));
+      }
+      return trimmed.replace(/\r\n/g, "\n");
+    }
+    if (value && typeof value === "object") {
+      return stableNormalize(value);
+    }
+    return value;
+  }
+  normalizeForWrite(value, fieldName) {
+    const arrayValue = this.asArray(value, fieldName);
+    if (arrayValue) {
+      return Array.from(new Set(arrayValue));
+    }
+    return value;
+  }
+  isListLikeField(fieldName) {
+    return LIST_LIKE_FIELDS.has(fieldName);
+  }
+  collectLocalFrontmatterNames() {
+    const propertyNames = /* @__PURE__ */ new Set();
+    const files = this.app.vault.getMarkdownFiles();
+    for (const file of files) {
+      const cache = this.app.metadataCache.getFileCache(file);
+      const frontmatter = getFrontmatterRecord(cache == null ? void 0 : cache.frontmatter);
+      if (!frontmatter)
+        continue;
+      for (const key of Object.keys(frontmatter)) {
+        propertyNames.add(key);
+      }
+    }
+    return propertyNames;
+  }
+  getFrontmatterValueRaw(file, fieldName) {
+    const cache = this.app.metadataCache.getFileCache(file);
+    const frontmatter = getFrontmatterRecord(cache == null ? void 0 : cache.frontmatter);
+    return frontmatter == null ? void 0 : frontmatter[fieldName];
+  }
+  getSectionContent(content, sectionName) {
+    const normalizedContent = content.replace(/\r\n/g, "\n");
+    const lines = normalizedContent.split("\n");
+    const heading = `## ${sectionName}`;
+    const startIndex = lines.findIndex((line) => line.trim() === heading);
+    if (startIndex === -1)
+      return void 0;
+    let endIndex = lines.length;
+    for (let i = startIndex + 1; i < lines.length; i++) {
+      if (/^##\s+/.test(lines[i])) {
+        endIndex = i;
+        break;
+      }
+    }
+    const text = lines.slice(startIndex + 1, endIndex).join("\n").trim();
+    return text || void 0;
+  }
   findLocalFile(subjectId) {
     var _a;
     const files = this.app.vault.getMarkdownFiles();
@@ -6145,25 +6917,56 @@ var UserDataImporter = class {
     return null;
   }
 };
-function valueToString(value) {
+function stableStringify(value) {
   if (value === null || value === void 0)
     return "";
-  if (Array.isArray(value))
-    return value.join(", ");
-  if (typeof value === "object")
-    return JSON.stringify(value);
   if (typeof value === "string")
     return value;
   if (typeof value === "number" || typeof value === "boolean")
     return String(value);
-  return "";
+  if (Array.isArray(value))
+    return JSON.stringify(value.map((item) => stableNormalize(item)));
+  if (typeof value === "object")
+    return JSON.stringify(stableNormalize(value));
+  return String(value);
+}
+function stableNormalize(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => stableNormalize(item));
+  }
+  if (value && typeof value === "object") {
+    return Object.keys(value).sort().reduce((acc, key) => {
+      acc[key] = stableNormalize(value[key]);
+      return acc;
+    }, {});
+  }
+  return value;
+}
+function normalizeListValues(values) {
+  return values.flatMap((item) => typeof item === "string" ? splitListString(item) : [String(item).trim()]).map((item) => item.trim()).filter(Boolean);
+}
+function splitListString(value) {
+  return value.split(/[,\n，、；;｜|]/).map((item) => item.trim()).filter(Boolean);
+}
+function asString(value) {
+  if (typeof value === "string")
+    return value;
+  if (value === null || value === void 0)
+    return "";
+  return String(value);
 }
 
 // src/userData/userDataModal.ts
 var import_obsidian10 = require("obsidian");
+var DEFAULT_EXPORT_DATA_TYPES = [
+  "userProperties" /* USER_PROPERTIES */,
+  "customProperties" /* CUSTOM_PROPERTIES */,
+  "bodySections" /* BODY_CONTENT */
+];
 var UserDataExportModal = class extends import_obsidian10.Modal {
   constructor(app, scanFolderPath, onExport) {
     super(app);
+    this.exportDataTypes = [...DEFAULT_EXPORT_DATA_TYPES];
     this.exporter = new UserDataExporter(app);
     this.scanFolderPath = scanFolderPath;
     this.outputDir = scanFolderPath;
@@ -6187,6 +6990,14 @@ var UserDataExportModal = class extends import_obsidian10.Modal {
         this.outputDir = value;
       });
     });
+    contentEl.createEl("h3", { text: tn("userData", "exportDataTypes") });
+    contentEl.createEl("p", {
+      text: tn("userData", "exportDataTypesDesc"),
+      cls: "bangumi-modal-desc"
+    });
+    this.addDataTypeToggle(contentEl, "userProperties" /* USER_PROPERTIES */, "userProperties", "userPropertiesDesc");
+    this.addDataTypeToggle(contentEl, "customProperties" /* CUSTOM_PROPERTIES */, "customProperties", "customPropertiesDesc");
+    this.addDataTypeToggle(contentEl, "bodySections" /* BODY_CONTENT */, "bodyContent", "bodyContentDesc");
     const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
     buttonDiv.createEl("button", { text: tn("userData", "cancel") }, (btn) => {
       btn.addEventListener("click", () => this.close());
@@ -6199,9 +7010,14 @@ var UserDataExportModal = class extends import_obsidian10.Modal {
     });
   }
   async doExport() {
-    const result = await this.exporter.exportBySubjectType(
+    if (this.exportDataTypes.length === 0) {
+      new import_obsidian10.Notice(tn("userData", "selectAtLeastOneDataType"));
+      return;
+    }
+    const result = await this.exporter.exportByCategory(
       this.scanFolderPath,
-      this.outputDir
+      this.outputDir,
+      this.exportDataTypes
     );
     if (result.success && result.files.length > 0) {
       new import_obsidian10.Notice(tnFormat("userData", "exportSuccess", { count: result.files.length }));
@@ -6215,10 +7031,20 @@ var UserDataExportModal = class extends import_obsidian10.Modal {
     const { contentEl } = this;
     contentEl.empty();
   }
+  addDataTypeToggle(container, dataType, nameKey, descKey) {
+    new import_obsidian10.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
+      toggle.setValue(this.exportDataTypes.includes(dataType)).onChange((value) => {
+        this.exportDataTypes = updateDataTypeSelection(this.exportDataTypes, dataType, value);
+      });
+    });
+  }
 };
 var UserDataImportModal = class extends import_obsidian10.Modal {
   constructor(app, importFiles, onImport) {
     super(app);
+    this.mergeStrategy = "smart";
+    this.importMode = "item";
+    this.importDataTypes = [...DEFAULT_EXPORT_DATA_TYPES];
     this.importer = new UserDataImporter(app);
     this.importFiles = importFiles;
     this.onImport = onImport;
@@ -6235,6 +7061,24 @@ var UserDataImportModal = class extends import_obsidian10.Modal {
     for (const file of this.importFiles) {
       fileListEl.createEl("div", { text: file.name, cls: "bangumi-import-file-item" });
     }
+    new import_obsidian10.Setting(contentEl).setName(tn("userData", "mergeStrategy")).setDesc(tn("userData", "mergeStrategyDesc")).addDropdown((dropdown) => {
+      dropdown.addOption("prefer_local", tn("userData", "preferLocal")).addOption("prefer_import", tn("userData", "preferImport")).addOption("smart", tn("userData", "smartMerge")).setValue(this.mergeStrategy).onChange((value) => {
+        this.mergeStrategy = value;
+      });
+    });
+    new import_obsidian10.Setting(contentEl).setName(tn("userData", "importMode")).setDesc(tn("userData", "importModeDesc")).addDropdown((dropdown) => {
+      dropdown.addOption("item", tn("userData", "itemImportMode")).addOption("property", tn("userData", "propertyImportMode")).setValue(this.importMode).onChange((value) => {
+        this.importMode = value;
+      });
+    });
+    contentEl.createEl("h3", { text: tn("userData", "importDataTypes") });
+    contentEl.createEl("p", {
+      text: tn("userData", "importDataTypesDesc"),
+      cls: "bangumi-modal-desc"
+    });
+    this.addDataTypeToggle(contentEl, "userProperties" /* USER_PROPERTIES */, "userProperties", "userPropertiesDesc");
+    this.addDataTypeToggle(contentEl, "customProperties" /* CUSTOM_PROPERTIES */, "customProperties", "customPropertiesDesc");
+    this.addDataTypeToggle(contentEl, "bodySections" /* BODY_CONTENT */, "bodyContent", "bodyContentDesc");
     const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
     buttonDiv.createEl("button", { text: tn("userData", "cancel") }, (btn) => {
       btn.addEventListener("click", () => this.close());
@@ -6247,10 +7091,16 @@ var UserDataImportModal = class extends import_obsidian10.Modal {
     });
   }
   async doImport() {
-    const propertyNames = this.importer.collectAllPropertyNames(this.importFiles);
+    if (this.importDataTypes.length === 0) {
+      new import_obsidian10.Notice(tn("userData", "selectAtLeastOneDataType"));
+      return;
+    }
+    const dataTypeOptions = { dataTypes: this.importDataTypes };
+    const propertyNames = this.importer.collectAllPropertyNames(this.importFiles, dataTypeOptions);
+    const suggestedAliases = this.importer.getSuggestedPropertyAliases(this.importFiles, dataTypeOptions);
     if (propertyNames.size > 0) {
       this.close();
-      new PropertyManageModal(this.app, propertyNames, (propertyManage) => {
+      new PropertyManageModal(this.app, propertyNames, suggestedAliases, (propertyManage) => {
         void this.continueImport(propertyManage);
       }).open();
     } else {
@@ -6259,61 +7109,94 @@ var UserDataImportModal = class extends import_obsidian10.Modal {
   }
   async continueImport(propertyManage) {
     const options = {
-      mergeStrategy: "smart",
-      dataTypes: ["all" /* ALL */],
+      mergeStrategy: this.mergeStrategy,
+      dataTypes: this.importDataTypes,
       propertyManage
     };
-    const { autoImported, diffs } = await this.importer.compareImportData(
+    const compareResult = await this.importer.compareImportData(
       this.importFiles,
       options
     );
+    const { autoImported, diffs, missingFields, errors, skipped } = compareResult;
     if (diffs.length > 0) {
       this.close();
+      if (this.importMode === "property") {
+        const propertyGroups = groupByProperty(diffs, missingFields);
+        new PropertyImportReviewModal(this.app, propertyGroups, (resolvedDiffs, resolvedMissingFields) => {
+          void (async () => {
+            await this.finishImport(options, resolvedDiffs, resolvedMissingFields, {
+              autoImported,
+              errors,
+              skipped
+            });
+          })();
+        }).open();
+        return;
+      }
       new ImportCompareModal(this.app, diffs, (resolvedDiffs) => {
         void (async () => {
-          const applied = await this.importer.applyImportDecisions(resolvedDiffs);
-          const result = {
-            success: applied + autoImported,
-            skipped: 0,
+          await this.finishImport(options, resolvedDiffs, missingFields, {
             autoImported,
-            errors: [],
-            missingFields: []
-          };
-          new ImportResultModal(this.app, result).open();
+            errors,
+            skipped
+          });
         })();
       }).open();
-    } else if (autoImported > 0) {
-      const result = {
-        success: autoImported,
-        skipped: 0,
-        autoImported,
-        errors: [],
-        missingFields: []
-      };
-      this.onImport(result);
-      this.close();
     } else {
-      const result = {
-        success: 0,
-        skipped: this.importFiles.reduce((sum, f) => {
-          try {
-            const data = JSON.parse(f.content);
-            return sum + (data.items ? Object.keys(data.items).length : 0);
-          } catch (e) {
-            return sum;
-          }
-        }, 0),
-        autoImported: 0,
-        errors: [],
-        missingFields: []
-      };
-      this.onImport(result);
-      this.close();
+      if (this.importMode === "property" && missingFields.length > 0) {
+        this.close();
+        const propertyGroups = groupByProperty([], missingFields);
+        new PropertyImportReviewModal(this.app, propertyGroups, (resolvedDiffs, resolvedMissingFields) => {
+          void (async () => {
+            await this.finishImport(options, resolvedDiffs, resolvedMissingFields, {
+              autoImported,
+              errors,
+              skipped
+            });
+          })();
+        }).open();
+        return;
+      }
+      await this.finishImport(options, [], missingFields, {
+        autoImported,
+        errors,
+        skipped
+      });
     }
+  }
+  async finishImport(options, diffs, missingFields, summary) {
+    const finalize = async (resolvedMissingFields) => {
+      const result = await this.importer.applyImportPlan(
+        this.importFiles,
+        options,
+        diffs,
+        resolvedMissingFields
+      );
+      result.autoImported = summary.autoImported;
+      result.errors = [...summary.errors, ...result.errors];
+      result.skipped = Math.max(summary.skipped, result.skipped);
+      this.onImport(result);
+    };
+    if (missingFields.length > 0) {
+      this.close();
+      new MissingFieldModal(this.app, missingFields, (resolvedMissingFields) => {
+        void finalize(resolvedMissingFields);
+      }).open();
+      return;
+    }
+    await finalize([]);
+    this.close();
   }
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
+  }
+  addDataTypeToggle(container, dataType, nameKey, descKey) {
+    new import_obsidian10.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
+      toggle.setValue(this.importDataTypes.includes(dataType)).onChange((value) => {
+        this.importDataTypes = updateDataTypeSelection(this.importDataTypes, dataType, value);
+      });
+    });
   }
 };
 var MissingFieldModal = class extends import_obsidian10.Modal {
@@ -6349,9 +7232,14 @@ var MissingFieldModal = class extends import_obsidian10.Modal {
     });
   }
   renderFieldList(container) {
+    container.empty();
     for (let i = 0; i < this.missingFields.length; i++) {
       const field = this.missingFields[i];
+      const currentDecision = this.decisions.get(i) || null;
       const itemEl = container.createDiv({ cls: "bangumi-missing-field-item" });
+      if (currentDecision) {
+        itemEl.addClass(`bangumi-missing-field-resolved-${currentDecision}`);
+      }
       itemEl.createEl("div", {
         text: `${field.subjectName} (ID: ${field.subjectId})`,
         cls: "bangumi-missing-field-subject"
@@ -6359,17 +7247,27 @@ var MissingFieldModal = class extends import_obsidian10.Modal {
       const fieldInfoEl = itemEl.createDiv({ cls: "bangumi-missing-field-info" });
       fieldInfoEl.createEl("span", { text: `${field.fieldName}: ` });
       fieldInfoEl.createEl("span", { text: String(field.fieldValue), cls: "bangumi-missing-field-value" });
+      itemEl.createEl("div", {
+        text: `${tn("userData", "decision")}: ${missingDecisionLabel(currentDecision)}`,
+        cls: "bangumi-import-compare-diff-count"
+      });
       const actionEl = itemEl.createDiv({ cls: "bangumi-missing-field-actions" });
-      actionEl.createEl("button", { text: tn("userData", "addField") }, (btn) => {
+      actionEl.createEl("button", {
+        text: tn("userData", "addField"),
+        cls: currentDecision === "add" ? "mod-cta bangumi-decision-active" : ""
+      }, (btn) => {
         btn.addEventListener("click", () => {
           this.decisions.set(i, "add");
-          itemEl.addClass("bangumi-missing-field-resolved-add");
+          this.renderFieldList(container);
         });
       });
-      actionEl.createEl("button", { text: tn("userData", "skipField") }, (btn) => {
+      actionEl.createEl("button", {
+        text: tn("userData", "skipField"),
+        cls: currentDecision === "skip" ? "mod-warning bangumi-decision-active" : ""
+      }, (btn) => {
         btn.addEventListener("click", () => {
           this.decisions.set(i, "skip");
-          itemEl.addClass("bangumi-missing-field-resolved-skip");
+          this.renderFieldList(container);
         });
       });
     }
@@ -6379,9 +7277,14 @@ var MissingFieldModal = class extends import_obsidian10.Modal {
       this.decisions.set(i, decision);
     }
     const items = this.contentEl.querySelectorAll(".bangumi-missing-field-item");
-    items.forEach((item) => {
-      item.addClass(`bangumi-missing-field-resolved-${decision}`);
-    });
+    const list = this.contentEl.querySelector(".bangumi-missing-field-list");
+    if (list instanceof HTMLElement) {
+      this.renderFieldList(list);
+    } else {
+      items.forEach((item) => {
+        item.addClass(`bangumi-missing-field-resolved-${decision}`);
+      });
+    }
   }
   doResolve() {
     const resolvedDecisions = [];
@@ -6401,10 +7304,11 @@ var MissingFieldModal = class extends import_obsidian10.Modal {
   }
 };
 var PropertyManageModal = class extends import_obsidian10.Modal {
-  constructor(app, propertyNames, onConfirm) {
+  constructor(app, propertyNames, suggestedAliases, onConfirm) {
     super(app);
     this.decisions = {};
     this.propertyNames = propertyNames;
+    this.suggestedAliases = suggestedAliases;
     this.onConfirm = onConfirm;
   }
   onOpen() {
@@ -6436,9 +7340,17 @@ var PropertyManageModal = class extends import_obsidian10.Modal {
       const aliasCell = row.createEl("td");
       const aliasInput = aliasCell.createEl("input", {
         type: "text",
-        placeholder: name,
+        placeholder: this.suggestedAliases[name] || name,
         cls: "bangumi-property-manage-alias-input"
       });
+      const suggestedAlias = this.suggestedAliases[name];
+      if (suggestedAlias) {
+        aliasInput.value = suggestedAlias;
+        this.decisions[name] = {
+          ignore: false,
+          aliasTo: suggestedAlias
+        };
+      }
       aliasInput.addEventListener("input", () => {
         const alias = aliasInput.value.trim();
         if (!this.decisions[name]) {
@@ -6553,6 +7465,7 @@ var ImportCompareModal = class extends import_obsidian10.Modal {
         const select = selectCell.createEl("select", { cls: "bangumi-import-compare-select" });
         select.createEl("option", { value: "local", text: tn("userData", "keepLocal") });
         select.createEl("option", { value: "import", text: tn("userData", "keepImport") });
+        select.createEl("option", { value: "merge", text: tn("userData", "smartMerge") });
         select.createEl("option", { value: "skip", text: tn("userData", "skip") });
         select.value = "skip";
         select.addEventListener("change", () => {
@@ -6571,6 +7484,160 @@ var ImportCompareModal = class extends import_obsidian10.Modal {
     selects.forEach((select) => {
       select.value = decision;
     });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var PropertyImportReviewModal = class extends import_obsidian10.Modal {
+  constructor(app, propertyGroups, onConfirm) {
+    super(app);
+    this.currentIndex = 0;
+    this.propertyGroups = propertyGroups;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    this.render();
+  }
+  render() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("bangumi-property-import-review");
+    if (this.propertyGroups.length === 0) {
+      contentEl.createEl("h2", { text: tn("userData", "propertyReviewTitle") });
+      contentEl.createEl("p", { text: tn("userData", "noDiff"), cls: "bangumi-modal-desc" });
+      const buttonDiv2 = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+      buttonDiv2.createEl("button", { text: tn("userData", "close"), cls: "mod-cta" }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.onConfirm([], []);
+          this.close();
+        });
+      });
+      return;
+    }
+    const group = this.propertyGroups[this.currentIndex];
+    contentEl.createEl("h2", { text: tn("userData", "propertyReviewTitle") });
+    contentEl.createEl("p", {
+      text: tnFormat("userData", "propertyReviewProgress", {
+        current: this.currentIndex + 1,
+        total: this.propertyGroups.length,
+        field: group.fieldName
+      }),
+      cls: "bangumi-modal-desc"
+    });
+    const actionBar = contentEl.createDiv({ cls: "bangumi-import-compare-actions" });
+    actionBar.createEl("button", { text: tn("userData", "allLocal") }, (btn) => {
+      btn.addEventListener("click", () => this.applyGroupDecision(group, "local"));
+    });
+    actionBar.createEl("button", { text: tn("userData", "allImport") }, (btn) => {
+      btn.addEventListener("click", () => this.applyGroupDecision(group, "import"));
+    });
+    actionBar.createEl("button", { text: tn("userData", "smartMerge") }, (btn) => {
+      btn.addEventListener("click", () => this.applyGroupDecision(group, "merge"));
+    });
+    actionBar.createEl("button", { text: tn("userData", "allSkip") }, (btn) => {
+      btn.addEventListener("click", () => this.applyGroupDecision(group, "skip"));
+    });
+    const listEl = contentEl.createDiv({ cls: "bangumi-import-compare-list" });
+    for (const diffEntry of group.diffs) {
+      const itemEl = listEl.createDiv({ cls: "bangumi-import-compare-item" });
+      itemEl.createEl("div", {
+        text: `${diffEntry.item.name_cn} (ID: ${diffEntry.item.subjectId})`,
+        cls: "bangumi-import-compare-subject"
+      });
+      const table = itemEl.createEl("table", { cls: "bangumi-import-compare-table" });
+      const tbody = table.createEl("tbody");
+      const tr = tbody.createEl("tr");
+      tr.createEl("td", { text: tn("userData", "localValue") });
+      tr.createEl("td", {
+        text: formatDisplayValue(diffEntry.diff.localValue),
+        cls: "bangumi-import-compare-value"
+      });
+      const tr2 = tbody.createEl("tr");
+      tr2.createEl("td", { text: tn("userData", "importValue") });
+      tr2.createEl("td", {
+        text: formatDisplayValue(diffEntry.diff.importValue),
+        cls: "bangumi-import-compare-value"
+      });
+      const decisionRow = itemEl.createDiv({ cls: "bangumi-missing-field-actions" });
+      addDecisionButton(decisionRow, tn("userData", "keepLocal"), () => {
+        diffEntry.diff.decision = "local";
+        this.render();
+      });
+      addDecisionButton(decisionRow, tn("userData", "keepImport"), () => {
+        diffEntry.diff.decision = "import";
+        this.render();
+      });
+      addDecisionButton(decisionRow, tn("userData", "smartMerge"), () => {
+        diffEntry.diff.decision = "merge";
+        this.render();
+      });
+      addDecisionButton(decisionRow, tn("userData", "skip"), () => {
+        diffEntry.diff.decision = "skip";
+        this.render();
+      });
+      itemEl.createEl("div", {
+        text: `${tn("userData", "decision")}: ${decisionLabel(diffEntry.diff.decision)}`,
+        cls: "bangumi-import-compare-diff-count"
+      });
+    }
+    for (const missingField of group.missingFields) {
+      const itemEl = listEl.createDiv({ cls: "bangumi-missing-field-item" });
+      itemEl.createEl("div", {
+        text: `${missingField.subjectName} (ID: ${missingField.subjectId})`,
+        cls: "bangumi-missing-field-subject"
+      });
+      itemEl.createEl("div", {
+        text: formatDisplayValue(missingField.fieldValue),
+        cls: "bangumi-missing-field-value"
+      });
+      const actionEl = itemEl.createDiv({ cls: "bangumi-missing-field-actions" });
+      addDecisionButton(actionEl, tn("userData", "addField"), () => {
+        missingField.decision = "add";
+        this.render();
+      });
+      addDecisionButton(actionEl, tn("userData", "skipField"), () => {
+        missingField.decision = "skip";
+        this.render();
+      });
+      itemEl.createEl("div", {
+        text: `${tn("userData", "decision")}: ${missingDecisionLabel(missingField.decision)}`,
+        cls: "bangumi-import-compare-diff-count"
+      });
+    }
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    if (this.currentIndex > 0) {
+      buttonDiv.createEl("button", { text: tn("userData", "previousProperty") }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.currentIndex--;
+          this.render();
+        });
+      });
+    }
+    if (this.currentIndex < this.propertyGroups.length - 1) {
+      buttonDiv.createEl("button", { text: tn("userData", "nextProperty"), cls: "mod-cta" }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.currentIndex++;
+          this.render();
+        });
+      });
+    } else {
+      buttonDiv.createEl("button", { text: tn("userData", "executeImport"), cls: "mod-cta" }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.onConfirm(extractDiffs(this.propertyGroups), extractMissingFields(this.propertyGroups));
+          this.close();
+        });
+      });
+    }
+  }
+  applyGroupDecision(group, decision) {
+    for (const diff of group.diffs) {
+      diff.diff.decision = decision;
+    }
+    for (const missingField of group.missingFields) {
+      missingField.decision = decision === "skip" || decision === "local" ? "skip" : "add";
+    }
+    this.render();
   }
   onClose() {
     this.contentEl.empty();
@@ -6649,6 +7716,93 @@ function formatDisplayValue(value) {
   if (typeof value === "object" && value !== null)
     return JSON.stringify(value);
   return "";
+}
+function groupByProperty(diffs, missingFields) {
+  var _a, _b;
+  const grouped = /* @__PURE__ */ new Map();
+  for (const item of diffs) {
+    for (const diff of item.diffs) {
+      const group = (_a = grouped.get(diff.fieldName)) != null ? _a : {
+        fieldName: diff.fieldName,
+        diffs: [],
+        missingFields: []
+      };
+      group.diffs.push({
+        kind: "diff",
+        item,
+        diff
+      });
+      grouped.set(diff.fieldName, group);
+    }
+  }
+  for (const missingField of missingFields) {
+    const group = (_b = grouped.get(missingField.fieldName)) != null ? _b : {
+      fieldName: missingField.fieldName,
+      diffs: [],
+      missingFields: []
+    };
+    group.missingFields.push(missingField);
+    grouped.set(missingField.fieldName, group);
+  }
+  return Array.from(grouped.values()).sort((left, right) => left.fieldName.localeCompare(right.fieldName, "zh-CN"));
+}
+function extractDiffs(groups) {
+  var _a;
+  const grouped = /* @__PURE__ */ new Map();
+  for (const group of groups) {
+    for (const entry of group.diffs) {
+      const existing = (_a = grouped.get(entry.item.subjectId)) != null ? _a : {
+        subjectId: entry.item.subjectId,
+        name_cn: entry.item.name_cn,
+        diffs: [],
+        hasDiff: true
+      };
+      existing.diffs.push(entry.diff);
+      grouped.set(entry.item.subjectId, existing);
+    }
+  }
+  return Array.from(grouped.values());
+}
+function extractMissingFields(groups) {
+  return groups.flatMap((group) => group.missingFields);
+}
+function addDecisionButton(container, text, onClick) {
+  container.createEl("button", { text }, (btn) => {
+    btn.addEventListener("click", onClick);
+  });
+}
+function decisionLabel(decision) {
+  switch (decision) {
+    case "local":
+      return tn("userData", "keepLocal");
+    case "import":
+      return tn("userData", "keepImport");
+    case "merge":
+      return tn("userData", "smartMerge");
+    case "skip":
+      return tn("userData", "skip");
+    default:
+      return tn("statusSyncModal", "empty");
+  }
+}
+function missingDecisionLabel(decision) {
+  switch (decision) {
+    case "add":
+      return tn("userData", "addField");
+    case "skip":
+      return tn("userData", "skipField");
+    default:
+      return tn("statusSyncModal", "empty");
+  }
+}
+function updateDataTypeSelection(selected, dataType, enabled) {
+  const next = new Set(selected);
+  if (enabled) {
+    next.add(dataType);
+  } else {
+    next.delete(dataType);
+  }
+  return Array.from(next);
 }
 
 // src/template/templateProperties.ts
@@ -9980,7 +11134,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
     this.incrementalSync = new IncrementalSync(app);
     this.frontmatterEditor = new FrontmatterEditor(app);
     this.conflictDetector = new ConflictDetector(app);
-    this.filters = { ...settings.panelFilters };
+    this.filters = { ...DEFAULT_PANEL_FILTERS, ...settings.panelFilters };
     this.state = {
       collections: (cachedData == null ? void 0 : cachedData.collections) || [],
       localSubjects: (cachedData == null ? void 0 : cachedData.localSubjects) instanceof Map ? cachedData.localSubjects : /* @__PURE__ */ new Map(),
@@ -10033,7 +11187,9 @@ var ControlPanel = class extends import_obsidian20.Modal {
    */
   renderFilterBar() {
     this.filterBarEl.empty();
-    const typeSelect = this.filterBarEl.createEl("select", { cls: "bangumi-filter-select" });
+    this.filterBarEl.addClass("bangumi-panel-toolbar");
+    const filterGroup = this.filterBarEl.createDiv({ cls: "bangumi-toolbar-group bangumi-toolbar-group-filters" });
+    const typeSelect = filterGroup.createEl("select", { cls: "bangumi-filter-select" });
     typeSelect.createEl("option", { value: "all", text: tn("controlPanel", "allTypes") });
     Object.values(SubjectType).forEach((type) => {
       if (typeof type === "number") {
@@ -10051,7 +11207,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
       this.onFiltersChange(this.filters);
       this.applyFilters();
     });
-    const statusSelect = this.filterBarEl.createEl("select", { cls: "bangumi-filter-select" });
+    const statusSelect = filterGroup.createEl("select", { cls: "bangumi-filter-select" });
     statusSelect.createEl("option", { value: "all", text: tn("controlPanel", "allStatus") });
     Object.values(CollectionType).forEach((type) => {
       if (typeof type === "number") {
@@ -10069,7 +11225,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
       this.onFiltersChange(this.filters);
       this.applyFilters();
     });
-    const syncSelect = this.filterBarEl.createEl("select", { cls: "bangumi-filter-select" });
+    const syncSelect = filterGroup.createEl("select", { cls: "bangumi-filter-select" });
     syncSelect.createEl("option", { value: "all", text: tn("controlPanel", "allSyncStatus") });
     syncSelect.createEl("option", { value: "synced", text: tn("controlPanel", "synced") });
     syncSelect.createEl("option", { value: "unsynced", text: tn("controlPanel", "unsynced") });
@@ -10079,7 +11235,32 @@ var ControlPanel = class extends import_obsidian20.Modal {
       this.onFiltersChange(this.filters);
       this.applyFilters();
     });
-    const searchInput = this.filterBarEl.createEl("input", {
+    const sortByWrapper = filterGroup.createDiv({ cls: "bangumi-sort-field" });
+    sortByWrapper.createEl("label", { text: tn("controlPanel", "sortBy"), cls: "bangumi-sort-label" });
+    this.sortBySelect = sortByWrapper.createEl("select", { cls: "bangumi-filter-select bangumi-sort-select" });
+    this.sortBySelect.createEl("option", { value: "default", text: tn("controlPanel", "sortDefault") });
+    this.sortBySelect.createEl("option", { value: "time", text: tn("controlPanel", "sortTime") });
+    this.sortBySelect.createEl("option", { value: "title", text: tn("controlPanel", "sortTitle") });
+    this.sortBySelect.createEl("option", { value: "status", text: tn("controlPanel", "sortStatus") });
+    this.sortBySelect.createEl("option", { value: "rating", text: tn("controlPanel", "sortRating") });
+    this.sortBySelect.value = this.filters.sortBy;
+    this.sortBySelect.addEventListener("change", () => {
+      this.filters.sortBy = this.sortBySelect.value;
+      this.onFiltersChange(this.filters);
+      this.applyFilters();
+    });
+    const sortDirectionWrapper = filterGroup.createDiv({ cls: "bangumi-sort-field" });
+    sortDirectionWrapper.createEl("label", { text: tn("controlPanel", "sortDirection"), cls: "bangumi-sort-label" });
+    this.sortDirectionSelect = sortDirectionWrapper.createEl("select", { cls: "bangumi-filter-select bangumi-sort-select" });
+    this.sortDirectionSelect.createEl("option", { value: "desc", text: tn("controlPanel", "sortDesc") });
+    this.sortDirectionSelect.createEl("option", { value: "asc", text: tn("controlPanel", "sortAsc") });
+    this.sortDirectionSelect.value = this.filters.sortDirection;
+    this.sortDirectionSelect.addEventListener("change", () => {
+      this.filters.sortDirection = this.sortDirectionSelect.value;
+      this.onFiltersChange(this.filters);
+      this.applyFilters();
+    });
+    const searchInput = filterGroup.createEl("input", {
       type: "text",
       placeholder: tn("controlPanel", "searchPlaceholder"),
       cls: "bangumi-filter-search"
@@ -10223,7 +11404,47 @@ var ControlPanel = class extends import_obsidian20.Modal {
         (c) => c.subject.name_cn && c.subject.name_cn.toLowerCase().includes(keyword) || c.subject.name && c.subject.name.toLowerCase().includes(keyword)
       );
     }
-    return result;
+    return this.sortCollections(result);
+  }
+  sortCollections(collections) {
+    const { sortBy, sortDirection } = this.filters;
+    if (sortBy === "default") {
+      return collections;
+    }
+    const direction = sortDirection === "asc" ? 1 : -1;
+    return [...collections].sort((left, right) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case "time":
+          comparison = compareTime(left.updated_at, right.updated_at);
+          break;
+        case "title":
+          comparison = compareTitle(
+            left.subject.name_cn || left.subject.name || "",
+            right.subject.name_cn || right.subject.name || ""
+          );
+          break;
+        case "status":
+          comparison = left.type - right.type;
+          break;
+        case "rating":
+          comparison = compareNumber(left.rate, right.rate);
+          if (comparison === 0) {
+            comparison = compareNumber(left.subject.score, right.subject.score);
+          }
+          break;
+      }
+      if (comparison === 0) {
+        comparison = compareTitle(
+          left.subject.name_cn || left.subject.name || "",
+          right.subject.name_cn || right.subject.name || ""
+        );
+      }
+      if (comparison === 0) {
+        comparison = left.subject_id - right.subject_id;
+      }
+      return comparison * direction;
+    });
   }
   /**
    * 渲染状态栏
@@ -10938,6 +12159,21 @@ var ControlPanel = class extends import_obsidian20.Modal {
     this.contentEl.addEventListener("touchend", this.touchEndHandler, { passive: true });
   }
 };
+function compareTime(left, right) {
+  return parseDateTime(left) - parseDateTime(right);
+}
+function compareTitle(left, right) {
+  return left.localeCompare(right, "zh-CN", { numeric: true, sensitivity: "base" });
+}
+function compareNumber(left, right) {
+  return left - right;
+}
+function parseDateTime(value) {
+  if (!value)
+    return 0;
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
+}
 var ConfirmModal = class extends import_obsidian20.Modal {
   constructor(app, message, onConfirm) {
     super(app);

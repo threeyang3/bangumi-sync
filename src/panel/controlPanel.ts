@@ -229,7 +229,6 @@ export class ControlPanel extends Modal {
 		this.filterBarEl.addClass('bangumi-panel-toolbar');
 
 		const filterGroup = this.filterBarEl.createDiv({ cls: 'bangumi-toolbar-group bangumi-toolbar-group-filters' });
-		const sortGroup = this.filterBarEl.createDiv({ cls: 'bangumi-toolbar-group bangumi-toolbar-group-sort' });
 
 		// 类型筛选
 		const typeSelect = filterGroup.createEl('select', { cls: 'bangumi-filter-select' });
@@ -283,21 +282,8 @@ export class ControlPanel extends Modal {
 			this.applyFilters();
 		});
 
-		// 搜索框
-		const searchInput = filterGroup.createEl('input', {
-			type: 'text',
-			placeholder: tn('controlPanel', 'searchPlaceholder'),
-			cls: 'bangumi-filter-search'
-		});
-		searchInput.value = this.filters.keyword;
-		searchInput.addEventListener('input', () => {
-			this.filters.keyword = searchInput.value;
-			this.onFiltersChange(this.filters);
-			this.applyFilters();
-		});
-
 		// 排序依据
-		const sortByWrapper = sortGroup.createDiv({ cls: 'bangumi-sort-field' });
+		const sortByWrapper = filterGroup.createDiv({ cls: 'bangumi-sort-field' });
 		sortByWrapper.createEl('label', { text: tn('controlPanel', 'sortBy'), cls: 'bangumi-sort-label' });
 		this.sortBySelect = sortByWrapper.createEl('select', { cls: 'bangumi-filter-select bangumi-sort-select' });
 		this.sortBySelect.createEl('option', { value: 'default', text: tn('controlPanel', 'sortDefault') });
@@ -313,7 +299,7 @@ export class ControlPanel extends Modal {
 		});
 
 		// 排序方向
-		const sortDirectionWrapper = sortGroup.createDiv({ cls: 'bangumi-sort-field' });
+		const sortDirectionWrapper = filterGroup.createDiv({ cls: 'bangumi-sort-field' });
 		sortDirectionWrapper.createEl('label', { text: tn('controlPanel', 'sortDirection'), cls: 'bangumi-sort-label' });
 		this.sortDirectionSelect = sortDirectionWrapper.createEl('select', { cls: 'bangumi-filter-select bangumi-sort-select' });
 		this.sortDirectionSelect.createEl('option', { value: 'desc', text: tn('controlPanel', 'sortDesc') });
@@ -321,6 +307,19 @@ export class ControlPanel extends Modal {
 		this.sortDirectionSelect.value = this.filters.sortDirection;
 		this.sortDirectionSelect.addEventListener('change', () => {
 			this.filters.sortDirection = this.sortDirectionSelect.value as PanelFilters['sortDirection'];
+			this.onFiltersChange(this.filters);
+			this.applyFilters();
+		});
+
+		// 搜索框
+		const searchInput = filterGroup.createEl('input', {
+			type: 'text',
+			placeholder: tn('controlPanel', 'searchPlaceholder'),
+			cls: 'bangumi-filter-search'
+		});
+		searchInput.value = this.filters.keyword;
+		searchInput.addEventListener('input', () => {
+			this.filters.keyword = searchInput.value;
 			this.onFiltersChange(this.filters);
 			this.applyFilters();
 		});

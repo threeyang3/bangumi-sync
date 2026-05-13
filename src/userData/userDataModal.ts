@@ -115,11 +115,11 @@ export class UserDataExportModal extends Modal {
             return;
         }
 
-        const result = await this.exporter.exportBySubjectType(
-            this.scanFolderPath,
-            this.outputDir,
-            this.exportDataTypes
-        );
+		const result = await this.exporter.exportByCategory(
+			this.scanFolderPath,
+			this.outputDir,
+			this.exportDataTypes
+		);
 
         if (result.success && result.files.length > 0) {
             new Notice(tnFormat('userData', 'exportSuccess', { count: result.files.length }));

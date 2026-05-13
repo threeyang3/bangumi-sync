@@ -73,6 +73,7 @@ export interface SubjectIdentifier {
 
 export interface SubjectUserData {
 	identifier: SubjectIdentifier;
+	category?: string;
 	legacy?: {
 		tags?: string[];
 		rate?: number;
@@ -93,6 +94,20 @@ export interface UserDataExport {
 	subjectType: string;
 	totalCount: number;
 	items: Record<number, SubjectUserData>;
+}
+
+export interface UserDataCategoryExport {
+	category: string;
+	subjectType: string;
+	totalCount: number;
+	items: Record<number, SubjectUserData>;
+}
+
+export interface UserDataCombinedExport {
+	version: string;
+	exportTime: string;
+	totalCount: number;
+	categories: Record<string, UserDataCategoryExport>;
 }
 
 export interface ImportOptions {

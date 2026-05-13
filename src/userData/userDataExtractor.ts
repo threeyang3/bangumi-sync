@@ -62,6 +62,7 @@ export class UserDataExtractor {
 		const content = await this.app.vault.read(file);
 		const record = this.extractSection(content, '记录');
 		const thoughts = this.extractSection(content, '感想');
+		const shortComment = this.extractComment(content);
 		if (hasUserDataType(dataTypes, UserDataType.BODY_CONTENT) && (record || thoughts)) {
 			base.bodySections = {
 				record,
@@ -69,7 +70,7 @@ export class UserDataExtractor {
 			};
 		}
 
-		const exportProperties = this.extractExportProperties(frontmatter, dataTypes);
+		const exportProperties = this.extractExportProperties(frontmatter, dataTypes, shortComment);
 		base.customProperties = Object.keys(exportProperties).length > 0 ? exportProperties : undefined;
 		if (!base.customProperties && !base.bodySections) {
 			return null;
@@ -96,6 +97,7 @@ export class UserDataExtractor {
 				type,
 				workType: this.extractWorkType(frontmatter),
 			},
+			category: this.extractCategory(frontmatter),
 			customProperties: Object.keys(customProperties).length > 0 ? customProperties : undefined,
 		};
 	}
@@ -193,7 +195,8 @@ export class UserDataExtractor {
 
 	private extractExportProperties(
 		frontmatter: Record<string, unknown>,
-		dataTypes: UserDataType[]
+		dataTypes: UserDataType[],
+		shortComment?: string | null
 	): Record<string, unknown> {
 		const result: Record<string, unknown> = {};
 		const includeUserProperties = hasUserDataType(dataTypes, UserDataType.USER_PROPERTIES);
@@ -215,6 +218,10 @@ export class UserDataExtractor {
 					result[key] = value;
 				}
 			}
+		}
+
+		if (includeUserProperties && shortComment) {
+			result['短评'] = shortComment;
 		}
 
 		return result;
@@ -259,8 +266,59 @@ export class UserDataExtractor {
 		return typeMap[String(typeStr)] || SubjectType.Book;
 	}
 
+	private extractCategory(frontmatter: Record<string, unknown>): string | undefined {
+		const category = this.getString(frontmatter, '具体类型')
+			|| this.getString(frontmatter, 'category')
+			|| this.getString(frontmatter, '平台');
+
+		if (category) {
+			return category;
+		}
+
+		const workType = this.extractWorkType(frontmatter);
+		if (workType) {
+			return workType;
+		}
+
+		return undefined;
+	}
+
 	private extractWorkType(frontmatter: Record<string, unknown>): string | undefined {
 		const typeStr = frontmatter['作品大类'] ?? frontmatter['type'];
 		return typeof typeStr === 'string' && typeStr.trim() ? typeStr.trim() : undefined;
+	}
+
+	private getString(frontmatter: Record<string, unknown>, key: string): string | undefined {
+		const value = frontmatter[key];
+		return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+	}
+
+	private extractComment(content: string): string | null {
+		const normalizedContent = content.replace(/\r\n?/g, '\n');
+		const lines = normalizedContent.split('\n');
+		const headerIndex = lines.findIndex(line => /^> \[!abstract\]\+\s*\*\*短评\*\*\s*$/.test(line));
+		if (headerIndex === -1) {
+			return null;
+		}
+
+		const commentLines: string[] = [];
+		for (let i = headerIndex + 1; i < lines.length; i++) {
+			const line = lines[i];
+			if (/^> \[!/.test(line) || /^##\s+/.test(line)) {
+				break;
+			}
+			if (line.startsWith('> ')) {
+				commentLines.push(line.slice(2));
+			} else if (line.trim() === '>') {
+				commentLines.push('');
+			} else if (line.trim() === '') {
+				commentLines.push('');
+			} else {
+				break;
+			}
+		}
+
+		const comment = commentLines.join('\n').trim();
+		return comment || null;
 	}
 }

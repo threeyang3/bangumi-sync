@@ -1,12 +1,18 @@
 /**
  * 用户数据导出器
  *
- * 按条目类型导出用户自定义数据到 JSON 文件
+ * 按条目 category 导出用户自定义数据到单个 JSON 文件
  */
 
 import { App, TFile, normalizePath } from 'obsidian';
 import { UserDataExtractor } from './userDataExtractor';
-import { UserDataExport, SubjectUserData, SUBJECT_TYPE_LABELS, UserDataType } from './types';
+import {
+	UserDataCombinedExport,
+	UserDataCategoryExport,
+	SubjectUserData,
+	SUBJECT_TYPE_LABELS,
+	UserDataType,
+} from './types';
 
 /**
  * 用户数据导出器
@@ -20,92 +26,106 @@ export class UserDataExporter {
         this.extractor = new UserDataExtractor(app);
     }
 
-    /**
-     * 按条目类型分别导出用户数据
-     */
-    async exportBySubjectType(
-        folderPath: string,
-        outputDir: string,
-        dataTypes: UserDataType[] = [UserDataType.ALL],
-        onProgress?: (current: number, total: number) => void
-    ): Promise<{ success: boolean; files: string[]; error?: string }> {
+	/**
+	 * 按条目 category 导出用户数据到单个备份文件
+	 */
+	async exportByCategory(
+		folderPath: string,
+		outputDir: string,
+		dataTypes: UserDataType[] = [UserDataType.ALL],
+		onProgress?: (current: number, total: number) => void
+	): Promise<{ success: boolean; files: string[]; error?: string }> {
         try {
             // 提取所有可回导用户数据
             const userDataMap = await this.extractor.extractForExportFromFolder(folderPath, dataTypes, onProgress);
 
-            if (userDataMap.size === 0) {
-                return { success: false, files: [], error: 'No user data found' };
-            }
+			if (userDataMap.size === 0) {
+				return { success: false, files: [], error: 'No user data found' };
+			}
 
-            // 按条目类型分组
-            const groupedData = this.groupBySubjectType(userDataMap);
+			// 按条目 category 分组
+			const groupedData = this.groupByCategory(userDataMap);
 
-            // 确保输出目录存在
-            await this.ensureDirectory(outputDir);
+			// 确保输出目录存在
+			await this.ensureDirectory(outputDir);
 
-            const files: string[] = [];
+			const exportData: UserDataCombinedExport = {
+				version: '3.0',
+				exportTime: new Date().toISOString(),
+				totalCount: userDataMap.size,
+				categories: groupedData,
+			};
+			const filePath = normalizePath(`${outputDir}/bangumi-user-data.json`);
 
-            // 导出每个类型
-            for (const [typeLabel, items] of Object.entries(groupedData)) {
-                if (Object.keys(items).length === 0) continue;
+			await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
 
-                const exportData: UserDataExport = {
-                    version: '2.0',
-                    exportTime: new Date().toISOString(),
-                    subjectType: typeLabel,
-                    totalCount: Object.keys(items).length,
-                    items: items,
-                };
+			return { success: true, files: [filePath] };
+		} catch (error) {
+			return { success: false, files: [], error: String(error) };
+		}
+	}
 
-                const fileName = `bangumi-user-data-${typeLabel}.json`;
-                const filePath = normalizePath(`${outputDir}/${fileName}`);
+	/**
+	 * 向后兼容旧接口
+	 */
+	async exportBySubjectType(
+		folderPath: string,
+		outputDir: string,
+		dataTypes: UserDataType[] = [UserDataType.ALL],
+		onProgress?: (current: number, total: number) => void
+	): Promise<{ success: boolean; files: string[]; error?: string }> {
+		return await this.exportByCategory(folderPath, outputDir, dataTypes, onProgress);
+	}
 
-                await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
-                files.push(filePath);
-            }
+	/**
+	 * 按条目 category 分组
+	 */
+	private groupByCategory(
+		userDataMap: Map<number, SubjectUserData>
+	): Record<string, UserDataCategoryExport> {
+		const result = new Map<string, UserDataCategoryExport>();
 
-            return { success: true, files };
-        } catch (error) {
-            return { success: false, files: [], error: String(error) };
-        }
-    }
+		for (const [id, userData] of userDataMap) {
+			const category = this.resolveCategory(userData);
+			const subjectType = SUBJECT_TYPE_LABELS[userData.identifier.type] || 'novel';
+			const existing = result.get(category) ?? {
+				category,
+				subjectType,
+				totalCount: 0,
+				items: {},
+			};
 
-    /**
-     * 按条目类型分组
-     */
-    private groupBySubjectType(
-        userDataMap: Map<number, SubjectUserData>
-    ): Record<string, Record<number, SubjectUserData>> {
-        const result: Record<string, Record<number, SubjectUserData>> = {
-            'anime': {},
-            'novel': {},
-            'comic': {},
-            'game': {},
-            'music': {},
-            'real': {},
-        };
+			existing.items[id] = userData;
+			existing.totalCount = Object.keys(existing.items).length;
+			result.set(category, existing);
+		}
 
-        for (const [id, userData] of userDataMap) {
-            // 获取类型标签
-            let typeLabel = SUBJECT_TYPE_LABELS[userData.identifier.type] || 'novel';
+		return Array.from(result.entries())
+			.sort((left, right) => left[0].localeCompare(right[0], 'zh-CN'))
+			.reduce<Record<string, UserDataCategoryExport>>((acc, [category, data]) => {
+				acc[category] = data;
+				return acc;
+			}, {});
+	}
 
-            if (userData.identifier.type === 1) {
-                const workType = userData.identifier.workType?.toLowerCase();
-                if (workType === 'comic') {
-                    typeLabel = 'comic';
-                } else if (workType === 'album') {
-                    typeLabel = 'album';
-                }
-            }
+	private resolveCategory(userData: SubjectUserData): string {
+		const explicitCategory = userData.category?.trim();
+		if (explicitCategory) {
+			return explicitCategory;
+		}
 
-            if (!result[typeLabel]) {
-                result[typeLabel] = {};
-            }
-            result[typeLabel][id] = userData;
-        }
+		const workType = userData.identifier.workType?.trim();
+		if (workType) {
+			if (userData.identifier.type === 1) {
+				const lowered = workType.toLowerCase();
+				if (lowered === 'comic') return '漫画';
+				if (lowered === 'album') return '画集';
+			}
+			return workType;
+		}
 
-        return result;
-    }
+		return SUBJECT_TYPE_LABELS[userData.identifier.type] || 'novel';
+	}
 
     /**
      * 确保目录存在
