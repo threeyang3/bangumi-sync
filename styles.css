@@ -6,6 +6,20 @@
 	display: none !important;
 }
 
+.bangumi-decision-active {
+	box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+
+.bangumi-missing-field-resolved-add {
+	border-left: 3px solid var(--color-green);
+	padding-left: 10px;
+}
+
+.bangumi-missing-field-resolved-skip {
+	border-left: 3px solid var(--color-orange);
+	padding-left: 10px;
+}
+
 /* ==================== Modal Sizing ==================== */
 
 .modal:has(.bangumi-control-panel) {

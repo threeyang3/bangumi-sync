@@ -6,7 +6,7 @@
 
 import { App, TFile, normalizePath } from 'obsidian';
 import { UserDataExtractor } from './userDataExtractor';
-import { UserDataExport, SubjectUserData, SUBJECT_TYPE_LABELS } from './types';
+import { UserDataExport, SubjectUserData, SUBJECT_TYPE_LABELS, UserDataType } from './types';
 
 /**
  * 用户数据导出器
@@ -26,11 +26,12 @@ export class UserDataExporter {
     async exportBySubjectType(
         folderPath: string,
         outputDir: string,
+        dataTypes: UserDataType[] = [UserDataType.ALL],
         onProgress?: (current: number, total: number) => void
     ): Promise<{ success: boolean; files: string[]; error?: string }> {
         try {
-            // 提取所有用户数据
-            const userDataMap = await this.extractor.extractFromFolder(folderPath, onProgress);
+            // 提取所有可回导用户数据
+            const userDataMap = await this.extractor.extractForExportFromFolder(folderPath, dataTypes, onProgress);
 
             if (userDataMap.size === 0) {
                 return { success: false, files: [], error: 'No user data found' };
@@ -49,7 +50,7 @@ export class UserDataExporter {
                 if (Object.keys(items).length === 0) continue;
 
                 const exportData: UserDataExport = {
-                    version: '1.0',
+                    version: '2.0',
                     exportTime: new Date().toISOString(),
                     subjectType: typeLabel,
                     totalCount: Object.keys(items).length,

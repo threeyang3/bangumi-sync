@@ -10,10 +10,24 @@
 import { SubjectType } from '../../common/api/types';
 
 export enum UserDataType {
+	USER_PROPERTIES = 'userProperties',
 	CUSTOM_PROPERTIES = 'customProperties',
 	BODY_CONTENT = 'bodySections',
 	ALL = 'all'
 }
+
+export const IDENTIFIER_FIELDS = new Set([
+	'id', 'ID',
+	'中文名', 'name_cn',
+	'作品大类', 'type',
+]);
+
+export const USER_PROPERTY_FIELDS = new Set([
+	'观看状态', '阅读状态', '游玩状态', '收藏状态',
+	'评分', '短评',
+	'tags', 'Tags',
+	'进度',
+]);
 
 export const BANGUMI_FIELDS = new Set([
 	'id', 'ID',
@@ -36,6 +50,20 @@ export const BANGUMI_FIELDS = new Set([
 	'国家', '语言', '每集长', '电视台', '主演', '编剧',
 ]);
 
+export function hasUserDataType(dataTypes: UserDataType[], target: UserDataType): boolean {
+	return dataTypes.includes(UserDataType.ALL) || dataTypes.includes(target);
+}
+
+export function isUserPropertyField(fieldName: string): boolean {
+	return USER_PROPERTY_FIELDS.has(fieldName);
+}
+
+export function isCustomPropertyField(fieldName: string): boolean {
+	return !IDENTIFIER_FIELDS.has(fieldName)
+		&& !BANGUMI_FIELDS.has(fieldName)
+		&& !USER_PROPERTY_FIELDS.has(fieldName);
+}
+
 export interface SubjectIdentifier {
 	id: number;
 	name_cn: string;
@@ -45,6 +73,13 @@ export interface SubjectIdentifier {
 
 export interface SubjectUserData {
 	identifier: SubjectIdentifier;
+	legacy?: {
+		tags?: string[];
+		rate?: number;
+		comment?: string;
+		storage?: string | string[] | null;
+		ratingDetails?: Record<string, string>;
+	};
 	customProperties?: Record<string, unknown>;
 	bodySections?: {
 		record?: string;
@@ -93,7 +128,8 @@ export interface PropertyDiff {
 	fieldName: string;
 	localValue: unknown;
 	importValue: unknown;
-	decision: 'local' | 'import' | 'skip' | null;
+	fieldType?: 'frontmatter' | 'section';
+	decision: 'local' | 'import' | 'merge' | 'skip' | null;
 }
 
 export interface ImportItemDiff {

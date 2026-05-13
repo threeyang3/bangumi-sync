@@ -66,19 +66,11 @@ export class UserDataMerger {
 		if (!frontmatterMatch) return content;
 
 		const prefix = frontmatterMatch[1];
-		let frontmatter = frontmatterMatch[2];
+		const frontmatter = frontmatterMatch[2];
 		const suffix = frontmatterMatch[3];
 		const restContent = content.substring(frontmatterMatch[0].length);
-		const formattedValue = this.formatFrontmatterValue(value);
-		const fieldRegex = buildFrontmatterFieldRegex(field);
-
-		if (fieldRegex.test(frontmatter)) {
-			frontmatter = frontmatter.replace(fieldRegex, `${field}: ${formattedValue}`);
-		} else {
-			frontmatter = `${frontmatter}\n${field}: ${formattedValue}`;
-		}
-
-		return prefix + frontmatter + suffix + restContent;
+		const nextFrontmatter = this.upsertFrontmatterField(frontmatter, field, value);
+		return prefix + nextFrontmatter + suffix + restContent;
 	}
 
 	addFrontmatterField(content: string, field: string, value: unknown): string {
@@ -89,8 +81,8 @@ export class UserDataMerger {
 		const frontmatter = frontmatterMatch[2];
 		const suffix = frontmatterMatch[3];
 		const restContent = content.substring(frontmatterMatch[0].length);
-		const formattedValue = this.formatFrontmatterValue(value);
-		const newFrontmatter = `${frontmatter}\n${field}: ${formattedValue}`;
+		const entry = this.serializeFrontmatterField(field, value).join('\n');
+		const newFrontmatter = `${frontmatter}\n${entry}`;
 
 		return prefix + newFrontmatter + suffix + restContent;
 	}
@@ -168,8 +160,11 @@ export class UserDataMerger {
 
 	private formatFrontmatterValue(value: unknown): string {
 		if (typeof value === 'string') {
+			if (value.includes('\n')) {
+				return `|-\n${value.split('\n').map(line => `  ${line}`).join('\n')}`;
+			}
 			if (
-				value.includes(':') || value.includes('#') || value.includes('\n') ||
+				value.includes(':') || value.includes('#') ||
 				value.includes('"') || value.includes("'") || value.includes('[') || value.includes('{')
 			) {
 				return `"${value.replace(/"/g, '\\"')}"`;
@@ -195,10 +190,51 @@ export class UserDataMerger {
 
 		return String(value);
 	}
+
+	private upsertFrontmatterField(frontmatter: string, field: string, value: unknown): string {
+		const lines = frontmatter.split('\n');
+		const startIndex = lines.findIndex(line => line.startsWith(`${field}:`));
+		const fieldLines = this.serializeFrontmatterField(field, value);
+
+		if (startIndex === -1) {
+			return `${frontmatter}\n${fieldLines.join('\n')}`;
+		}
+
+		let endIndex = lines.length;
+		for (let i = startIndex + 1; i < lines.length; i++) {
+			if (isTopLevelFrontmatterLine(lines[i])) {
+				endIndex = i;
+				break;
+			}
+		}
+
+		const nextLines = [
+			...lines.slice(0, startIndex),
+			...fieldLines,
+			...lines.slice(endIndex),
+		];
+		return nextLines.join('\n');
+	}
+
+	private serializeFrontmatterField(field: string, value: unknown): string[] {
+		const formattedValue = this.formatFrontmatterValue(value);
+		if (formattedValue.startsWith('|-\n')) {
+			const [firstLine, ...restLines] = formattedValue.split('\n');
+			return [`${field}: ${firstLine}`, ...restLines];
+		}
+		if (formattedValue.startsWith('\n')) {
+			return [`${field}:`, ...formattedValue.slice(1).split('\n')];
+		}
+		return [`${field}: ${formattedValue}`];
+	}
 }
 
 function buildFrontmatterFieldRegex(field: string): RegExp {
 	return new RegExp(`^${escapeRegExp(field)}:\\s*.*(?:\\n  - .*?)*$`, 'm');
+}
+
+function isTopLevelFrontmatterLine(line: string): boolean {
+	return /^[^\s-][^:]*:\s*/.test(line);
 }
 
 function escapeRegExp(value: string): string {

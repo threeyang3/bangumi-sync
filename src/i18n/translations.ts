@@ -333,12 +333,32 @@ export interface TranslationStrings {
 	userData: {
 		exportTitle: string;
 		exportDesc: string;
+		exportDataTypes: string;
+		exportDataTypesDesc: string;
 		importTitle: string;
 		importDesc: string;
+		importDataTypes: string;
+		importDataTypesDesc: string;
 		scanFolder: string;
 		scanFolderDesc: string;
 		outputDir: string;
 		outputDirDesc: string;
+		userProperties: string;
+		userPropertiesDesc: string;
+		customProperties: string;
+		customPropertiesDesc: string;
+		bodyContent: string;
+		bodyContentDesc: string;
+		selectAtLeastOneDataType: string;
+		mergeStrategy: string;
+		mergeStrategyDesc: string;
+		preferLocal: string;
+		preferImport: string;
+		smartMerge: string;
+		importMode: string;
+		importModeDesc: string;
+		itemImportMode: string;
+		propertyImportMode: string;
 		export: string;
 		import: string;
 		cancel: string;
@@ -385,6 +405,10 @@ export interface TranslationStrings {
 		executeImport: string;
 		skip: string;
 		noDiff: string;
+		propertyReviewTitle: string;
+		propertyReviewProgress: string;
+		previousProperty: string;
+		nextProperty: string;
 	};
 
 	// 状态同步弹窗
@@ -885,13 +909,33 @@ const en: TranslationStrings = {
 
 	userData: {
 		exportTitle: 'Export user data',
-		exportDesc: 'Export local user data in three parts: identifier fields, custom properties, and the Record/Thoughts section content.',
+		exportDesc: 'Export selected local data into backup files. Identifier fields are always kept for matching during re-import.',
+		exportDataTypes: 'Export content',
+		exportDataTypesDesc: 'Choose which layers to write into the backup file. Enable user properties if you want the backup to be fully re-importable.',
 		importTitle: 'Import user data',
 		importDesc: 'Import user data from backup files. Missing fields will be highlighted for your decision.',
+		importDataTypes: 'Import content',
+		importDataTypesDesc: 'Choose which layers from the backup should be written back locally.',
 		scanFolder: 'Scan folder',
 		scanFolderDesc: 'Folder to scan for user data',
 		outputDir: 'Output directory',
 		outputDirDesc: 'Directory to save export files',
+		userProperties: 'User properties',
+		userPropertiesDesc: 'Statuses, rating, comment, tags, and progress that usually come from Bangumi after login.',
+		customProperties: 'Custom properties',
+		customPropertiesDesc: 'Local-only frontmatter properties that Bangumi does not provide, including detailed rating fields and storage/version metadata.',
+		bodyContent: 'Body content',
+		bodyContentDesc: 'The Record and Thoughts sections in note body.',
+		selectAtLeastOneDataType: 'Select at least one content layer',
+		mergeStrategy: 'Conflict strategy',
+		mergeStrategyDesc: 'Choose how to handle fields that already exist locally before reviewing details.',
+		preferLocal: 'Prefer local',
+		preferImport: 'Prefer import',
+		smartMerge: 'Smart merge',
+		importMode: 'Import mode',
+		importModeDesc: 'Choose whether to review conflicts by item or property.',
+		itemImportMode: 'Review by item',
+		propertyImportMode: 'Review by property',
 		export: 'Export',
 		import: 'Import',
 		cancel: 'Cancel',
@@ -938,6 +982,10 @@ const en: TranslationStrings = {
 		executeImport: 'Execute import',
 		skip: 'Skip',
 		noDiff: 'No differences',
+		propertyReviewTitle: 'Property-by-property review',
+		propertyReviewProgress: 'Reviewing {field} ({current}/{total})',
+		previousProperty: 'Previous property',
+		nextProperty: 'Next property',
 		},
 
 		statusSyncModal: {
@@ -1427,13 +1475,33 @@ const zhCN: TranslationStrings = {
 
 	userData: {
 		exportTitle: '导出用户数据',
-		exportDesc: '将本地用户数据按三部分导出到备份文件：辨识属性、自定义属性，以及“记录”/“感想”两部分内容。',
+		exportDesc: '将选中的本地数据导出到备份文件。辨识属性会始终保留，用于后续重新导入时匹配条目。',
+		exportDataTypes: '导出内容',
+		exportDataTypesDesc: '选择要写入备份文件的数据层。若希望备份可完整回导，请保留“用户信息”开关。',
 		importTitle: '导入用户数据',
 		importDesc: '从备份文件导入用户数据。缺失的字段将高亮显示供您选择。',
+		importDataTypes: '导入内容',
+		importDataTypesDesc: '选择本次要从备份写回本地的内容层。',
 		scanFolder: '扫描文件夹',
 		scanFolderDesc: '要扫描用户数据的文件夹',
 		outputDir: '输出目录',
 		outputDirDesc: '保存导出文件的目录',
+		userProperties: '用户信息',
+		userPropertiesDesc: '包括状态、评分、短评、标签、进度，通常都可在登录 Bangumi 后获取。',
+		customProperties: '自定义属性',
+		customPropertiesDesc: 'Bangumi 平台不提供、只存在于本地 frontmatter 的属性，包括评分明细拆分字段以及存储/版本等元数据。',
+		bodyContent: '正文内容',
+		bodyContentDesc: '笔记正文中的“记录”和“感想”两个部分。',
+		selectAtLeastOneDataType: '请至少选择一类内容',
+		mergeStrategy: '冲突处理策略',
+		mergeStrategyDesc: '先选择已有本地属性的默认处理方式，导入前仍可继续逐项确认。',
+		preferLocal: '优先本地',
+		preferImport: '优先导入',
+		smartMerge: '智能合并',
+		importMode: '导入模式',
+		importModeDesc: '选择按条目审查，或按属性逐个审查导入数据。',
+		itemImportMode: '按条目审查',
+		propertyImportMode: '按属性审查',
 		export: '导出',
 		import: '导入',
 		cancel: '取消',
@@ -1480,6 +1548,10 @@ const zhCN: TranslationStrings = {
 		executeImport: '执行导入',
 		skip: '跳过',
 		noDiff: '没有差异',
+		propertyReviewTitle: '逐个属性导入',
+		propertyReviewProgress: '正在处理 {field}（{current}/{total}）',
+		previousProperty: '上一个属性',
+		nextProperty: '下一个属性',
 		},
 
 		statusSyncModal: {

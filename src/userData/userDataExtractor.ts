@@ -9,7 +9,14 @@
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
 import { SubjectType } from '../../common/api/types';
 import { getFrontmatterRecord, getFrontmatterString } from '../../common/utils/frontmatter';
-import { SubjectUserData, BANGUMI_FIELDS } from './types';
+import {
+	SubjectUserData,
+	IDENTIFIER_FIELDS,
+	isCustomPropertyField,
+	isUserPropertyField,
+	UserDataType,
+	hasUserDataType,
+} from './types';
 
 export class UserDataExtractor {
 	private app: App;
@@ -39,6 +46,35 @@ export class UserDataExtractor {
 		}
 
 		return result;
+	}
+
+	async extractForExportAsync(
+		file: TFile,
+		dataTypes: UserDataType[] = [UserDataType.ALL]
+	): Promise<SubjectUserData | null> {
+		const cache = this.app.metadataCache.getFileCache(file);
+		const frontmatter = getFrontmatterRecord(cache?.frontmatter);
+		if (!frontmatter) return null;
+
+		const base = this.extractFromFrontmatter(file, frontmatter);
+		if (!base) return null;
+
+		const content = await this.app.vault.read(file);
+		const record = this.extractSection(content, '记录');
+		const thoughts = this.extractSection(content, '感想');
+		if (hasUserDataType(dataTypes, UserDataType.BODY_CONTENT) && (record || thoughts)) {
+			base.bodySections = {
+				record,
+				thoughts,
+			};
+		}
+
+		const exportProperties = this.extractExportProperties(frontmatter, dataTypes);
+		base.customProperties = Object.keys(exportProperties).length > 0 ? exportProperties : undefined;
+		if (!base.customProperties && !base.bodySections) {
+			return null;
+		}
+		return base;
 	}
 
 	private extractFromFrontmatter(file: TFile, frontmatter: Record<string, unknown> | null): SubjectUserData | null {
@@ -98,6 +134,41 @@ export class UserDataExtractor {
 		return result;
 	}
 
+	async extractForExportFromFolder(
+		folderPath: string,
+		dataTypes: UserDataType[] = [UserDataType.ALL],
+		onProgress?: (current: number, total: number) => void
+	): Promise<Map<number, SubjectUserData>> {
+		const result = new Map<number, SubjectUserData>();
+		const normalizedPath = normalizePath(folderPath);
+		const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
+
+		if (!(folder instanceof TFolder)) {
+			console.debug(`[Bangumi Sync] 文件夹不存在: ${folderPath}`);
+			return result;
+		}
+
+		const allFiles = this.app.vault.getMarkdownFiles();
+		const targetFiles = allFiles.filter(file => file.path.startsWith(normalizedPath));
+
+		let processed = 0;
+		for (const file of targetFiles) {
+			try {
+				const userData = await this.extractForExportAsync(file, dataTypes);
+				if (userData) {
+					result.set(userData.identifier.id, userData);
+				}
+			} catch (error) {
+				console.error(`[Bangumi Sync] 导出用户数据提取失败: ${file.path}`, error);
+			}
+
+			processed++;
+			onProgress?.(processed, targetFiles.length);
+		}
+
+		return result;
+	}
+
 	private extractId(frontmatter: Record<string, unknown>): number | null {
 		const id = frontmatter['id'] ?? frontmatter['ID'];
 		if (typeof id === 'number') return id;
@@ -112,9 +183,38 @@ export class UserDataExtractor {
 		const result: Record<string, unknown> = {};
 
 		for (const [key, value] of Object.entries(frontmatter)) {
-			if (BANGUMI_FIELDS.has(key)) continue;
+			if (!isCustomPropertyField(key)) continue;
 			if (value === undefined || value === '' || value === null) continue;
 			result[key] = value;
+		}
+
+		return result;
+	}
+
+	private extractExportProperties(
+		frontmatter: Record<string, unknown>,
+		dataTypes: UserDataType[]
+	): Record<string, unknown> {
+		const result: Record<string, unknown> = {};
+		const includeUserProperties = hasUserDataType(dataTypes, UserDataType.USER_PROPERTIES);
+		const includeCustomProperties = hasUserDataType(dataTypes, UserDataType.CUSTOM_PROPERTIES);
+
+		for (const [key, value] of Object.entries(frontmatter)) {
+			if (value === undefined || value === '' || value === null) continue;
+			if (IDENTIFIER_FIELDS.has(key)) continue;
+
+			if (isUserPropertyField(key)) {
+				if (includeUserProperties) {
+					result[key] = value;
+				}
+				continue;
+			}
+
+			if (isCustomPropertyField(key)) {
+				if (includeCustomProperties) {
+					result[key] = value;
+				}
+			}
 		}
 
 		return result;

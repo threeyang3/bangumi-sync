@@ -7,8 +7,26 @@
 import { App, Modal, Setting, Notice } from 'obsidian';
 import { UserDataExporter } from './userDataExporter';
 import { UserDataImporter } from './userDataImporter';
-import { ImportResult, MissingFieldDecision, ImportOptions, UserDataType, PropertyManageMap, ImportItemDiff, UserDataExport } from './types';
+import { ImportResult, MissingFieldDecision, ImportOptions, UserDataType, PropertyManageMap, ImportItemDiff } from './types';
 import { tn, tnFormat } from '../i18n';
+
+type ImportMode = 'item' | 'property';
+
+interface PropertyReviewGroup {
+    fieldName: string;
+    diffs: Array<{
+        kind: 'diff';
+        item: ImportItemDiff;
+        diff: ImportItemDiff['diffs'][number];
+    }>;
+    missingFields: MissingFieldDecision[];
+}
+
+const DEFAULT_EXPORT_DATA_TYPES: UserDataType[] = [
+    UserDataType.USER_PROPERTIES,
+    UserDataType.CUSTOM_PROPERTIES,
+    UserDataType.BODY_CONTENT,
+];
 
 /**
  * 用户数据导出弹窗
@@ -17,6 +35,7 @@ export class UserDataExportModal extends Modal {
     private exporter: UserDataExporter;
     private scanFolderPath: string;
     private outputDir: string;
+    private exportDataTypes: UserDataType[] = [...DEFAULT_EXPORT_DATA_TYPES];
     private onExport: (files: string[]) => void;
 
     constructor(
@@ -66,6 +85,15 @@ export class UserDataExportModal extends Modal {
                     });
             });
 
+        contentEl.createEl('h3', { text: tn('userData', 'exportDataTypes') });
+        contentEl.createEl('p', {
+            text: tn('userData', 'exportDataTypesDesc'),
+            cls: 'bangumi-modal-desc',
+        });
+        this.addDataTypeToggle(contentEl, UserDataType.USER_PROPERTIES, 'userProperties', 'userPropertiesDesc');
+        this.addDataTypeToggle(contentEl, UserDataType.CUSTOM_PROPERTIES, 'customProperties', 'customPropertiesDesc');
+        this.addDataTypeToggle(contentEl, UserDataType.BODY_CONTENT, 'bodyContent', 'bodyContentDesc');
+
         // 操作按钮
         const buttonDiv = contentEl.createDiv({ cls: 'bangumi-modal-buttons' });
 
@@ -82,9 +110,15 @@ export class UserDataExportModal extends Modal {
     }
 
     private async doExport(): Promise<void> {
+        if (this.exportDataTypes.length === 0) {
+            new Notice(tn('userData', 'selectAtLeastOneDataType'));
+            return;
+        }
+
         const result = await this.exporter.exportBySubjectType(
             this.scanFolderPath,
-            this.outputDir
+            this.outputDir,
+            this.exportDataTypes
         );
 
         if (result.success && result.files.length > 0) {
@@ -100,6 +134,24 @@ export class UserDataExportModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
     }
+
+    private addDataTypeToggle(
+        container: HTMLElement,
+        dataType: UserDataType,
+        nameKey: 'userProperties' | 'customProperties' | 'bodyContent',
+        descKey: 'userPropertiesDesc' | 'customPropertiesDesc' | 'bodyContentDesc'
+    ): void {
+        new Setting(container)
+            .setName(tn('userData', nameKey))
+            .setDesc(tn('userData', descKey))
+            .addToggle(toggle => {
+                toggle
+                    .setValue(this.exportDataTypes.includes(dataType))
+                    .onChange(value => {
+                        this.exportDataTypes = updateDataTypeSelection(this.exportDataTypes, dataType, value);
+                    });
+            });
+    }
 }
 
 /**
@@ -109,6 +161,9 @@ export class UserDataImportModal extends Modal {
     private importer: UserDataImporter;
     private importFiles: Array<{ name: string; content: string }>;
     private onImport: (result: ImportResult) => void;
+    private mergeStrategy: ImportOptions['mergeStrategy'] = 'smart';
+    private importMode: ImportMode = 'item';
+    private importDataTypes: UserDataType[] = [...DEFAULT_EXPORT_DATA_TYPES];
 
     constructor(
         app: App,
@@ -140,6 +195,42 @@ export class UserDataImportModal extends Modal {
             fileListEl.createEl('div', { text: file.name, cls: 'bangumi-import-file-item' });
         }
 
+        new Setting(contentEl)
+            .setName(tn('userData', 'mergeStrategy'))
+            .setDesc(tn('userData', 'mergeStrategyDesc'))
+            .addDropdown(dropdown => {
+                dropdown
+                    .addOption('prefer_local', tn('userData', 'preferLocal'))
+                    .addOption('prefer_import', tn('userData', 'preferImport'))
+                    .addOption('smart', tn('userData', 'smartMerge'))
+                    .setValue(this.mergeStrategy)
+                    .onChange(value => {
+                        this.mergeStrategy = value as ImportOptions['mergeStrategy'];
+                    });
+            });
+
+        new Setting(contentEl)
+            .setName(tn('userData', 'importMode'))
+            .setDesc(tn('userData', 'importModeDesc'))
+            .addDropdown(dropdown => {
+                dropdown
+                    .addOption('item', tn('userData', 'itemImportMode'))
+                    .addOption('property', tn('userData', 'propertyImportMode'))
+                    .setValue(this.importMode)
+                    .onChange(value => {
+                        this.importMode = value as ImportMode;
+                    });
+            });
+
+        contentEl.createEl('h3', { text: tn('userData', 'importDataTypes') });
+        contentEl.createEl('p', {
+            text: tn('userData', 'importDataTypesDesc'),
+            cls: 'bangumi-modal-desc'
+        });
+        this.addDataTypeToggle(contentEl, UserDataType.USER_PROPERTIES, 'userProperties', 'userPropertiesDesc');
+        this.addDataTypeToggle(contentEl, UserDataType.CUSTOM_PROPERTIES, 'customProperties', 'customPropertiesDesc');
+        this.addDataTypeToggle(contentEl, UserDataType.BODY_CONTENT, 'bodyContent', 'bodyContentDesc');
+
         // 操作按钮
         const buttonDiv = contentEl.createDiv({ cls: 'bangumi-modal-buttons' });
 
@@ -156,13 +247,20 @@ export class UserDataImportModal extends Modal {
     }
 
     private async doImport(): Promise<void> {
+        if (this.importDataTypes.length === 0) {
+            new Notice(tn('userData', 'selectAtLeastOneDataType'));
+            return;
+        }
+
+        const dataTypeOptions = { dataTypes: this.importDataTypes };
         // Step 1: 收集所有自定义属性名
-        const propertyNames = this.importer.collectAllPropertyNames(this.importFiles);
+        const propertyNames = this.importer.collectAllPropertyNames(this.importFiles, dataTypeOptions);
+        const suggestedAliases = this.importer.getSuggestedPropertyAliases(this.importFiles, dataTypeOptions);
 
         if (propertyNames.size > 0) {
             // Step 2: 弹出属性管理弹窗
             this.close();
-            new PropertyManageModal(this.app, propertyNames, (propertyManage) => {
+            new PropertyManageModal(this.app, propertyNames, suggestedAliases, (propertyManage) => {
                 void this.continueImport(propertyManage);
             }).open();
         } else {
@@ -173,68 +271,125 @@ export class UserDataImportModal extends Modal {
 
     private async continueImport(propertyManage?: PropertyManageMap): Promise<void> {
         const options: ImportOptions = {
-            mergeStrategy: 'smart',
-            dataTypes: [UserDataType.ALL],
+            mergeStrategy: this.mergeStrategy,
+            dataTypes: this.importDataTypes,
             propertyManage,
         };
 
         // Step 3: 对比导入数据
-        const { autoImported, diffs } = await this.importer.compareImportData(
+        const compareResult = await this.importer.compareImportData(
             this.importFiles,
             options
         );
+        const { autoImported, diffs, missingFields, errors, skipped } = compareResult;
 
         if (diffs.length > 0) {
-            // Step 4: 有差异，弹出对比弹窗
             this.close();
+
+            if (this.importMode === 'property') {
+                const propertyGroups = groupByProperty(diffs, missingFields);
+                new PropertyImportReviewModal(this.app, propertyGroups, (resolvedDiffs, resolvedMissingFields) => {
+                    void (async () => {
+                        await this.finishImport(options, resolvedDiffs, resolvedMissingFields, {
+                            autoImported,
+                            errors,
+                            skipped,
+                        });
+                    })();
+                }).open();
+                return;
+            }
+
+            // Step 4: 有差异，弹出对比弹窗
             new ImportCompareModal(this.app, diffs, (resolvedDiffs) => {
                 void (async () => {
-                    const applied = await this.importer.applyImportDecisions(resolvedDiffs);
-                    const result: ImportResult = {
-                        success: applied + autoImported,
-                        skipped: 0,
+                    await this.finishImport(options, resolvedDiffs, missingFields, {
                         autoImported,
-                        errors: [],
-                        missingFields: [],
-                    };
-                    new ImportResultModal(this.app, result).open();
+                        errors,
+                        skipped,
+                    });
                 })();
             }).open();
-        } else if (autoImported > 0) {
-            // 只有自动导入，无差异
-            const result: ImportResult = {
-                success: autoImported,
-                skipped: 0,
-                autoImported,
-                errors: [],
-                missingFields: [],
-            };
-            this.onImport(result);
-            this.close();
         } else {
-            // 无差异也无自动导入
-            const result: ImportResult = {
-                success: 0,
-                skipped: this.importFiles.reduce((sum, f) => {
-                    try {
-                        const data = JSON.parse(f.content) as UserDataExport;
-                        return sum + (data.items ? Object.keys(data.items).length : 0);
-                    } catch {
-                        return sum;
-                    }
-                }, 0),
-                autoImported: 0,
-                errors: [],
-                missingFields: [],
-            };
-            this.onImport(result);
-            this.close();
+            if (this.importMode === 'property' && missingFields.length > 0) {
+                this.close();
+                const propertyGroups = groupByProperty([], missingFields);
+                new PropertyImportReviewModal(this.app, propertyGroups, (resolvedDiffs, resolvedMissingFields) => {
+                    void (async () => {
+                        await this.finishImport(options, resolvedDiffs, resolvedMissingFields, {
+                            autoImported,
+                            errors,
+                            skipped,
+                        });
+                    })();
+                }).open();
+                return;
+            }
+
+            await this.finishImport(options, [], missingFields, {
+                autoImported,
+                errors,
+                skipped,
+            });
         }
+    }
+
+    private async finishImport(
+        options: ImportOptions,
+        diffs: ImportItemDiff[],
+        missingFields: MissingFieldDecision[],
+        summary: {
+            autoImported: number;
+            errors: ImportResult['errors'];
+            skipped: number;
+        }
+    ): Promise<void> {
+        const finalize = async (resolvedMissingFields: MissingFieldDecision[]) => {
+            const result = await this.importer.applyImportPlan(
+                this.importFiles,
+                options,
+                diffs,
+                resolvedMissingFields
+            );
+            result.autoImported = summary.autoImported;
+            result.errors = [...summary.errors, ...result.errors];
+            result.skipped = Math.max(summary.skipped, result.skipped);
+            this.onImport(result);
+        };
+
+        if (missingFields.length > 0) {
+            this.close();
+            new MissingFieldModal(this.app, missingFields, (resolvedMissingFields) => {
+                void finalize(resolvedMissingFields);
+            }).open();
+            return;
+        }
+
+        await finalize([]);
+        this.close();
     }
 
     onClose(): void {
         const { contentEl } = this;
         contentEl.empty();
+    }
+
+    private addDataTypeToggle(
+        container: HTMLElement,
+        dataType: UserDataType,
+        nameKey: 'userProperties' | 'customProperties' | 'bodyContent',
+        descKey: 'userPropertiesDesc' | 'customPropertiesDesc' | 'bodyContentDesc'
+    ): void {
+        new Setting(container)
+            .setName(tn('userData', nameKey))
+            .setDesc(tn('userData', descKey))
+            .addToggle(toggle => {
+                toggle
+                    .setValue(this.importDataTypes.includes(dataType))
+                    .onChange(value => {
+                        this.importDataTypes = updateDataTypeSelection(this.importDataTypes, dataType, value);
+                    });
+            });
     }
 }
 
@@ -293,9 +448,14 @@ export class MissingFieldModal extends Modal {
     }
 
     private renderFieldList(container: HTMLElement): void {
+        container.empty();
         for (let i = 0; i < this.missingFields.length; i++) {
             const field = this.missingFields[i];
+            const currentDecision = this.decisions.get(i) || null;
             const itemEl = container.createDiv({ cls: 'bangumi-missing-field-item' });
+            if (currentDecision) {
+                itemEl.addClass(`bangumi-missing-field-resolved-${currentDecision}`);
+            }
 
             // 条目信息
             itemEl.createEl('div', {
@@ -307,19 +467,29 @@ export class MissingFieldModal extends Modal {
             const fieldInfoEl = itemEl.createDiv({ cls: 'bangumi-missing-field-info' });
             fieldInfoEl.createEl('span', { text: `${field.fieldName}: ` });
             fieldInfoEl.createEl('span', { text: String(field.fieldValue), cls: 'bangumi-missing-field-value' });
+            itemEl.createEl('div', {
+                text: `${tn('userData', 'decision')}: ${missingDecisionLabel(currentDecision as MissingFieldDecision['decision'])}`,
+                cls: 'bangumi-import-compare-diff-count',
+            });
 
             // 操作按钮
             const actionEl = itemEl.createDiv({ cls: 'bangumi-missing-field-actions' });
-            actionEl.createEl('button', { text: tn('userData', 'addField') }, btn => {
+            actionEl.createEl('button', {
+                text: tn('userData', 'addField'),
+                cls: currentDecision === 'add' ? 'mod-cta bangumi-decision-active' : '',
+            }, btn => {
                 btn.addEventListener('click', () => {
                     this.decisions.set(i, 'add');
-                    itemEl.addClass('bangumi-missing-field-resolved-add');
+                    this.renderFieldList(container);
                 });
             });
-            actionEl.createEl('button', { text: tn('userData', 'skipField') }, btn => {
+            actionEl.createEl('button', {
+                text: tn('userData', 'skipField'),
+                cls: currentDecision === 'skip' ? 'mod-warning bangumi-decision-active' : '',
+            }, btn => {
                 btn.addEventListener('click', () => {
                     this.decisions.set(i, 'skip');
-                    itemEl.addClass('bangumi-missing-field-resolved-skip');
+                    this.renderFieldList(container);
                 });
             });
         }
@@ -332,9 +502,14 @@ export class MissingFieldModal extends Modal {
 
         // 更新 UI
         const items = this.contentEl.querySelectorAll('.bangumi-missing-field-item');
-        items.forEach(item => {
-            item.addClass(`bangumi-missing-field-resolved-${decision}`);
-        });
+        const list = this.contentEl.querySelector('.bangumi-missing-field-list');
+        if (list instanceof HTMLElement) {
+            this.renderFieldList(list);
+        } else {
+            items.forEach(item => {
+                item.addClass(`bangumi-missing-field-resolved-${decision}`);
+            });
+        }
     }
 
     private doResolve(): void {
@@ -365,16 +540,19 @@ export class MissingFieldModal extends Modal {
  */
 export class PropertyManageModal extends Modal {
     private propertyNames: Set<string>;
+    private suggestedAliases: Record<string, string>;
     private onConfirm: (propertyManage: PropertyManageMap) => void;
     private decisions: PropertyManageMap = {};
 
     constructor(
         app: App,
         propertyNames: Set<string>,
+        suggestedAliases: Record<string, string>,
         onConfirm: (propertyManage: PropertyManageMap) => void
     ) {
         super(app);
         this.propertyNames = propertyNames;
+        this.suggestedAliases = suggestedAliases;
         this.onConfirm = onConfirm;
     }
 
@@ -418,9 +596,17 @@ export class PropertyManageModal extends Modal {
             const aliasCell = row.createEl('td');
             const aliasInput = aliasCell.createEl('input', {
                 type: 'text',
-                placeholder: name,
+                placeholder: this.suggestedAliases[name] || name,
                 cls: 'bangumi-property-manage-alias-input',
             });
+            const suggestedAlias = this.suggestedAliases[name];
+            if (suggestedAlias) {
+                aliasInput.value = suggestedAlias;
+                this.decisions[name] = {
+                    ignore: false,
+                    aliasTo: suggestedAlias,
+                };
+            }
             aliasInput.addEventListener('input', () => {
                 const alias = aliasInput.value.trim();
                 if (!this.decisions[name]) {
@@ -579,17 +765,18 @@ export class ImportCompareModal extends Modal {
                 const select = selectCell.createEl('select', { cls: 'bangumi-import-compare-select' });
                 select.createEl('option', { value: 'local', text: tn('userData', 'keepLocal') });
                 select.createEl('option', { value: 'import', text: tn('userData', 'keepImport') });
+                select.createEl('option', { value: 'merge', text: tn('userData', 'smartMerge') });
                 select.createEl('option', { value: 'skip', text: tn('userData', 'skip') });
                 select.value = 'skip';
 
                 select.addEventListener('change', () => {
-                    diff.decision = select.value as 'local' | 'import' | 'skip';
+                    diff.decision = select.value as 'local' | 'import' | 'merge' | 'skip';
                 });
             }
         }
     }
 
-    private batchDecision(decision: 'local' | 'import' | 'skip'): void {
+    private batchDecision(decision: 'local' | 'import' | 'merge' | 'skip'): void {
         for (const item of this.diffs) {
             for (const diff of item.diffs) {
                 diff.decision = decision;
@@ -601,6 +788,181 @@ export class ImportCompareModal extends Modal {
         selects.forEach(select => {
             select.value = decision;
         });
+    }
+
+    onClose(): void {
+        this.contentEl.empty();
+    }
+}
+
+export class PropertyImportReviewModal extends Modal {
+    private propertyGroups: PropertyReviewGroup[];
+    private currentIndex = 0;
+    private onConfirm: (diffs: ImportItemDiff[], missingFields: MissingFieldDecision[]) => void;
+
+    constructor(
+        app: App,
+        propertyGroups: PropertyReviewGroup[],
+        onConfirm: (diffs: ImportItemDiff[], missingFields: MissingFieldDecision[]) => void
+    ) {
+        super(app);
+        this.propertyGroups = propertyGroups;
+        this.onConfirm = onConfirm;
+    }
+
+    onOpen(): void {
+        this.render();
+    }
+
+    private render(): void {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass('bangumi-property-import-review');
+
+        if (this.propertyGroups.length === 0) {
+            contentEl.createEl('h2', { text: tn('userData', 'propertyReviewTitle') });
+            contentEl.createEl('p', { text: tn('userData', 'noDiff'), cls: 'bangumi-modal-desc' });
+            const buttonDiv = contentEl.createDiv({ cls: 'bangumi-modal-buttons' });
+            buttonDiv.createEl('button', { text: tn('userData', 'close'), cls: 'mod-cta' }, btn => {
+                btn.addEventListener('click', () => {
+                    this.onConfirm([], []);
+                    this.close();
+                });
+            });
+            return;
+        }
+
+        const group = this.propertyGroups[this.currentIndex];
+
+        contentEl.createEl('h2', { text: tn('userData', 'propertyReviewTitle') });
+        contentEl.createEl('p', {
+            text: tnFormat('userData', 'propertyReviewProgress', {
+                current: this.currentIndex + 1,
+                total: this.propertyGroups.length,
+                field: group.fieldName,
+            }),
+            cls: 'bangumi-modal-desc',
+        });
+
+        const actionBar = contentEl.createDiv({ cls: 'bangumi-import-compare-actions' });
+        actionBar.createEl('button', { text: tn('userData', 'allLocal') }, btn => {
+            btn.addEventListener('click', () => this.applyGroupDecision(group, 'local'));
+        });
+        actionBar.createEl('button', { text: tn('userData', 'allImport') }, btn => {
+            btn.addEventListener('click', () => this.applyGroupDecision(group, 'import'));
+        });
+        actionBar.createEl('button', { text: tn('userData', 'smartMerge') }, btn => {
+            btn.addEventListener('click', () => this.applyGroupDecision(group, 'merge'));
+        });
+        actionBar.createEl('button', { text: tn('userData', 'allSkip') }, btn => {
+            btn.addEventListener('click', () => this.applyGroupDecision(group, 'skip'));
+        });
+
+        const listEl = contentEl.createDiv({ cls: 'bangumi-import-compare-list' });
+        for (const diffEntry of group.diffs) {
+            const itemEl = listEl.createDiv({ cls: 'bangumi-import-compare-item' });
+            itemEl.createEl('div', {
+                text: `${diffEntry.item.name_cn} (ID: ${diffEntry.item.subjectId})`,
+                cls: 'bangumi-import-compare-subject',
+            });
+            const table = itemEl.createEl('table', { cls: 'bangumi-import-compare-table' });
+            const tbody = table.createEl('tbody');
+            const tr = tbody.createEl('tr');
+            tr.createEl('td', { text: tn('userData', 'localValue') });
+            tr.createEl('td', {
+                text: formatDisplayValue(diffEntry.diff.localValue),
+                cls: 'bangumi-import-compare-value',
+            });
+            const tr2 = tbody.createEl('tr');
+            tr2.createEl('td', { text: tn('userData', 'importValue') });
+            tr2.createEl('td', {
+                text: formatDisplayValue(diffEntry.diff.importValue),
+                cls: 'bangumi-import-compare-value',
+            });
+
+            const decisionRow = itemEl.createDiv({ cls: 'bangumi-missing-field-actions' });
+            addDecisionButton(decisionRow, tn('userData', 'keepLocal'), () => {
+                diffEntry.diff.decision = 'local';
+                this.render();
+            });
+            addDecisionButton(decisionRow, tn('userData', 'keepImport'), () => {
+                diffEntry.diff.decision = 'import';
+                this.render();
+            });
+            addDecisionButton(decisionRow, tn('userData', 'smartMerge'), () => {
+                diffEntry.diff.decision = 'merge';
+                this.render();
+            });
+            addDecisionButton(decisionRow, tn('userData', 'skip'), () => {
+                diffEntry.diff.decision = 'skip';
+                this.render();
+            });
+            itemEl.createEl('div', {
+                text: `${tn('userData', 'decision')}: ${decisionLabel(diffEntry.diff.decision)}`,
+                cls: 'bangumi-import-compare-diff-count',
+            });
+        }
+
+        for (const missingField of group.missingFields) {
+            const itemEl = listEl.createDiv({ cls: 'bangumi-missing-field-item' });
+            itemEl.createEl('div', {
+                text: `${missingField.subjectName} (ID: ${missingField.subjectId})`,
+                cls: 'bangumi-missing-field-subject',
+            });
+            itemEl.createEl('div', {
+                text: formatDisplayValue(missingField.fieldValue),
+                cls: 'bangumi-missing-field-value',
+            });
+            const actionEl = itemEl.createDiv({ cls: 'bangumi-missing-field-actions' });
+            addDecisionButton(actionEl, tn('userData', 'addField'), () => {
+                missingField.decision = 'add';
+                this.render();
+            });
+            addDecisionButton(actionEl, tn('userData', 'skipField'), () => {
+                missingField.decision = 'skip';
+                this.render();
+            });
+            itemEl.createEl('div', {
+                text: `${tn('userData', 'decision')}: ${missingDecisionLabel(missingField.decision)}`,
+                cls: 'bangumi-import-compare-diff-count',
+            });
+        }
+
+        const buttonDiv = contentEl.createDiv({ cls: 'bangumi-modal-buttons' });
+        if (this.currentIndex > 0) {
+            buttonDiv.createEl('button', { text: tn('userData', 'previousProperty') }, btn => {
+                btn.addEventListener('click', () => {
+                    this.currentIndex--;
+                    this.render();
+                });
+            });
+        }
+
+        if (this.currentIndex < this.propertyGroups.length - 1) {
+            buttonDiv.createEl('button', { text: tn('userData', 'nextProperty'), cls: 'mod-cta' }, btn => {
+                btn.addEventListener('click', () => {
+                    this.currentIndex++;
+                    this.render();
+                });
+            });
+        } else {
+            buttonDiv.createEl('button', { text: tn('userData', 'executeImport'), cls: 'mod-cta' }, btn => {
+                btn.addEventListener('click', () => {
+                    this.onConfirm(extractDiffs(this.propertyGroups), extractMissingFields(this.propertyGroups));
+                    this.close();
+                });
+            });
+        }
+    }
+
+    private applyGroupDecision(group: PropertyReviewGroup, decision: 'local' | 'import' | 'merge' | 'skip'): void {
+        for (const diff of group.diffs) {
+            diff.diff.decision = decision;
+        }
+        for (const missingField of group.missingFields) {
+            missingField.decision = decision === 'skip' || decision === 'local' ? 'skip' : 'add';
+        }
+        this.render();
     }
 
     onClose(): void {
@@ -696,4 +1058,105 @@ function formatDisplayValue(value: unknown): string {
     if (Array.isArray(value)) return value.join(', ');
     if (typeof value === 'object' && value !== null) return JSON.stringify(value);
     return '';
+}
+
+function groupByProperty(diffs: ImportItemDiff[], missingFields: MissingFieldDecision[]): PropertyReviewGroup[] {
+    const grouped = new Map<string, PropertyReviewGroup>();
+
+    for (const item of diffs) {
+        for (const diff of item.diffs) {
+            const group = grouped.get(diff.fieldName) ?? {
+                fieldName: diff.fieldName,
+                diffs: [],
+                missingFields: [],
+            };
+            group.diffs.push({
+                kind: 'diff',
+                item,
+                diff,
+            });
+            grouped.set(diff.fieldName, group);
+        }
+    }
+
+    for (const missingField of missingFields) {
+        const group = grouped.get(missingField.fieldName) ?? {
+            fieldName: missingField.fieldName,
+            diffs: [],
+            missingFields: [],
+        };
+        group.missingFields.push(missingField);
+        grouped.set(missingField.fieldName, group);
+    }
+
+    return Array.from(grouped.values()).sort((left, right) => left.fieldName.localeCompare(right.fieldName, 'zh-CN'));
+}
+
+function extractDiffs(groups: PropertyReviewGroup[]): ImportItemDiff[] {
+    const grouped = new Map<number, ImportItemDiff>();
+
+    for (const group of groups) {
+        for (const entry of group.diffs) {
+            const existing = grouped.get(entry.item.subjectId) ?? {
+                subjectId: entry.item.subjectId,
+                name_cn: entry.item.name_cn,
+                diffs: [],
+                hasDiff: true,
+            };
+            existing.diffs.push(entry.diff);
+            grouped.set(entry.item.subjectId, existing);
+        }
+    }
+
+    return Array.from(grouped.values());
+}
+
+function extractMissingFields(groups: PropertyReviewGroup[]): MissingFieldDecision[] {
+    return groups.flatMap(group => group.missingFields);
+}
+
+function addDecisionButton(container: HTMLElement, text: string, onClick: () => void): void {
+    container.createEl('button', { text }, btn => {
+        btn.addEventListener('click', onClick);
+    });
+}
+
+function decisionLabel(decision: ImportItemDiff['diffs'][number]['decision']): string {
+    switch (decision) {
+        case 'local':
+            return tn('userData', 'keepLocal');
+        case 'import':
+            return tn('userData', 'keepImport');
+        case 'merge':
+            return tn('userData', 'smartMerge');
+        case 'skip':
+            return tn('userData', 'skip');
+        default:
+            return tn('statusSyncModal', 'empty');
+    }
+}
+
+function missingDecisionLabel(decision: MissingFieldDecision['decision']): string {
+    switch (decision) {
+        case 'add':
+            return tn('userData', 'addField');
+        case 'skip':
+            return tn('userData', 'skipField');
+        default:
+            return tn('statusSyncModal', 'empty');
+    }
+}
+
+function updateDataTypeSelection(
+    selected: UserDataType[],
+    dataType: UserDataType,
+    enabled: boolean
+): UserDataType[] {
+    const next = new Set(selected);
+    if (enabled) {
+        next.add(dataType);
+    } else {
+        next.delete(dataType);
+    }
+    return Array.from(next);
 }
