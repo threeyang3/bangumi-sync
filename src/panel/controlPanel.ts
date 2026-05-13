@@ -10,7 +10,7 @@ import { SyncManager } from '../sync/syncManager';
 import { IncrementalSync } from '../sync/incrementalSync';
 import { BangumiClient } from '../api/client';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
-import { BatchEditorModal, BatchEditOperation, FrontmatterEditor } from './batchEditorModal';
+import { BatchEditorModal, FrontmatterEditor } from './batchEditorModal';
 import { StatusSyncModal, StatusSyncDiff, FieldDiff } from './statusSyncModal';
 import { ConflictDetector } from './conflictResolver';
 import { SearchModal } from '../ui/searchModal';
@@ -1044,15 +1044,30 @@ export class ControlPanel extends Modal {
 			return;
 		}
 
-		const filePaths = selectedCollections
-			.map(c => this.state.localSubjects.get(c.subject_id)?.path)
-			.filter((path): path is string => path !== undefined);
+		const targetItems = selectedCollections
+			.map(collection => {
+				const localInfo = this.state.localSubjects.get(collection.subject_id);
+				if (!localInfo?.path) {
+					return null;
+				}
+
+				return {
+					filePath: localInfo.path,
+					displayName: collection.subject.name_cn || collection.subject.name || localInfo.name_cn || String(collection.subject_id),
+				};
+			})
+			.filter((item): item is { filePath: string; displayName: string } => item !== null);
 
 		const modal = new BatchEditorModal(
 			this.app,
-			filePaths,
-			async (operations: BatchEditOperation[]) => {
-				const result = await this.frontmatterEditor.batchModify(filePaths, operations);
+			targetItems,
+			async (submission) => {
+				const result = submission.mode === 'uniform'
+					? await this.frontmatterEditor.batchModify(
+						targetItems.map(item => item.filePath),
+						submission.operations ?? []
+					)
+					: await this.frontmatterEditor.batchApplyPerItemUpdates(submission.perItemUpdates ?? []);
 				new Notice(`${tn('controlPanel', 'batchEdit')}: ${result.success}, ${result.failed}`);
 				this.renderActionBar(); // 更新撤销按钮状态
 			}

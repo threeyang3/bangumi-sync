@@ -512,18 +512,38 @@ export interface TranslationStrings {
 	batchEditor: {
 		title: string;
 		info: string;
+		modeLabel: string;
+		modeUniform: string;
+		modePerItem: string;
+		uniformDesc: string;
+		perItemDesc: string;
 		typeAdd: string;
 		typeModify: string;
 		typeDelete: string;
 		propertyName: string;
 		propertyValue: string;
 		addOperation: string;
+		propertySelectionTitle: string;
+		propertySelectionDesc: string;
+		customPropertyPlaceholder: string;
+		addSelectedProperty: string;
+		loadingProperties: string;
+		emptyEditableProperties: string;
+		emptySelectedProperties: string;
+		selectedPropertyCount: string;
+		removeSelectedProperty: string;
+		itemName: string;
+		editTableDesc: string;
+		emptyEditTable: string;
 		execute: string;
 		cancel: string;
 		emptyOperations: string;
 		noticeProperty: string;
 		noticeValue: string;
 		noticeNoOp: string;
+		noticeSelectProperty: string;
+		noticeNothingChanged: string;
+		noticeLoadFailed: string;
 		removeOperation: string;
 	};
 
@@ -997,7 +1017,7 @@ const en: TranslationStrings = {
 		missingFieldsApplied: 'Applied {count} missing fields',
 		// 属性管理
 		propertyManageTitle: 'Property management',
-		propertyManageDesc: 'Review custom properties before import. You can ignore or alias each property.',
+		propertyManageDesc: 'Review the imported properties before import. You can ignore or alias each property.',
 		propertyName: 'Property name',
 		ignore: 'Ignore',
 		alias: 'Alias to',
@@ -1104,18 +1124,38 @@ const en: TranslationStrings = {
 	batchEditor: {
 		title: 'Batch edit properties',
 		info: 'Editing {count} files',
+		modeLabel: 'Editing mode',
+		modeUniform: 'Uniform operation',
+		modePerItem: 'Edit per item',
+		uniformDesc: 'Apply the same add, modify, or delete operation to every selected file.',
+		perItemDesc: 'Choose the properties you want to edit, then review each selected item in a table.',
 		typeAdd: 'Add',
 		typeModify: 'Modify',
 		typeDelete: 'Delete',
 		propertyName: 'Property name',
 		propertyValue: 'Property value',
 		addOperation: 'Add operation',
+		propertySelectionTitle: 'Choose properties',
+		propertySelectionDesc: 'Select existing properties or add a new one to edit across the selected items.',
+		customPropertyPlaceholder: 'Add a property to the table',
+		addSelectedProperty: 'Add property',
+		loadingProperties: 'Loading local properties...',
+		emptyEditableProperties: 'No editable properties were found yet.',
+		emptySelectedProperties: 'No properties selected yet.',
+		selectedPropertyCount: 'Selected properties: {count}',
+		removeSelectedProperty: 'Remove selected property',
+		itemName: 'Subject',
+		editTableDesc: 'Each column is one property. Edit values directly for each selected subject.',
+		emptyEditTable: 'Choose at least one property to start editing by item.',
 		execute: 'Execute',
 		cancel: 'Cancel',
 		emptyOperations: 'No operations yet, please add operations',
 		noticeProperty: 'Please enter property name',
 		noticeValue: 'Add or modify requires a value',
 		noticeNoOp: 'Please add at least one operation',
+		noticeSelectProperty: 'Please select at least one property to edit',
+		noticeNothingChanged: 'No edited values were detected',
+		noticeLoadFailed: 'Failed to load local properties',
 		removeOperation: 'Remove operation',
 	},
 
@@ -1582,7 +1622,7 @@ const zhCN: TranslationStrings = {
 		missingFieldsApplied: '已应用 {count} 个缺失字段',
 		// 属性管理
 		propertyManageTitle: '属性管理',
-		propertyManageDesc: '导入前请确认以下自定义属性的处理方式，可忽略或设置别名。',
+		propertyManageDesc: '导入前请确认以下属性的处理方式，可忽略或设置别名。',
 		propertyName: '属性名',
 		ignore: '忽略',
 		alias: '别名',
@@ -1689,18 +1729,38 @@ const zhCN: TranslationStrings = {
 	batchEditor: {
 		title: '批量编辑属性',
 		info: '将对 {count} 个文件进行批量编辑',
+		modeLabel: '编辑方式',
+		modeUniform: '统一操作',
+		modePerItem: '逐项编辑',
+		uniformDesc: '对所有选中文件执行同一组新增、修改或删除操作。',
+		perItemDesc: '先选择要批量修改的属性，再按条目逐项调整每个值。',
 		typeAdd: '新增',
 		typeModify: '修改',
 		typeDelete: '删除',
 		propertyName: '属性名',
 		propertyValue: '属性值',
 		addOperation: '添加操作',
+		propertySelectionTitle: '选择属性',
+		propertySelectionDesc: '可勾选现有属性，也可以额外添加新属性到编辑表格中。',
+		customPropertyPlaceholder: '添加要编辑的属性',
+		addSelectedProperty: '加入表格',
+		loadingProperties: '正在加载本地属性...',
+		emptyEditableProperties: '暂未发现可编辑属性。',
+		emptySelectedProperties: '尚未选择任何属性。',
+		selectedPropertyCount: '已选择属性：{count}',
+		removeSelectedProperty: '移除已选属性',
+		itemName: '条目名',
+		editTableDesc: '每一列对应一个属性，可直接逐条目修改属性值。',
+		emptyEditTable: '请先选择至少一个属性，再开始逐项编辑。',
 		execute: '确认执行',
 		cancel: '取消',
 		emptyOperations: '暂无操作，请添加要执行的属性操作',
 		noticeProperty: '请输入属性名',
 		noticeValue: '新增或修改属性需要输入属性值',
 		noticeNoOp: '请至少添加一个操作',
+		noticeSelectProperty: '请至少选择一个要编辑的属性',
+		noticeNothingChanged: '未检测到实际修改',
+		noticeLoadFailed: '加载本地属性失败',
 		removeOperation: '移除操作',
 	},
 

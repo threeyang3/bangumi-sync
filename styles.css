@@ -1263,15 +1263,63 @@
 /* ==================== Batch Editor ==================== */
 
 .bangumi-batch-editor {
-	width: 500px;
+	width: min(1080px, 92vw);
+	max-width: 1080px;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+
+.bangumi-batch-editor-mode-switch,
+.bangumi-batch-property-header,
+.bangumi-batch-custom-property-row,
+.bangumi-batch-selected-properties,
+.bangumi-batch-edit-table-wrap {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.bangumi-batch-editor-mode-switch {
+	align-items: center;
+}
+
+.bangumi-batch-editor-mode-label {
+	color: var(--text-muted);
+	font-size: 13px;
+}
+
+.bangumi-batch-editor-mode-btn.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.bangumi-batch-editor-panel.is-hidden {
+	display: none;
+}
+
+.bangumi-batch-editor-section-desc,
+.bangumi-batch-selected-properties-desc,
+.bangumi-batch-edit-table-desc {
+	width: 100%;
+	margin: 0;
+	color: var(--text-muted);
+	font-size: 13px;
+}
+
+.bangumi-operation-list,
+.bangumi-batch-property-selection,
+.bangumi-batch-selected-properties,
+.bangumi-batch-edit-table-scroll {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
 }
 
 .bangumi-operation-list {
-	max-height: 200px;
+	max-height: 220px;
 	overflow-y: auto;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 4px;
-	margin-bottom: 15px;
 }
 
 .bangumi-operation-empty {
@@ -1300,7 +1348,7 @@
 }
 
 .bangumi-operation-type {
-	padding: 2px 6px;
+	padding: 3px 8px;
 	border-radius: 3px;
 	font-size: 11px;
 	font-weight: 500;
@@ -1352,12 +1400,12 @@
 	flex-wrap: wrap;
 	gap: 8px;
 	align-items: center;
-	padding: 10px;
-	margin-bottom: 15px;
+	padding: 10px 0 0;
 }
 
 .bangumi-property-input,
-.bangumi-value-input {
+.bangumi-value-input,
+.bangumi-batch-edit-input {
 	padding: 6px 10px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
@@ -1372,6 +1420,121 @@
 .bangumi-value-input {
 	flex: 1;
 	min-width: 150px;
+}
+
+.bangumi-batch-property-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.bangumi-batch-property-header h3 {
+	margin: 0;
+	font-size: 15px;
+}
+
+.bangumi-batch-property-selection,
+.bangumi-batch-selected-properties {
+	padding: 12px;
+}
+
+.bangumi-batch-property-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+	gap: 8px 12px;
+	width: 100%;
+}
+
+.bangumi-batch-property-option {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 32px;
+	color: var(--text-normal);
+}
+
+.bangumi-batch-property-option input {
+	margin: 0;
+}
+
+.bangumi-batch-custom-property-row {
+	align-items: center;
+}
+
+.bangumi-batch-property-chip-wrap {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	width: 100%;
+}
+
+.bangumi-batch-property-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	border-radius: 999px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	font-size: 12px;
+}
+
+.bangumi-batch-property-chip-remove {
+	padding: 0;
+	width: 20px;
+	height: 20px;
+	border: none;
+	background: transparent;
+	color: var(--text-muted);
+}
+
+.bangumi-batch-property-chip-remove:hover {
+	color: var(--text-error);
+}
+
+.bangumi-batch-edit-table-wrap {
+	flex-direction: column;
+}
+
+.bangumi-batch-edit-table-scroll {
+	overflow: auto;
+	max-height: 52vh;
+}
+
+.bangumi-batch-edit-table {
+	width: 100%;
+	min-width: 620px;
+	border-collapse: collapse;
+	table-layout: fixed;
+}
+
+.bangumi-batch-edit-table th,
+.bangumi-batch-edit-table td {
+	padding: 10px 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	vertical-align: top;
+	text-align: left;
+}
+
+.bangumi-batch-edit-table thead th {
+	position: sticky;
+	top: 0;
+	background: var(--background-primary);
+	z-index: 1;
+}
+
+.bangumi-batch-edit-table tbody tr:nth-child(even) td {
+	background: var(--background-secondary);
+}
+
+.bangumi-batch-edit-name-cell {
+	min-width: 180px;
+	font-weight: 600;
+}
+
+.bangumi-batch-edit-input {
+	width: 100%;
+	min-width: 140px;
 }
 
 /* ==================== Status Sync Modal ==================== */
@@ -2380,6 +2543,48 @@
 	.bangumi-import-compare-header {
 		grid-template-columns: 1fr;
 		align-items: start;
+	}
+
+	.bangumi-batch-editor {
+		width: min(100%, 96vw);
+	}
+
+	.bangumi-batch-editor-mode-switch,
+	.bangumi-batch-custom-property-row {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.bangumi-batch-property-list {
+		grid-template-columns: 1fr;
+	}
+
+	.bangumi-batch-edit-table,
+	.bangumi-batch-edit-table thead,
+	.bangumi-batch-edit-table tbody,
+	.bangumi-batch-edit-table tr,
+	.bangumi-batch-edit-table th,
+	.bangumi-batch-edit-table td {
+		display: block;
+		width: 100% !important;
+	}
+
+	.bangumi-batch-edit-table thead {
+		display: none;
+	}
+
+	.bangumi-batch-edit-table tr {
+		padding: 8px 0;
+		border-bottom: 1px solid var(--background-modifier-border);
+	}
+
+	.bangumi-batch-edit-table tbody tr:last-child {
+		border-bottom: none;
+	}
+
+	.bangumi-batch-edit-table td {
+		padding: 6px 10px;
+		border-bottom: none;
 	}
 
 	.bangumi-import-compare-table,

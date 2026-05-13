@@ -674,7 +674,7 @@ var en = {
     missingFieldsApplied: "Applied {count} missing fields",
     // 属性管理
     propertyManageTitle: "Property management",
-    propertyManageDesc: "Review custom properties before import. You can ignore or alias each property.",
+    propertyManageDesc: "Review the imported properties before import. You can ignore or alias each property.",
     propertyName: "Property name",
     ignore: "Ignore",
     alias: "Alias to",
@@ -777,18 +777,38 @@ var en = {
   batchEditor: {
     title: "Batch edit properties",
     info: "Editing {count} files",
+    modeLabel: "Editing mode",
+    modeUniform: "Uniform operation",
+    modePerItem: "Edit per item",
+    uniformDesc: "Apply the same add, modify, or delete operation to every selected file.",
+    perItemDesc: "Choose the properties you want to edit, then review each selected item in a table.",
     typeAdd: "Add",
     typeModify: "Modify",
     typeDelete: "Delete",
     propertyName: "Property name",
     propertyValue: "Property value",
     addOperation: "Add operation",
+    propertySelectionTitle: "Choose properties",
+    propertySelectionDesc: "Select existing properties or add a new one to edit across the selected items.",
+    customPropertyPlaceholder: "Add a property to the table",
+    addSelectedProperty: "Add property",
+    loadingProperties: "Loading local properties...",
+    emptyEditableProperties: "No editable properties were found yet.",
+    emptySelectedProperties: "No properties selected yet.",
+    selectedPropertyCount: "Selected properties: {count}",
+    removeSelectedProperty: "Remove selected property",
+    itemName: "Subject",
+    editTableDesc: "Each column is one property. Edit values directly for each selected subject.",
+    emptyEditTable: "Choose at least one property to start editing by item.",
     execute: "Execute",
     cancel: "Cancel",
     emptyOperations: "No operations yet, please add operations",
     noticeProperty: "Please enter property name",
     noticeValue: "Add or modify requires a value",
     noticeNoOp: "Please add at least one operation",
+    noticeSelectProperty: "Please select at least one property to edit",
+    noticeNothingChanged: "No edited values were detected",
+    noticeLoadFailed: "Failed to load local properties",
     removeOperation: "Remove operation"
   },
   commentSync: {
@@ -1235,7 +1255,7 @@ var zhCN = {
     missingFieldsApplied: "\u5DF2\u5E94\u7528 {count} \u4E2A\u7F3A\u5931\u5B57\u6BB5",
     // 属性管理
     propertyManageTitle: "\u5C5E\u6027\u7BA1\u7406",
-    propertyManageDesc: "\u5BFC\u5165\u524D\u8BF7\u786E\u8BA4\u4EE5\u4E0B\u81EA\u5B9A\u4E49\u5C5E\u6027\u7684\u5904\u7406\u65B9\u5F0F\uFF0C\u53EF\u5FFD\u7565\u6216\u8BBE\u7F6E\u522B\u540D\u3002",
+    propertyManageDesc: "\u5BFC\u5165\u524D\u8BF7\u786E\u8BA4\u4EE5\u4E0B\u5C5E\u6027\u7684\u5904\u7406\u65B9\u5F0F\uFF0C\u53EF\u5FFD\u7565\u6216\u8BBE\u7F6E\u522B\u540D\u3002",
     propertyName: "\u5C5E\u6027\u540D",
     ignore: "\u5FFD\u7565",
     alias: "\u522B\u540D",
@@ -1338,18 +1358,38 @@ var zhCN = {
   batchEditor: {
     title: "\u6279\u91CF\u7F16\u8F91\u5C5E\u6027",
     info: "\u5C06\u5BF9 {count} \u4E2A\u6587\u4EF6\u8FDB\u884C\u6279\u91CF\u7F16\u8F91",
+    modeLabel: "\u7F16\u8F91\u65B9\u5F0F",
+    modeUniform: "\u7EDF\u4E00\u64CD\u4F5C",
+    modePerItem: "\u9010\u9879\u7F16\u8F91",
+    uniformDesc: "\u5BF9\u6240\u6709\u9009\u4E2D\u6587\u4EF6\u6267\u884C\u540C\u4E00\u7EC4\u65B0\u589E\u3001\u4FEE\u6539\u6216\u5220\u9664\u64CD\u4F5C\u3002",
+    perItemDesc: "\u5148\u9009\u62E9\u8981\u6279\u91CF\u4FEE\u6539\u7684\u5C5E\u6027\uFF0C\u518D\u6309\u6761\u76EE\u9010\u9879\u8C03\u6574\u6BCF\u4E2A\u503C\u3002",
     typeAdd: "\u65B0\u589E",
     typeModify: "\u4FEE\u6539",
     typeDelete: "\u5220\u9664",
     propertyName: "\u5C5E\u6027\u540D",
     propertyValue: "\u5C5E\u6027\u503C",
     addOperation: "\u6DFB\u52A0\u64CD\u4F5C",
+    propertySelectionTitle: "\u9009\u62E9\u5C5E\u6027",
+    propertySelectionDesc: "\u53EF\u52FE\u9009\u73B0\u6709\u5C5E\u6027\uFF0C\u4E5F\u53EF\u4EE5\u989D\u5916\u6DFB\u52A0\u65B0\u5C5E\u6027\u5230\u7F16\u8F91\u8868\u683C\u4E2D\u3002",
+    customPropertyPlaceholder: "\u6DFB\u52A0\u8981\u7F16\u8F91\u7684\u5C5E\u6027",
+    addSelectedProperty: "\u52A0\u5165\u8868\u683C",
+    loadingProperties: "\u6B63\u5728\u52A0\u8F7D\u672C\u5730\u5C5E\u6027...",
+    emptyEditableProperties: "\u6682\u672A\u53D1\u73B0\u53EF\u7F16\u8F91\u5C5E\u6027\u3002",
+    emptySelectedProperties: "\u5C1A\u672A\u9009\u62E9\u4EFB\u4F55\u5C5E\u6027\u3002",
+    selectedPropertyCount: "\u5DF2\u9009\u62E9\u5C5E\u6027\uFF1A{count}",
+    removeSelectedProperty: "\u79FB\u9664\u5DF2\u9009\u5C5E\u6027",
+    itemName: "\u6761\u76EE\u540D",
+    editTableDesc: "\u6BCF\u4E00\u5217\u5BF9\u5E94\u4E00\u4E2A\u5C5E\u6027\uFF0C\u53EF\u76F4\u63A5\u9010\u6761\u76EE\u4FEE\u6539\u5C5E\u6027\u503C\u3002",
+    emptyEditTable: "\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u4E2A\u5C5E\u6027\uFF0C\u518D\u5F00\u59CB\u9010\u9879\u7F16\u8F91\u3002",
     execute: "\u786E\u8BA4\u6267\u884C",
     cancel: "\u53D6\u6D88",
     emptyOperations: "\u6682\u65E0\u64CD\u4F5C\uFF0C\u8BF7\u6DFB\u52A0\u8981\u6267\u884C\u7684\u5C5E\u6027\u64CD\u4F5C",
     noticeProperty: "\u8BF7\u8F93\u5165\u5C5E\u6027\u540D",
     noticeValue: "\u65B0\u589E\u6216\u4FEE\u6539\u5C5E\u6027\u9700\u8981\u8F93\u5165\u5C5E\u6027\u503C",
     noticeNoOp: "\u8BF7\u81F3\u5C11\u6DFB\u52A0\u4E00\u4E2A\u64CD\u4F5C",
+    noticeSelectProperty: "\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u4E2A\u8981\u7F16\u8F91\u7684\u5C5E\u6027",
+    noticeNothingChanged: "\u672A\u68C0\u6D4B\u5230\u5B9E\u9645\u4FEE\u6539",
+    noticeLoadFailed: "\u52A0\u8F7D\u672C\u5730\u5C5E\u6027\u5931\u8D25",
     removeOperation: "\u79FB\u9664\u64CD\u4F5C"
   },
   commentSync: {
@@ -6109,14 +6149,15 @@ var UserDataImporter = class {
     };
   }
   collectAllPropertyNames(files, options) {
-    var _a;
+    var _a, _b;
     const propertyNames = /* @__PURE__ */ new Set();
     const parsedFiles = this.parseImportFiles(files);
+    const dataTypes = (_a = options == null ? void 0 : options.dataTypes) != null ? _a : ["all" /* ALL */];
     for (const file of parsedFiles.files) {
-      for (const userData of Object.values((_a = file.data.items) != null ? _a : {})) {
+      for (const userData of Object.values((_b = file.data.items) != null ? _b : {})) {
         const normalized = this.normalizeImportItem(userData, options);
         for (const key of Object.keys(normalized.frontmatter)) {
-          if (isCustomPropertyField(key)) {
+          if (this.isPropertyManageField(key, dataTypes)) {
             propertyNames.add(key);
           }
         }
@@ -6656,6 +6697,15 @@ var UserDataImporter = class {
   }
   isImportManagedUserField(fieldName) {
     return isUserPropertyField(fieldName);
+  }
+  isPropertyManageField(fieldName, dataTypes) {
+    if (hasUserDataType(dataTypes, "userProperties" /* USER_PROPERTIES */) && isUserPropertyField(fieldName)) {
+      return true;
+    }
+    if (hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */) && isCustomPropertyField(fieldName)) {
+      return true;
+    }
+    return false;
   }
   mapLegacyRatingField(identifier, legacyKey) {
     var _a, _b;
@@ -10299,10 +10349,16 @@ var import_obsidian20 = require("obsidian");
 // src/panel/batchEditorModal.ts
 var import_obsidian18 = require("obsidian");
 var BatchEditorModal = class extends import_obsidian18.Modal {
-  constructor(app, filePaths, onConfirm) {
+  constructor(app, items, onConfirm) {
     super(app);
+    this.mode = "per_item";
     this.operations = [];
-    this.filePaths = filePaths;
+    this.editableItems = [];
+    this.availableProperties = [];
+    this.selectedProperties = [];
+    this.draftValues = /* @__PURE__ */ new Map();
+    this.loadingProperties = true;
+    this.items = items;
     this.onConfirm = onConfirm;
   }
   onOpen() {
@@ -10310,12 +10366,60 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
     contentEl.addClass("bangumi-batch-editor");
     contentEl.createEl("h2", { text: tn("batchEditor", "title") });
     contentEl.createEl("p", {
-      text: tnFormat("batchEditor", "info", { count: this.filePaths.length }),
+      text: tnFormat("batchEditor", "info", { count: this.items.length }),
       cls: "bangumi-batch-editor-info"
     });
-    this.operationListEl = contentEl.createDiv({ cls: "bangumi-operation-list" });
+    this.renderModeSwitch(contentEl);
+    this.uniformPanelEl = contentEl.createDiv({ cls: "bangumi-batch-editor-panel" });
+    this.renderUniformPanel();
+    this.perItemPanelEl = contentEl.createDiv({ cls: "bangumi-batch-editor-panel" });
+    this.renderPerItemPanel();
+    this.updateModeVisibility();
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    buttonDiv.createEl("button", { text: tn("batchEditor", "cancel") }, (btn) => {
+      btn.addEventListener("click", () => this.close());
+    });
+    buttonDiv.createEl("button", { text: tn("batchEditor", "execute"), cls: "mod-cta" }, (btn) => {
+      btn.addEventListener("click", () => void this.handleSubmit());
+    });
+    void this.loadEditableItems();
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+  renderModeSwitch(container) {
+    const switchEl = container.createDiv({ cls: "bangumi-batch-editor-mode-switch" });
+    switchEl.createSpan({
+      text: tn("batchEditor", "modeLabel"),
+      cls: "bangumi-batch-editor-mode-label"
+    });
+    [
+      ["per_item", tn("batchEditor", "modePerItem")],
+      ["uniform", tn("batchEditor", "modeUniform")]
+    ].forEach(([mode, label]) => {
+      const button = switchEl.createEl("button", {
+        text: label,
+        cls: `bangumi-batch-editor-mode-btn${this.mode === mode ? " is-active" : ""}`
+      });
+      button.addEventListener("click", () => {
+        this.mode = mode;
+        for (const sibling of Array.from(switchEl.querySelectorAll(".bangumi-batch-editor-mode-btn"))) {
+          sibling.classList.remove("is-active");
+        }
+        button.classList.add("is-active");
+        this.updateModeVisibility();
+      });
+    });
+  }
+  renderUniformPanel() {
+    this.uniformPanelEl.empty();
+    this.uniformPanelEl.createEl("p", {
+      text: tn("batchEditor", "uniformDesc"),
+      cls: "bangumi-batch-editor-section-desc"
+    });
+    this.operationListEl = this.uniformPanelEl.createDiv({ cls: "bangumi-operation-list" });
     this.renderOperationList();
-    const addOperationDiv = contentEl.createDiv({ cls: "bangumi-add-operation" });
+    const addOperationDiv = this.uniformPanelEl.createDiv({ cls: "bangumi-add-operation" });
     const typeSelect = addOperationDiv.createEl("select");
     typeSelect.createEl("option", { value: "add", text: tn("batchEditor", "typeAdd") });
     typeSelect.createEl("option", { value: "modify", text: tn("batchEditor", "typeModify") });
@@ -10349,30 +10453,82 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
         valueInput.value = "";
       });
     });
-    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-    buttonDiv.createEl("button", { text: tn("batchEditor", "cancel") }, (btn) => {
-      btn.addEventListener("click", () => this.close());
+  }
+  renderPerItemPanel() {
+    this.perItemPanelEl.empty();
+    this.perItemPanelEl.createEl("p", {
+      text: tn("batchEditor", "perItemDesc"),
+      cls: "bangumi-batch-editor-section-desc"
     });
-    buttonDiv.createEl("button", { text: tn("batchEditor", "execute"), cls: "mod-cta" }, (btn) => {
+    const propertyPanel = this.perItemPanelEl.createDiv({ cls: "bangumi-batch-property-panel" });
+    const propertyHeader = propertyPanel.createDiv({ cls: "bangumi-batch-property-header" });
+    propertyHeader.createEl("h3", { text: tn("batchEditor", "propertySelectionTitle") });
+    propertyHeader.createEl("p", {
+      text: tn("batchEditor", "propertySelectionDesc"),
+      cls: "bangumi-batch-editor-section-desc"
+    });
+    this.propertySelectionEl = propertyPanel.createDiv({ cls: "bangumi-batch-property-selection" });
+    this.selectedPropertyEl = propertyPanel.createDiv({ cls: "bangumi-batch-selected-properties" });
+    const customPropertyRow = propertyPanel.createDiv({ cls: "bangumi-batch-custom-property-row" });
+    const customPropertyInput = customPropertyRow.createEl("input", {
+      type: "text",
+      placeholder: tn("batchEditor", "customPropertyPlaceholder"),
+      cls: "bangumi-property-input"
+    });
+    customPropertyRow.createEl("button", { text: tn("batchEditor", "addSelectedProperty") }, (btn) => {
       btn.addEventListener("click", () => {
-        void (async () => {
-          if (this.operations.length === 0) {
-            new import_obsidian18.Notice(tn("batchEditor", "noticeNoOp"));
-            return;
-          }
-          await this.onConfirm(this.operations);
-          this.close();
-        })();
+        const property = customPropertyInput.value.trim();
+        if (!property) {
+          new import_obsidian18.Notice(tn("batchEditor", "noticeProperty"));
+          return;
+        }
+        this.ensurePropertyExists(property);
+        this.toggleSelectedProperty(property, true);
+        customPropertyInput.value = "";
       });
     });
+    this.editTableEl = this.perItemPanelEl.createDiv({ cls: "bangumi-batch-edit-table-wrap" });
+    this.renderPropertySelection();
+    this.renderSelectedProperties();
+    this.renderPerItemTable();
   }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
+  updateModeVisibility() {
+    this.uniformPanelEl.classList.toggle("is-hidden", this.mode !== "uniform");
+    this.perItemPanelEl.classList.toggle("is-hidden", this.mode !== "per_item");
   }
-  /**
-   * 渲染操作列表
-   */
+  async loadEditableItems() {
+    var _a;
+    this.loadingProperties = true;
+    this.renderPropertySelection();
+    this.renderPerItemTable();
+    try {
+      const editableItems = [];
+      const propertySet = /* @__PURE__ */ new Set();
+      for (const item of this.items) {
+        const frontmatter = (_a = await this.readFrontmatter(item.filePath)) != null ? _a : {};
+        editableItems.push({
+          ...item,
+          frontmatter
+        });
+        for (const key of Object.keys(frontmatter)) {
+          propertySet.add(key);
+        }
+      }
+      this.editableItems = editableItems;
+      this.availableProperties = [...propertySet].sort((left, right) => left.localeCompare(right, "zh-CN"));
+      for (const item of this.editableItems) {
+        this.draftValues.set(item.filePath, this.createDraftValueRecord(item));
+      }
+    } catch (error) {
+      console.error("[Bangumi Sync] Failed to load batch editor properties", error);
+      new import_obsidian18.Notice(tn("batchEditor", "noticeLoadFailed"));
+    } finally {
+      this.loadingProperties = false;
+      this.renderPropertySelection();
+      this.renderSelectedProperties();
+      this.renderPerItemTable();
+    }
+  }
   renderOperationList() {
     this.operationListEl.empty();
     if (this.operations.length === 0) {
@@ -10386,20 +10542,245 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
     this.operations.forEach((op, index) => {
       const item = list.createEl("li", { cls: "bangumi-operation-item" });
       const typeLabel = op.type === "add" ? tn("batchEditor", "typeAdd") : op.type === "modify" ? tn("batchEditor", "typeModify") : tn("batchEditor", "typeDelete");
-      const typeClass = `bangumi-operation-type-${op.type}`;
-      item.createSpan({ cls: `bangumi-operation-type ${typeClass}`, text: typeLabel });
+      item.createSpan({ cls: `bangumi-operation-type bangumi-operation-type-${op.type}`, text: typeLabel });
       item.createSpan({ cls: "bangumi-operation-property", text: op.property });
       if (op.value !== void 0) {
         item.createSpan({ cls: "bangumi-operation-arrow", text: "\u2192" });
         item.createSpan({ cls: "bangumi-operation-value", text: op.value });
       }
-      item.createEl("button", { text: "\xD7", cls: "bangumi-operation-remove", attr: { "aria-label": tn("batchEditor", "removeOperation") } }, (btn) => {
+      item.createEl("button", {
+        text: "\xD7",
+        cls: "bangumi-operation-remove",
+        attr: { "aria-label": tn("batchEditor", "removeOperation") }
+      }, (btn) => {
         btn.addEventListener("click", () => {
           this.operations.splice(index, 1);
           this.renderOperationList();
         });
       });
     });
+  }
+  renderPropertySelection() {
+    this.propertySelectionEl.empty();
+    if (this.loadingProperties) {
+      this.propertySelectionEl.createDiv({
+        cls: "bangumi-operation-empty",
+        text: tn("batchEditor", "loadingProperties")
+      });
+      return;
+    }
+    if (this.availableProperties.length === 0) {
+      this.propertySelectionEl.createDiv({
+        cls: "bangumi-operation-empty",
+        text: tn("batchEditor", "emptyEditableProperties")
+      });
+      return;
+    }
+    const list = this.propertySelectionEl.createDiv({ cls: "bangumi-batch-property-list" });
+    for (const property of this.availableProperties) {
+      const label = list.createEl("label", { cls: "bangumi-batch-property-option" });
+      const checkbox = label.createEl("input", { type: "checkbox" });
+      checkbox.checked = this.selectedProperties.includes(property);
+      checkbox.addEventListener("change", () => {
+        this.toggleSelectedProperty(property, checkbox.checked);
+      });
+      label.createSpan({ text: property });
+    }
+  }
+  renderSelectedProperties() {
+    this.selectedPropertyEl.empty();
+    if (this.selectedProperties.length === 0) {
+      this.selectedPropertyEl.createDiv({
+        cls: "bangumi-operation-empty",
+        text: tn("batchEditor", "emptySelectedProperties")
+      });
+      return;
+    }
+    this.selectedPropertyEl.createDiv({
+      cls: "bangumi-batch-selected-properties-desc",
+      text: tnFormat("batchEditor", "selectedPropertyCount", { count: this.selectedProperties.length })
+    });
+    const chipWrap = this.selectedPropertyEl.createDiv({ cls: "bangumi-batch-property-chip-wrap" });
+    for (const property of this.selectedProperties) {
+      const chip = chipWrap.createDiv({ cls: "bangumi-batch-property-chip" });
+      chip.createSpan({ text: property });
+      chip.createEl("button", {
+        text: "\xD7",
+        cls: "bangumi-batch-property-chip-remove",
+        attr: { "aria-label": tn("batchEditor", "removeSelectedProperty") }
+      }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.toggleSelectedProperty(property, false);
+        });
+      });
+    }
+  }
+  renderPerItemTable() {
+    var _a, _b;
+    this.editTableEl.empty();
+    if (this.loadingProperties) {
+      this.editTableEl.createDiv({
+        cls: "bangumi-operation-empty",
+        text: tn("batchEditor", "loadingProperties")
+      });
+      return;
+    }
+    if (this.selectedProperties.length === 0) {
+      this.editTableEl.createDiv({
+        cls: "bangumi-operation-empty",
+        text: tn("batchEditor", "emptyEditTable")
+      });
+      return;
+    }
+    const desc = this.editTableEl.createDiv({
+      cls: "bangumi-batch-edit-table-desc",
+      text: tn("batchEditor", "editTableDesc")
+    });
+    desc.setAttribute("role", "note");
+    const scroll = this.editTableEl.createDiv({ cls: "bangumi-batch-edit-table-scroll" });
+    const table = scroll.createEl("table", { cls: "bangumi-batch-edit-table" });
+    const thead = table.createEl("thead");
+    const headerRow = thead.createEl("tr");
+    headerRow.createEl("th", { text: tn("batchEditor", "itemName") });
+    for (const property of this.selectedProperties) {
+      headerRow.createEl("th", { text: property });
+    }
+    const tbody = table.createEl("tbody");
+    for (const item of this.editableItems) {
+      const row = tbody.createEl("tr");
+      row.createEl("td", { text: item.displayName, cls: "bangumi-batch-edit-name-cell" });
+      const rowDraft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
+      for (const property of this.selectedProperties) {
+        const cell = row.createEl("td");
+        const input = cell.createEl("input", {
+          type: "text",
+          value: (_b = rowDraft[property]) != null ? _b : "",
+          cls: "bangumi-batch-edit-input"
+        });
+        input.setAttribute("aria-label", `${item.displayName} - ${property}`);
+        input.addEventListener("input", () => {
+          var _a2;
+          const draft = (_a2 = this.draftValues.get(item.filePath)) != null ? _a2 : {};
+          draft[property] = input.value;
+          this.draftValues.set(item.filePath, draft);
+        });
+      }
+    }
+  }
+  async handleSubmit() {
+    if (this.mode === "uniform") {
+      if (this.operations.length === 0) {
+        new import_obsidian18.Notice(tn("batchEditor", "noticeNoOp"));
+        return;
+      }
+      await this.onConfirm({
+        mode: "uniform",
+        operations: this.operations
+      });
+      this.close();
+      return;
+    }
+    if (this.selectedProperties.length === 0) {
+      new import_obsidian18.Notice(tn("batchEditor", "noticeSelectProperty"));
+      return;
+    }
+    const perItemUpdates = this.buildPerItemUpdates();
+    if (perItemUpdates.length === 0) {
+      new import_obsidian18.Notice(tn("batchEditor", "noticeNothingChanged"));
+      return;
+    }
+    await this.onConfirm({
+      mode: "per_item",
+      perItemUpdates
+    });
+    this.close();
+  }
+  buildPerItemUpdates() {
+    var _a, _b;
+    const updates = [];
+    for (const item of this.editableItems) {
+      const draft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
+      const properties = {};
+      for (const property of this.selectedProperties) {
+        const originalValue = item.frontmatter[property];
+        const originalDisplay = formatFrontmatterValue(originalValue);
+        const draftValue = (_b = draft[property]) != null ? _b : "";
+        if (draftValue === originalDisplay) {
+          continue;
+        }
+        if (draftValue === "" && originalValue === void 0) {
+          continue;
+        }
+        properties[property] = coerceDraftValue(draftValue, originalValue);
+      }
+      if (Object.keys(properties).length > 0) {
+        updates.push({
+          filePath: item.filePath,
+          properties
+        });
+      }
+    }
+    return updates;
+  }
+  toggleSelectedProperty(property, enabled) {
+    var _a;
+    if (enabled) {
+      if (!this.selectedProperties.includes(property)) {
+        this.selectedProperties.push(property);
+        this.selectedProperties.sort((left, right) => left.localeCompare(right, "zh-CN"));
+        for (const item of this.editableItems) {
+          const draft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
+          if (draft[property] === void 0) {
+            draft[property] = formatFrontmatterValue(item.frontmatter[property]);
+            this.draftValues.set(item.filePath, draft);
+          }
+        }
+      }
+    } else {
+      this.selectedProperties = this.selectedProperties.filter((current) => current !== property);
+    }
+    this.renderPropertySelection();
+    this.renderSelectedProperties();
+    this.renderPerItemTable();
+  }
+  ensurePropertyExists(property) {
+    var _a;
+    if (!this.availableProperties.includes(property)) {
+      this.availableProperties.push(property);
+      this.availableProperties.sort((left, right) => left.localeCompare(right, "zh-CN"));
+    }
+    for (const item of this.editableItems) {
+      const draft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
+      if (draft[property] === void 0) {
+        draft[property] = formatFrontmatterValue(item.frontmatter[property]);
+        this.draftValues.set(item.filePath, draft);
+      }
+    }
+  }
+  createDraftValueRecord(item) {
+    const record = {};
+    for (const property of this.availableProperties) {
+      record[property] = formatFrontmatterValue(item.frontmatter[property]);
+    }
+    return record;
+  }
+  async readFrontmatter(filePath) {
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (!(file instanceof import_obsidian18.TFile)) {
+      return null;
+    }
+    const content = await this.app.vault.read(file);
+    const match = content.match(/^---\n([\s\S]*?)\n---/);
+    if (!match) {
+      return {};
+    }
+    const parsed = (0, import_obsidian18.parseYaml)(match[1]);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    const frontmatter = parsed;
+    delete frontmatter.position;
+    return frontmatter;
   }
 };
 var FrontmatterEditor = class {
@@ -10408,98 +10789,13 @@ var FrontmatterEditor = class {
     this.maxHistory = 10;
     this.app = app;
   }
-  /**
-   * 读取文件的 frontmatter
-   */
-  async readFrontmatter(filePath) {
-    const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof import_obsidian18.TFile))
-      return null;
-    const content = await this.app.vault.read(file);
-    const match = content.match(/^---\n([\s\S]*?)\n---/);
-    if (!match)
-      return null;
-    const frontmatter = {};
-    const lines = match[1].split("\n");
-    for (const line of lines) {
-      const colonIndex = line.indexOf(":");
-      if (colonIndex > 0) {
-        const key = line.substring(0, colonIndex).trim();
-        let value = line.substring(colonIndex + 1).trim();
-        if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
-          value = value.slice(1, -1);
-        }
-        frontmatter[key] = value;
-      }
-    }
-    return frontmatter;
-  }
-  /**
-   * 修改文件的 frontmatter
-   */
-  async modifyFrontmatter(filePath, operations) {
-    const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof import_obsidian18.TFile))
-      return false;
-    const content = await this.app.vault.read(file);
-    const match = content.match(/^(---\n)([\s\S]*?)(\n---)/);
-    if (!match)
-      return false;
-    const prefix = match[1];
-    let frontmatterStr = match[2];
-    const suffix = match[3];
-    for (const op of operations) {
-      frontmatterStr = this.applyOperation(frontmatterStr, op);
-    }
-    const newContent = prefix + frontmatterStr + suffix + content.substring(match[0].length);
-    await this.app.vault.process(file, () => newContent);
-    return true;
-  }
-  /**
-   * 应用单个操作到 frontmatter 字符串
-   */
-  applyOperation(frontmatterStr, operation) {
-    const lines = frontmatterStr.split("\n");
-    const propertyRegex = new RegExp(`^${operation.property}:`);
-    if (operation.type === "delete") {
-      const newLines = lines.filter((line) => !propertyRegex.test(line));
-      return newLines.join("\n");
-    }
-    if (operation.type === "modify") {
-      const newLines = lines.map((line) => {
-        if (propertyRegex.test(line)) {
-          return `${operation.property}: "${operation.value}"`;
-        }
-        return line;
-      });
-      return newLines.join("\n");
-    }
-    if (operation.type === "add") {
-      const exists = lines.some((line) => propertyRegex.test(line));
-      if (!exists) {
-        lines.push(`${operation.property}: "${operation.value}"`);
-      }
-      return lines.join("\n");
-    }
-    return frontmatterStr;
-  }
-  /**
-   * 批量修改多个文件
-   */
   async batchModify(filePaths, operations) {
-    const originalContents = /* @__PURE__ */ new Map();
+    const originalContents = await this.captureOriginalContents(filePaths);
     const affectedFiles = [];
-    for (const path of filePaths) {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian18.TFile) {
-        const content = await this.app.vault.read(file);
-        originalContents.set(path, content);
-      }
-    }
     let success = 0;
     let failed = 0;
     for (const path of filePaths) {
-      const result = await this.modifyFrontmatter(path, operations);
+      const result = await this.applyUniformOperations(path, operations);
       if (result) {
         success++;
         affectedFiles.push(path);
@@ -10507,26 +10803,35 @@ var FrontmatterEditor = class {
         failed++;
       }
     }
-    if (success > 0) {
-      this.history.push({
-        operations,
-        affectedFiles,
-        originalContent: originalContents,
-        timestamp: Date.now()
-      });
-      if (this.history.length > this.maxHistory) {
-        this.history.shift();
-      }
-    }
+    this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
     return { success, failed };
   }
-  /**
-   * 撤销上一次操作
-   */
+  async batchApplyPerItemUpdates(updates) {
+    const filePaths = updates.map((update) => update.filePath);
+    const originalContents = await this.captureOriginalContents(filePaths);
+    const affectedFiles = [];
+    let success = 0;
+    let failed = 0;
+    for (const update of updates) {
+      const result = await this.applyPerItemUpdate(update);
+      if (result) {
+        success++;
+        affectedFiles.push(update.filePath);
+      } else {
+        failed++;
+      }
+    }
+    this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
+    return { success, failed };
+  }
   async undo() {
-    if (this.history.length === 0)
+    if (this.history.length === 0) {
       return false;
+    }
     const lastOperation = this.history.pop();
+    if (!lastOperation) {
+      return false;
+    }
     let restored = 0;
     for (const [path, content] of lastOperation.originalContent) {
       const file = this.app.vault.getAbstractFileByPath(path);
@@ -10537,13 +10842,113 @@ var FrontmatterEditor = class {
     }
     return restored > 0;
   }
-  /**
-   * 是否可以撤销
-   */
   canUndo() {
     return this.history.length > 0;
   }
+  async applyUniformOperations(filePath, operations) {
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (!(file instanceof import_obsidian18.TFile)) {
+      return false;
+    }
+    try {
+      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        var _a;
+        for (const operation of operations) {
+          if (operation.type === "delete") {
+            delete frontmatter[operation.property];
+            continue;
+          }
+          frontmatter[operation.property] = (_a = operation.value) != null ? _a : "";
+        }
+      });
+      return true;
+    } catch (error) {
+      console.error(`[Bangumi Sync] Failed to batch modify frontmatter: ${filePath}`, error);
+      return false;
+    }
+  }
+  async applyPerItemUpdate(update) {
+    const file = this.app.vault.getAbstractFileByPath(update.filePath);
+    if (!(file instanceof import_obsidian18.TFile)) {
+      return false;
+    }
+    try {
+      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        for (const [property, value] of Object.entries(update.properties)) {
+          frontmatter[property] = value;
+        }
+      });
+      return true;
+    } catch (error) {
+      console.error(`[Bangumi Sync] Failed to apply per-item batch update: ${update.filePath}`, error);
+      return false;
+    }
+  }
+  async captureOriginalContents(filePaths) {
+    const originalContents = /* @__PURE__ */ new Map();
+    for (const path of filePaths) {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (file instanceof import_obsidian18.TFile) {
+        const content = await this.app.vault.read(file);
+        originalContents.set(path, content);
+      }
+    }
+    return originalContents;
+  }
+  pushHistoryIfNeeded(success, affectedFiles, originalContents) {
+    if (success <= 0) {
+      return;
+    }
+    this.history.push({
+      affectedFiles,
+      originalContent: originalContents,
+      timestamp: Date.now()
+    });
+    if (this.history.length > this.maxHistory) {
+      this.history.shift();
+    }
+  }
 };
+function formatFrontmatterValue(value) {
+  if (value === null || value === void 0) {
+    return "";
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item != null ? item : "")).join(", ");
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch (e) {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+function coerceDraftValue(value, originalValue) {
+  if (Array.isArray(originalValue)) {
+    return splitListValue(value);
+  }
+  if (typeof originalValue === "number") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? value : parsed;
+  }
+  if (typeof originalValue === "boolean") {
+    if (value === "true") {
+      return true;
+    }
+    if (value === "false") {
+      return false;
+    }
+  }
+  if (value.includes("\n")) {
+    return value;
+  }
+  return value;
+}
+function splitListValue(value) {
+  return value.split(/[\n,，]/).map((item) => item.trim()).filter(Boolean);
+}
 
 // src/panel/statusSyncModal.ts
 var import_obsidian19 = require("obsidian");
@@ -11844,15 +12249,25 @@ var ControlPanel = class extends import_obsidian20.Modal {
       new import_obsidian20.Notice(tn("controlPanel", "selectSyncedToEdit"));
       return;
     }
-    const filePaths = selectedCollections.map((c) => {
-      var _a;
-      return (_a = this.state.localSubjects.get(c.subject_id)) == null ? void 0 : _a.path;
-    }).filter((path) => path !== void 0);
+    const targetItems = selectedCollections.map((collection) => {
+      const localInfo = this.state.localSubjects.get(collection.subject_id);
+      if (!(localInfo == null ? void 0 : localInfo.path)) {
+        return null;
+      }
+      return {
+        filePath: localInfo.path,
+        displayName: collection.subject.name_cn || collection.subject.name || localInfo.name_cn || String(collection.subject_id)
+      };
+    }).filter((item) => item !== null);
     const modal = new BatchEditorModal(
       this.app,
-      filePaths,
-      async (operations) => {
-        const result = await this.frontmatterEditor.batchModify(filePaths, operations);
+      targetItems,
+      async (submission) => {
+        var _a, _b;
+        const result = submission.mode === "uniform" ? await this.frontmatterEditor.batchModify(
+          targetItems.map((item) => item.filePath),
+          (_a = submission.operations) != null ? _a : []
+        ) : await this.frontmatterEditor.batchApplyPerItemUpdates((_b = submission.perItemUpdates) != null ? _b : []);
         new import_obsidian20.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
         this.renderActionBar();
       }
