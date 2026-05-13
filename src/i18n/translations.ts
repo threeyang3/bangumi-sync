@@ -121,6 +121,15 @@ export interface TranslationStrings {
 			enableRelatedLinks: string;
 			enableRelatedLinksDesc: string;
 		syncStatus: string;
+		sortBy: string;
+		sortDefault: string;
+		sortTime: string;
+		sortTitle: string;
+		sortStatus: string;
+		sortRating: string;
+		sortDirection: string;
+		sortAsc: string;
+		sortDesc: string;
 		lastSync: string;
 		notSyncedYet: string;
 		preview: string;
@@ -246,6 +255,15 @@ export interface TranslationStrings {
 		syncComments: string;
 		syncTags: string;
 		syncStatus: string;
+		sortBy: string;
+		sortDefault: string;
+		sortTime: string;
+		sortTitle: string;
+		sortStatus: string;
+		sortRating: string;
+		sortDirection: string;
+		sortAsc: string;
+		sortDesc: string;
 		comparingStatus: string;
 		noStatusDiff: string;
 		compareStatusFailed: string;
@@ -713,6 +731,15 @@ const en: TranslationStrings = {
 			enableRelatedLinks: 'Enable related links',
 			enableRelatedLinksDesc: 'Automatically fetch related subjects and create bidirectional links during sync',
 		syncStatus: 'Sync status',
+		sortBy: 'Sort by',
+		sortDefault: 'Original order',
+		sortTime: 'Collection time',
+		sortTitle: 'Title',
+		sortStatus: 'Status',
+		sortRating: 'Rating',
+		sortDirection: 'Direction',
+		sortAsc: 'Ascending',
+		sortDesc: 'Descending',
 		lastSync: 'Last sync',
 		notSyncedYet: 'Not synced yet',
 		preview: 'Preview',
@@ -830,6 +857,15 @@ const en: TranslationStrings = {
 		syncComments: 'Sync comments',
 		syncTags: 'Sync tags',
 		syncStatus: 'Sync status',
+		sortBy: 'Sort by',
+		sortDefault: 'Original order',
+		sortTime: 'Collection time',
+		sortTitle: 'Title',
+		sortStatus: 'Status',
+		sortRating: 'Rating',
+		sortDirection: 'Direction',
+		sortAsc: 'Ascending',
+		sortDesc: 'Descending',
 		comparingStatus: 'Comparing status...',
 		noStatusDiff: 'No status differences',
 		compareStatusFailed: 'Compare status failed',
@@ -1279,6 +1315,15 @@ const zhCN: TranslationStrings = {
 			enableRelatedLinks: '启用相关条目链接',
 			enableRelatedLinksDesc: '同步时自动获取相关条目并建立双向链接',
 		syncStatus: '同步状态',
+		sortBy: '排序依据',
+		sortDefault: '原始顺序',
+		sortTime: '收藏时间',
+		sortTitle: '标题',
+		sortStatus: '状态',
+		sortRating: '评分',
+		sortDirection: '排序方向',
+		sortAsc: '升序',
+		sortDesc: '降序',
 		lastSync: '上次同步',
 		notSyncedYet: '尚未同步',
 		preview: '预览',
@@ -1396,6 +1441,15 @@ const zhCN: TranslationStrings = {
 		syncComments: '同步短评',
 		syncTags: '同步标签',
 		syncStatus: '同步状态',
+		sortBy: '排序依据',
+		sortDefault: '默认顺序',
+		sortTime: '收藏时间',
+		sortTitle: '标题',
+		sortStatus: '状态',
+		sortRating: '评分',
+		sortDirection: '方向',
+		sortAsc: '升序',
+		sortDesc: '降序',
 		comparingStatus: '正在对比状态差异...',
 		noStatusDiff: '没有状态差异',
 		compareStatusFailed: '对比状态失败',

@@ -75,31 +75,52 @@
 	height: 100%;
 	display: flex;
 	flex-direction: column;
+	gap: 8px;
 }
 
 .bangumi-control-panel h2 {
-	margin-bottom: 6px;
-	padding-bottom: 4px;
+	margin-bottom: 0;
+	padding-bottom: 6px;
+	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.bangumi-panel-filter-bar {
+.bangumi-panel-toolbar {
 	display: flex;
-	flex-wrap: nowrap;
+	flex-direction: column;
 	gap: 8px;
-	padding: 8px 10px;
-	margin-bottom: 6px;
+	padding: 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-secondary);
+}
+
+.bangumi-toolbar-group {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+
+.bangumi-toolbar-group-filters {
+	flex: 1 1 auto;
+}
+
+.bangumi-toolbar-group-sort {
+	padding-top: 8px;
+	border-top: 1px solid var(--background-modifier-border);
 }
 
 .bangumi-filter-select {
-	padding: 4px 8px;
+	padding: 5px 8px;
 	font-size: 13px;
 	flex: 0 0 auto;
+	min-width: 100px;
 }
 
 .bangumi-filter-search {
 	flex: 1 1 0;
 	min-width: 0;
-	padding: 4px 8px;
+	padding: 5px 8px;
 	font-size: 13px;
 }
 
@@ -107,21 +128,23 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: 6px;
-	padding: 8px 10px;
-	margin-bottom: 6px;
+	padding: 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-secondary);
 }
 
 .bangumi-action-btn {
-	padding: 6px 10px;
+	padding: 7px 12px;
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 	border: none;
-	border-radius: 4px;
+	border-radius: 6px;
 	cursor: pointer;
 	font-size: 13px;
 	text-align: center;
 	white-space: nowrap;
-	transition: opacity 0.2s;
+	transition: background-color 0.15s ease, opacity 0.15s ease;
 }
 
 .bangumi-action-btn:hover {
@@ -129,8 +152,8 @@
 }
 
 .bangumi-action-btn:focus-visible {
-	outline: 2px solid var(--text-on-accent);
-	outline-offset: 2px;
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 1px;
 }
 
 .bangumi-action-btn-small {
@@ -139,7 +162,7 @@
 	background: var(--background-secondary-alt);
 	color: var(--text-normal);
 	border: 1px solid var(--background-modifier-border);
-	border-radius: 3px;
+	border-radius: 4px;
 	cursor: pointer;
 }
 
@@ -160,6 +183,9 @@
 	flex: 1;
 	overflow-y: auto;
 	margin-bottom: 0;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-primary);
 }
 
 .bangumi-table-loading,
@@ -175,7 +201,8 @@
 
 .bangumi-collection-table {
 	width: 100%;
-	border-collapse: collapse;
+	border-collapse: separate;
+	border-spacing: 0;
 	font-size: 13px;
 }
 
@@ -184,7 +211,7 @@
 	top: 0;
 	z-index: 1;
 	background: var(--background-secondary);
-	padding: 6px 8px;
+	padding: 8px;
 	text-align: left;
 	font-weight: 500;
 	font-size: 12px;
@@ -192,13 +219,34 @@
 }
 
 .bangumi-collection-table td {
-	padding: 5px 8px;
+	padding: 7px 8px;
 	border-bottom: 1px solid var(--background-modifier-border);
 	vertical-align: middle;
 }
 
 .bangumi-collection-table tr:hover {
 	background: var(--background-secondary);
+}
+
+.bangumi-collection-table tr.focused {
+	background: var(--background-modifier-hover);
+}
+
+.bangumi-sort-field {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: nowrap;
+}
+
+.bangumi-sort-label {
+	font-size: 12px;
+	color: var(--text-muted);
+	min-width: 4.5em;
+}
+
+.bangumi-sort-select {
+	min-width: 120px;
 }
 
 .bangumi-cover-thumb {

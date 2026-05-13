@@ -32,6 +32,8 @@ export interface PanelFilters {
 	collectionType: CollectionType | 'all';    // 收藏状态筛选
 	syncStatus: 'synced' | 'unsynced' | 'all'; // 同步状态筛选
 	keyword: string;                           // 关键词搜索
+	sortBy: 'default' | 'time' | 'title' | 'status' | 'rating';
+	sortDirection: 'asc' | 'desc';
 }
 
 /**
@@ -114,6 +116,8 @@ export const DEFAULT_PANEL_FILTERS: PanelFilters = {
 	collectionType: 'all',
 	syncStatus: 'all',
 	keyword: '',
+	sortBy: 'default',
+	sortDirection: 'desc',
 };
 
 /**

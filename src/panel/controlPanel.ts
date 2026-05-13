@@ -5,7 +5,7 @@
 
 import { App, Modal, Notice, TFile } from 'obsidian';
 import { UserCollection, SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName, getCollectionStatusLabel } from '../../common/api/types';
-import { BangumiPluginSettings, PanelFilters } from '../settings/settings';
+import { BangumiPluginSettings, PanelFilters, DEFAULT_PANEL_FILTERS } from '../settings/settings';
 import { SyncManager } from '../sync/syncManager';
 import { IncrementalSync } from '../sync/incrementalSync';
 import { BangumiClient } from '../api/client';
@@ -77,6 +77,8 @@ export class ControlPanel extends Modal {
 	private paginationEl!: HTMLElement;
 	private statusEl!: HTMLElement;
 	private footerBarEl!: HTMLElement;
+	private sortBySelect!: HTMLSelectElement;
+	private sortDirectionSelect!: HTMLSelectElement;
 
 	// 分页
 	private currentPage: number = 1;
@@ -145,7 +147,7 @@ export class ControlPanel extends Modal {
 		this.frontmatterEditor = new FrontmatterEditor(app);
 		this.conflictDetector = new ConflictDetector(app);
 
-		this.filters = { ...settings.panelFilters };
+		this.filters = { ...DEFAULT_PANEL_FILTERS, ...settings.panelFilters };
 		this.state = {
 			collections: cachedData?.collections || [],
 			localSubjects: cachedData?.localSubjects instanceof Map ? cachedData.localSubjects : new Map<number, LocalSubjectInfo>(),
@@ -224,9 +226,13 @@ export class ControlPanel extends Modal {
 	 */
 	private renderFilterBar(): void {
 		this.filterBarEl.empty();
+		this.filterBarEl.addClass('bangumi-panel-toolbar');
+
+		const filterGroup = this.filterBarEl.createDiv({ cls: 'bangumi-toolbar-group bangumi-toolbar-group-filters' });
+		const sortGroup = this.filterBarEl.createDiv({ cls: 'bangumi-toolbar-group bangumi-toolbar-group-sort' });
 
 		// 类型筛选
-		const typeSelect = this.filterBarEl.createEl('select', { cls: 'bangumi-filter-select' });
+		const typeSelect = filterGroup.createEl('select', { cls: 'bangumi-filter-select' });
 		typeSelect.createEl('option', { value: 'all', text: tn('controlPanel', 'allTypes') });
 		Object.values(SubjectType).forEach(type => {
 			if (typeof type === 'number') {
@@ -246,7 +252,7 @@ export class ControlPanel extends Modal {
 		});
 
 		// 状态筛选
-		const statusSelect = this.filterBarEl.createEl('select', { cls: 'bangumi-filter-select' });
+		const statusSelect = filterGroup.createEl('select', { cls: 'bangumi-filter-select' });
 		statusSelect.createEl('option', { value: 'all', text: tn('controlPanel', 'allStatus') });
 		Object.values(CollectionType).forEach(type => {
 			if (typeof type === 'number') {
@@ -266,7 +272,7 @@ export class ControlPanel extends Modal {
 		});
 
 		// 同步状态筛选
-		const syncSelect = this.filterBarEl.createEl('select', { cls: 'bangumi-filter-select' });
+		const syncSelect = filterGroup.createEl('select', { cls: 'bangumi-filter-select' });
 		syncSelect.createEl('option', { value: 'all', text: tn('controlPanel', 'allSyncStatus') });
 		syncSelect.createEl('option', { value: 'synced', text: tn('controlPanel', 'synced') });
 		syncSelect.createEl('option', { value: 'unsynced', text: tn('controlPanel', 'unsynced') });
@@ -278,7 +284,7 @@ export class ControlPanel extends Modal {
 		});
 
 		// 搜索框
-		const searchInput = this.filterBarEl.createEl('input', {
+		const searchInput = filterGroup.createEl('input', {
 			type: 'text',
 			placeholder: tn('controlPanel', 'searchPlaceholder'),
 			cls: 'bangumi-filter-search'
@@ -286,6 +292,35 @@ export class ControlPanel extends Modal {
 		searchInput.value = this.filters.keyword;
 		searchInput.addEventListener('input', () => {
 			this.filters.keyword = searchInput.value;
+			this.onFiltersChange(this.filters);
+			this.applyFilters();
+		});
+
+		// 排序依据
+		const sortByWrapper = sortGroup.createDiv({ cls: 'bangumi-sort-field' });
+		sortByWrapper.createEl('label', { text: tn('controlPanel', 'sortBy'), cls: 'bangumi-sort-label' });
+		this.sortBySelect = sortByWrapper.createEl('select', { cls: 'bangumi-filter-select bangumi-sort-select' });
+		this.sortBySelect.createEl('option', { value: 'default', text: tn('controlPanel', 'sortDefault') });
+		this.sortBySelect.createEl('option', { value: 'time', text: tn('controlPanel', 'sortTime') });
+		this.sortBySelect.createEl('option', { value: 'title', text: tn('controlPanel', 'sortTitle') });
+		this.sortBySelect.createEl('option', { value: 'status', text: tn('controlPanel', 'sortStatus') });
+		this.sortBySelect.createEl('option', { value: 'rating', text: tn('controlPanel', 'sortRating') });
+		this.sortBySelect.value = this.filters.sortBy;
+		this.sortBySelect.addEventListener('change', () => {
+			this.filters.sortBy = this.sortBySelect.value as PanelFilters['sortBy'];
+			this.onFiltersChange(this.filters);
+			this.applyFilters();
+		});
+
+		// 排序方向
+		const sortDirectionWrapper = sortGroup.createDiv({ cls: 'bangumi-sort-field' });
+		sortDirectionWrapper.createEl('label', { text: tn('controlPanel', 'sortDirection'), cls: 'bangumi-sort-label' });
+		this.sortDirectionSelect = sortDirectionWrapper.createEl('select', { cls: 'bangumi-filter-select bangumi-sort-select' });
+		this.sortDirectionSelect.createEl('option', { value: 'desc', text: tn('controlPanel', 'sortDesc') });
+		this.sortDirectionSelect.createEl('option', { value: 'asc', text: tn('controlPanel', 'sortAsc') });
+		this.sortDirectionSelect.value = this.filters.sortDirection;
+		this.sortDirectionSelect.addEventListener('change', () => {
+			this.filters.sortDirection = this.sortDirectionSelect.value as PanelFilters['sortDirection'];
 			this.onFiltersChange(this.filters);
 			this.applyFilters();
 		});
@@ -458,7 +493,53 @@ export class ControlPanel extends Modal {
 			);
 		}
 
-		return result;
+		return this.sortCollections(result);
+	}
+
+	private sortCollections(collections: UserCollection[]): UserCollection[] {
+		const { sortBy, sortDirection } = this.filters;
+		if (sortBy === 'default') {
+			return collections;
+		}
+
+		const direction = sortDirection === 'asc' ? 1 : -1;
+		return [...collections].sort((left, right) => {
+			let comparison = 0;
+
+			switch (sortBy) {
+				case 'time':
+					comparison = compareTime(left.updated_at, right.updated_at);
+					break;
+				case 'title':
+					comparison = compareTitle(
+						left.subject.name_cn || left.subject.name || '',
+						right.subject.name_cn || right.subject.name || ''
+					);
+					break;
+				case 'status':
+					comparison = left.type - right.type;
+					break;
+				case 'rating':
+					comparison = compareNumber(left.rate, right.rate);
+					if (comparison === 0) {
+						comparison = compareNumber(left.subject.score, right.subject.score);
+					}
+					break;
+			}
+
+			if (comparison === 0) {
+				comparison = compareTitle(
+					left.subject.name_cn || left.subject.name || '',
+					right.subject.name_cn || right.subject.name || ''
+				);
+			}
+
+			if (comparison === 0) {
+				comparison = left.subject_id - right.subject_id;
+			}
+
+			return comparison * direction;
+		});
 	}
 
 	/**
@@ -1352,6 +1433,24 @@ export class ControlPanel extends Modal {
 		this.contentEl.addEventListener('touchmove', this.touchMoveHandler, { passive: true });
 		this.contentEl.addEventListener('touchend', this.touchEndHandler, { passive: true });
 	}
+}
+
+function compareTime(left: string | undefined, right: string | undefined): number {
+	return parseDateTime(left) - parseDateTime(right);
+}
+
+function compareTitle(left: string, right: string): number {
+	return left.localeCompare(right, 'zh-CN', { numeric: true, sensitivity: 'base' });
+}
+
+function compareNumber(left: number, right: number): number {
+	return left - right;
+}
+
+function parseDateTime(value: string | undefined): number {
+	if (!value) return 0;
+	const time = Date.parse(value);
+	return Number.isFinite(time) ? time : 0;
 }
 
 /**
