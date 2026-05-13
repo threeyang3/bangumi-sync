@@ -304,7 +304,7 @@ export class UserDataExtractor {
 		const commentLines: string[] = [];
 		for (let i = headerIndex + 1; i < lines.length; i++) {
 			const line = lines[i];
-			if (/^> \[!/.test(line) || /^##\s+/.test(line)) {
+			if (this.isCalloutHeader(line) || /^##\s+/.test(line)) {
 				break;
 			}
 			if (line.startsWith('> ')) {
@@ -320,5 +320,9 @@ export class UserDataExtractor {
 
 		const comment = commentLines.join('\n').trim();
 		return comment || null;
+	}
+
+	private isCalloutHeader(line: string): boolean {
+		return /^> \[![^\]]+\]/.test(line);
 	}
 }

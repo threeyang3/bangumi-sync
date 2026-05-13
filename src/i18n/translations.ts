@@ -419,6 +419,7 @@ export interface TranslationStrings {
 		keepImport: string;
 		allLocal: string;
 		allImport: string;
+		allSmartMerge: string;
 		allSkip: string;
 		executeImport: string;
 		skip: string;
@@ -1014,6 +1015,7 @@ const en: TranslationStrings = {
 		keepImport: 'Keep import',
 		allLocal: 'All local',
 		allImport: 'All import',
+		allSmartMerge: 'All smart merge',
 		allSkip: 'All skip',
 		executeImport: 'Execute import',
 		skip: 'Skip',
@@ -1598,6 +1600,7 @@ const zhCN: TranslationStrings = {
 		keepImport: '保留导入',
 		allLocal: '全部本地',
 		allImport: '全部导入',
+		allSmartMerge: '全部智能合并',
 		allSkip: '全部跳过',
 		executeImport: '执行导入',
 		skip: '跳过',

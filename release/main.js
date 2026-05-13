@@ -692,6 +692,7 @@ var en = {
     keepImport: "Keep import",
     allLocal: "All local",
     allImport: "All import",
+    allSmartMerge: "All smart merge",
     allSkip: "All skip",
     executeImport: "Execute import",
     skip: "Skip",
@@ -1252,6 +1253,7 @@ var zhCN = {
     keepImport: "\u4FDD\u7559\u5BFC\u5165",
     allLocal: "\u5168\u90E8\u672C\u5730",
     allImport: "\u5168\u90E8\u5BFC\u5165",
+    allSmartMerge: "\u5168\u90E8\u667A\u80FD\u5408\u5E76",
     allSkip: "\u5168\u90E8\u8DF3\u8FC7",
     executeImport: "\u6267\u884C\u5BFC\u5165",
     skip: "\u8DF3\u8FC7",
@@ -4335,6 +4337,9 @@ ${content}`;
     let endIndex = headerIndex + 1;
     while (endIndex < lines.length) {
       const line = lines[endIndex];
+      if (this.isCalloutHeader(line)) {
+        break;
+      }
       if (/^> ?/.test(line)) {
         endIndex++;
       } else if (line.trim() === "") {
@@ -4342,7 +4347,7 @@ ${content}`;
         while (nextNonEmpty < lines.length && lines[nextNonEmpty].trim() === "") {
           nextNonEmpty++;
         }
-        if (nextNonEmpty < lines.length && /^> ?/.test(lines[nextNonEmpty])) {
+        if (nextNonEmpty < lines.length && /^> ?/.test(lines[nextNonEmpty]) && !this.isCalloutHeader(lines[nextNonEmpty])) {
           endIndex = nextNonEmpty + 1;
         } else {
           break;
@@ -4361,6 +4366,9 @@ ${content}`;
       end,
       lines: lines.slice(headerIndex, endIndex)
     };
+  }
+  isCalloutHeader(line) {
+    return /^> \[![^\]]+\]/.test(line);
   }
   /**
    * 从 frontmatter 中提取标签
@@ -5708,7 +5716,7 @@ var UserDataExtractor = class {
     const commentLines = [];
     for (let i = headerIndex + 1; i < lines.length; i++) {
       const line = lines[i];
-      if (/^> \[!/.test(line) || /^##\s+/.test(line)) {
+      if (this.isCalloutHeader(line) || /^##\s+/.test(line)) {
         break;
       }
       if (line.startsWith("> ")) {
@@ -5723,6 +5731,9 @@ var UserDataExtractor = class {
     }
     const comment = commentLines.join("\n").trim();
     return comment || null;
+  }
+  isCalloutHeader(line) {
+    return /^> \[![^\]]+\]/.test(line);
   }
 };
 
@@ -6783,16 +6794,10 @@ var UserDataImporter = class {
     if (localArray && importArray) {
       return Array.from(/* @__PURE__ */ new Set([...localArray, ...importArray]));
     }
-    if (fieldName === "\u77ED\u8BC4" && typeof localValue === "string" && typeof importValue === "string") {
+    if (typeof localValue === "string" && typeof importValue === "string") {
       return this.mergeSectionValues(localValue, importValue);
     }
-    if (typeof localValue === "object" && localValue && typeof importValue === "object" && importValue) {
-      return {
-        ...localValue,
-        ...importValue
-      };
-    }
-    return localValue;
+    return this.normalizeForWrite(importValue, fieldName);
   }
   mergeSectionValues(localValue, importValue) {
     const localText = (localValue != null ? localValue : "").trim();
@@ -6803,10 +6808,6 @@ var UserDataImporter = class {
       return localText;
     if (localText === importText)
       return localText;
-    if (localText.includes(importText))
-      return localText;
-    if (importText.includes(localText))
-      return importText;
     return `${localText}
 
 ---
@@ -7397,6 +7398,9 @@ var ImportCompareModal = class extends import_obsidian10.Modal {
     });
     actionBar.createEl("button", { text: tn("userData", "allImport") }, (btn) => {
       btn.addEventListener("click", () => this.batchDecision("import"));
+    });
+    actionBar.createEl("button", { text: tn("userData", "allSmartMerge") }, (btn) => {
+      btn.addEventListener("click", () => this.batchDecision("merge"));
     });
     actionBar.createEl("button", { text: tn("userData", "allSkip") }, (btn) => {
       btn.addEventListener("click", () => this.batchDecision("skip"));

@@ -674,6 +674,9 @@ export class ImportCompareModal extends Modal {
         actionBar.createEl('button', { text: tn('userData', 'allImport') }, btn => {
             btn.addEventListener('click', () => this.batchDecision('import'));
         });
+        actionBar.createEl('button', { text: tn('userData', 'allSmartMerge') }, btn => {
+            btn.addEventListener('click', () => this.batchDecision('merge'));
+        });
         actionBar.createEl('button', { text: tn('userData', 'allSkip') }, btn => {
             btn.addEventListener('click', () => this.batchDecision('skip'));
         });

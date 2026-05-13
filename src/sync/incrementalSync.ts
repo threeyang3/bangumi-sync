@@ -596,6 +596,9 @@ export class IncrementalSync {
 		let endIndex = headerIndex + 1;
 		while (endIndex < lines.length) {
 			const line = lines[endIndex];
+			if (this.isCalloutHeader(line)) {
+				break;
+			}
 			if (/^> ?/.test(line)) {
 				endIndex++;
 			} else if (line.trim() === '') {
@@ -604,7 +607,11 @@ export class IncrementalSync {
 				while (nextNonEmpty < lines.length && lines[nextNonEmpty].trim() === '') {
 					nextNonEmpty++;
 				}
-				if (nextNonEmpty < lines.length && /^> ?/.test(lines[nextNonEmpty])) {
+				if (
+					nextNonEmpty < lines.length
+					&& /^> ?/.test(lines[nextNonEmpty])
+					&& !this.isCalloutHeader(lines[nextNonEmpty])
+				) {
 					endIndex = nextNonEmpty + 1;
 				} else {
 					break;
@@ -626,6 +633,10 @@ export class IncrementalSync {
 			end,
 			lines: lines.slice(headerIndex, endIndex),
 		};
+	}
+
+	private isCalloutHeader(line: string): boolean {
+		return /^> \[![^\]]+\]/.test(line);
 	}
 
 	/**

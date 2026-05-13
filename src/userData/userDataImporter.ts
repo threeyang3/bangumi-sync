@@ -1004,18 +1004,11 @@ export class UserDataImporter {
 			return Array.from(new Set([...localArray, ...importArray]));
 		}
 
-		if (fieldName === '短评' && typeof localValue === 'string' && typeof importValue === 'string') {
+		if (typeof localValue === 'string' && typeof importValue === 'string') {
 			return this.mergeSectionValues(localValue, importValue);
 		}
 
-		if (typeof localValue === 'object' && localValue && typeof importValue === 'object' && importValue) {
-			return {
-				...(localValue as Record<string, unknown>),
-				...(importValue as Record<string, unknown>),
-			};
-		}
-
-		return localValue;
+		return this.normalizeForWrite(importValue, fieldName);
 	}
 
 	private mergeSectionValues(localValue: string | null | undefined, importValue: string | undefined): string {
@@ -1024,8 +1017,6 @@ export class UserDataImporter {
 		if (!localText) return importText;
 		if (!importText) return localText;
 		if (localText === importText) return localText;
-		if (localText.includes(importText)) return localText;
-		if (importText.includes(localText)) return importText;
 		return `${localText}\n\n---\n\n${importText}`;
 	}
 
