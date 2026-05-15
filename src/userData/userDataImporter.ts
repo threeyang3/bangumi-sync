@@ -148,12 +148,13 @@ export class UserDataImporter {
 	): Set<string> {
 		const propertyNames = new Set<string>();
 		const parsedFiles = this.parseImportFiles(files);
+		const dataTypes = options?.dataTypes ?? [UserDataType.ALL];
 
 		for (const file of parsedFiles.files) {
 			for (const userData of Object.values(file.data.items ?? {})) {
 				const normalized = this.normalizeImportItem(userData, options);
 				for (const key of Object.keys(normalized.frontmatter)) {
-					if (isCustomPropertyField(key)) {
+					if (this.isPropertyManageField(key, dataTypes)) {
 						propertyNames.add(key);
 					}
 				}
@@ -839,6 +840,16 @@ export class UserDataImporter {
 
 	private isImportManagedUserField(fieldName: string): boolean {
 		return isUserPropertyField(fieldName);
+	}
+
+	private isPropertyManageField(fieldName: string, dataTypes: UserDataType[]): boolean {
+		if (hasUserDataType(dataTypes, UserDataType.USER_PROPERTIES) && isUserPropertyField(fieldName)) {
+			return true;
+		}
+		if (hasUserDataType(dataTypes, UserDataType.CUSTOM_PROPERTIES) && isCustomPropertyField(fieldName)) {
+			return true;
+		}
+		return false;
 	}
 
 	private mapLegacyRatingField(identifier: SubjectIdentifier, legacyKey: string): string | null {

@@ -4,6 +4,7 @@
 
 import { SubjectType, CollectionType } from '../../common/api/types';
 import { ImageQuality } from '../../common/file/imageHandler';
+import type { TemplateKey } from '../../common/template/templateRegistry';
 import { DataProtectionSettings, DEFAULT_DATA_PROTECTION_SETTINGS } from '../userData/types';
 
 /**
@@ -73,6 +74,7 @@ export interface BangumiPluginSettings {
 	albumTemplateConfig: TemplateConfig;
 	musicTemplateConfig: TemplateConfig;
 	realTemplateConfig: TemplateConfig;
+	templateConfigByCategory?: Partial<Record<string, TemplateConfig>>;
 
 	// 同步选项
 	defaultSubjectTypes: SubjectType[];
@@ -100,6 +102,8 @@ export interface BangumiPluginSettings {
 	// 各类型独立路径模板
 	pathTemplateByType?: Record<string, string>;  // key: book/anime/music/game/real
 }
+
+export type { TemplateKey };
 
 /**
  * 默认模板配置

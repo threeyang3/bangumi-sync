@@ -1,3 +1,5 @@
+import { resolveTemplateTarget, TemplateKey } from './templateRegistry';
+
 /**
  * 默认模板定义
  *
@@ -847,6 +849,42 @@ export const REAL_TEMPLATE = REAL_TEMPLATE_AUTHOR;
 
 // ==================== 辅助函数 ====================
 
+const STANDARD_TEMPLATE_MAP: Record<TemplateKey, string> = {
+	animeTemplateConfig: ANIME_TEMPLATE_STANDARD,
+	novelTemplateConfig: NOVEL_TEMPLATE_STANDARD,
+	comicTemplateConfig: COMIC_TEMPLATE_STANDARD,
+	gameTemplateConfig: GAME_TEMPLATE_STANDARD,
+	albumTemplateConfig: ALBUM_TEMPLATE_STANDARD,
+	musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
+	realTemplateConfig: REAL_TEMPLATE_STANDARD,
+};
+
+const AUTHOR_TEMPLATE_MAP: Record<TemplateKey, string> = {
+	animeTemplateConfig: ANIME_TEMPLATE_AUTHOR,
+	novelTemplateConfig: NOVEL_TEMPLATE_AUTHOR,
+	comicTemplateConfig: COMIC_TEMPLATE_AUTHOR,
+	gameTemplateConfig: GAME_TEMPLATE_AUTHOR,
+	albumTemplateConfig: ALBUM_TEMPLATE_AUTHOR,
+	musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
+	realTemplateConfig: REAL_TEMPLATE_AUTHOR,
+};
+
+const TYPE_LABEL_MAP: Record<TemplateKey, string> = {
+	animeTemplateConfig: 'Anime',
+	novelTemplateConfig: 'Novel',
+	comicTemplateConfig: 'Comic',
+	gameTemplateConfig: 'Game',
+	albumTemplateConfig: 'Album',
+	musicTemplateConfig: 'Music',
+	realTemplateConfig: 'Real',
+};
+
+export function getBuiltInTemplateByKey(templateKey: TemplateKey, useAuthorTemplate: boolean = true): string {
+	return useAuthorTemplate
+		? AUTHOR_TEMPLATE_MAP[templateKey]
+		: STANDARD_TEMPLATE_MAP[templateKey];
+}
+
 /**
  * 根据条目类型获取默认模板
  * @param subjectType 条目类型
@@ -854,64 +892,29 @@ export const REAL_TEMPLATE = REAL_TEMPLATE_AUTHOR;
  * @param useAuthorTemplate 是否使用作者自用模板
  */
 export function getDefaultTemplate(subjectType: number, category?: string, useAuthorTemplate: boolean = true): string {
-	// 首先检查细分类别
-	if (category) {
-		if (category.includes('小说')) {
-			return useAuthorTemplate ? NOVEL_TEMPLATE_AUTHOR : NOVEL_TEMPLATE_STANDARD;
-		}
-		if (category.includes('漫画')) {
-			return useAuthorTemplate ? COMIC_TEMPLATE_AUTHOR : COMIC_TEMPLATE_STANDARD;
-		}
-		if (category.includes('画集') || category.includes('画本') || category.includes('绘本') || category.includes('公式书') || category.includes('写真')) {
-			return useAuthorTemplate ? ALBUM_TEMPLATE_AUTHOR : ALBUM_TEMPLATE_STANDARD;
-		}
-	}
-
-	// 根据条目类型返回
-	switch (subjectType) {
-		case 1: // Book
-			return useAuthorTemplate ? NOVEL_TEMPLATE_AUTHOR : NOVEL_TEMPLATE_STANDARD;
-		case 2: // Anime
-			return useAuthorTemplate ? ANIME_TEMPLATE_AUTHOR : ANIME_TEMPLATE_STANDARD;
-		case 3: // Music
-			return MUSIC_TEMPLATE_STANDARD;
-		case 4: // Game
-			return useAuthorTemplate ? GAME_TEMPLATE_AUTHOR : GAME_TEMPLATE_STANDARD;
-		case 6: // Real
-			return useAuthorTemplate ? REAL_TEMPLATE_AUTHOR : REAL_TEMPLATE_STANDARD;
-		default:
-			return useAuthorTemplate ? NOVEL_TEMPLATE_AUTHOR : NOVEL_TEMPLATE_STANDARD;
-	}
+	const { templateKey } = resolveTemplateTarget(subjectType, category);
+	return getBuiltInTemplateByKey(templateKey, useAuthorTemplate);
 }
 
 /**
  * 获取作品大类标签
  */
 export function getTypeLabel(subjectType: number, category?: string): string {
-	// 首先检查细分类别
-	if (category) {
-		if (category.includes('小说')) {
-			return 'Novel';
-		}
-		if (category.includes('漫画')) {
-			return 'Comic';
-		}
-		if (category.includes('画集') || category.includes('画本') || category.includes('绘本') || category.includes('公式书') || category.includes('写真')) {
-			return 'Album';
-		}
+	const { categoryOption } = resolveTemplateTarget(subjectType, category);
+	if (categoryOption) {
+		return TYPE_LABEL_MAP[categoryOption.templateKey];
 	}
 
-	// 根据条目类型返回
 	switch (subjectType) {
-		case 1: // Book
+		case 1:
 			return 'Book';
-		case 2: // Anime
+		case 2:
 			return 'Anime';
-		case 3: // Music
+		case 3:
 			return 'Music';
-		case 4: // Game
+		case 4:
 			return 'Game';
-		case 6: // Real
+		case 6:
 			return 'Real';
 		default:
 			return 'Unknown';

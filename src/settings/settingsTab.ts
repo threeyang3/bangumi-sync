@@ -5,28 +5,15 @@
 import { App, PluginSettingTab, Setting, Notice, Modal, TextAreaComponent, TFile, FuzzySuggestModal, Plugin } from 'obsidian';
 import { BangumiPluginSettings, TemplateConfig, TemplateSource, CoverLinkType } from './settings';
 import { SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName } from '../../common/api/types';
-import { tn, t } from '../i18n';
+import { tn, t, getLocale } from '../i18n';
 import {
-	ANIME_TEMPLATE,
-	NOVEL_TEMPLATE,
-	COMIC_TEMPLATE,
-	GAME_TEMPLATE,
-	ALBUM_TEMPLATE,
-	MUSIC_TEMPLATE,
-	REAL_TEMPLATE,
-	ANIME_TEMPLATE_STANDARD,
-	NOVEL_TEMPLATE_STANDARD,
-	COMIC_TEMPLATE_STANDARD,
-	GAME_TEMPLATE_STANDARD,
-	ALBUM_TEMPLATE_STANDARD,
-	MUSIC_TEMPLATE_STANDARD,
-	REAL_TEMPLATE_STANDARD,
+	getBuiltInTemplateByKey,
 } from '../../common/template/defaultTemplates';
-
-/**
- * 模板类型键名
- */
-type TemplateKey = 'animeTemplateConfig' | 'novelTemplateConfig' | 'comicTemplateConfig' | 'gameTemplateConfig' | 'albumTemplateConfig' | 'musicTemplateConfig' | 'realTemplateConfig';
+import {
+	TEMPLATE_CATEGORY_OPTIONS,
+	TemplateCategoryOption,
+	TemplateKey,
+} from '../../common/template/templateRegistry';
 
 /**
  * 模板类型配置
@@ -34,17 +21,16 @@ type TemplateKey = 'animeTemplateConfig' | 'novelTemplateConfig' | 'comicTemplat
 interface TemplateTypeOption {
 	key: TemplateKey;
 	nameKey: keyof import('../i18n/translations').TranslationStrings['settings'];
-	defaultTemplate: string;
 }
 
 const TEMPLATE_TYPES: TemplateTypeOption[] = [
-	{ key: 'animeTemplateConfig', nameKey: 'animeTemplate', defaultTemplate: ANIME_TEMPLATE },
-	{ key: 'novelTemplateConfig', nameKey: 'novelTemplate', defaultTemplate: NOVEL_TEMPLATE },
-	{ key: 'comicTemplateConfig', nameKey: 'comicTemplate', defaultTemplate: COMIC_TEMPLATE },
-	{ key: 'gameTemplateConfig', nameKey: 'gameTemplate', defaultTemplate: GAME_TEMPLATE },
-	{ key: 'albumTemplateConfig', nameKey: 'albumTemplate', defaultTemplate: ALBUM_TEMPLATE },
-	{ key: 'musicTemplateConfig', nameKey: 'musicTemplate', defaultTemplate: MUSIC_TEMPLATE },
-	{ key: 'realTemplateConfig', nameKey: 'realTemplate', defaultTemplate: REAL_TEMPLATE },
+	{ key: 'animeTemplateConfig', nameKey: 'animeTemplate' },
+	{ key: 'novelTemplateConfig', nameKey: 'novelTemplate' },
+	{ key: 'comicTemplateConfig', nameKey: 'comicTemplate' },
+	{ key: 'gameTemplateConfig', nameKey: 'gameTemplate' },
+	{ key: 'albumTemplateConfig', nameKey: 'albumTemplate' },
+	{ key: 'musicTemplateConfig', nameKey: 'musicTemplate' },
+	{ key: 'realTemplateConfig', nameKey: 'realTemplate' },
 ];
 
 /**
@@ -345,6 +331,19 @@ export class BangumiSettingTab extends PluginSettingTab {
 		// 各类型模板设置
 		TEMPLATE_TYPES.forEach(templateType => {
 			this.addTemplateFileSetting(containerEl, templateType);
+		});
+
+		const categoryHeading = getLocale() === 'zh-CN' ? '细分类别模板' : 'Category templates';
+		const categoryDesc = getLocale() === 'zh-CN'
+			? '可以为每一种 category 单独指定模板来源；未单独设置时，继承所属大类模板。'
+			: 'Each category can override its template source. Unconfigured categories inherit their parent template.';
+		new Setting(containerEl)
+			.setName(categoryHeading)
+			.setDesc(categoryDesc)
+			.setHeading();
+
+		TEMPLATE_CATEGORY_OPTIONS.forEach(categoryOption => {
+			this.addCategoryTemplateSetting(containerEl, categoryOption);
 		});
 
 		// 导出模板按钮
@@ -728,19 +727,19 @@ export class BangumiSettingTab extends PluginSettingTab {
 					button
 						.setButtonText(config.filePath || tn('settings', 'selectFile'))
 						.onClick(() => {
-							this.openFileSuggest(templateType);
+							this.openFileSuggestForBase(templateType);
 						});
 				} else if (config.source === 'custom') {
 					button
 						.setButtonText(tn('settings', 'edit'))
 						.onClick(() => {
-							this.openTemplateEditor(templateType);
+							this.openTemplateEditorForBase(templateType);
 						});
 				} else {
 					button
 						.setButtonText(tn('settings', 'preview'))
 						.onClick(() => {
-							this.openTemplatePreview(templateType);
+							this.openTemplatePreviewForBase(templateType);
 						});
 				}
 			})
@@ -749,7 +748,78 @@ export class BangumiSettingTab extends PluginSettingTab {
 					.setButtonText(tn('settings', 'copy'))
 					.setTooltip(tn('settings', 'copyTooltip'))
 					.onClick(() => {
-						void this.copyCurrentTemplate(templateType);
+						void this.copyCurrentBaseTemplate(templateType);
+					});
+			});
+	}
+
+	private addCategoryTemplateSetting(containerEl: HTMLElement, categoryOption: TemplateCategoryOption): void {
+		const config = this.settings.templateConfigByCategory?.[categoryOption.key];
+		const currentMode = config?.source ?? 'inherit';
+		const inheritLabel = getLocale() === 'zh-CN' ? '继承大类模板' : 'Inherit parent template';
+
+		new Setting(containerEl)
+			.setName(categoryOption.label)
+			.setDesc(this.getCategoryTemplateSourceDesc(categoryOption, config))
+			.addDropdown(dropdown => {
+				dropdown
+					.addOption('inherit', inheritLabel)
+					.addOption('standard', tn('settings', 'standardTemplate'))
+					.addOption('author', tn('settings', 'authorTemplate'))
+					.addOption('file', tn('settings', 'fromFile'))
+					.addOption('custom', tn('settings', 'customContent'))
+					.setValue(currentMode)
+					.onChange(async (value: string) => {
+						if (value === 'inherit') {
+							if (this.settings.templateConfigByCategory) {
+								delete this.settings.templateConfigByCategory[categoryOption.key];
+								if (Object.keys(this.settings.templateConfigByCategory).length === 0) {
+									this.settings.templateConfigByCategory = undefined;
+								}
+							}
+						} else {
+							const nextConfig: TemplateConfig = { source: value as TemplateSource };
+							if (value === 'file' && config?.filePath) {
+								nextConfig.filePath = config.filePath;
+							} else if (value === 'custom' && config?.customContent) {
+								nextConfig.customContent = config.customContent;
+							}
+							if (!this.settings.templateConfigByCategory) {
+								this.settings.templateConfigByCategory = {};
+							}
+							this.settings.templateConfigByCategory[categoryOption.key] = nextConfig;
+						}
+						await this.onSave();
+						this.display();
+					});
+			})
+			.addButton(button => {
+				if (currentMode === 'file') {
+					button
+						.setButtonText(config?.filePath || tn('settings', 'selectFile'))
+						.onClick(() => {
+							this.openFileSuggestForCategory(categoryOption);
+						});
+				} else if (currentMode === 'custom') {
+					button
+						.setButtonText(tn('settings', 'edit'))
+						.onClick(() => {
+							this.openTemplateEditorForCategory(categoryOption);
+						});
+				} else {
+					button
+						.setButtonText(tn('settings', 'preview'))
+						.onClick(() => {
+							this.openTemplatePreviewForCategory(categoryOption);
+						});
+				}
+			})
+			.addButton(button => {
+				button
+					.setButtonText(tn('settings', 'copy'))
+					.setTooltip(tn('settings', 'copyTooltip'))
+					.onClick(() => {
+						void this.copyCurrentCategoryTemplate(categoryOption);
 					});
 			});
 	}
@@ -757,42 +827,9 @@ export class BangumiSettingTab extends PluginSettingTab {
 	/**
 	 * 复制当前模板到自定义内容
 	 */
-	private async copyCurrentTemplate(templateType: TemplateTypeOption): Promise<void> {
+	private async copyCurrentBaseTemplate(templateType: TemplateTypeOption): Promise<void> {
 		const config = this.settings[templateType.key];
-		let templateContent: string;
-
-		switch (config.source) {
-			case 'standard':
-				templateContent = this.getStandardTemplate(templateType.key);
-				break;
-			case 'author':
-				templateContent = templateType.defaultTemplate;
-				break;
-			case 'file':
-				if (config.filePath) {
-					try {
-						const file = this.app.vault.getAbstractFileByPath(config.filePath);
-						if (file instanceof TFile) {
-							templateContent = await this.app.vault.read(file);
-						} else {
-							new Notice(tn('notices', 'templateFileNotFound'));
-							return;
-						}
-					} catch {
-						new Notice(tn('notices', 'readTemplateFailed'));
-						return;
-					}
-				} else {
-					new Notice(tn('notices', 'selectTemplateFirst'));
-					return;
-				}
-				break;
-			case 'custom':
-				templateContent = config.customContent || templateType.defaultTemplate;
-				break;
-			default:
-				templateContent = templateType.defaultTemplate;
-		}
+		const templateContent = await this.resolveTemplateContent(config, templateType.key);
 
 		const newConfig: TemplateConfig = {
 			source: 'custom',
@@ -801,6 +838,20 @@ export class BangumiSettingTab extends PluginSettingTab {
 		this.settings[templateType.key] = newConfig;
 		await this.onSave();
 
+		new Notice(tn('notices', 'copiedToCustom'));
+		this.display();
+	}
+
+	private async copyCurrentCategoryTemplate(categoryOption: TemplateCategoryOption): Promise<void> {
+		const templateContent = await this.getTemplateContentForCategory(categoryOption);
+		if (!this.settings.templateConfigByCategory) {
+			this.settings.templateConfigByCategory = {};
+		}
+		this.settings.templateConfigByCategory[categoryOption.key] = {
+			source: 'custom',
+			customContent: templateContent,
+		};
+		await this.onSave();
 		new Notice(tn('notices', 'copiedToCustom'));
 		this.display();
 	}
@@ -869,6 +920,21 @@ export class BangumiSettingTab extends PluginSettingTab {
 				}
 			}
 
+			for (const categoryOption of TEMPLATE_CATEGORY_OPTIONS) {
+				const content = await this.getTemplateContentForCategory(categoryOption);
+				const fileName = `${categoryOption.key}-template.md`;
+				const filePath = `${normalizedPath}/${fileName}`;
+
+				if (await this.app.vault.adapter.exists(filePath)) {
+					const file = this.app.vault.getAbstractFileByPath(filePath);
+					if (file instanceof TFile) {
+						await this.app.vault.process(file, () => content);
+					}
+				} else {
+					await this.app.vault.create(filePath, content);
+				}
+			}
+
 			new Notice(tn('notices', 'exportTemplatesSuccess'));
 		} catch (error) {
 			console.error('[Bangumi Sync] Export templates failed:', error);
@@ -880,42 +946,15 @@ export class BangumiSettingTab extends PluginSettingTab {
 	 * 获取模板内容
 	 */
 	private async getTemplateContent(templateType: TemplateTypeOption): Promise<string> {
-		const config = this.settings[templateType.key];
-
-		switch (config.source) {
-			case 'standard':
-				return this.getStandardTemplate(templateType.key);
-			case 'author':
-				return templateType.defaultTemplate;
-			case 'file':
-				if (config.filePath) {
-					const file = this.app.vault.getAbstractFileByPath(config.filePath);
-					if (file instanceof TFile) {
-						return await this.app.vault.read(file);
-					}
-				}
-				return templateType.defaultTemplate;
-			case 'custom':
-				return config.customContent || templateType.defaultTemplate;
-			default:
-				return templateType.defaultTemplate;
-		}
+		return this.resolveTemplateContent(this.settings[templateType.key], templateType.key);
 	}
 
-	/**
-	 * 获取标准模板内容
-	 */
-	private getStandardTemplate(key: TemplateKey): string {
-		const standardTemplates: Record<TemplateKey, string> = {
-			animeTemplateConfig: ANIME_TEMPLATE_STANDARD,
-			novelTemplateConfig: NOVEL_TEMPLATE_STANDARD,
-			comicTemplateConfig: COMIC_TEMPLATE_STANDARD,
-			gameTemplateConfig: GAME_TEMPLATE_STANDARD,
-			albumTemplateConfig: ALBUM_TEMPLATE_STANDARD,
-			musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
-			realTemplateConfig: REAL_TEMPLATE_STANDARD,
-		};
-		return standardTemplates[key];
+	private async getTemplateContentForCategory(categoryOption: TemplateCategoryOption): Promise<string> {
+		const config = this.settings.templateConfigByCategory?.[categoryOption.key];
+		if (!config) {
+			return this.resolveTemplateContent(this.settings[categoryOption.templateKey], categoryOption.templateKey);
+		}
+		return this.resolveTemplateContent(config, categoryOption.templateKey);
 	}
 
 	/**
@@ -936,12 +975,55 @@ export class BangumiSettingTab extends PluginSettingTab {
 		}
 	}
 
+	private getCategoryTemplateSourceDesc(categoryOption: TemplateCategoryOption, config?: TemplateConfig): string {
+		if (!config) {
+			const parentLabel = tn('settings', this.getTemplateNameKey(categoryOption.templateKey));
+			return getLocale() === 'zh-CN'
+				? `未单独设置，当前继承：${parentLabel}`
+				: `Not overridden. Currently inherits: ${parentLabel}`;
+		}
+		return this.getTemplateSourceDesc(config);
+	}
+
+	private getTemplateNameKey(templateKey: TemplateKey): TemplateTypeOption['nameKey'] {
+		return TEMPLATE_TYPES.find(item => item.key === templateKey)?.nameKey ?? 'novelTemplate';
+	}
+
+	private async resolveTemplateContent(config: TemplateConfig, defaultTemplateKey: TemplateKey): Promise<string> {
+		switch (config.source) {
+			case 'standard':
+				return getBuiltInTemplateByKey(defaultTemplateKey, false);
+			case 'author':
+				return getBuiltInTemplateByKey(defaultTemplateKey, true);
+			case 'file':
+				if (config.filePath) {
+					const file = this.app.vault.getAbstractFileByPath(config.filePath);
+					if (file instanceof TFile) {
+						try {
+							return await this.app.vault.read(file);
+						} catch {
+							new Notice(tn('notices', 'readTemplateFailed'));
+						}
+					} else {
+						new Notice(tn('notices', 'templateFileNotFound'));
+					}
+				} else {
+					new Notice(tn('notices', 'selectTemplateFirst'));
+				}
+				return getBuiltInTemplateByKey(defaultTemplateKey, true);
+			case 'custom':
+				return config.customContent || getBuiltInTemplateByKey(defaultTemplateKey, true);
+			default:
+				return getBuiltInTemplateByKey(defaultTemplateKey, true);
+		}
+	}
+
 	private openExternalLink(url: string): void {
 		const externalWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
 		externalWindow?.open(url, '_blank', 'noopener,noreferrer');
 	}
 
-	private openFileSuggest(templateType: TemplateTypeOption): void {
+	private openFileSuggestForBase(templateType: TemplateTypeOption): void {
 		const modal = new FileSuggestModal(
 			this.app,
 			(file: TFile) => {
@@ -957,9 +1039,30 @@ export class BangumiSettingTab extends PluginSettingTab {
 		modal.open();
 	}
 
-	private openTemplateEditor(templateType: TemplateTypeOption): void {
+	private openFileSuggestForCategory(categoryOption: TemplateCategoryOption): void {
+		const modal = new FileSuggestModal(
+			this.app,
+			(file: TFile) => {
+				void (async () => {
+					if (!this.settings.templateConfigByCategory) {
+						this.settings.templateConfigByCategory = {};
+					}
+					const nextConfig = this.settings.templateConfigByCategory[categoryOption.key] ?? { source: 'file' as const };
+					nextConfig.source = 'file';
+					nextConfig.filePath = file.path;
+					this.settings.templateConfigByCategory[categoryOption.key] = nextConfig;
+					await this.onSave();
+					new Notice(`${tn('notices', 'templateFileSelected')}: ${file.path}`);
+					this.display();
+				})();
+			}
+		);
+		modal.open();
+	}
+
+	private openTemplateEditorForBase(templateType: TemplateTypeOption): void {
 		const config = this.settings[templateType.key];
-		const initialContent = config.customContent || templateType.defaultTemplate;
+		const initialContent = config.customContent || getBuiltInTemplateByKey(templateType.key, true);
 
 		const modal = new TemplateEditorModal(
 			this.app,
@@ -974,15 +1077,49 @@ export class BangumiSettingTab extends PluginSettingTab {
 		modal.open();
 	}
 
-	private openTemplatePreview(templateType: TemplateTypeOption): void {
+	private openTemplateEditorForCategory(categoryOption: TemplateCategoryOption): void {
+		const config = this.settings.templateConfigByCategory?.[categoryOption.key];
+		const initialContent = config?.customContent || getBuiltInTemplateByKey(categoryOption.templateKey, true);
+
 		const modal = new TemplateEditorModal(
 			this.app,
-			templateType.defaultTemplate,
-			() => {
-				// Preview mode, no save
+			initialContent,
+			(newTemplate: string) => {
+				void (async () => {
+					if (!this.settings.templateConfigByCategory) {
+						this.settings.templateConfigByCategory = {};
+					}
+					this.settings.templateConfigByCategory[categoryOption.key] = {
+						source: 'custom',
+						customContent: newTemplate,
+					};
+					await this.onSave();
+				})();
 			}
 		);
 		modal.open();
+	}
+
+	private openTemplatePreviewForBase(templateType: TemplateTypeOption): void {
+		void (async () => {
+			const modal = new TemplateEditorModal(
+				this.app,
+				await this.getTemplateContent(templateType),
+				() => { /* Preview mode, no save */ }
+			);
+			modal.open();
+		})();
+	}
+
+	private openTemplatePreviewForCategory(categoryOption: TemplateCategoryOption): void {
+		void (async () => {
+			const modal = new TemplateEditorModal(
+				this.app,
+				await this.getTemplateContentForCategory(categoryOption),
+				() => { /* Preview mode, no save */ }
+			);
+			modal.open();
+		})();
 	}
 
 	private openNoteTemplateEditor(): void {

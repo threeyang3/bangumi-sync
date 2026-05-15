@@ -1503,6 +1503,75 @@ function tnFormat(category, subkey, params) {
   return text;
 }
 
+// common/template/templateRegistry.ts
+var TEMPLATE_CATEGORY_OPTIONS = [
+  { key: "anime-tv", label: "TV", category: "TV", templateKey: "animeTemplateConfig" },
+  { key: "anime-ova", label: "OVA", category: "OVA", templateKey: "animeTemplateConfig" },
+  { key: "anime-web", label: "WEB", category: "WEB", templateKey: "animeTemplateConfig" },
+  { key: "anime-movie", label: "\u5267\u573A\u7248", category: "\u5267\u573A\u7248", templateKey: "animeTemplateConfig" },
+  { key: "book-novel", label: "\u5C0F\u8BF4", category: "\u5C0F\u8BF4", templateKey: "novelTemplateConfig" },
+  { key: "book-light-novel", label: "\u8F7B\u5C0F\u8BF4", category: "\u8F7B\u5C0F\u8BF4", templateKey: "novelTemplateConfig" },
+  { key: "book-comic", label: "\u6F2B\u753B", category: "\u6F2B\u753B", templateKey: "comicTemplateConfig" },
+  { key: "book-album", label: "\u753B\u96C6", category: "\u753B\u96C6", templateKey: "albumTemplateConfig" },
+  { key: "book-picture-book", label: "\u753B\u672C", category: "\u753B\u672C", templateKey: "albumTemplateConfig" },
+  { key: "book-artbook", label: "\u753B\u518C", category: "\u753B\u518C", templateKey: "albumTemplateConfig" },
+  { key: "book-illustrated-book", label: "\u7ED8\u672C", category: "\u7ED8\u672C", templateKey: "albumTemplateConfig" },
+  { key: "book-guide-book", label: "\u516C\u5F0F\u4E66", category: "\u516C\u5F0F\u4E66", templateKey: "albumTemplateConfig" },
+  { key: "book-photo-book", label: "\u5199\u771F", category: "\u5199\u771F", templateKey: "albumTemplateConfig" },
+  { key: "game-main", label: "\u6E38\u620F", category: "\u6E38\u620F", templateKey: "gameTemplateConfig" },
+  { key: "game-expansion", label: "\u6269\u5C55\u5305", category: "\u6269\u5C55\u5305", templateKey: "gameTemplateConfig" },
+  { key: "music-main", label: "\u97F3\u4E50", category: "\u97F3\u4E50", templateKey: "musicTemplateConfig" },
+  { key: "real-movie", label: "\u7535\u5F71", category: "\u7535\u5F71", templateKey: "realTemplateConfig" },
+  { key: "real-jp-drama", label: "\u65E5\u5267", category: "\u65E5\u5267", templateKey: "realTemplateConfig" },
+  { key: "real-western-drama", label: "\u6B27\u7F8E\u5267", category: "\u6B27\u7F8E\u5267", templateKey: "realTemplateConfig" },
+  { key: "real-cn-drama", label: "\u534E\u8BED\u5267", category: "\u534E\u8BED\u5267", templateKey: "realTemplateConfig" },
+  { key: "real-tv", label: "\u7535\u89C6\u5267", category: "\u7535\u89C6\u5267", templateKey: "realTemplateConfig" },
+  { key: "real-stage", label: "\u6F14\u51FA", category: "\u6F14\u51FA", templateKey: "realTemplateConfig" },
+  { key: "real-variety", label: "\u7EFC\u827A", category: "\u7EFC\u827A", templateKey: "realTemplateConfig" },
+  { key: "real-other", label: "\u5176\u4ED6", category: "\u5176\u4ED6", templateKey: "realTemplateConfig" },
+  { key: "real-generic", label: "\u4E09\u6B21\u5143", category: "\u4E09\u6B21\u5143", templateKey: "realTemplateConfig" }
+];
+var TEMPLATE_CATEGORY_OPTIONS_BY_KEY = Object.fromEntries(
+  TEMPLATE_CATEGORY_OPTIONS.map((option) => [option.key, option])
+);
+var TEMPLATE_CATEGORY_OPTIONS_BY_CATEGORY = Object.fromEntries(
+  TEMPLATE_CATEGORY_OPTIONS.map((option) => [option.category, option])
+);
+function findTemplateCategoryOption(category) {
+  if (!category) {
+    return void 0;
+  }
+  return TEMPLATE_CATEGORY_OPTIONS_BY_CATEGORY[category];
+}
+function getTemplateKeyFallbackForSubjectType(subjectType) {
+  switch (subjectType) {
+    case 2 /* Anime */:
+      return "animeTemplateConfig";
+    case 3 /* Music */:
+      return "musicTemplateConfig";
+    case 4 /* Game */:
+      return "gameTemplateConfig";
+    case 6 /* Real */:
+      return "realTemplateConfig";
+    case 1 /* Book */:
+    default:
+      return "novelTemplateConfig";
+  }
+}
+function resolveTemplateTarget(subjectType, category) {
+  const categoryOption = findTemplateCategoryOption(category);
+  if (categoryOption) {
+    return { categoryOption, templateKey: categoryOption.templateKey };
+  }
+  return {
+    categoryOption: void 0,
+    templateKey: getTemplateKeyFallbackForSubjectType(subjectType)
+  };
+}
+function getTemplateFallbackLookupKey(templateKey) {
+  return `__template_key__:${templateKey}`;
+}
+
 // common/template/defaultTemplates.ts
 var ANIME_TEMPLATE_STANDARD = `---
 id: {{id}}
@@ -2291,51 +2360,44 @@ IMDb: "{{imdbId}}"
 
 ## \u611F\u60F3
 `;
-var ANIME_TEMPLATE = ANIME_TEMPLATE_AUTHOR;
-var NOVEL_TEMPLATE = NOVEL_TEMPLATE_AUTHOR;
-var COMIC_TEMPLATE = COMIC_TEMPLATE_AUTHOR;
-var GAME_TEMPLATE = GAME_TEMPLATE_AUTHOR;
-var ALBUM_TEMPLATE = ALBUM_TEMPLATE_AUTHOR;
-var MUSIC_TEMPLATE = MUSIC_TEMPLATE_STANDARD;
-var REAL_TEMPLATE = REAL_TEMPLATE_AUTHOR;
+var STANDARD_TEMPLATE_MAP = {
+  animeTemplateConfig: ANIME_TEMPLATE_STANDARD,
+  novelTemplateConfig: NOVEL_TEMPLATE_STANDARD,
+  comicTemplateConfig: COMIC_TEMPLATE_STANDARD,
+  gameTemplateConfig: GAME_TEMPLATE_STANDARD,
+  albumTemplateConfig: ALBUM_TEMPLATE_STANDARD,
+  musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
+  realTemplateConfig: REAL_TEMPLATE_STANDARD
+};
+var AUTHOR_TEMPLATE_MAP = {
+  animeTemplateConfig: ANIME_TEMPLATE_AUTHOR,
+  novelTemplateConfig: NOVEL_TEMPLATE_AUTHOR,
+  comicTemplateConfig: COMIC_TEMPLATE_AUTHOR,
+  gameTemplateConfig: GAME_TEMPLATE_AUTHOR,
+  albumTemplateConfig: ALBUM_TEMPLATE_AUTHOR,
+  musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
+  realTemplateConfig: REAL_TEMPLATE_AUTHOR
+};
+var TYPE_LABEL_MAP = {
+  animeTemplateConfig: "Anime",
+  novelTemplateConfig: "Novel",
+  comicTemplateConfig: "Comic",
+  gameTemplateConfig: "Game",
+  albumTemplateConfig: "Album",
+  musicTemplateConfig: "Music",
+  realTemplateConfig: "Real"
+};
+function getBuiltInTemplateByKey(templateKey, useAuthorTemplate = true) {
+  return useAuthorTemplate ? AUTHOR_TEMPLATE_MAP[templateKey] : STANDARD_TEMPLATE_MAP[templateKey];
+}
 function getDefaultTemplate(subjectType, category, useAuthorTemplate = true) {
-  if (category) {
-    if (category.includes("\u5C0F\u8BF4")) {
-      return useAuthorTemplate ? NOVEL_TEMPLATE_AUTHOR : NOVEL_TEMPLATE_STANDARD;
-    }
-    if (category.includes("\u6F2B\u753B")) {
-      return useAuthorTemplate ? COMIC_TEMPLATE_AUTHOR : COMIC_TEMPLATE_STANDARD;
-    }
-    if (category.includes("\u753B\u96C6") || category.includes("\u753B\u672C") || category.includes("\u7ED8\u672C") || category.includes("\u516C\u5F0F\u4E66") || category.includes("\u5199\u771F")) {
-      return useAuthorTemplate ? ALBUM_TEMPLATE_AUTHOR : ALBUM_TEMPLATE_STANDARD;
-    }
-  }
-  switch (subjectType) {
-    case 1:
-      return useAuthorTemplate ? NOVEL_TEMPLATE_AUTHOR : NOVEL_TEMPLATE_STANDARD;
-    case 2:
-      return useAuthorTemplate ? ANIME_TEMPLATE_AUTHOR : ANIME_TEMPLATE_STANDARD;
-    case 3:
-      return MUSIC_TEMPLATE_STANDARD;
-    case 4:
-      return useAuthorTemplate ? GAME_TEMPLATE_AUTHOR : GAME_TEMPLATE_STANDARD;
-    case 6:
-      return useAuthorTemplate ? REAL_TEMPLATE_AUTHOR : REAL_TEMPLATE_STANDARD;
-    default:
-      return useAuthorTemplate ? NOVEL_TEMPLATE_AUTHOR : NOVEL_TEMPLATE_STANDARD;
-  }
+  const { templateKey } = resolveTemplateTarget(subjectType, category);
+  return getBuiltInTemplateByKey(templateKey, useAuthorTemplate);
 }
 function getTypeLabel(subjectType, category) {
-  if (category) {
-    if (category.includes("\u5C0F\u8BF4")) {
-      return "Novel";
-    }
-    if (category.includes("\u6F2B\u753B")) {
-      return "Comic";
-    }
-    if (category.includes("\u753B\u96C6") || category.includes("\u753B\u672C") || category.includes("\u7ED8\u672C") || category.includes("\u516C\u5F0F\u4E66") || category.includes("\u5199\u771F")) {
-      return "Album";
-    }
+  const { categoryOption } = resolveTemplateTarget(subjectType, category);
+  if (categoryOption) {
+    return TYPE_LABEL_MAP[categoryOption.templateKey];
   }
   switch (subjectType) {
     case 1:
@@ -2355,13 +2417,13 @@ function getTypeLabel(subjectType, category) {
 
 // src/settings/settingsTab.ts
 var TEMPLATE_TYPES = [
-  { key: "animeTemplateConfig", nameKey: "animeTemplate", defaultTemplate: ANIME_TEMPLATE },
-  { key: "novelTemplateConfig", nameKey: "novelTemplate", defaultTemplate: NOVEL_TEMPLATE },
-  { key: "comicTemplateConfig", nameKey: "comicTemplate", defaultTemplate: COMIC_TEMPLATE },
-  { key: "gameTemplateConfig", nameKey: "gameTemplate", defaultTemplate: GAME_TEMPLATE },
-  { key: "albumTemplateConfig", nameKey: "albumTemplate", defaultTemplate: ALBUM_TEMPLATE },
-  { key: "musicTemplateConfig", nameKey: "musicTemplate", defaultTemplate: MUSIC_TEMPLATE },
-  { key: "realTemplateConfig", nameKey: "realTemplate", defaultTemplate: REAL_TEMPLATE }
+  { key: "animeTemplateConfig", nameKey: "animeTemplate" },
+  { key: "novelTemplateConfig", nameKey: "novelTemplate" },
+  { key: "comicTemplateConfig", nameKey: "comicTemplate" },
+  { key: "gameTemplateConfig", nameKey: "gameTemplate" },
+  { key: "albumTemplateConfig", nameKey: "albumTemplate" },
+  { key: "musicTemplateConfig", nameKey: "musicTemplate" },
+  { key: "realTemplateConfig", nameKey: "realTemplate" }
 ];
 var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
   constructor(app, plugin, settings, onSave) {
@@ -2539,6 +2601,12 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
     vars.forEach((v) => helpDiv.createEl("span", { text: v, cls: "bangumi-var-tag" }));
     TEMPLATE_TYPES.forEach((templateType) => {
       this.addTemplateFileSetting(containerEl, templateType);
+    });
+    const categoryHeading = getLocale() === "zh-CN" ? "\u7EC6\u5206\u7C7B\u522B\u6A21\u677F" : "Category templates";
+    const categoryDesc = getLocale() === "zh-CN" ? "\u53EF\u4EE5\u4E3A\u6BCF\u4E00\u79CD category \u5355\u72EC\u6307\u5B9A\u6A21\u677F\u6765\u6E90\uFF1B\u672A\u5355\u72EC\u8BBE\u7F6E\u65F6\uFF0C\u7EE7\u627F\u6240\u5C5E\u5927\u7C7B\u6A21\u677F\u3002" : "Each category can override its template source. Unconfigured categories inherit their parent template.";
+    new import_obsidian2.Setting(containerEl).setName(categoryHeading).setDesc(categoryDesc).setHeading();
+    TEMPLATE_CATEGORY_OPTIONS.forEach((categoryOption) => {
+      this.addCategoryTemplateSetting(containerEl, categoryOption);
     });
     new import_obsidian2.Setting(containerEl).setName(tn("settings", "exportTemplates")).setDesc(tn("settings", "exportTemplatesDesc")).addButton((button) => {
       button.setButtonText(tn("settings", "exportTemplates")).onClick(() => {
@@ -2801,66 +2869,96 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
     }).addButton((button) => {
       if (config.source === "file") {
         button.setButtonText(config.filePath || tn("settings", "selectFile")).onClick(() => {
-          this.openFileSuggest(templateType);
+          this.openFileSuggestForBase(templateType);
         });
       } else if (config.source === "custom") {
         button.setButtonText(tn("settings", "edit")).onClick(() => {
-          this.openTemplateEditor(templateType);
+          this.openTemplateEditorForBase(templateType);
         });
       } else {
         button.setButtonText(tn("settings", "preview")).onClick(() => {
-          this.openTemplatePreview(templateType);
+          this.openTemplatePreviewForBase(templateType);
         });
       }
     }).addButton((button) => {
       button.setButtonText(tn("settings", "copy")).setTooltip(tn("settings", "copyTooltip")).onClick(() => {
-        void this.copyCurrentTemplate(templateType);
+        void this.copyCurrentBaseTemplate(templateType);
+      });
+    });
+  }
+  addCategoryTemplateSetting(containerEl, categoryOption) {
+    var _a, _b;
+    const config = (_a = this.settings.templateConfigByCategory) == null ? void 0 : _a[categoryOption.key];
+    const currentMode = (_b = config == null ? void 0 : config.source) != null ? _b : "inherit";
+    const inheritLabel = getLocale() === "zh-CN" ? "\u7EE7\u627F\u5927\u7C7B\u6A21\u677F" : "Inherit parent template";
+    new import_obsidian2.Setting(containerEl).setName(categoryOption.label).setDesc(this.getCategoryTemplateSourceDesc(categoryOption, config)).addDropdown((dropdown) => {
+      dropdown.addOption("inherit", inheritLabel).addOption("standard", tn("settings", "standardTemplate")).addOption("author", tn("settings", "authorTemplate")).addOption("file", tn("settings", "fromFile")).addOption("custom", tn("settings", "customContent")).setValue(currentMode).onChange(async (value) => {
+        if (value === "inherit") {
+          if (this.settings.templateConfigByCategory) {
+            delete this.settings.templateConfigByCategory[categoryOption.key];
+            if (Object.keys(this.settings.templateConfigByCategory).length === 0) {
+              this.settings.templateConfigByCategory = void 0;
+            }
+          }
+        } else {
+          const nextConfig = { source: value };
+          if (value === "file" && (config == null ? void 0 : config.filePath)) {
+            nextConfig.filePath = config.filePath;
+          } else if (value === "custom" && (config == null ? void 0 : config.customContent)) {
+            nextConfig.customContent = config.customContent;
+          }
+          if (!this.settings.templateConfigByCategory) {
+            this.settings.templateConfigByCategory = {};
+          }
+          this.settings.templateConfigByCategory[categoryOption.key] = nextConfig;
+        }
+        await this.onSave();
+        this.display();
+      });
+    }).addButton((button) => {
+      if (currentMode === "file") {
+        button.setButtonText((config == null ? void 0 : config.filePath) || tn("settings", "selectFile")).onClick(() => {
+          this.openFileSuggestForCategory(categoryOption);
+        });
+      } else if (currentMode === "custom") {
+        button.setButtonText(tn("settings", "edit")).onClick(() => {
+          this.openTemplateEditorForCategory(categoryOption);
+        });
+      } else {
+        button.setButtonText(tn("settings", "preview")).onClick(() => {
+          this.openTemplatePreviewForCategory(categoryOption);
+        });
+      }
+    }).addButton((button) => {
+      button.setButtonText(tn("settings", "copy")).setTooltip(tn("settings", "copyTooltip")).onClick(() => {
+        void this.copyCurrentCategoryTemplate(categoryOption);
       });
     });
   }
   /**
    * 复制当前模板到自定义内容
    */
-  async copyCurrentTemplate(templateType) {
+  async copyCurrentBaseTemplate(templateType) {
     const config = this.settings[templateType.key];
-    let templateContent;
-    switch (config.source) {
-      case "standard":
-        templateContent = this.getStandardTemplate(templateType.key);
-        break;
-      case "author":
-        templateContent = templateType.defaultTemplate;
-        break;
-      case "file":
-        if (config.filePath) {
-          try {
-            const file = this.app.vault.getAbstractFileByPath(config.filePath);
-            if (file instanceof import_obsidian2.TFile) {
-              templateContent = await this.app.vault.read(file);
-            } else {
-              new import_obsidian2.Notice(tn("notices", "templateFileNotFound"));
-              return;
-            }
-          } catch (e) {
-            new import_obsidian2.Notice(tn("notices", "readTemplateFailed"));
-            return;
-          }
-        } else {
-          new import_obsidian2.Notice(tn("notices", "selectTemplateFirst"));
-          return;
-        }
-        break;
-      case "custom":
-        templateContent = config.customContent || templateType.defaultTemplate;
-        break;
-      default:
-        templateContent = templateType.defaultTemplate;
-    }
+    const templateContent = await this.resolveTemplateContent(config, templateType.key);
     const newConfig = {
       source: "custom",
       customContent: templateContent
     };
     this.settings[templateType.key] = newConfig;
+    await this.onSave();
+    new import_obsidian2.Notice(tn("notices", "copiedToCustom"));
+    this.display();
+  }
+  async copyCurrentCategoryTemplate(categoryOption) {
+    const templateContent = await this.getTemplateContentForCategory(categoryOption);
+    if (!this.settings.templateConfigByCategory) {
+      this.settings.templateConfigByCategory = {};
+    }
+    this.settings.templateConfigByCategory[categoryOption.key] = {
+      source: "custom",
+      customContent: templateContent
+    };
     await this.onSave();
     new import_obsidian2.Notice(tn("notices", "copiedToCustom"));
     this.display();
@@ -2920,6 +3018,19 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
           await this.app.vault.create(filePath, content);
         }
       }
+      for (const categoryOption of TEMPLATE_CATEGORY_OPTIONS) {
+        const content = await this.getTemplateContentForCategory(categoryOption);
+        const fileName = `${categoryOption.key}-template.md`;
+        const filePath = `${normalizedPath}/${fileName}`;
+        if (await this.app.vault.adapter.exists(filePath)) {
+          const file = this.app.vault.getAbstractFileByPath(filePath);
+          if (file instanceof import_obsidian2.TFile) {
+            await this.app.vault.process(file, () => content);
+          }
+        } else {
+          await this.app.vault.create(filePath, content);
+        }
+      }
       new import_obsidian2.Notice(tn("notices", "exportTemplatesSuccess"));
     } catch (error) {
       console.error("[Bangumi Sync] Export templates failed:", error);
@@ -2930,40 +3041,15 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
    * 获取模板内容
    */
   async getTemplateContent(templateType) {
-    const config = this.settings[templateType.key];
-    switch (config.source) {
-      case "standard":
-        return this.getStandardTemplate(templateType.key);
-      case "author":
-        return templateType.defaultTemplate;
-      case "file":
-        if (config.filePath) {
-          const file = this.app.vault.getAbstractFileByPath(config.filePath);
-          if (file instanceof import_obsidian2.TFile) {
-            return await this.app.vault.read(file);
-          }
-        }
-        return templateType.defaultTemplate;
-      case "custom":
-        return config.customContent || templateType.defaultTemplate;
-      default:
-        return templateType.defaultTemplate;
-    }
+    return this.resolveTemplateContent(this.settings[templateType.key], templateType.key);
   }
-  /**
-   * 获取标准模板内容
-   */
-  getStandardTemplate(key) {
-    const standardTemplates = {
-      animeTemplateConfig: ANIME_TEMPLATE_STANDARD,
-      novelTemplateConfig: NOVEL_TEMPLATE_STANDARD,
-      comicTemplateConfig: COMIC_TEMPLATE_STANDARD,
-      gameTemplateConfig: GAME_TEMPLATE_STANDARD,
-      albumTemplateConfig: ALBUM_TEMPLATE_STANDARD,
-      musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
-      realTemplateConfig: REAL_TEMPLATE_STANDARD
-    };
-    return standardTemplates[key];
+  async getTemplateContentForCategory(categoryOption) {
+    var _a;
+    const config = (_a = this.settings.templateConfigByCategory) == null ? void 0 : _a[categoryOption.key];
+    if (!config) {
+      return this.resolveTemplateContent(this.settings[categoryOption.templateKey], categoryOption.templateKey);
+    }
+    return this.resolveTemplateContent(config, categoryOption.templateKey);
   }
   /**
    * 获取模板来源描述
@@ -2982,11 +3068,50 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
         return "";
     }
   }
+  getCategoryTemplateSourceDesc(categoryOption, config) {
+    if (!config) {
+      const parentLabel = tn("settings", this.getTemplateNameKey(categoryOption.templateKey));
+      return getLocale() === "zh-CN" ? `\u672A\u5355\u72EC\u8BBE\u7F6E\uFF0C\u5F53\u524D\u7EE7\u627F\uFF1A${parentLabel}` : `Not overridden. Currently inherits: ${parentLabel}`;
+    }
+    return this.getTemplateSourceDesc(config);
+  }
+  getTemplateNameKey(templateKey) {
+    var _a, _b;
+    return (_b = (_a = TEMPLATE_TYPES.find((item) => item.key === templateKey)) == null ? void 0 : _a.nameKey) != null ? _b : "novelTemplate";
+  }
+  async resolveTemplateContent(config, defaultTemplateKey) {
+    switch (config.source) {
+      case "standard":
+        return getBuiltInTemplateByKey(defaultTemplateKey, false);
+      case "author":
+        return getBuiltInTemplateByKey(defaultTemplateKey, true);
+      case "file":
+        if (config.filePath) {
+          const file = this.app.vault.getAbstractFileByPath(config.filePath);
+          if (file instanceof import_obsidian2.TFile) {
+            try {
+              return await this.app.vault.read(file);
+            } catch (e) {
+              new import_obsidian2.Notice(tn("notices", "readTemplateFailed"));
+            }
+          } else {
+            new import_obsidian2.Notice(tn("notices", "templateFileNotFound"));
+          }
+        } else {
+          new import_obsidian2.Notice(tn("notices", "selectTemplateFirst"));
+        }
+        return getBuiltInTemplateByKey(defaultTemplateKey, true);
+      case "custom":
+        return config.customContent || getBuiltInTemplateByKey(defaultTemplateKey, true);
+      default:
+        return getBuiltInTemplateByKey(defaultTemplateKey, true);
+    }
+  }
   openExternalLink(url) {
     const externalWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
     externalWindow == null ? void 0 : externalWindow.open(url, "_blank", "noopener,noreferrer");
   }
-  openFileSuggest(templateType) {
+  openFileSuggestForBase(templateType) {
     const modal = new FileSuggestModal(
       this.app,
       (file) => {
@@ -3001,9 +3126,30 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
     );
     modal.open();
   }
-  openTemplateEditor(templateType) {
+  openFileSuggestForCategory(categoryOption) {
+    const modal = new FileSuggestModal(
+      this.app,
+      (file) => {
+        void (async () => {
+          var _a;
+          if (!this.settings.templateConfigByCategory) {
+            this.settings.templateConfigByCategory = {};
+          }
+          const nextConfig = (_a = this.settings.templateConfigByCategory[categoryOption.key]) != null ? _a : { source: "file" };
+          nextConfig.source = "file";
+          nextConfig.filePath = file.path;
+          this.settings.templateConfigByCategory[categoryOption.key] = nextConfig;
+          await this.onSave();
+          new import_obsidian2.Notice(`${tn("notices", "templateFileSelected")}: ${file.path}`);
+          this.display();
+        })();
+      }
+    );
+    modal.open();
+  }
+  openTemplateEditorForBase(templateType) {
     const config = this.settings[templateType.key];
-    const initialContent = config.customContent || templateType.defaultTemplate;
+    const initialContent = config.customContent || getBuiltInTemplateByKey(templateType.key, true);
     const modal = new TemplateEditorModal(
       this.app,
       initialContent,
@@ -3016,14 +3162,49 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
     );
     modal.open();
   }
-  openTemplatePreview(templateType) {
+  openTemplateEditorForCategory(categoryOption) {
+    var _a;
+    const config = (_a = this.settings.templateConfigByCategory) == null ? void 0 : _a[categoryOption.key];
+    const initialContent = (config == null ? void 0 : config.customContent) || getBuiltInTemplateByKey(categoryOption.templateKey, true);
     const modal = new TemplateEditorModal(
       this.app,
-      templateType.defaultTemplate,
-      () => {
+      initialContent,
+      (newTemplate) => {
+        void (async () => {
+          if (!this.settings.templateConfigByCategory) {
+            this.settings.templateConfigByCategory = {};
+          }
+          this.settings.templateConfigByCategory[categoryOption.key] = {
+            source: "custom",
+            customContent: newTemplate
+          };
+          await this.onSave();
+        })();
       }
     );
     modal.open();
+  }
+  openTemplatePreviewForBase(templateType) {
+    void (async () => {
+      const modal = new TemplateEditorModal(
+        this.app,
+        await this.getTemplateContent(templateType),
+        () => {
+        }
+      );
+      modal.open();
+    })();
+  }
+  openTemplatePreviewForCategory(categoryOption) {
+    void (async () => {
+      const modal = new TemplateEditorModal(
+        this.app,
+        await this.getTemplateContentForCategory(categoryOption),
+        () => {
+        }
+      );
+      modal.open();
+    })();
   }
   openNoteTemplateEditor() {
     const modal = new TemplateEditorModal(
@@ -5458,6 +5639,10 @@ function resolveTemplateForSubject(subject, customTemplates, resolvedCategory) {
     const template = customTemplates[category];
     if (template)
       return template;
+    const { templateKey } = resolveTemplateTarget(subject.type, category);
+    const fallbackTemplate = customTemplates[getTemplateFallbackLookupKey(templateKey)];
+    if (fallbackTemplate)
+      return fallbackTemplate;
   }
   return getDefaultTemplate(subject.type, category);
 }
@@ -13615,24 +13800,6 @@ ${nextBody}
 };
 
 // main.ts
-var TEMPLATE_CONFIG_MAP_STANDARD = {
-  animeTemplateConfig: ANIME_TEMPLATE_STANDARD,
-  novelTemplateConfig: NOVEL_TEMPLATE_STANDARD,
-  comicTemplateConfig: COMIC_TEMPLATE_STANDARD,
-  gameTemplateConfig: GAME_TEMPLATE_STANDARD,
-  albumTemplateConfig: ALBUM_TEMPLATE_STANDARD,
-  musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
-  realTemplateConfig: REAL_TEMPLATE_STANDARD
-};
-var TEMPLATE_CONFIG_MAP_AUTHOR = {
-  animeTemplateConfig: ANIME_TEMPLATE_AUTHOR,
-  novelTemplateConfig: NOVEL_TEMPLATE_AUTHOR,
-  comicTemplateConfig: COMIC_TEMPLATE_AUTHOR,
-  gameTemplateConfig: GAME_TEMPLATE_AUTHOR,
-  albumTemplateConfig: ALBUM_TEMPLATE_AUTHOR,
-  musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
-  realTemplateConfig: REAL_TEMPLATE_AUTHOR
-};
 var BangumiPlugin = class extends import_obsidian23.Plugin {
   constructor() {
     super(...arguments);
@@ -13871,57 +14038,48 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
    * 获取各类型模板
    */
   async getTemplates() {
-    const anime = await this.resolveTemplate("animeTemplateConfig");
-    const novel = await this.resolveTemplate("novelTemplateConfig");
-    const comic = await this.resolveTemplate("comicTemplateConfig");
-    const game = await this.resolveTemplate("gameTemplateConfig");
-    const album = await this.resolveTemplate("albumTemplateConfig");
-    const music = await this.resolveTemplate("musicTemplateConfig");
-    const real = await this.resolveTemplate("realTemplateConfig");
-    const templates = {
-      // Book 细分
-      "\u5C0F\u8BF4": novel,
-      "\u8F7B\u5C0F\u8BF4": novel,
-      "\u6F2B\u753B": comic,
-      "\u753B\u96C6": album,
-      "\u753B\u672C": album,
-      "\u753B\u518C": album,
-      "\u7ED8\u672C": album,
-      "\u516C\u5F0F\u4E66": album,
-      "\u5199\u771F": album,
-      // Anime 细分
-      "TV": anime,
-      "OVA": anime,
-      "WEB": anime,
-      "\u5267\u573A\u7248": anime,
-      // Game
-      "\u6E38\u620F": game,
-      "\u6269\u5C55\u5305": game,
-      // Music
-      "\u97F3\u4E50": music,
-      // Real 细分
-      "\u7535\u5F71": real,
-      "\u65E5\u5267": real,
-      "\u6B27\u7F8E\u5267": real,
-      "\u534E\u8BED\u5267": real,
-      "\u7535\u89C6\u5267": real,
-      "\u6F14\u51FA": real,
-      "\u7EFC\u827A": real,
-      "\u5176\u4ED6": real,
-      "\u4E09\u6B21\u5143": real
-    };
+    const templates = {};
+    const templateKeys = [
+      "animeTemplateConfig",
+      "novelTemplateConfig",
+      "comicTemplateConfig",
+      "gameTemplateConfig",
+      "albumTemplateConfig",
+      "musicTemplateConfig",
+      "realTemplateConfig"
+    ];
+    for (const templateKey of templateKeys) {
+      templates[getTemplateFallbackLookupKey(templateKey)] = await this.resolveTemplate(templateKey);
+    }
+    for (const categoryOption of TEMPLATE_CATEGORY_OPTIONS) {
+      templates[categoryOption.category] = await this.resolveTemplateForCategory(categoryOption.key);
+    }
     return templates;
   }
   /**
    * 解析单个模板配置
    */
   async resolveTemplate(configKey) {
-    const config = this.settings[configKey];
+    return this.resolveTemplateFromConfig(this.settings[configKey], configKey);
+  }
+  async resolveTemplateForCategory(categoryKey) {
+    var _a;
+    const categoryOption = TEMPLATE_CATEGORY_OPTIONS_BY_KEY[categoryKey];
+    if (!categoryOption) {
+      return "";
+    }
+    const categoryConfig = (_a = this.settings.templateConfigByCategory) == null ? void 0 : _a[categoryKey];
+    if (categoryConfig) {
+      return this.resolveTemplateFromConfig(categoryConfig, categoryOption.templateKey);
+    }
+    return this.resolveTemplate(categoryOption.templateKey);
+  }
+  async resolveTemplateFromConfig(config, defaultTemplateKey) {
     switch (config.source) {
       case "standard":
-        return TEMPLATE_CONFIG_MAP_STANDARD[configKey];
+        return getBuiltInTemplateByKey(defaultTemplateKey, false);
       case "author":
-        return TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
+        return getBuiltInTemplateByKey(defaultTemplateKey, true);
       case "file":
         if (config.filePath) {
           try {
@@ -13934,11 +14092,11 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
             new import_obsidian23.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
           }
         }
-        return TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
+        return getBuiltInTemplateByKey(defaultTemplateKey, true);
       case "custom":
-        return config.customContent || TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
+        return config.customContent || getBuiltInTemplateByKey(defaultTemplateKey, true);
       default:
-        return TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
+        return getBuiltInTemplateByKey(defaultTemplateKey, true);
     }
   }
   /**

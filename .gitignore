@@ -19,7 +19,13 @@ release/
 
 # Claude Code (local only)
 .claude/
+.agents/
 CLAUDE.md
+
+# Local data / preview
+converted-backup-data/
+preview/
+旧acgn导出数据/
 
 # IDE
 .idea/

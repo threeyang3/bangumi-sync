@@ -253,7 +253,7 @@ export class UserDataImportModal extends Modal {
         }
 
         const dataTypeOptions = { dataTypes: this.importDataTypes };
-        // Step 1: 收集所有自定义属性名
+        // Step 1: 收集本次可管理的导入属性名
         const propertyNames = this.importer.collectAllPropertyNames(this.importFiles, dataTypeOptions);
         const suggestedAliases = this.importer.getSuggestedPropertyAliases(this.importFiles, dataTypeOptions);
 
@@ -264,7 +264,7 @@ export class UserDataImportModal extends Modal {
                 void this.continueImport(propertyManage);
             }).open();
         } else {
-            // 无自定义属性，直接走旧流程
+            // 无需管理的属性，直接走旧流程
             await this.continueImport(undefined);
         }
     }
@@ -536,7 +536,7 @@ export class MissingFieldModal extends Modal {
 /**
  * 属性管理弹窗
  *
- * 导入前识别所有自定义属性，允许用户忽略或别名某个属性
+ * 导入前识别所有可管理属性，允许用户忽略或别名某个属性
  */
 export class PropertyManageModal extends Modal {
     private propertyNames: Set<string>;

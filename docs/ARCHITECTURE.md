@@ -256,25 +256,36 @@ SyncManager
   - 状态字段冲突比对
 - `batchEditorModal.ts`
   - frontmatter 批量编辑
+  - 同时支持“统一操作”和“逐项编辑”两种模式
+  - 逐项编辑会先收集选中条目的现有 frontmatter 属性，再按“条目 x 属性”表格逐格提交
 
 ### 5.8 `src/userData/`
 
-这是“强制同步保护 + 导入导出”的统一模块。
+这是”强制同步保护 + 导入导出”的统一模块。
 
 子模块关系：
 
 - `types.ts`
   - 数据结构与保护设置
+  - `PropertyManageMap` / `PropertyDiff` / `ImportItemDiff` 用于导入对比
 - `userDataExtractor.ts`
   - 从本地文件提取用户数据
 - `userDataMerger.ts`
   - 把用户数据合并回新内容
 - `userDataExporter.ts`
   - 批量导出
+  - 导出为单个 `bangumi-user-data.json`
+  - 文件内部按 `category` 分组，而不是按 subject type 拆成多个文件
 - `userDataImporter.ts`
   - 批量导入
+  - `collectAllPropertyNames()`: 扫描导入文件中的可管理属性名（用户属性 + 自定义属性）
+  - `compareImportData()`: 对比导入与本地差异，自动导入空字段，收集有差异的字段
+  - `applyImportPlan()`: 按用户决策批量写入，并兼容旧多文件备份与 legacy 结构
 - `userDataModal.ts`
   - 导入导出弹窗
+  - `PropertyManageModal`: 导入前属性忽略/别名管理
+  - `ImportCompareModal`: 有差异属性的对比决策
+  - `PropertyImportReviewModal`: 按属性逐组审查差异与缺失字段
 
 ### 5.9 `src/episode/`
 

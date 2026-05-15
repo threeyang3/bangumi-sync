@@ -20,6 +20,8 @@
   - 去掉行尾空白
   - 折叠多余空行
 - 不要把多段短评压成一行，否则状态同步会出现“看起来一样但被判定有差异”的假冲突。
+- 本地短评的真实来源是正文 `> [!abstract]+ **短评**` callout，不要再把 frontmatter `短评` 当成唯一真值。
+- 提取短评时遇到下一个 callout 头或 `##` 标题必须停止，否则很容易把后续 `简介`、`记录` 等正文块误吞进去。
 
 ## 4. 标签解析
 
@@ -57,7 +59,15 @@
 - 面板宽度要用高优先级选择器限制在状态同步 modal 自身，例如 `.modal:has(.bangumi-status-sync-modal)`。
 - 单集状态已经并入主状态同步流程，不要再把它当成完全独立的附加操作。
 
-## 9. 右键菜单与编辑器定位
+## 9. API 返回 null data 与 episode null
+
+- `getUserEpisodeStatus` 等端点可能返回 200 但 `data` 为 null，必须用 `result?.data ?? []` 兜底。
+- `getCloudEpisodeStatusMap` 中 `userEp.episode` 可能为 null（API 返回畸形数据），必须在访问 `userEp.episode.id` 前加 null 守卫。
+- `syncStatusFromCloud` 的 filter 也需要同样的 `userEp.episode` 守卫。
+- 状态同步对比循环中，单个条目的 `buildEpisodeStatusDiff` 失败不应中断整个循环，应 try-catch 后跳过。
+- `syncStatusToCloud` 全部失败时必须抛出错误，不能静默成功。
+
+## 10. 右键菜单与编辑器定位
 
 - 右键“添加吐槽”插入 callout 后，返回的应是正文可编辑区域的精确光标位置，而不是 callout 块起始位置。
 - 切到源码模式后除了 `setCursor`，还要同步设置空选区并 `focus()`，否则有时视图切过去了但光标没落到正文。

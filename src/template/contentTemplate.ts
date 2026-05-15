@@ -9,6 +9,7 @@ import { Subject, UserCollection, getCollectionStatusLabel, Episode, UserEpisode
 import { parseInfoByType, parseDate, cleanSummary } from '../../common/parser/infoboxParser';
 import { getCharacterTemplateVars, CharacterInfo } from '../../common/parser/characterParser';
 import { getDefaultTemplate, getTypeLabel } from '../../common/template/defaultTemplates';
+import { getTemplateFallbackLookupKey, resolveTemplateTarget } from '../../common/template/templateRegistry';
 import { getTypeSuffixForName } from '../../common/template/pathTemplate';
 import { parseEpisodes, createUserStatusMap } from '../../common/parser/episodeParser';
 import { CoverLinkType } from '../settings/settings';
@@ -375,6 +376,10 @@ export function resolveTemplateForSubject(
 		// 直接按 category 查找
 		const template = customTemplates[category];
 		if (template) return template;
+
+		const { templateKey } = resolveTemplateTarget(subject.type, category);
+		const fallbackTemplate = customTemplates[getTemplateFallbackLookupKey(templateKey)];
+		if (fallbackTemplate) return fallbackTemplate;
 	}
 
 	return getDefaultTemplate(subject.type, category);

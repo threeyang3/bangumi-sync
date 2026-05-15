@@ -93,7 +93,7 @@ console.log('信息');  // 不允许
 
 ### 1. 更新版本号
 
-同时更新 `manifest.json`、`package.json`、`package-lock.json` 和 `versions.json`：
+同时更新 `manifest.json`、`package.json` 和 `versions.json`：
 
 ```json
 {
@@ -107,18 +107,11 @@ console.log('信息');  // 不允许
 npm run build
 ```
 
-### 3. 创建发布包
+### 3. 构建发布包
 
 ```bash
-# 创建版本目录
-mkdir -p release/v{版本号}
-
-# 复制文件
-cp main.js manifest.json styles.css release/
-cp main.js manifest.json styles.css release/v{版本号}/
-
-# 创建 zip（可选）
-cd archives && powershell -Command "Compress-Archive -Path ../release/main.js,../release/manifest.json,../release/styles.css -DestinationPath bangumi-sync-v{版本号}.zip -Force"
+# 构建后 esbuild 会自动同步这三个文件到 release/
+npm run build
 ```
 
 ### 4. 提交并推送
@@ -161,7 +154,7 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 
 如需在不合并 `main` 的情况下提供移动端或其他试验版给 BRAT 测试：
 
-1. 在测试分支上把 `manifest.json`、`package.json`、`package-lock.json`、`versions.json` 更新到新的纯版本号，例如 `5.3.4`
+1. 在测试分支上把 `manifest.json`、`package.json`、`versions.json` 更新到新的纯版本号，例如 `5.3.4`
 2. 运行 `npm run lint` 和 `npm run build`
 3. 提交并推送测试分支
 4. 创建同名 tag 并推送：`git tag {版本号}`、`git push origin {版本号}`
@@ -170,15 +163,19 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 
 测试版 tag 也必须与 `manifest.json` 版本一致。不要复用正在等待 Obsidian 官方审查的版本号。
 
-2026-05-10 当前最新稳定版为 `v6.5.4`（在 `adv` 分支发布）。
+2026-05-13 当前最新发布版为 `6.8.5`（从 `adv` 分支发布）。
 
-### 标准发布流程 (Preventing Sorting/Encoding Issues)
-为确保 GitHub Releases 顺序正确且无乱码，必须遵循以下步骤：
+### 当前标准发布流程
 
-1. **版本更新**：修改 `package.json` -> 运行 `node version-bump.mjs` -> 构建 `npm run build`。
-2. **创建附注标签**：使用 `git tag -a vX.Y.Z -m "Release vX.Y.Z"`（必须带 `v` 前缀，必须是附注标签）。
-3. **推送代码与标签**：`git push origin <branch>` 及 `git push origin --tags`。
-4. **发布 Release**：使用 `gh release create vX.Y.Z --notes-file notes.md --latest`。
+当前仓库的标准发布方式是：
+
+1. 更新 `manifest.json`、`package.json`、`versions.json`
+2. 运行 `npm run build`
+3. 提交并推送目标分支
+4. 使用 `gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css`
+5. 如果从 `adv` 分支发布，必须显式带 `--target adv`
+
+不要再使用带 `v` 前缀的 tag，也不要维护额外的 `release/v{版本号}` 目录。
 
 ## 自定义属性开发约束
 

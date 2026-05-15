@@ -22,20 +22,14 @@ import { SyncProgress, createCancellationSignal } from './src/sync/syncStatus';
 import { UserCollection } from './common/api/types';
 import { tn, tnFormat } from './src/i18n';
 import {
-	ANIME_TEMPLATE_STANDARD,
-	NOVEL_TEMPLATE_STANDARD,
-	COMIC_TEMPLATE_STANDARD,
-	GAME_TEMPLATE_STANDARD,
-	ALBUM_TEMPLATE_STANDARD,
-	MUSIC_TEMPLATE_STANDARD,
-	REAL_TEMPLATE_STANDARD,
-	ANIME_TEMPLATE_AUTHOR,
-	NOVEL_TEMPLATE_AUTHOR,
-	COMIC_TEMPLATE_AUTHOR,
-	GAME_TEMPLATE_AUTHOR,
-	ALBUM_TEMPLATE_AUTHOR,
-	REAL_TEMPLATE_AUTHOR,
+	getBuiltInTemplateByKey,
 } from './common/template/defaultTemplates';
+import {
+	getTemplateFallbackLookupKey,
+	TEMPLATE_CATEGORY_OPTIONS,
+	TEMPLATE_CATEGORY_OPTIONS_BY_KEY,
+	TemplateKey,
+} from './common/template/templateRegistry';
 import { UserDataExportModal, UserDataImportModal, ImportResultModal } from './src/userData';
 import { EpisodeContextMenu } from './src/episode/episodeContextMenu';
 import { EpisodeStatusManager } from './src/episode/episodeStatusManager';
@@ -52,34 +46,9 @@ interface CachedData {
 }
 
 /**
- * 模板类型键名
- */
-type TemplateKey = 'animeTemplateConfig' | 'novelTemplateConfig' | 'comicTemplateConfig' | 'gameTemplateConfig' | 'albumTemplateConfig' | 'musicTemplateConfig' | 'realTemplateConfig';
-
-/**
  * 模板集合类型 — 按 category 键索引
  */
 type TemplatesMap = Record<string, string>;
-
-const TEMPLATE_CONFIG_MAP_STANDARD: Record<TemplateKey, string> = {
-	animeTemplateConfig: ANIME_TEMPLATE_STANDARD,
-	novelTemplateConfig: NOVEL_TEMPLATE_STANDARD,
-	comicTemplateConfig: COMIC_TEMPLATE_STANDARD,
-	gameTemplateConfig: GAME_TEMPLATE_STANDARD,
-	albumTemplateConfig: ALBUM_TEMPLATE_STANDARD,
-	musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
-	realTemplateConfig: REAL_TEMPLATE_STANDARD,
-};
-
-const TEMPLATE_CONFIG_MAP_AUTHOR: Record<TemplateKey, string> = {
-	animeTemplateConfig: ANIME_TEMPLATE_AUTHOR,
-	novelTemplateConfig: NOVEL_TEMPLATE_AUTHOR,
-	comicTemplateConfig: COMIC_TEMPLATE_AUTHOR,
-	gameTemplateConfig: GAME_TEMPLATE_AUTHOR,
-	albumTemplateConfig: ALBUM_TEMPLATE_AUTHOR,
-	musicTemplateConfig: MUSIC_TEMPLATE_STANDARD,
-	realTemplateConfig: REAL_TEMPLATE_AUTHOR,
-};
 
 export default class BangumiPlugin extends Plugin {
 	settings!: BangumiPluginSettings;
@@ -370,48 +339,24 @@ export default class BangumiPlugin extends Plugin {
 	 * 获取各类型模板
 	 */
 	private async getTemplates(): Promise<TemplatesMap> {
-		// 解析各 typeLabel 的模板内容
-		const anime = await this.resolveTemplate('animeTemplateConfig');
-		const novel = await this.resolveTemplate('novelTemplateConfig');
-		const comic = await this.resolveTemplate('comicTemplateConfig');
-		const game = await this.resolveTemplate('gameTemplateConfig');
-		const album = await this.resolveTemplate('albumTemplateConfig');
-		const music = await this.resolveTemplate('musicTemplateConfig');
-		const real = await this.resolveTemplate('realTemplateConfig');
+		const templates: TemplatesMap = {};
+		const templateKeys: TemplateKey[] = [
+			'animeTemplateConfig',
+			'novelTemplateConfig',
+			'comicTemplateConfig',
+			'gameTemplateConfig',
+			'albumTemplateConfig',
+			'musicTemplateConfig',
+			'realTemplateConfig',
+		];
 
-		// 按 category 展开，每个 category 继承其 typeLabel 的模板
-		const templates: TemplatesMap = {
-			// Book 细分
-			'小说': novel,
-			'轻小说': novel,
-			'漫画': comic,
-			'画集': album,
-			'画本': album,
-			'画册': album,
-			'绘本': album,
-			'公式书': album,
-			'写真': album,
-			// Anime 细分
-			'TV': anime,
-			'OVA': anime,
-			'WEB': anime,
-			'剧场版': anime,
-			// Game
-			'游戏': game,
-			'扩展包': game,
-			// Music
-			'音乐': music,
-			// Real 细分
-			'电影': real,
-			'日剧': real,
-			'欧美剧': real,
-			'华语剧': real,
-			'电视剧': real,
-			'演出': real,
-			'综艺': real,
-			'其他': real,
-			'三次元': real,
-		};
+		for (const templateKey of templateKeys) {
+			templates[getTemplateFallbackLookupKey(templateKey)] = await this.resolveTemplate(templateKey);
+		}
+
+		for (const categoryOption of TEMPLATE_CATEGORY_OPTIONS) {
+			templates[categoryOption.category] = await this.resolveTemplateForCategory(categoryOption.key);
+		}
 
 		return templates;
 	}
@@ -420,14 +365,34 @@ export default class BangumiPlugin extends Plugin {
 	 * 解析单个模板配置
 	 */
 	private async resolveTemplate(configKey: TemplateKey): Promise<string> {
-		const config = this.settings[configKey];
+		return this.resolveTemplateFromConfig(this.settings[configKey], configKey);
+	}
+
+	private async resolveTemplateForCategory(categoryKey: string): Promise<string> {
+		const categoryOption = TEMPLATE_CATEGORY_OPTIONS_BY_KEY[categoryKey];
+		if (!categoryOption) {
+			return '';
+		}
+
+		const categoryConfig = this.settings.templateConfigByCategory?.[categoryKey];
+		if (categoryConfig) {
+			return this.resolveTemplateFromConfig(categoryConfig, categoryOption.templateKey);
+		}
+
+		return this.resolveTemplate(categoryOption.templateKey);
+	}
+
+	private async resolveTemplateFromConfig(
+		config: BangumiPluginSettings[TemplateKey],
+		defaultTemplateKey: TemplateKey
+	): Promise<string> {
 
 		switch (config.source) {
 			case 'standard':
-				return TEMPLATE_CONFIG_MAP_STANDARD[configKey];
+				return getBuiltInTemplateByKey(defaultTemplateKey, false);
 
 			case 'author':
-				return TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
+				return getBuiltInTemplateByKey(defaultTemplateKey, true);
 
 			case 'file':
 				if (config.filePath) {
@@ -441,13 +406,13 @@ export default class BangumiPlugin extends Plugin {
 						new Notice(tnFormat('notices', 'templateReadFailed', { path: config.filePath }));
 					}
 				}
-				return TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
+				return getBuiltInTemplateByKey(defaultTemplateKey, true);
 
 			case 'custom':
-				return config.customContent || TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
+				return config.customContent || getBuiltInTemplateByKey(defaultTemplateKey, true);
 
 			default:
-				return TEMPLATE_CONFIG_MAP_AUTHOR[configKey];
+				return getBuiltInTemplateByKey(defaultTemplateKey, true);
 		}
 	}
 
