@@ -201,7 +201,7 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 
 测试版 tag 也必须与 `manifest.json` 版本一致。不要复用正在等待 Obsidian 官方审查的版本号。
 
-2026-05-16 当前最新发布版为 `6.8.10`（从 `adv` 分支发布）。
+2026-05-17 当前最新发布版为 `6.8.11`（从 `adv` 分支发布）。
 
 ### 当前标准发布流程
 

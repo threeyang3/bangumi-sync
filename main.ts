@@ -35,6 +35,7 @@ import { EpisodeContextMenu } from './src/episode/episodeContextMenu';
 import { EpisodeStatusManager } from './src/episode/episodeStatusManager';
 import { EpisodeCommentManager } from './src/episode/episodeCommentManager';
 import { SubjectNoteManager } from './src/note/subjectNoteManager';
+import { StatusSyncScope } from './src/sync/statusSyncTypes';
 
 /**
  * 缓存数据结构
@@ -127,8 +128,14 @@ export default class BangumiPlugin extends Plugin {
 		// 添加命令：检查并同步状态
 		this.addCommand({
 			id: 'check-and-sync-status',
-			name: tn('commands', 'checkAndSyncStatus'),
-			callback: () => this.openControlPanel({ autoSyncStatus: true }),
+			name: tn('commands', 'checkAndSyncUserData'),
+			callback: () => this.openControlPanel({ autoSyncScope: 'user' }),
+		});
+
+		this.addCommand({
+			id: 'check-and-sync-platform-data',
+			name: tn('commands', 'checkAndSyncPlatformData'),
+			callback: () => this.openControlPanel({ autoSyncScope: 'platform' }),
 		});
 
 		this.addCommand({
@@ -500,7 +507,7 @@ export default class BangumiPlugin extends Plugin {
 	/**
 	 * 打开控制面板
 	 */
-	openControlPanel(options?: { autoSyncStatus?: boolean }) {
+	openControlPanel(options?: { autoSyncScope?: StatusSyncScope | null }) {
 		if (!this.settings.accessToken) {
 			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
@@ -537,7 +544,7 @@ export default class BangumiPlugin extends Plugin {
 			},
 			this.subjectNoteManager,
 			this.episodeStatusManager,
-			options?.autoSyncStatus ?? false
+			options?.autoSyncScope ?? null
 		);
 		this.controlPanel.open();
 	}

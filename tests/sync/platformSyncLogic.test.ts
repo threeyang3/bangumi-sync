@@ -3,13 +3,13 @@ import { createCloudPlatformFieldDiff } from '../../src/sync/platformSyncLogic';
 
 describe('platformSyncLogic', () => {
 	it('defaults platform diffs to cloud authority', () => {
-		const diff = createCloudPlatformFieldDiff('serialState', '连载状态修正', '连载中', '已完结');
+		const diff = createCloudPlatformFieldDiff('episodeCount', '集数', '12', '13');
 
 		expect(diff).toEqual({
-			key: 'serialState',
-			label: '连载状态修正',
-			localValue: '连载中',
-			cloudValue: '已完结',
+			key: 'episodeCount',
+			label: '集数',
+			localValue: '12',
+			cloudValue: '13',
 			hasDiff: true,
 			decision: 'cloud',
 		});

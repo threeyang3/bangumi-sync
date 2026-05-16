@@ -613,7 +613,6 @@ export class BangumiSettingTab extends PluginSettingTab {
 			['{{volumes}}', '卷数', '34'],
 			['{{pages}}', '页数', ''],
 			['{{isbn}}', 'ISBN', ''],
-			['{{status}}', '连载状态', '完结'],
 			['{{website}}', '官方网站', ''],
 			['{{start}}', '开始日期', ''],
 			['{{end}}', '结束日期', ''],

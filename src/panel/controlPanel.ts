@@ -22,6 +22,7 @@ import { isMobile } from '../utils/mobile';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 import { LocalSubjectSnapshot } from '../document/types';
 import { StatusSyncService } from '../sync/statusSyncService';
+import { StatusSyncScope } from '../sync/statusSyncTypes';
 
 /**
  * 本地条目信息
@@ -111,7 +112,7 @@ export class ControlPanel extends Modal {
 	private tableRows: HTMLTableRowElement[] = [];
 
 	// 自动触发状态同步
-	private autoSyncStatus: boolean;
+	private autoSyncScope: StatusSyncScope | null;
 
 	// 滑动关闭（移动端）
 	private touchStartY: number = 0;
@@ -131,7 +132,8 @@ export class ControlPanel extends Modal {
 			forceSync: '强同',
 			deleteSelected: '删除',
 			batchEdit: '批编',
-			syncStatus: '状态',
+			syncUserData: '用户',
+			syncPlatformData: '平台',
 			undo: '撤销',
 			search: '搜索',
 		}
@@ -141,7 +143,8 @@ export class ControlPanel extends Modal {
 			forceSync: 'Force',
 			deleteSelected: 'Delete',
 			batchEdit: 'Batch',
-			syncStatus: 'Status',
+			syncUserData: 'User',
+			syncPlatformData: 'Platform',
 			undo: 'Undo',
 			search: 'Search',
 		};
@@ -157,7 +160,7 @@ export class ControlPanel extends Modal {
 		onCacheUpdate: (data: CachedPanelData) => void,
 		subjectNoteManager?: SubjectNoteManager | null,
 		episodeStatusManager?: EpisodeStatusManager | null,
-		autoSyncStatus?: boolean
+		autoSyncScope?: StatusSyncScope | null
 	) {
 		super(app);
 		this.settings = settings;
@@ -167,7 +170,7 @@ export class ControlPanel extends Modal {
 		this.onFiltersChange = onFiltersChange;
 		this.cachedData = cachedData;
 		this.onCacheUpdate = onCacheUpdate;
-		this.autoSyncStatus = autoSyncStatus ?? false;
+		this.autoSyncScope = autoSyncScope ?? null;
 
 		this.client = new BangumiClient(settings.accessToken);
 		this.incrementalSync = new IncrementalSync(app);
@@ -391,10 +394,16 @@ export class ControlPanel extends Modal {
 			btn.addEventListener('click', () => this.openBatchEditor());
 		});
 
-		// 同步状态按钮（统一同步评分、短评、标签、状态）
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncStatus'), cls: 'bangumi-action-btn bangumi-action-btn-status' }, btn => {
-			this.decorateMobileButton(btn, this.mobileShortLabels.syncStatus, tn('controlPanel', 'syncStatus'));
-			btn.addEventListener('click', () => { void this.syncStatus(); });
+		// 同步用户数据按钮
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncUserData'), cls: 'bangumi-action-btn bangumi-action-btn-status' }, btn => {
+			this.decorateMobileButton(btn, this.mobileShortLabels.syncUserData, tn('controlPanel', 'syncUserData'));
+			btn.addEventListener('click', () => { void this.syncStatus('user'); });
+		});
+
+		// 同步平台数据按钮
+		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncPlatformData'), cls: 'bangumi-action-btn bangumi-action-btn-status' }, btn => {
+			this.decorateMobileButton(btn, this.mobileShortLabels.syncPlatformData, tn('controlPanel', 'syncPlatformData'));
+			btn.addEventListener('click', () => { void this.syncStatus('platform'); });
 		});
 
 		// 撤销按钮
@@ -1142,19 +1151,19 @@ export class ControlPanel extends Modal {
 	}
 
 	/**
-	 * 同步状态
-	 * 用户数据对全部条目对比；平台数据仅对本地未明确已完结的条目对比
+	 * 自动触发指定范围的状态同步
 	 */
 	private triggerAutoSyncStatus(): void {
-		if (!this.autoSyncStatus) {
+		if (!this.autoSyncScope) {
 			return;
 		}
 
-		this.autoSyncStatus = false;
-		void this.syncStatusAfterPrefetchWarmup();
+		const scope = this.autoSyncScope;
+		this.autoSyncScope = null;
+		void this.syncStatusAfterPrefetchWarmup(scope);
 	}
 
-	private async syncStatusAfterPrefetchWarmup(): Promise<void> {
+	private async syncStatusAfterPrefetchWarmup(scope: StatusSyncScope): Promise<void> {
 		const prefetchPromise = this.userDataPrefetchPromise;
 		if (prefetchPromise) {
 			try {
@@ -1167,7 +1176,7 @@ export class ControlPanel extends Modal {
 			}
 		}
 
-		await this.syncStatus();
+		await this.syncStatus(scope);
 	}
 
 	private delay(ms: number): Promise<void> {
@@ -1175,7 +1184,7 @@ export class ControlPanel extends Modal {
 		return new Promise(resolve => ownerWindow.setTimeout(resolve, ms));
 	}
 
-	private async syncStatus(): Promise<void> {
+	private async syncStatus(scope: StatusSyncScope): Promise<void> {
 		const perfStart = Date.now();
 		this.lastStatusSyncPerf = {
 			startAt: perfStart,
@@ -1196,17 +1205,18 @@ export class ControlPanel extends Modal {
 		}
 
 		this.state.loading = true;
-		this.renderStatus(`${tn('controlPanel', 'comparingStatus')} (1/2)`);
+		this.renderStatus(`${this.getSyncStatusLabel(scope)} (1/2)`);
 		console.debug(`[Bangumi Sync][Perf] syncStatus:start synced=${syncedCollections.length}`);
 
 		try {
 			const snapshotStart = Date.now();
 			const { snapshots, diffs } = await this.statusSyncService.buildDiffSession({
+				scope,
 				collections: syncedCollections,
 				localSubjects: this.state.localSubjects,
 				getCachedSnapshot: (subjectId, path, mtime) => this.getPrefetchedUserData(subjectId, path, mtime),
 				onProgress: (current, total) => {
-					this.renderStatus(`${tn('controlPanel', 'comparingStatus')} (1/2 ${current}/${total})`);
+					this.renderStatus(`${this.getSyncStatusLabel(scope)} (1/2 ${current}/${total})`);
 				},
 				onPrefetchHit: () => {
 					if (this.lastStatusSyncPerf) {
@@ -1236,8 +1246,11 @@ export class ControlPanel extends Modal {
 			this.state.loading = false;
 
 			if (diffs.length === 0) {
-				new Notice(tn('controlPanel', 'noStatusDiff'));
-				this.renderStatus(tn('controlPanel', 'noStatusDiff'));
+				const message = scope === 'user'
+					? tn('controlPanel', 'noUserDataDiff')
+					: tn('controlPanel', 'noPlatformDataDiff');
+				new Notice(message);
+				this.renderStatus(message);
 				return;
 			}
 
@@ -1245,6 +1258,7 @@ export class ControlPanel extends Modal {
 			const modal = new StatusSyncModal(
 				this.app,
 				this.statusSyncService,
+				scope,
 				diffs,
 				() => {
 					// 同步完成后刷新
@@ -1257,8 +1271,9 @@ export class ControlPanel extends Modal {
 			console.debug(
 				`[Bangumi Sync][Perf] syncStatus:modalOpened total=${modalOpenDuration}ms visible=${diffs.length}`
 			);
-			this.renderStatus(`${tn('controlPanel', 'comparingStatus')} (2/2)`);
+			this.renderStatus(`${this.getSyncStatusLabel(scope)} (2/2)`);
 			void this.statusSyncService.loadBackgroundDiffs(
+				scope,
 				snapshots,
 				{
 					isDisposed: () => modal.isDisposed(),
@@ -1266,7 +1281,7 @@ export class ControlPanel extends Modal {
 					updateBackgroundProgress: (completed, total) => modal.updateBackgroundProgress(completed, total),
 				},
 				(completed, total) => {
-					this.renderStatus(`${tn('controlPanel', 'comparingStatus')} (2/2 ${completed}/${total})`);
+					this.renderStatus(`${this.getSyncStatusLabel(scope)} (2/2 ${completed}/${total})`);
 					if (this.lastStatusSyncPerf) {
 						this.lastStatusSyncPerf.backgroundCompleted = completed;
 						this.lastStatusSyncPerf.backgroundCandidates = total;
@@ -1283,6 +1298,12 @@ export class ControlPanel extends Modal {
 			new Notice(`${tn('controlPanel', 'compareStatusFailed')}: ${errorMsg}`);
 			this.renderStatus(`${tn('controlPanel', 'compareStatusFailed')}: ${errorMsg}`);
 		}
+	}
+
+	private getSyncStatusLabel(scope: StatusSyncScope): string {
+		return scope === 'user'
+			? tn('controlPanel', 'comparingUserData')
+			: tn('controlPanel', 'comparingPlatformData');
 	}
 
 	private startUserDataPrefetch(): void {

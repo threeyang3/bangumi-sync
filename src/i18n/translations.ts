@@ -19,7 +19,8 @@ export interface TranslationStrings {
 		exportUserData: string;
 		importUserData: string;
 		searchSubjects: string;
-		checkAndSyncStatus: string;
+		checkAndSyncUserData: string;
+		checkAndSyncPlatformData: string;
 		createSubjectNote: string;
 		batchDownloadCovers: string;
 		scanAndLinkRelated: string;
@@ -254,7 +255,8 @@ export interface TranslationStrings {
 		batchEdit: string;
 		syncComments: string;
 		syncTags: string;
-		syncStatus: string;
+		syncUserData: string;
+		syncPlatformData: string;
 		sortBy: string;
 		sortDefault: string;
 		sortTime: string;
@@ -265,7 +267,11 @@ export interface TranslationStrings {
 		sortAsc: string;
 		sortDesc: string;
 		comparingStatus: string;
+		comparingUserData: string;
+		comparingPlatformData: string;
 		noStatusDiff: string;
+		noUserDataDiff: string;
+		noPlatformDataDiff: string;
 		compareStatusFailed: string;
 		undo: string;
 		loading: string;
@@ -434,6 +440,10 @@ export interface TranslationStrings {
 	statusSyncModal: {
 		title: string;
 		description: string;
+		userTitle: string;
+		userDescription: string;
+		platformTitle: string;
+		platformDescription: string;
 		subjectName: string;
 		diffFields: string;
 		action: string;
@@ -448,7 +458,6 @@ export interface TranslationStrings {
 		fieldTags: string;
 		fieldStatus: string;
 		fieldEpisodeStatus: string;
-		fieldSerialState: string;
 		fieldEpisodeCount: string;
 		fieldChapterCount: string;
 		fieldVolumeCount: string;
@@ -667,7 +676,8 @@ const en: TranslationStrings = {
 		exportUserData: 'Export user data',
 		importUserData: 'Import user data',
 		searchSubjects: 'Search and add subjects',
-		checkAndSyncStatus: 'Check and sync status',
+		checkAndSyncUserData: 'Check and sync user data',
+		checkAndSyncPlatformData: 'Check and sync platform data',
 		createSubjectNote: 'Create or append subject note',
 		batchDownloadCovers: 'Batch download cover images',
 		scanAndLinkRelated: 'Scan and link related subjects',
@@ -891,7 +901,8 @@ const en: TranslationStrings = {
 		batchEdit: 'Batch edit',
 		syncComments: 'Sync comments',
 		syncTags: 'Sync tags',
-		syncStatus: 'Sync status',
+		syncUserData: 'Sync user data',
+		syncPlatformData: 'Sync platform data',
 		sortBy: 'Sort by',
 		sortDefault: 'Original order',
 		sortTime: 'Collection time',
@@ -902,7 +913,11 @@ const en: TranslationStrings = {
 		sortAsc: 'Ascending',
 		sortDesc: 'Descending',
 		comparingStatus: 'Comparing status...',
+		comparingUserData: 'Comparing user data...',
+		comparingPlatformData: 'Comparing platform data...',
 		noStatusDiff: 'No status differences',
+		noUserDataDiff: 'No user data differences',
+		noPlatformDataDiff: 'No platform data differences',
 		compareStatusFailed: 'Compare status failed',
 		undo: 'Undo',
 		loading: 'Loading...',
@@ -1063,6 +1078,10 @@ const en: TranslationStrings = {
 		statusSyncModal: {
 			title: 'Status sync',
 			description: 'Found {count} items with differences. Select which version to keep for each field.',
+			userTitle: 'User data sync',
+			userDescription: 'Found {count} items with user data differences. Select which version to keep for each field.',
+			platformTitle: 'Platform data sync',
+			platformDescription: 'Found {count} items with platform data differences. Select whether to apply cloud updates.',
 			subjectName: 'Subject',
 			diffFields: 'Diff fields',
 			action: 'Action',
@@ -1077,7 +1096,6 @@ const en: TranslationStrings = {
 			fieldTags: 'Tags',
 			fieldStatus: 'Status',
 			fieldEpisodeStatus: 'Episode status',
-			fieldSerialState: 'Serial state',
 			fieldEpisodeCount: 'Episodes',
 			fieldChapterCount: 'Chapters',
 			fieldVolumeCount: 'Volumes',
@@ -1286,7 +1304,8 @@ const zhCN: TranslationStrings = {
 		exportUserData: '导出用户数据',
 		importUserData: '导入用户数据',
 		searchSubjects: '搜索并添加条目',
-		checkAndSyncStatus: '检查并同步状态',
+		checkAndSyncUserData: '检查并同步用户数据',
+		checkAndSyncPlatformData: '检查并同步平台数据',
 		createSubjectNote: '创建或追加条目笔记',
 		batchDownloadCovers: '批量下载封面图片',
 		scanAndLinkRelated: '扫描并关联相关条目',
@@ -1510,7 +1529,8 @@ const zhCN: TranslationStrings = {
 		batchEdit: '批量编辑',
 		syncComments: '同步短评',
 		syncTags: '同步标签',
-		syncStatus: '同步状态',
+		syncUserData: '同步用户数据',
+		syncPlatformData: '同步平台数据',
 		sortBy: '排序依据',
 		sortDefault: '默认顺序',
 		sortTime: '收藏时间',
@@ -1521,7 +1541,11 @@ const zhCN: TranslationStrings = {
 		sortAsc: '升序',
 		sortDesc: '降序',
 		comparingStatus: '正在对比状态差异...',
+		comparingUserData: '正在对比用户数据差异...',
+		comparingPlatformData: '正在对比平台数据差异...',
 		noStatusDiff: '没有状态差异',
+		noUserDataDiff: '没有用户数据差异',
+		noPlatformDataDiff: '没有平台数据差异',
 		compareStatusFailed: '对比状态失败',
 		undo: '撤销',
 		loading: '加载中...',
@@ -1682,6 +1706,10 @@ const zhCN: TranslationStrings = {
 		statusSyncModal: {
 			title: '状态同步',
 			description: '发现 {count} 个条目存在数据差异，请选择要保留的版本。',
+			userTitle: '同步用户数据',
+			userDescription: '发现 {count} 个条目存在用户数据差异，请选择要保留的版本。',
+			platformTitle: '同步平台数据',
+			platformDescription: '发现 {count} 个条目存在平台数据差异，请选择是否应用云端更新。',
 			subjectName: '条目',
 			diffFields: '差异字段',
 			action: '操作',
@@ -1696,7 +1724,6 @@ const zhCN: TranslationStrings = {
 			fieldTags: '标签',
 			fieldStatus: '状态',
 			fieldEpisodeStatus: '单集状态',
-			fieldSerialState: '连载状态',
 			fieldEpisodeCount: '集数',
 			fieldChapterCount: '话数',
 			fieldVolumeCount: '卷数/册数',

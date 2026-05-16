@@ -4,6 +4,7 @@ import { LocalEpisodeStatus } from '../episode/types';
 import { LocalSubjectSnapshot } from '../document/types';
 
 export type FieldDecision = 'local' | 'cloud' | 'merge' | 'skip';
+export type StatusSyncScope = 'user' | 'platform';
 
 export interface FieldDiff<T> {
 	localValue: T | null;
@@ -12,7 +13,7 @@ export interface FieldDiff<T> {
 	decision: FieldDecision;
 }
 
-export type PlatformFieldKey = 'episodeCount' | 'chapterCount' | 'volumeCount' | 'serialState';
+export type PlatformFieldKey = 'episodeCount' | 'chapterCount' | 'volumeCount';
 export type PlatformFieldDecision = 'cloud' | 'skip';
 
 export interface PlatformFieldDiff {
@@ -25,7 +26,6 @@ export interface PlatformFieldDiff {
 }
 
 export interface PlatformSyncPayload {
-	serialStatus?: string | null;
 	progress?: string | null;
 	start?: string | null;
 	end?: string | null;
@@ -37,6 +37,7 @@ export interface PlatformSyncPayload {
 export type StatusSyncLoadState = 'pending' | 'loading' | 'ready' | 'failed';
 
 export interface StatusSyncDiff {
+	scope: StatusSyncScope;
 	subjectId: number;
 	name_cn: string;
 	name: string;

@@ -9,6 +9,7 @@ import {
 	PlatformFieldDecision,
 	StatusSyncDiff,
 	StatusSyncLoadState,
+	StatusSyncScope,
 } from '../sync/statusSyncTypes';
 
 type UserDecisionFieldKey = 'rate' | 'comment' | 'tags' | 'status' | 'episodeStatus';
@@ -17,6 +18,7 @@ type UserDecisionFieldKey = 'rate' | 'comment' | 'tags' | 'status' | 'episodeSta
  * 状态同步弹窗（紧凑模式）
  */
 export class StatusSyncModal extends Modal {
+	private syncScope: StatusSyncScope;
 	private diffs: StatusSyncDiff[];
 	private diffIndexBySubjectId: Map<number, number>;
 	private statusSyncService: StatusSyncService;
@@ -32,11 +34,13 @@ export class StatusSyncModal extends Modal {
 	constructor(
 		app: App,
 		statusSyncService: StatusSyncService,
+		scope: StatusSyncScope,
 		diffs: StatusSyncDiff[],
 		onComplete: () => void,
 	) {
 		super(app);
 		this.statusSyncService = statusSyncService;
+		this.syncScope = scope;
 		this.diffs = diffs;
 		this.diffIndexBySubjectId = new Map(diffs.map((diff, index) => [diff.subjectId, index]));
 		this.onComplete = onComplete;
@@ -49,25 +53,35 @@ export class StatusSyncModal extends Modal {
 		contentEl.addClass('bangumi-status-sync-modal');
 
 		// 标题
-		contentEl.createEl('h2', { text: tn('statusSyncModal', 'title') });
+		contentEl.createEl('h2', {
+			text: this.syncScope === 'user'
+				? tn('statusSyncModal', 'userTitle')
+				: tn('statusSyncModal', 'platformTitle')
+		});
 
 		// 说明
 		contentEl.createEl('p', {
-			text: tn('statusSyncModal', 'description').replace('{count}', String(this.diffs.length)),
+			text: (
+				this.syncScope === 'user'
+					? tn('statusSyncModal', 'userDescription')
+					: tn('statusSyncModal', 'platformDescription')
+			).replace('{count}', String(this.diffs.length)),
 			cls: 'bangumi-sync-description'
 		});
 
 		// 批量操作按钮栏
 		const actionBar = contentEl.createDiv({ cls: 'bangumi-status-sync-actions' });
-		actionBar.createEl('button', { text: tn('statusSyncModal', 'allLocal') }, btn => {
-			btn.addEventListener('click', () => this.selectAll('local'));
-		});
 		actionBar.createEl('button', { text: tn('statusSyncModal', 'allCloud') }, btn => {
 			btn.addEventListener('click', () => this.selectAll('cloud'));
 		});
-		actionBar.createEl('button', { text: tn('statusSyncModal', 'smartMerge') }, btn => {
-			btn.addEventListener('click', () => this.smartMerge());
-		});
+		if (this.syncScope === 'user') {
+			actionBar.createEl('button', { text: tn('statusSyncModal', 'allLocal') }, btn => {
+				btn.addEventListener('click', () => this.selectAll('local'));
+			});
+			actionBar.createEl('button', { text: tn('statusSyncModal', 'smartMerge') }, btn => {
+				btn.addEventListener('click', () => this.smartMerge());
+			});
+		}
 		actionBar.createEl('button', { text: tn('statusSyncModal', 'allSkip') }, btn => {
 			btn.addEventListener('click', () => this.selectAll('skip'));
 		});
@@ -449,7 +463,15 @@ export class StatusSyncModal extends Modal {
 	 * 全部选择
 	 */
 	private selectAll(decision: FieldDecision): void {
-		this.statusSyncService.applyDecisionPreset(this.diffs, decision);
+		if (this.syncScope === 'platform') {
+			this.diffs.forEach(diff => {
+				diff.platformFields.forEach(field => {
+					field.decision = decision === 'cloud' ? 'cloud' : 'skip';
+				});
+			});
+		} else {
+			this.statusSyncService.applyDecisionPreset(this.diffs, decision);
+		}
 		this.updateStatusSummary();
 		this.renderTable();
 	}
@@ -458,6 +480,9 @@ export class StatusSyncModal extends Modal {
 	 * 智能合并：非空值优先，标签合并所有
 	 */
 	private smartMerge(): void {
+		if (this.syncScope !== 'user') {
+			return;
+		}
 		this.statusSyncService.applyDecisionPreset(this.diffs, 'smart');
 		this.updateStatusSummary();
 		this.renderTable();
@@ -540,14 +565,15 @@ export class StatusSyncModal extends Modal {
 	}
 
 	private recalculateDiffState(diff: StatusSyncDiff): void {
-		diff.hasUserDiff =
+		diff.hasUserDiff = diff.scope === 'user' && (
 			diff.rate.hasDiff ||
 			diff.comment.hasDiff ||
 			diff.tags.hasDiff ||
 			diff.status.hasDiff ||
-			diff.episodeStatus.hasDiff;
+			diff.episodeStatus.hasDiff
+		);
 		diff.hasPlatformDiff = diff.platformFields.some(field => field.hasDiff);
-		diff.hasAnyDiff = diff.hasUserDiff || diff.hasPlatformDiff;
+		diff.hasAnyDiff = diff.scope === 'platform' ? diff.hasPlatformDiff : (diff.hasUserDiff || diff.hasPlatformDiff);
 	}
 
 	private getLoadStateText(state: StatusSyncLoadState): string {

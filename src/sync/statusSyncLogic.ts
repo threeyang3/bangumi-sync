@@ -43,18 +43,7 @@ export function isCompletedSerialState(value: string | null | undefined): boolea
 }
 
 export function isPlatformDataCandidate(context: LocalPlatformSyncContext): boolean {
-	if (isCompletedSerialState(context.serialStatus)) {
-		return false;
-	}
-
-	if (context.end && context.end.trim().length > 0) {
-		return false;
-	}
-
-	if (isCompletedSerialState(context.progress)) {
-		return false;
-	}
-
+	void context;
 	return true;
 }
 

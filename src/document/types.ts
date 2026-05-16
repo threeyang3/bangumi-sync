@@ -2,7 +2,6 @@ import { TFile } from 'obsidian';
 import { LocalEpisodeStatus } from '../episode/types';
 
 export interface LocalPlatformSyncContext {
-	serialStatus: string | null;
 	progress: string | null;
 	start: string | null;
 	end: string | null;
@@ -12,7 +11,6 @@ export interface LocalPlatformSyncContext {
 }
 
 export interface PlatformMetadataUpdate {
-	serialStatus?: string | null;
 	progress?: string | null;
 	start?: string | null;
 	end?: string | null;

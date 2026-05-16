@@ -28,26 +28,15 @@ describe('statusSyncLogic', () => {
 		expect(result.hasUserDiff).toBe(true);
 	});
 
-	it('marks completed serial states as non-candidates for platform sync', () => {
+	it('recognizes completed serial-state strings for parser compatibility', () => {
 		expect(isCompletedSerialState('已完结')).toBe(true);
 		expect(isCompletedSerialState('放送结束')).toBe(true);
 		expect(isCompletedSerialState('全12话')).toBe(true);
 		expect(isCompletedSerialState('连载中')).toBe(false);
-
-		expect(isPlatformDataCandidate({
-			serialStatus: '已完结',
-			progress: null,
-			start: null,
-			end: null,
-			episodeCount: 12,
-			chapterCount: null,
-			volumeCount: null,
-		})).toBe(false);
 	});
 
-	it('allows incomplete or unknown local entries to request platform data', () => {
+	it('always allows platform data candidates once the subject type is supported', () => {
 		expect(isPlatformDataCandidate({
-			serialStatus: '连载中',
 			progress: '更新至第12集',
 			start: '2024-01-01',
 			end: null,
@@ -57,7 +46,6 @@ describe('statusSyncLogic', () => {
 		})).toBe(true);
 
 		expect(isPlatformDataCandidate({
-			serialStatus: null,
 			progress: null,
 			start: null,
 			end: null,
@@ -69,7 +57,6 @@ describe('statusSyncLogic', () => {
 
 	it('loads platform data only for supported subject types', () => {
 		const context = {
-			serialStatus: '连载中',
 			progress: null,
 			start: null,
 			end: null,
@@ -88,15 +75,14 @@ describe('statusSyncLogic', () => {
 		expect(shouldLoadPlatformData(SubjectType.Game, context)).toBe(false);
 	});
 
-	it('blocks platform loading when local end metadata already indicates completion', () => {
+	it('does not skip platform loading based on local completion metadata anymore', () => {
 		expect(shouldLoadPlatformData(SubjectType.Book, {
-			serialStatus: null,
-			progress: null,
-			start: '2020-01-01',
+			progress: '全 98 话',
+			start: null,
 			end: '2021-01-01',
 			episodeCount: null,
 			chapterCount: 98,
 			volumeCount: 10,
-		})).toBe(false);
+		})).toBe(true);
 	});
 });

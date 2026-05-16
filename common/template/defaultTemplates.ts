@@ -33,7 +33,6 @@ tags:
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 封面: "{{cover}}"
-连载状态: "{{status}}"
 开始: "{{start}}"
 结束: "{{end}}"
 进度: "{{progress}}"
@@ -104,7 +103,6 @@ tags:
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 书系: "{{series}}"
-连载状态: "{{status}}"
 开始: "{{start}}"
 结束: "{{end}}"
 进度: "{{progress}}"
@@ -164,7 +162,6 @@ tags:
 短评: "{{my_comment}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
-连载状态: "{{status}}"
 开始: "{{start}}"
 结束: "{{end}}"
 话数: "{{episode}}"
@@ -362,7 +359,6 @@ tags:
 具体类型: "{{category}}"
 国家: "{{country}}"
 语言: "{{language}}"
-连载状态: "{{status}}"
 开始: "{{start}}"
 结束: "{{end}}"
 进度: "{{progress}}"
@@ -438,7 +434,6 @@ tags:
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 封面: "{{cover}}"
-连载状态: "{{status}}"
 开始: "{{start}}"
 结束: "{{end}}"
 进度: "{{progress}}"
@@ -528,7 +523,6 @@ Kindle: false
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
 书系: "{{series}}"
-连载状态: "{{status}}"
 开始: "{{start}}"
 结束: "{{end}}"
 进度: "{{progress}}"
@@ -553,7 +547,7 @@ Bangumi链接: "{{bangumi_url}}"
 > | 评分 |\`= this.评分\`|
 > | 明细 | 剧情: \`= this.剧情评分\` 插画: \`= this.插画评分\` 文笔: \`= this.文笔评分\` 人设: \`= this.人设评分\`|
 > | 精彩片段 | \`= this.精彩片段\` |
-> | 进度 |\`= this.连载状态\` - \`= this.进度\` |
+> | 进度 |\`= this.进度\` |
 > | 书系 |\`= this.书系\`|
 > | 官网 |\`= this.官网\`|
 > | 版本 |\`= this.版本\`|
@@ -606,7 +600,6 @@ Kindle: false
 具体类型: "{{category}}"
 Bangumi评分: "{{rating}}"
 Bangumi链接: "{{bangumi_url}}"
-连载状态: "{{status}}"
 开始: "{{start}}"
 结束: "{{end}}"
 话数: "{{episode}}"
@@ -811,7 +804,6 @@ tags:
 具体类型: "{{category}}"
 国家: "{{country}}"
 语言: "{{language}}"
-连载状态: "{{status}}"
 开始: "{{start}}"
 结束: "{{end}}"
 进度: "{{progress}}"

@@ -32,17 +32,17 @@ describe('frontmatterAccess', () => {
 	it('upserts quoted text and removes it when empty', () => {
 		const content = [
 			'---',
-			'连载状态: "连载中"',
+			'进度: "更新至第 12 集"',
 			'---',
 			'',
 			'正文',
 		].join('\n');
 
-		const updated = upsertQuotedTextField(content, '连载状态', '已完结');
-		expect(readTextField(updated, '连载状态')).toBe('已完结');
+		const updated = upsertQuotedTextField(content, '进度', '全 13 集');
+		expect(readTextField(updated, '进度')).toBe('全 13 集');
 
-		const removed = upsertQuotedTextField(updated, '连载状态', '');
-		expect(hasFrontmatterField(removed, '连载状态')).toBe(false);
+		const removed = upsertQuotedTextField(updated, '进度', '');
+		expect(hasFrontmatterField(removed, '进度')).toBe(false);
 	});
 
 	it('upserts yaml list fields and removes them cleanly', () => {

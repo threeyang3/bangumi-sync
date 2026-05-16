@@ -8,7 +8,7 @@ import {
 	removeShortComment,
 	updateShortComment,
 } from '../comment/shortComment';
-import { isCompletedSerialState, isPlatformDataCandidate, shouldLoadPlatformData } from '../sync/statusSyncLogic';
+import { isCompletedSerialState, supportsPlatformDataSync } from '../sync/statusSyncLogic';
 import {
 	addFrontmatterField,
 	getFrontmatterValue,
@@ -78,7 +78,7 @@ export class SubjectDocumentService {
 				? this.episodeStatusManager.getEpisodeStatusMapFromContent(content)
 				: new Map<number, LocalEpisodeStatus>(),
 			shouldLoadEpisodeStatus,
-			shouldLoadPlatformData: shouldLoadPlatformData(subjectType, platform),
+			shouldLoadPlatformData: supportsPlatformDataSync(subjectType),
 		};
 	}
 
@@ -158,7 +158,6 @@ export class SubjectDocumentService {
 
 	extractLocalPlatformSyncContext(content: string): LocalPlatformSyncContext {
 		return {
-			serialStatus: this.extractTextField(content, '连载状态'),
 			progress: this.extractTextField(content, '进度'),
 			start: this.extractTextField(content, '开始'),
 			end: this.extractTextField(content, '结束'),
@@ -175,9 +174,6 @@ export class SubjectDocumentService {
 	updatePlatformMetadata(content: string, updates: PlatformMetadataUpdate): string {
 		let nextContent = content;
 
-		if (updates.serialStatus !== undefined) {
-			nextContent = this.updateTextField(nextContent, '连载状态', updates.serialStatus);
-		}
 		if (updates.progress !== undefined) {
 			nextContent = this.updateTextField(nextContent, '进度', updates.progress);
 		}
@@ -267,7 +263,8 @@ export class SubjectDocumentService {
 	}
 
 	isPlatformDataCandidate(context: LocalPlatformSyncContext): boolean {
-		return isPlatformDataCandidate(context);
+		void context;
+		return true;
 	}
 
 	isCompletedSerialState(value: string | null | undefined): boolean {

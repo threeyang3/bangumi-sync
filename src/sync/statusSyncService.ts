@@ -19,10 +19,12 @@ import {
 	StatusSyncDiff,
 	StatusSyncExecutionSummary,
 	StatusSyncLocalSubjectInfo,
+	StatusSyncScope,
 	StatusSyncSnapshot,
 } from './statusSyncTypes';
 
 interface BuildDiffSessionOptions {
+	scope: StatusSyncScope;
 	collections: UserCollection[];
 	localSubjects: Map<number, StatusSyncLocalSubjectInfo>;
 	getCachedSnapshot?: (subjectId: number, path: string, mtime: number) => LocalSubjectSnapshot | null;
@@ -70,13 +72,14 @@ export class StatusSyncService {
 		)).filter((snapshot): snapshot is StatusSyncSnapshot => snapshot !== null);
 
 		const diffs = snapshots
-			.map(snapshot => this.buildStatusSyncDiff(snapshot))
+			.map(snapshot => this.buildStatusSyncDiff(snapshot, options.scope))
 			.filter(diff => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
 
 		return { snapshots, diffs };
 	}
 
 	async loadBackgroundDiffs(
+		scope: StatusSyncScope,
 		snapshots: StatusSyncSnapshot[],
 		callbacks: BackgroundUpdateCallbacks,
 		onProgress?: (completed: number, total: number) => void,
@@ -88,7 +91,8 @@ export class StatusSyncService {
 			platformDiffCache: new Map(),
 		};
 		const candidates = snapshots.filter(snapshot =>
-			snapshot.localSnapshot.shouldLoadEpisodeStatus || snapshot.localSnapshot.shouldLoadPlatformData
+			(scope === 'user' && snapshot.localSnapshot.shouldLoadEpisodeStatus) ||
+			(scope === 'platform' && snapshot.localSnapshot.shouldLoadPlatformData)
 		);
 		let completed = 0;
 		callbacks.updateBackgroundProgress(completed, candidates.length);
@@ -99,20 +103,20 @@ export class StatusSyncService {
 			}
 
 			const loadingPatch: Partial<StatusSyncDiff> = {};
-			if (snapshot.localSnapshot.shouldLoadEpisodeStatus) {
+			if (scope === 'user' && snapshot.localSnapshot.shouldLoadEpisodeStatus) {
 				loadingPatch.episodeStatusLoadState = 'loading';
 			}
-			if (snapshot.localSnapshot.shouldLoadPlatformData) {
+			if (scope === 'platform' && snapshot.localSnapshot.shouldLoadPlatformData) {
 				loadingPatch.platformLoadState = 'loading';
 			}
 			callbacks.updateDiff(snapshot.subjectId, loadingPatch);
 
 			try {
 				const [episodeStatus, platformResult] = await Promise.all([
-					snapshot.localSnapshot.shouldLoadEpisodeStatus
+					scope === 'user' && snapshot.localSnapshot.shouldLoadEpisodeStatus
 						? this.buildEpisodeStatusDiff(snapshot, context)
 						: Promise.resolve(null),
-					snapshot.localSnapshot.shouldLoadPlatformData
+					scope === 'platform' && snapshot.localSnapshot.shouldLoadPlatformData
 						? this.buildPlatformFieldDiffs(snapshot, context)
 						: Promise.resolve(null),
 				]);
@@ -139,8 +143,8 @@ export class StatusSyncService {
 
 				const errorMessage = error instanceof Error ? error.message : String(error);
 				callbacks.updateDiff(snapshot.subjectId, {
-					episodeStatusLoadState: snapshot.localSnapshot.shouldLoadEpisodeStatus ? 'failed' : 'ready',
-					platformLoadState: snapshot.localSnapshot.shouldLoadPlatformData ? 'failed' : 'ready',
+					episodeStatusLoadState: scope === 'user' && snapshot.localSnapshot.shouldLoadEpisodeStatus ? 'failed' : 'ready',
+					platformLoadState: scope === 'platform' && snapshot.localSnapshot.shouldLoadPlatformData ? 'failed' : 'ready',
 					backgroundError: errorMessage,
 				});
 			} finally {
@@ -233,7 +237,7 @@ export class StatusSyncService {
 		};
 	}
 
-	private buildStatusSyncDiff(snapshot: StatusSyncSnapshot): StatusSyncDiff {
+	private buildStatusSyncDiff(snapshot: StatusSyncSnapshot, scope: StatusSyncScope): StatusSyncDiff {
 		const { collection, localInfo } = snapshot;
 		const userDiffs = buildUserStatusSyncDiff({
 			localRate: snapshot.localSnapshot.user.rate,
@@ -258,6 +262,7 @@ export class StatusSyncService {
 		};
 
 		return {
+			scope,
 			subjectId: collection.subject_id,
 			name_cn: collection.subject.name_cn || '',
 			name: collection.subject.name || '',
@@ -270,12 +275,12 @@ export class StatusSyncService {
 			status: { ...userDiffs.status, decision: 'skip' },
 			episodeStatus,
 			platformFields: [],
-			hasUserDiff: userDiffs.hasUserDiff,
+			hasUserDiff: scope === 'user' ? userDiffs.hasUserDiff : false,
 			hasPlatformDiff: false,
-			hasAnyDiff: userDiffs.hasUserDiff,
+			hasAnyDiff: scope === 'user' ? userDiffs.hasUserDiff : false,
 			expanded: false,
-			episodeStatusLoadState: snapshot.localSnapshot.shouldLoadEpisodeStatus ? 'pending' : 'ready',
-			platformLoadState: snapshot.localSnapshot.shouldLoadPlatformData ? 'pending' : 'ready',
+			episodeStatusLoadState: scope === 'user' && snapshot.localSnapshot.shouldLoadEpisodeStatus ? 'pending' : 'ready',
+			platformLoadState: scope === 'platform' && snapshot.localSnapshot.shouldLoadPlatformData ? 'pending' : 'ready',
 			backgroundError: null,
 		};
 	}
@@ -310,15 +315,6 @@ export class StatusSyncService {
 				const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
 				const fields: PlatformFieldDiff[] = [];
 				const localContext = snapshot.localSnapshot.platform;
-
-				if (cloudPayload.serialStatus && localContext.serialStatus !== cloudPayload.serialStatus) {
-					fields.push(createCloudPlatformFieldDiff(
-						'serialState',
-						tn('statusSyncModal', 'fieldSerialState'),
-						localContext.serialStatus,
-						cloudPayload.serialStatus,
-					));
-				}
 
 				if (collection.subject_type === SubjectType.Anime || collection.subject_type === SubjectType.Real) {
 					const cloudValue = cloudPayload.episodeCount;
@@ -369,13 +365,11 @@ export class StatusSyncService {
 	private buildPlatformSyncPayload(subject: Subject, parsedInfo: ReturnType<typeof parseInfoByType>): PlatformSyncPayload {
 		const episodeCount = subject.total_episodes || subject.eps || parsedInfo.episode || null;
 		const volumeCount = subject.volumes || parsedInfo.volumes || null;
-		const serialStatus = parsedInfo.status || null;
 		const start = parsedInfo.start || null;
 		const end = parsedInfo.end || null;
 		const progress = parsedInfo.progress || null;
 
 		return {
-			serialStatus,
 			progress,
 			start,
 			end,
