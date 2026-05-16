@@ -7,6 +7,7 @@ import { SubjectDocumentService } from '../document/subjectDocumentService';
 import { LocalSubjectSnapshot } from '../document/types';
 import { EpisodeStatusManager } from '../episode/episodeStatusManager';
 import { tn } from '../i18n';
+import { createCloudPlatformFieldDiff } from './platformSyncLogic';
 import { buildUserStatusSyncDiff } from './statusSyncLogic';
 import {
 	CloudCollectionUpdates,
@@ -311,27 +312,23 @@ export class StatusSyncService {
 				const localContext = snapshot.localSnapshot.platform;
 
 				if (cloudPayload.serialStatus && localContext.serialStatus !== cloudPayload.serialStatus) {
-					fields.push({
-						key: 'serialState',
-						label: tn('statusSyncModal', 'fieldSerialState'),
-						localValue: localContext.serialStatus,
-						cloudValue: cloudPayload.serialStatus,
-						hasDiff: true,
-						decision: 'skip',
-					});
+					fields.push(createCloudPlatformFieldDiff(
+						'serialState',
+						tn('statusSyncModal', 'fieldSerialState'),
+						localContext.serialStatus,
+						cloudPayload.serialStatus,
+					));
 				}
 
 				if (collection.subject_type === SubjectType.Anime || collection.subject_type === SubjectType.Real) {
 					const cloudValue = cloudPayload.episodeCount;
 					if (cloudValue !== undefined && cloudValue !== null && localContext.episodeCount !== cloudValue) {
-						fields.push({
-							key: 'episodeCount',
-							label: tn('statusSyncModal', 'fieldEpisodeCount'),
-							localValue: localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
-							cloudValue: String(cloudValue),
-							hasDiff: true,
-							decision: 'skip',
-						});
+						fields.push(createCloudPlatformFieldDiff(
+							'episodeCount',
+							tn('statusSyncModal', 'fieldEpisodeCount'),
+							localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
+							String(cloudValue),
+						));
 					}
 				}
 
@@ -339,34 +336,28 @@ export class StatusSyncService {
 					const isComic = (parsedInfo.category || '').includes('漫画') || localContext.chapterCount !== null;
 					if (isComic) {
 						if (cloudPayload.chapterCount !== undefined && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
-							fields.push({
-								key: 'chapterCount',
-								label: tn('statusSyncModal', 'fieldChapterCount'),
-								localValue: localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
-								cloudValue: String(cloudPayload.chapterCount),
-								hasDiff: true,
-								decision: 'skip',
-							});
+							fields.push(createCloudPlatformFieldDiff(
+								'chapterCount',
+								tn('statusSyncModal', 'fieldChapterCount'),
+								localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
+								String(cloudPayload.chapterCount),
+							));
 						}
 						if (cloudPayload.volumeCount !== undefined && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-							fields.push({
-								key: 'volumeCount',
-								label: tn('statusSyncModal', 'fieldVolumeCount'),
-								localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
-								cloudValue: String(cloudPayload.volumeCount),
-								hasDiff: true,
-								decision: 'skip',
-							});
+							fields.push(createCloudPlatformFieldDiff(
+								'volumeCount',
+								tn('statusSyncModal', 'fieldVolumeCount'),
+								localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+								String(cloudPayload.volumeCount),
+							));
 						}
 					} else if (cloudPayload.volumeCount !== undefined && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-						fields.push({
-							key: 'volumeCount',
-							label: tn('statusSyncModal', 'fieldVolumeCount'),
-							localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
-							cloudValue: String(cloudPayload.volumeCount),
-							hasDiff: true,
-							decision: 'skip',
-						});
+						fields.push(createCloudPlatformFieldDiff(
+							'volumeCount',
+							tn('statusSyncModal', 'fieldVolumeCount'),
+							localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+							String(cloudPayload.volumeCount),
+						));
 					}
 				}
 

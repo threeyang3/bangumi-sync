@@ -5617,6 +5617,18 @@ function getInfoboxNumber(infobox, key, alternateKeys) {
   }
   return void 0;
 }
+function getMediaStartDate(infobox) {
+  return getInfoboxValue(infobox, "\u653E\u9001\u5F00\u59CB", ["\u64AD\u653E\u5F00\u59CB", "\u5F00\u59CB"]);
+}
+function getMediaEndDate(infobox) {
+  return getInfoboxValue(infobox, "\u653E\u9001\u7ED3\u675F", ["\u64AD\u653E\u7ED3\u675F", "\u7ED3\u675F"]);
+}
+function buildSerialFields(start, end, fallbackToOngoing = false) {
+  return {
+    status: end ? "\u5DF2\u5B8C\u7ED3" : start || fallbackToOngoing ? "\u8FDE\u8F7D\u4E2D" : "",
+    progress: start ? `${start} - ${end || "\u8FDE\u8F7D\u4E2D"}` : void 0
+  };
+}
 function parseAnimeInfo(infobox, platform, persons) {
   let animeMake = getInfoboxValue(infobox, "\u52A8\u753B\u5236\u4F5C");
   if (!animeMake) {
@@ -5634,8 +5646,9 @@ function parseAnimeInfo(infobox, platform, persons) {
   } else {
     category = getInfoboxValue(infobox, "\u7C7B\u578B") || "";
   }
-  const start = getInfoboxValue(infobox, "\u653E\u9001\u5F00\u59CB", ["\u5F00\u59CB"]);
-  const end = getInfoboxValue(infobox, "\u653E\u9001\u7ED3\u675F", ["\u7ED3\u675F"]);
+  const start = getMediaStartDate(infobox);
+  const end = getMediaEndDate(infobox);
+  const serialFields = buildSerialFields(start, end);
   return {
     category,
     episode: getInfoboxNumber(infobox, "\u8BDD\u6570"),
@@ -5649,8 +5662,7 @@ function parseAnimeInfo(infobox, platform, persons) {
     animeChief: getInfoboxValue(infobox, "\u603B\u4F5C\u753B\u76D1\u7763", ["\u4F5C\u753B\u76D1\u7763"]),
     from: getInfoboxValue(infobox, "\u539F\u4F5C", ["\u539F\u6848"]),
     website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"]),
-    status: end ? "\u5DF2\u5B8C\u7ED3" : start ? "\u8FDE\u8F7D\u4E2D" : "",
-    progress: start ? `${start} - ${end || "\u8FDE\u8F7D\u4E2D"}` : void 0,
+    ...serialFields,
     start,
     end
   };
@@ -5720,6 +5732,7 @@ function parseNovelInfo(infobox) {
   const series = seriesFromVersion || getInfoboxValue(infobox, "\u4E66\u7CFB", ["\u4E1B\u4E66", "\u7CFB\u5217", "\u6587\u5E93", "\u56FE\u4E66\u54C1\u724C"]);
   const volumesFromVersion = getNumberFromVersion(infobox, "\u7248\u672C", "\u518C\u6570");
   const volumes = volumesFromVersion || getInfoboxNumber(infobox, "\u518C\u6570", ["\u5377\u6570"]);
+  const serialFields = buildSerialFields(start, end, true);
   const website = getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"]);
   const journal = getInfoboxValue(infobox, "\u8FDE\u8F7D\u6742\u5FD7");
   return {
@@ -5729,8 +5742,7 @@ function parseNovelInfo(infobox) {
     publish,
     series,
     volumes,
-    status: end ? "\u5DF2\u5B8C\u7ED3" : "\u8FDE\u8F7D\u4E2D",
-    progress: start ? `${start} - ${end || "\u8FDE\u8F7D\u4E2D"}` : void 0,
+    ...serialFields,
     start,
     end,
     website,
@@ -5742,6 +5754,7 @@ function parseComicInfo(infobox) {
   const start = getInfoboxValue(infobox, "\u5F00\u59CB", ["\u8FDE\u8F7D\u5F00\u59CB"]);
   const end = getInfoboxValue(infobox, "\u7ED3\u675F", ["\u8FDE\u8F7D\u7ED3\u675F"]);
   const volumes = getNumberFromVersion(infobox, "\u7248\u672C", "\u518C\u6570") || getInfoboxNumber(infobox, "\u518C\u6570", ["\u5377\u6570"]);
+  const serialFields = buildSerialFields(start, end, true);
   return {
     category: getInfoboxValue(infobox, "\u7C7B\u578B") || "\u6F2B\u753B",
     author,
@@ -5750,8 +5763,7 @@ function parseComicInfo(infobox) {
     journal: getInfoboxValue(infobox, "\u8FDE\u8F7D\u6742\u5FD7", ["\u8FDE\u8F7D"]),
     episode: getInfoboxNumber(infobox, "\u8BDD\u6570", ["\u518C\u6570"]),
     volumes,
-    status: end ? "\u5DF2\u5B8C\u7ED3" : "\u8FDE\u8F7D\u4E2D",
-    progress: start ? `${start} - ${end || "\u8FDE\u8F7D\u4E2D"}` : void 0,
+    ...serialFields,
     start,
     end,
     website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"])
@@ -5784,8 +5796,9 @@ function parseAlbumInfo(infobox, platform) {
   };
 }
 function parseRealInfo(infobox, platform) {
-  const start = getInfoboxValue(infobox, "\u653E\u9001\u5F00\u59CB", ["\u5F00\u59CB"]);
-  const end = getInfoboxValue(infobox, "\u653E\u9001\u7ED3\u675F", ["\u7ED3\u675F"]);
+  const start = getMediaStartDate(infobox);
+  const end = getMediaEndDate(infobox);
+  const serialFields = buildSerialFields(start, end);
   return {
     category: platform || "\u4E09\u6B21\u5143",
     director: getInfoboxValue(infobox, "\u5BFC\u6F14", ["\u76D1\u7763"]),
@@ -5798,8 +5811,7 @@ function parseRealInfo(infobox, platform) {
     tvStation: getInfoboxValue(infobox, "\u7535\u89C6\u53F0", ["\u64AD\u653E\u7535\u89C6\u53F0", "\u7F51\u7EDC"]),
     website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"]),
     imdbId: getInfoboxValue(infobox, "imdb_id", ["IMDb"]),
-    status: end ? "\u5DF2\u5B8C\u7ED3" : start ? "\u8FDE\u8F7D\u4E2D" : "",
-    progress: start ? `${start} - ${end || "\u8FDE\u8F7D\u4E2D"}` : void 0,
+    ...serialFields,
     start,
     end
   };
@@ -12134,6 +12146,20 @@ function isMobile() {
 
 // src/sync/statusSyncService.ts
 var import_obsidian20 = require("obsidian");
+
+// src/sync/platformSyncLogic.ts
+function createCloudPlatformFieldDiff(key, label, localValue, cloudValue) {
+  return {
+    key,
+    label,
+    localValue,
+    cloudValue,
+    hasDiff: true,
+    decision: "cloud"
+  };
+}
+
+// src/sync/statusSyncService.ts
 var StatusSyncService = class {
   constructor(app, client, documentService, episodeStatusManager) {
     this.app = app;
@@ -12344,60 +12370,50 @@ var StatusSyncService = class {
         const fields = [];
         const localContext = snapshot.localSnapshot.platform;
         if (cloudPayload.serialStatus && localContext.serialStatus !== cloudPayload.serialStatus) {
-          fields.push({
-            key: "serialState",
-            label: tn("statusSyncModal", "fieldSerialState"),
-            localValue: localContext.serialStatus,
-            cloudValue: cloudPayload.serialStatus,
-            hasDiff: true,
-            decision: "skip"
-          });
+          fields.push(createCloudPlatformFieldDiff(
+            "serialState",
+            tn("statusSyncModal", "fieldSerialState"),
+            localContext.serialStatus,
+            cloudPayload.serialStatus
+          ));
         }
         if (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */) {
           const cloudValue = cloudPayload.episodeCount;
           if (cloudValue !== void 0 && cloudValue !== null && localContext.episodeCount !== cloudValue) {
-            fields.push({
-              key: "episodeCount",
-              label: tn("statusSyncModal", "fieldEpisodeCount"),
-              localValue: localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
-              cloudValue: String(cloudValue),
-              hasDiff: true,
-              decision: "skip"
-            });
+            fields.push(createCloudPlatformFieldDiff(
+              "episodeCount",
+              tn("statusSyncModal", "fieldEpisodeCount"),
+              localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
+              String(cloudValue)
+            ));
           }
         }
         if (collection.subject_type === 1 /* Book */) {
           const isComic = (parsedInfo.category || "").includes("\u6F2B\u753B") || localContext.chapterCount !== null;
           if (isComic) {
             if (cloudPayload.chapterCount !== void 0 && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
-              fields.push({
-                key: "chapterCount",
-                label: tn("statusSyncModal", "fieldChapterCount"),
-                localValue: localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
-                cloudValue: String(cloudPayload.chapterCount),
-                hasDiff: true,
-                decision: "skip"
-              });
+              fields.push(createCloudPlatformFieldDiff(
+                "chapterCount",
+                tn("statusSyncModal", "fieldChapterCount"),
+                localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
+                String(cloudPayload.chapterCount)
+              ));
             }
             if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-              fields.push({
-                key: "volumeCount",
-                label: tn("statusSyncModal", "fieldVolumeCount"),
-                localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
-                cloudValue: String(cloudPayload.volumeCount),
-                hasDiff: true,
-                decision: "skip"
-              });
+              fields.push(createCloudPlatformFieldDiff(
+                "volumeCount",
+                tn("statusSyncModal", "fieldVolumeCount"),
+                localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+                String(cloudPayload.volumeCount)
+              ));
             }
           } else if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-            fields.push({
-              key: "volumeCount",
-              label: tn("statusSyncModal", "fieldVolumeCount"),
-              localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
-              cloudValue: String(cloudPayload.volumeCount),
-              hasDiff: true,
-              decision: "skip"
-            });
+            fields.push(createCloudPlatformFieldDiff(
+              "volumeCount",
+              tn("statusSyncModal", "fieldVolumeCount"),
+              localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+              String(cloudPayload.volumeCount)
+            ));
           }
         }
         return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };

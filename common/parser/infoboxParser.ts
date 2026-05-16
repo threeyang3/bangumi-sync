@@ -201,6 +201,21 @@ function getInfoboxNumber(infobox: InfoboxItem[] | undefined, key: string, alter
 	return undefined;
 }
 
+function getMediaStartDate(infobox: InfoboxItem[] | undefined): string | undefined {
+	return getInfoboxValue(infobox, '放送开始', ['播放开始', '开始']);
+}
+
+function getMediaEndDate(infobox: InfoboxItem[] | undefined): string | undefined {
+	return getInfoboxValue(infobox, '放送结束', ['播放结束', '结束']);
+}
+
+function buildSerialFields(start: string | undefined, end: string | undefined, fallbackToOngoing = false): Pick<ParsedInfo, 'status' | 'progress'> {
+	return {
+		status: end ? '已完结' : (start || fallbackToOngoing ? '连载中' : ''),
+		progress: start ? `${start} - ${end || '连载中'}` : undefined,
+	};
+}
+
 /**
  * 解析动画信息
  */
@@ -231,8 +246,9 @@ export function parseAnimeInfo(infobox: InfoboxItem[] | undefined, platform?: st
 		category = getInfoboxValue(infobox, '类型') || '';
 	}
 
-	const start = getInfoboxValue(infobox, '放送开始', ['开始']);
-	const end = getInfoboxValue(infobox, '放送结束', ['结束']);
+	const start = getMediaStartDate(infobox);
+	const end = getMediaEndDate(infobox);
+	const serialFields = buildSerialFields(start, end);
 
 	return {
 		category,
@@ -247,8 +263,7 @@ export function parseAnimeInfo(infobox: InfoboxItem[] | undefined, platform?: st
 		animeChief: getInfoboxValue(infobox, '总作画监督', ['作画监督']),
 		from: getInfoboxValue(infobox, '原作', ['原案']),
 		website: getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']),
-		status: end ? '已完结' : (start ? '连载中' : ''),
-		progress: start ? `${start} - ${end || '连载中'}` : undefined,
+		...serialFields,
 		start,
 		end,
 	};
@@ -314,6 +329,7 @@ export function parseNovelInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 	// 册数：优先从版本信息中获取，否则使用顶层字段
 	const volumesFromVersion = getNumberFromVersion(infobox, '版本', '册数');
 	const volumes = volumesFromVersion || getInfoboxNumber(infobox, '册数', ['卷数']);
+	const serialFields = buildSerialFields(start, end, true);
 
 	// 官网：使用专门的函数处理链接数组格式
 	const website = getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']);
@@ -326,8 +342,7 @@ export function parseNovelInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 		publish,
 		series,
 		volumes,
-		status: end ? '已完结' : '连载中',
-		progress: start ? `${start} - ${end || '连载中'}` : undefined,
+		...serialFields,
 		start,
 		end,
 		website,
@@ -343,6 +358,7 @@ export function parseComicInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 	const start = getInfoboxValue(infobox, '开始', ['连载开始']);
 	const end = getInfoboxValue(infobox, '结束', ['连载结束']);
 	const volumes = getNumberFromVersion(infobox, '版本', '册数') || getInfoboxNumber(infobox, '册数', ['卷数']);
+	const serialFields = buildSerialFields(start, end, true);
 
 	return {
 		category: getInfoboxValue(infobox, '类型') || '漫画',
@@ -352,8 +368,7 @@ export function parseComicInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 		journal: getInfoboxValue(infobox, '连载杂志', ['连载']),
 		episode: getInfoboxNumber(infobox, '话数', ['册数']),
 		volumes,
-		status: end ? '已完结' : '连载中',
-		progress: start ? `${start} - ${end || '连载中'}` : undefined,
+		...serialFields,
 		start,
 		end,
 		website: getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']),
@@ -398,8 +413,9 @@ export function parseAlbumInfo(infobox: InfoboxItem[] | undefined, platform?: st
  * 解析三次元信息（电影/电视剧/综艺等）
  */
 export function parseRealInfo(infobox: InfoboxItem[] | undefined, platform?: string): ParsedInfo {
-	const start = getInfoboxValue(infobox, '放送开始', ['开始']);
-	const end = getInfoboxValue(infobox, '放送结束', ['结束']);
+	const start = getMediaStartDate(infobox);
+	const end = getMediaEndDate(infobox);
+	const serialFields = buildSerialFields(start, end);
 
 	return {
 		category: platform || '三次元',
@@ -413,8 +429,7 @@ export function parseRealInfo(infobox: InfoboxItem[] | undefined, platform?: str
 		tvStation: getInfoboxValue(infobox, '电视台', ['播放电视台', '网络']),
 		website: getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']),
 		imdbId: getInfoboxValue(infobox, 'imdb_id', ['IMDb']),
-		status: end ? '已完结' : (start ? '连载中' : ''),
-		progress: start ? `${start} - ${end || '连载中'}` : undefined,
+		...serialFields,
 		start,
 		end,
 	};
