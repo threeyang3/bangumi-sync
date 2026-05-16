@@ -58,8 +58,12 @@ common/
 - `src/api/client.ts`
   - Bangumi HTTP 请求层
   - Token 校验、收藏查询、条目详情、章节与收藏写回
+- `src/document/`
+  - 本地条目文档服务层
+  - frontmatter 访问、正文 section 读写、短评 callout、平台字段写回、本地条目快照
 - `src/sync/`
   - 同步主流程与增量检测
+  - 纯逻辑辅助层和状态同步 service 也放在这里，例如 `statusSyncLogic.ts`、`statusSyncService.ts`
 - `src/template/`
   - 模板变量渲染、自定义属性分类
 - `src/ui/`
@@ -68,6 +72,7 @@ common/
   - 控制面板、状态同步、批量编辑、冲突解决
 - `src/userData/`
   - 强制同步继承、导入、导出
+  - 纯逻辑导入辅助层也放在这里，例如 `importLogic.ts`
 - `src/episode/`
   - 单集状态、单集评论、右键菜单
 - `src/note/`
@@ -116,6 +121,7 @@ SyncManager
   ├─ fileManager
   ├─ imageHandler
   ├─ incrementalSync
+  ├─ subjectDocumentService
   ├─ userDataExtractor
   └─ userDataMerger
 ```
@@ -124,9 +130,12 @@ SyncManager
 
 - `BangumiPlugin` 决定“从哪里进入功能”。
 - `SyncManager` 决定“同步时怎么编排”。
-- `IncrementalSync` 决定“本地已有啥、该跳过啥、状态字段怎么提取”。
+- `IncrementalSync` 决定“本地已有啥、该跳过啥、索引如何维护”。
+- `SubjectDocumentService` 决定“本地条目内容怎么读、怎么定点改”。
 - `contentTemplate.ts` 决定“最终 Markdown 长什么样”。
 - `templateProperties.ts` 决定“哪些 frontmatter 字段是辨识属性、自动字段、自定义属性”。
+- `StatusSyncService` 决定“状态同步怎么构建 diff、后台补全、执行写回”。
+- `shortComment.ts`、`statusSyncLogic.ts`、`importLogic.ts`、`frontmatterAccess.ts`、`markdownSection.ts` 负责承载最容易回归的纯逻辑判断，供业务层复用并直接测试。
 
 ## 5. 模块详解
 
@@ -189,10 +198,29 @@ SyncManager
 - 扫描目录并识别本地已同步条目（优先使用 metadataCache，减少文件读取）
 - 构建 id→path 反转索引，供 `resolvePathByMetadataCache()` O(1) 查找
 - 计算远程收藏与本地文件的差异
-- 解析和回写短评、标签、相关链接、评分、状态
-- 为状态同步面板提供本地值抽取能力
+- 维护相关链接、批次内索引、少量兼容包装
+- 当前正文 / frontmatter 的实际读写已逐步下沉到 `src/document/subjectDocumentService.ts`
 
-### 5.4 `src/template/contentTemplate.ts`
+### 5.4 `src/document/`
+
+这是当前“本地条目单一来源”的核心模块。
+
+子模块关系：
+
+- `frontmatterAccess.ts`
+  - 统一读取和更新 string / number / list frontmatter 字段
+  - 提供 YAML list 替换、字段存在性检查、字段删除能力
+- `markdownSection.ts`
+  - 统一提取和更新 `## 标题` section
+  - 统一更新 `## 集数` 区块
+- `subjectDocumentService.ts`
+  - 组合短评、frontmatter、section、单集状态解析
+  - 构建共享 `LocalSubjectSnapshot`
+  - 统一执行用户字段和平台字段的定点回写
+
+这层的目标是：让状态同步、导入导出、本地用户数据保护都尽量基于同一套文档读写逻辑，而不是各自维护一份字符串处理。
+
+### 5.5 `src/template/contentTemplate.ts`
 
 这是模板渲染层。
 
@@ -203,7 +231,7 @@ SyncManager
 - 按条目类型与细分类别选择最终模板
 - 在渲染完成后按属性名回写显式自定义属性值
 
-### 5.5 `src/template/templateProperties.ts`
+### 5.6 `src/template/templateProperties.ts`
 
 这是当前“自定义属性机制”的核心。
 
@@ -222,7 +250,7 @@ SyncManager
 
 当前所有需要识别自定义属性的功能，都应该先经过这个模块，而不是自己维护字段名单。
 
-### 5.6 `src/ui/`
+### 5.7 `src/ui/`
 
 这里放的是“单次流程型”弹窗：
 
@@ -240,7 +268,7 @@ SyncManager
 - `syncModal.ts`
   - 同步进度反馈、暂停/恢复、取消（带回滚）、后台运行支持
 
-### 5.7 `src/panel/`
+### 5.8 `src/panel/`
 
 这里放的是“长期停留型”界面和批量操作：
 
@@ -250,8 +278,10 @@ SyncManager
   - 同步选中 / 强制同步 / 删除 / 批量编辑
   - 状态同步入口
   - 移动端卡片式列表、紧凑操作栏、单行分页和顶部下拉关闭手势
+  - 当前只保留流程编排；状态同步 diff 构建和后台补全已下沉到 `StatusSyncService`
 - `statusSyncModal.ts`
-  - 本地与云端状态差异对比和处理
+  - 本地与云端状态差异渲染、决策收集
+  - 不再直接承担状态同步执行逻辑
 - `conflictResolver.ts`
   - 状态字段冲突比对
 - `batchEditorModal.ts`
@@ -259,7 +289,7 @@ SyncManager
   - 同时支持“统一操作”和“逐项编辑”两种模式
   - 逐项编辑会先收集选中条目的现有 frontmatter 属性，再按“条目 x 属性”表格逐格提交
 
-### 5.8 `src/userData/`
+### 5.9 `src/userData/`
 
 这是”强制同步保护 + 导入导出”的统一模块。
 
@@ -270,8 +300,10 @@ SyncManager
   - `PropertyManageMap` / `PropertyDiff` / `ImportItemDiff` 用于导入对比
 - `userDataExtractor.ts`
   - 从本地文件提取用户数据
+  - 当前通过 `SubjectDocumentService` 复用短评 / section / frontmatter 解析
 - `userDataMerger.ts`
   - 把用户数据合并回新内容
+  - 当前通过 `SubjectDocumentService` 复用 frontmatter / section 写回
 - `userDataExporter.ts`
   - 批量导出
   - 导出为单个 `bangumi-user-data.json`
@@ -281,13 +313,14 @@ SyncManager
   - `collectAllPropertyNames()`: 扫描导入文件中的可管理属性名（用户属性 + 自定义属性）
   - `compareImportData()`: 对比导入与本地差异，自动导入空字段，收集有差异的字段
   - `applyImportPlan()`: 按用户决策批量写入，并兼容旧多文件备份与 legacy 结构
+  - 当前通过 `importLogic.ts` 复用值比较、smart merge、legacy rating 映射等纯逻辑，减少超大文件内联分支
 - `userDataModal.ts`
   - 导入导出弹窗
   - `PropertyManageModal`: 导入前属性忽略/别名管理
   - `ImportCompareModal`: 有差异属性的对比决策
   - `PropertyImportReviewModal`: 按属性逐组审查差异与缺失字段
 
-### 5.9 `src/episode/`
+### 5.10 `src/episode/`
 
 单集功能不是同步主链路的一部分，但和状态同步高度耦合。
 
@@ -298,6 +331,32 @@ SyncManager
 - 插入与管理单集吐槽
 
 这里的实现必须和 [STATUS_SYNC_PITFALLS.md](./STATUS_SYNC_PITFALLS.md) 一起看。
+
+## 6. 可测试纯逻辑层
+
+为了稳住回归风险，当前仓库开始把“可脱离 Obsidian 运行时验证”的规则收束到少量纯逻辑模块：
+
+- `src/comment/shortComment.ts`
+  - 短评 callout 的提取、规范化、写回、删除
+- `src/document/frontmatterAccess.ts`
+  - frontmatter 统一读写
+- `src/document/markdownSection.ts`
+  - section 统一提取和写回
+- `src/sync/statusSyncLogic.ts`
+  - 用户数据差异判断
+  - 平台数据候选判定
+  - 完结状态识别
+- `src/sync/statusSyncService.ts`
+  - 状态同步的 diff 构建、后台补全、执行写回
+- `src/userData/importLogic.ts`
+  - `smart / prefer_local / prefer_import` 的值层策略
+  - 列表字段归一化
+  - legacy 评分字段映射
+- `common/template/templateRegistry.ts`
+  - `category -> templateKey`
+  - `subjectType -> fallback templateKey`
+
+这些模块的目标不是把业务完全拆碎，而是把最脆的判断收成单一来源，供 `Vitest` 直接覆盖。
 
 ### 5.10 `src/note/subjectNoteManager.ts`
 
@@ -443,11 +502,17 @@ SearchModal
 - 收藏状态
 - 单集状态
 
-它依赖：
+它当前分成三层：
 
-- `IncrementalSync` 提取本地 frontmatter / 正文值
-- `controlPanel.ts` 读取云端收藏值
-- `statusSyncModal.ts` 让用户决定保留本地还是云端
+- `ControlPanel`
+  - 触发状态同步、显示整体进度、预热本地快照
+- `StatusSyncService`
+  - 构建初始 diff
+  - 后台补全单集状态 / 平台字段
+  - 执行本地 / 云端写回
+- `StatusSyncModal`
+  - 展示差异
+  - 收集用户决策
 
 这条链路不会重建整篇笔记，而是对已有本地文件做定点修改。
 

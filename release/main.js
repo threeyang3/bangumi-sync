@@ -28,16 +28,16 @@ __export(main_exports, {
   default: () => BangumiPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 
 // common/api/types.ts
-var SubjectType = /* @__PURE__ */ ((SubjectType2) => {
-  SubjectType2[SubjectType2["Book"] = 1] = "Book";
-  SubjectType2[SubjectType2["Anime"] = 2] = "Anime";
-  SubjectType2[SubjectType2["Music"] = 3] = "Music";
-  SubjectType2[SubjectType2["Game"] = 4] = "Game";
-  SubjectType2[SubjectType2["Real"] = 6] = "Real";
-  return SubjectType2;
+var SubjectType = /* @__PURE__ */ ((SubjectType3) => {
+  SubjectType3[SubjectType3["Book"] = 1] = "Book";
+  SubjectType3[SubjectType3["Anime"] = 2] = "Anime";
+  SubjectType3[SubjectType3["Music"] = 3] = "Music";
+  SubjectType3[SubjectType3["Game"] = 4] = "Game";
+  SubjectType3[SubjectType3["Real"] = 6] = "Real";
+  return SubjectType3;
 })(SubjectType || {});
 var CollectionType = /* @__PURE__ */ ((CollectionType2) => {
   CollectionType2[CollectionType2["Wish"] = 1] = "Wish";
@@ -4287,6 +4287,644 @@ function removeShortComment(content) {
   return updated;
 }
 
+// src/sync/statusSyncLogic.ts
+function supportsPlatformDataSync(subjectType) {
+  return subjectType === 2 /* Anime */ || subjectType === 6 /* Real */ || subjectType === 1 /* Book */;
+}
+function isCompletedSerialState(value) {
+  if (!value) {
+    return false;
+  }
+  const normalized = value.replace(/\s+/g, "");
+  return /(已完结|完结|已结束|放送结束|已完播|全\d+(话|集|卷)|完)/.test(normalized);
+}
+function isPlatformDataCandidate(context) {
+  if (isCompletedSerialState(context.serialStatus)) {
+    return false;
+  }
+  if (context.end && context.end.trim().length > 0) {
+    return false;
+  }
+  if (isCompletedSerialState(context.progress)) {
+    return false;
+  }
+  return true;
+}
+function shouldLoadPlatformData(subjectType, context) {
+  return supportsPlatformDataSync(subjectType) && isPlatformDataCandidate(context);
+}
+function buildUserStatusSyncDiff(input) {
+  const commentLocal = normalizeShortComment(input.localComment);
+  const commentCloud = normalizeShortComment(input.cloudComment);
+  const cloudTags = input.cloudTags && input.cloudTags.length > 0 ? input.cloudTags : null;
+  const rate = {
+    localValue: input.localRate,
+    cloudValue: input.cloudRate,
+    hasDiff: input.localRate !== input.cloudRate
+  };
+  const comment = {
+    localValue: commentLocal,
+    cloudValue: commentCloud,
+    hasDiff: commentLocal !== commentCloud
+  };
+  const tags = {
+    localValue: input.localTags,
+    cloudValue: cloudTags,
+    hasDiff: hasTagDiff(input.localTags, cloudTags)
+  };
+  const status = {
+    localValue: input.localStatus,
+    cloudValue: input.cloudStatus,
+    hasDiff: input.localStatus !== input.cloudStatus
+  };
+  return {
+    rate,
+    comment,
+    tags,
+    status,
+    hasUserDiff: rate.hasDiff || comment.hasDiff || tags.hasDiff || status.hasDiff
+  };
+}
+function hasTagDiff(localTags, cloudTags) {
+  const localTagSet = new Set(localTags.map((tag) => normalizeTag(tag)));
+  const cloudTagSet = new Set((cloudTags != null ? cloudTags : []).map((tag) => normalizeTag(tag)));
+  return localTagSet.size !== cloudTagSet.size || ![...localTagSet].every((tag) => cloudTagSet.has(tag));
+}
+function normalizeTag(tag) {
+  return tag.toLowerCase().trim();
+}
+
+// src/document/frontmatterAccess.ts
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function stripQuotedValue(value) {
+  if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+function isTopLevelFrontmatterLine(line) {
+  return /^[^\s-][^:]*:\s*/.test(line);
+}
+function formatFrontmatterValue(value) {
+  if (typeof value === "string") {
+    if (value.includes("\n")) {
+      return `|-
+${value.split("\n").map((line) => `  ${line}`).join("\n")}`;
+    }
+    if (value.includes(":") || value.includes("#") || value.includes('"') || value.includes("'") || value.includes("[") || value.includes("{")) {
+      return `"${value.replace(/"/g, '\\"')}"`;
+    }
+    return value;
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  if (typeof value === "number") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return `
+${value.map((item) => `  - ${formatFrontmatterValue(item)}`).join("\n")}`;
+  }
+  if (typeof value === "object" && value !== null) {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+function serializeFrontmatterField(field, value) {
+  const formattedValue = formatFrontmatterValue(value);
+  if (formattedValue.startsWith("|-\n")) {
+    const [firstLine, ...restLines] = formattedValue.split("\n");
+    return [`${field}: ${firstLine}`, ...restLines];
+  }
+  if (formattedValue.startsWith("\n")) {
+    return [`${field}:`, ...formattedValue.slice(1).split("\n")];
+  }
+  return [`${field}: ${formattedValue}`];
+}
+function parseFrontmatterBlock(content) {
+  const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+  if (!frontmatterMatch) {
+    return null;
+  }
+  return {
+    prefix: frontmatterMatch[1],
+    frontmatter: frontmatterMatch[2],
+    suffix: frontmatterMatch[3],
+    rest: frontmatterMatch[4],
+    match: frontmatterMatch[0]
+  };
+}
+function upsertFrontmatterBody(frontmatter, field, value) {
+  const lines = frontmatter.split("\n");
+  const startIndex = lines.findIndex((line) => line.startsWith(`${field}:`));
+  const fieldLines = serializeFrontmatterField(field, value);
+  if (startIndex === -1) {
+    return `${frontmatter}
+${fieldLines.join("\n")}`;
+  }
+  let endIndex = lines.length;
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    if (isTopLevelFrontmatterLine(lines[i])) {
+      endIndex = i;
+      break;
+    }
+  }
+  return [
+    ...lines.slice(0, startIndex),
+    ...fieldLines,
+    ...lines.slice(endIndex)
+  ].join("\n");
+}
+function extractFrontmatter(content) {
+  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  return frontmatterMatch ? frontmatterMatch[1] : null;
+}
+function hasFrontmatterField(content, field) {
+  const frontmatter = extractFrontmatter(content);
+  if (!frontmatter) {
+    return false;
+  }
+  const fieldRegex = new RegExp(`^${escapeRegExp(field)}:`, "m");
+  return fieldRegex.test(frontmatter);
+}
+function getFrontmatterValue(content, field) {
+  const frontmatter = extractFrontmatter(content);
+  if (!frontmatter) {
+    return void 0;
+  }
+  const lines = frontmatter.split("\n");
+  const fieldPrefix = `${field}:`;
+  const startIndex = lines.findIndex((line) => line.startsWith(fieldPrefix));
+  if (startIndex === -1) {
+    return void 0;
+  }
+  const inlineValue = lines[startIndex].slice(fieldPrefix.length).trim();
+  if (inlineValue) {
+    return stripQuotedValue(inlineValue);
+  }
+  const listItems = [];
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (isTopLevelFrontmatterLine(line)) {
+      break;
+    }
+    const listMatch = line.match(/^\s*-\s*(.*)$/);
+    if (listMatch) {
+      listItems.push(stripQuotedValue(listMatch[1].trim()));
+      continue;
+    }
+    if (line.trim() && !/^\s/.test(line)) {
+      break;
+    }
+  }
+  return listItems.length > 0 ? listItems.join(", ") : "";
+}
+function upsertFrontmatterField(content, field, value) {
+  const block = parseFrontmatterBlock(content);
+  if (!block) {
+    return content;
+  }
+  const nextFrontmatter = upsertFrontmatterBody(block.frontmatter, field, value);
+  return block.prefix + nextFrontmatter + block.suffix + block.rest;
+}
+function addFrontmatterField(content, field, value) {
+  const block = parseFrontmatterBlock(content);
+  if (!block) {
+    return content;
+  }
+  const entry = serializeFrontmatterField(field, value).join("\n");
+  const newFrontmatter = `${block.frontmatter}
+${entry}`;
+  return block.prefix + newFrontmatter + block.suffix + block.rest;
+}
+function readTextField(content, fieldNames) {
+  const frontmatter = extractFrontmatter(content);
+  if (!frontmatter) {
+    return null;
+  }
+  const names = Array.isArray(fieldNames) ? fieldNames : [fieldNames];
+  for (const fieldName of names) {
+    const escapedName = escapeRegExp(fieldName);
+    const fieldRegex = new RegExp(`^${escapedName}:\\s*(.*)$`, "m");
+    const match = frontmatter.match(fieldRegex);
+    if (!match) {
+      continue;
+    }
+    const rawValue = match[1].trim();
+    if (!rawValue) {
+      return null;
+    }
+    const unquoted = rawValue.replace(/^["']|["']$/g, "").trim();
+    return unquoted.length > 0 ? unquoted : null;
+  }
+  return null;
+}
+function readNumberField(content, fieldNames) {
+  const value = readTextField(content, fieldNames);
+  if (!value) {
+    return null;
+  }
+  const numberMatch = value.match(/\d+/);
+  if (!numberMatch) {
+    return null;
+  }
+  const parsed = parseInt(numberMatch[0], 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function upsertQuotedTextField(content, fieldName, value) {
+  const block = parseFrontmatterBlock(content);
+  if (!block) {
+    return content;
+  }
+  const escapedName = escapeRegExp(fieldName);
+  const fieldRegex = new RegExp(`^${escapedName}:.*$`, "m");
+  let frontmatter = block.frontmatter;
+  if (value === null || value === void 0 || String(value).trim() === "") {
+    frontmatter = frontmatter.replace(fieldRegex, "").replace(/\n{3,}/g, "\n\n").trim();
+    return block.prefix + frontmatter + block.suffix + block.rest;
+  }
+  const nextLine = `${fieldName}: "${String(value).replace(/"/g, '\\"')}"`;
+  if (fieldRegex.test(frontmatter)) {
+    frontmatter = frontmatter.replace(fieldRegex, nextLine);
+  } else {
+    frontmatter = `${frontmatter}
+${nextLine}`;
+  }
+  return block.prefix + frontmatter + block.suffix + block.rest;
+}
+function findYamlListBlock(lines, key) {
+  const start = lines.findIndex((line) => new RegExp(`^${escapeRegExp(key)}:\\s*$`).test(line));
+  if (start === -1) {
+    return null;
+  }
+  let end = start + 1;
+  while (end < lines.length && /^\s*-\s+/.test(lines[end])) {
+    end++;
+  }
+  return { start, end };
+}
+function replaceYamlBlock(lines, key, replacement) {
+  const block = findYamlListBlock(lines, key);
+  const inlineIndex = lines.findIndex((line) => new RegExp(`^${escapeRegExp(key)}:\\s*.*$`).test(line));
+  if (block) {
+    return [...lines.slice(0, block.start), ...replacement, ...lines.slice(block.end)];
+  }
+  if (inlineIndex !== -1) {
+    return [...lines.slice(0, inlineIndex), ...replacement, ...lines.slice(inlineIndex + 1)];
+  }
+  return [...lines, ...replacement];
+}
+function removeYamlBlock(lines, key) {
+  const block = findYamlListBlock(lines, key);
+  if (block) {
+    return [...lines.slice(0, block.start), ...lines.slice(block.end)];
+  }
+  const inlineIndex = lines.findIndex((line) => new RegExp(`^${escapeRegExp(key)}:\\s*.*$`).test(line));
+  if (inlineIndex !== -1) {
+    return [...lines.slice(0, inlineIndex), ...lines.slice(inlineIndex + 1)];
+  }
+  return lines;
+}
+function upsertYamlListField(content, field, values) {
+  const block = parseFrontmatterBlock(content);
+  if (!block) {
+    return content;
+  }
+  const newTagLines = [`${field}:`, ...values.map((value) => `  - ${value}`)];
+  const updatedFrontmatter = replaceYamlBlock(block.frontmatter.split("\n"), field, newTagLines).join("\n");
+  return block.prefix + updatedFrontmatter + block.suffix + block.rest;
+}
+function removeYamlListField(content, field) {
+  const block = parseFrontmatterBlock(content);
+  if (!block) {
+    return content;
+  }
+  const updatedFrontmatter = removeYamlBlock(block.frontmatter.split("\n"), field).join("\n").trim();
+  return block.prefix + updatedFrontmatter + block.suffix + block.rest;
+}
+
+// src/document/markdownSection.ts
+function extractMarkdownSection(content, sectionName) {
+  const normalizedContent = content.replace(/\r\n/g, "\n");
+  const lines = normalizedContent.split("\n");
+  const heading = `## ${sectionName}`;
+  const startIndex = lines.findIndex((line) => line.trim() === heading);
+  if (startIndex === -1) {
+    return void 0;
+  }
+  let endIndex = lines.length;
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    if (/^##\s+/.test(lines[i])) {
+      endIndex = i;
+      break;
+    }
+  }
+  const sectionContent = lines.slice(startIndex + 1, endIndex).join("\n").trim();
+  return sectionContent || void 0;
+}
+function updateMarkdownSection(content, sectionName, sectionContent) {
+  const normalizedContent = content.replace(/\r\n/g, "\n");
+  const lines = normalizedContent.split("\n");
+  const heading = `## ${sectionName}`;
+  const startIndex = lines.findIndex((line) => line.trim() === heading);
+  if (startIndex !== -1) {
+    let endIndex = lines.length;
+    for (let i = startIndex + 1; i < lines.length; i++) {
+      if (/^##\s+/.test(lines[i])) {
+        endIndex = i;
+        break;
+      }
+    }
+    const replacement = [heading, "", sectionContent.trim()];
+    const nextLines = [
+      ...lines.slice(0, startIndex),
+      ...replacement,
+      ...lines.slice(endIndex)
+    ];
+    return nextLines.join("\n").replace(/\n+$/, "\n");
+  }
+  return normalizedContent.replace(/\n*$/, "") + `
+
+## ${sectionName}
+
+${sectionContent.trim()}
+`;
+}
+function updateEpisodeMarkdownSection(content, renderedEpisodes) {
+  const normalizedContent = content.replace(/\r\n?/g, "\n");
+  const sectionRegex = /^## 集数\s*\n([\s\S]*?)(?=^##\s|\Z)/m;
+  const nextSectionContent = `## \u96C6\u6570
+
+${renderedEpisodes}`.trimEnd();
+  if (sectionRegex.test(normalizedContent)) {
+    return normalizedContent.replace(sectionRegex, `${nextSectionContent}
+
+`);
+  }
+  const recordsHeadingRegex = /^## 记录/m;
+  if (recordsHeadingRegex.test(normalizedContent)) {
+    return normalizedContent.replace(recordsHeadingRegex, `${nextSectionContent}
+
+## \u8BB0\u5F55`);
+  }
+  return `${normalizedContent.trimEnd()}
+
+${nextSectionContent}
+`;
+}
+
+// src/document/subjectDocumentService.ts
+var SubjectDocumentService = class {
+  constructor(app, episodeStatusManager) {
+    this.app = app;
+    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
+  }
+  async readSnapshot(file, subjectType) {
+    const content = await this.app.vault.read(file);
+    return this.readSnapshotFromContent(content, subjectType, {
+      file,
+      path: file.path,
+      mtime: file.stat.mtime
+    });
+  }
+  readSnapshotFromContent(content, subjectType, context = {}) {
+    const statusFieldName = this.getStatusFieldName(subjectType);
+    const platform = this.extractLocalPlatformSyncContext(content);
+    const shouldLoadEpisodeStatus = Boolean(
+      this.episodeStatusManager && (subjectType === 2 /* Anime */ || subjectType === 6 /* Real */)
+    );
+    return {
+      file: context.file,
+      path: context.path,
+      mtime: context.mtime,
+      content,
+      user: {
+        statusFieldName,
+        rate: this.extractRate(content),
+        comment: this.extractComment(content),
+        tags: this.normalizeTags(this.extractTags(content)),
+        status: this.extractStatus(content, statusFieldName)
+      },
+      platform,
+      sections: {
+        record: this.extractSection(content, "\u8BB0\u5F55"),
+        thoughts: this.extractSection(content, "\u611F\u60F3")
+      },
+      episodeStatusMap: this.episodeStatusManager ? this.episodeStatusManager.getEpisodeStatusMapFromContent(content) : /* @__PURE__ */ new Map(),
+      shouldLoadEpisodeStatus,
+      shouldLoadPlatformData: shouldLoadPlatformData(subjectType, platform)
+    };
+  }
+  extractSection(content, sectionName) {
+    return extractMarkdownSection(content, sectionName);
+  }
+  updateSection(content, sectionName, sectionContent) {
+    return updateMarkdownSection(content, sectionName, sectionContent);
+  }
+  updateEpisodeSection(content, renderedEpisodes) {
+    return updateEpisodeMarkdownSection(content, renderedEpisodes);
+  }
+  extractComment(content) {
+    return extractShortComment(content);
+  }
+  updateComment(content, newComment) {
+    return updateShortComment(content, newComment);
+  }
+  removeComment(content) {
+    return removeShortComment(content);
+  }
+  normalizeComment(comment) {
+    return normalizeShortComment(comment);
+  }
+  extractTags(content) {
+    const inlineValue = getFrontmatterValue(content, "tags");
+    if (!inlineValue) {
+      return null;
+    }
+    const tags = this.normalizeTags(
+      inlineValue.split(",").map((tag) => tag.trim())
+    );
+    return tags.length > 0 ? tags : null;
+  }
+  updateTags(content, newTags) {
+    return upsertYamlListField(content, "tags", this.normalizeTags(newTags));
+  }
+  removeTags(content) {
+    return removeYamlListField(content, "tags");
+  }
+  hasFrontmatterField(content, field) {
+    return hasFrontmatterField(content, field);
+  }
+  getFrontmatterValue(content, field) {
+    return getFrontmatterValue(content, field);
+  }
+  updateFrontmatterField(content, field, value) {
+    return upsertFrontmatterField(content, field, value);
+  }
+  addFrontmatterField(content, field, value) {
+    return addFrontmatterField(content, field, value);
+  }
+  extractTextField(content, fieldNames) {
+    return readTextField(content, fieldNames);
+  }
+  extractNumberField(content, fieldNames) {
+    return readNumberField(content, fieldNames);
+  }
+  extractLocalPlatformSyncContext(content) {
+    return {
+      serialStatus: this.extractTextField(content, "\u8FDE\u8F7D\u72B6\u6001"),
+      progress: this.extractTextField(content, "\u8FDB\u5EA6"),
+      start: this.extractTextField(content, "\u5F00\u59CB"),
+      end: this.extractTextField(content, "\u7ED3\u675F"),
+      episodeCount: this.extractNumberField(content, "\u96C6\u6570"),
+      chapterCount: this.extractNumberField(content, "\u8BDD\u6570"),
+      volumeCount: this.extractNumberField(content, ["\u5377\u6570", "\u518C\u6570"])
+    };
+  }
+  updateTextField(content, fieldName, value) {
+    return upsertQuotedTextField(content, fieldName, value);
+  }
+  updatePlatformMetadata(content, updates) {
+    let nextContent = content;
+    if (updates.serialStatus !== void 0) {
+      nextContent = this.updateTextField(nextContent, "\u8FDE\u8F7D\u72B6\u6001", updates.serialStatus);
+    }
+    if (updates.progress !== void 0) {
+      nextContent = this.updateTextField(nextContent, "\u8FDB\u5EA6", updates.progress);
+    }
+    if (updates.start !== void 0) {
+      nextContent = this.updateTextField(nextContent, "\u5F00\u59CB", updates.start);
+    }
+    if (updates.end !== void 0) {
+      nextContent = this.updateTextField(nextContent, "\u7ED3\u675F", updates.end);
+    }
+    if (updates.episodeCount !== void 0) {
+      nextContent = this.updateTextField(nextContent, "\u96C6\u6570", updates.episodeCount);
+    }
+    if (updates.chapterCount !== void 0) {
+      nextContent = this.updateTextField(nextContent, "\u8BDD\u6570", updates.chapterCount);
+    }
+    if (updates.volumeCount !== void 0) {
+      const hasVolumeField = this.extractTextField(nextContent, "\u5377\u6570") !== null;
+      const hasBookVolumeField = this.extractTextField(nextContent, "\u518C\u6570") !== null;
+      if (hasVolumeField) {
+        nextContent = this.updateTextField(nextContent, "\u5377\u6570", updates.volumeCount);
+      }
+      if (hasBookVolumeField || !hasVolumeField) {
+        nextContent = this.updateTextField(nextContent, "\u518C\u6570", updates.volumeCount);
+      }
+    }
+    return nextContent;
+  }
+  normalizeTags(tags) {
+    if (!tags) {
+      return [];
+    }
+    return Array.from(new Set(
+      tags.map((tag) => tag.trim()).filter((tag) => this.isValidTagValue(tag))
+    ));
+  }
+  getStatusFieldName(subjectType) {
+    switch (subjectType) {
+      case 1 /* Book */:
+        return "\u9605\u8BFB\u72B6\u6001";
+      case 2 /* Anime */:
+      case 6 /* Real */:
+        return "\u89C2\u770B\u72B6\u6001";
+      case 3 /* Music */:
+        return "\u6536\u85CF\u72B6\u6001";
+      case 4 /* Game */:
+        return "\u6E38\u73A9\u72B6\u6001";
+      default:
+        return "\u89C2\u770B\u72B6\u6001";
+    }
+  }
+  extractRate(content) {
+    const value = this.extractTextField(content, "\u8BC4\u5206");
+    if (!value) {
+      return null;
+    }
+    const parsed = parseInt(value, 10);
+    return parsed >= 1 && parsed <= 10 ? parsed : null;
+  }
+  extractStatus(content, statusFieldName) {
+    const value = this.extractTextField(content, statusFieldName);
+    if (!value) {
+      return null;
+    }
+    return this.parseStatusText(value);
+  }
+  updateRate(content, newRate) {
+    if (newRate === null || newRate < 1 || newRate > 10) {
+      return content;
+    }
+    return upsertFrontmatterField(content, "\u8BC4\u5206", newRate);
+  }
+  updateStatus(content, newStatus, statusFieldName) {
+    const statusText = getCollectionStatusLabel(newStatus, this.getSubjectTypeFromStatusFieldName(statusFieldName), true);
+    return upsertFrontmatterField(content, statusFieldName, statusText);
+  }
+  isPlatformDataCandidate(context) {
+    return isPlatformDataCandidate(context);
+  }
+  isCompletedSerialState(value) {
+    return isCompletedSerialState(value);
+  }
+  isValidTagValue(value) {
+    const normalized = value.trim();
+    if (normalized.length === 0) {
+      return false;
+    }
+    if (/^[^,[\]]+:\s*.+$/.test(normalized)) {
+      return false;
+    }
+    return true;
+  }
+  parseStatusText(text) {
+    var _a, _b;
+    const normalizedText = text.trim().replace(/🕒|✅|▶️|⏸️|❌|\uFE0F|\s/gu, "");
+    const statusMap = {
+      "\u60F3\u770B": 1 /* Wish */,
+      "\u60F3\u8BFB": 1 /* Wish */,
+      "\u60F3\u73A9": 1 /* Wish */,
+      "\u60F3\u542C": 1 /* Wish */,
+      "\u5DF2\u770B": 2 /* Done */,
+      "\u5DF2\u8BFB": 2 /* Done */,
+      "\u5DF2\u73A9": 2 /* Done */,
+      "\u5DF2\u542C": 2 /* Done */,
+      "\u770B\u8FC7": 2 /* Done */,
+      "\u8BFB\u8FC7": 2 /* Done */,
+      "\u73A9\u8FC7": 2 /* Done */,
+      "\u542C\u8FC7": 2 /* Done */,
+      "\u5728\u770B": 3 /* Doing */,
+      "\u5728\u8BFB": 3 /* Doing */,
+      "\u5728\u73A9": 3 /* Doing */,
+      "\u5728\u542C": 3 /* Doing */,
+      "\u6401\u7F6E": 4 /* OnHold */,
+      "\u629B\u5F03": 5 /* Dropped */,
+      "\u653E\u5F03": 5 /* Dropped */
+    };
+    return (_b = (_a = statusMap[normalizedText]) != null ? _a : statusMap[text.trim()]) != null ? _b : null;
+  }
+  getSubjectTypeFromStatusFieldName(statusFieldName) {
+    switch (statusFieldName) {
+      case "\u9605\u8BFB\u72B6\u6001":
+        return 1 /* Book */;
+      case "\u6E38\u73A9\u72B6\u6001":
+        return 4 /* Game */;
+      case "\u6536\u85CF\u72B6\u6001":
+        return 3 /* Music */;
+      case "\u89C2\u770B\u72B6\u6001":
+        return 2 /* Anime */;
+      default:
+        return void 0;
+    }
+  }
+};
+
 // src/sync/incrementalSync.ts
 var IncrementalSync = class {
   constructor(app) {
@@ -4297,6 +4935,7 @@ var IncrementalSync = class {
     // metadataCache 构建的 id→path 反转索引（用于快速路径查找）
     this.metadataIdIndex = /* @__PURE__ */ new Map();
     this.app = app;
+    this.documentService = new SubjectDocumentService(app);
   }
   /**
    * 扫描本地文件夹，获取已同步的条目
@@ -4650,23 +5289,23 @@ var IncrementalSync = class {
    * 短评格式: > [!abstract]+ **短评**\n> {comment}
    */
   extractComment(content) {
-    return extractShortComment(content);
+    return this.documentService.extractComment(content);
   }
   /**
    * 更新正文中的短评
    * 如果短评不存在，在简介之前插入
    */
   updateComment(content, newComment) {
-    return updateShortComment(content, newComment);
+    return this.documentService.updateComment(content, newComment);
   }
   /**
    * 删除正文中的短评 callout
    */
   removeComment(content) {
-    return removeShortComment(content);
+    return this.documentService.removeComment(content);
   }
   normalizeComment(comment) {
-    return normalizeShortComment(comment);
+    return this.documentService.normalizeComment(comment);
   }
   /**
    * 从 frontmatter 中提取标签
@@ -4675,238 +5314,44 @@ var IncrementalSync = class {
    * 2. 逗号分隔格式: tags: tag1, tag2
    */
   extractTags(content) {
-    const frontmatter = this.extractFrontmatter(content);
-    if (!frontmatter) {
-      return null;
-    }
-    const lines = frontmatter.split("\n");
-    const tagBlock = this.findYamlListBlock(lines, "tags");
-    if (tagBlock) {
-      const tags = this.normalizeTags(
-        lines.slice(tagBlock.start + 1, tagBlock.end).map((line) => line.replace(/^\s*-\s*/, "").trim())
-      );
-      return tags.length > 0 ? tags : null;
-    }
-    const inlineLine = lines.find((line) => /^tags:\s*\S/.test(line));
-    if (inlineLine) {
-      const tagStr = inlineLine.replace(/^tags:\s*/, "").trim();
-      const cleanStr = tagStr.replace(/^["']|["']$/g, "");
-      const tags = this.normalizeTags(
-        cleanStr.split(",").map((t2) => t2.trim())
-      );
-      return tags.length > 0 ? tags : null;
-    }
-    return null;
+    return this.documentService.extractTags(content);
   }
   /**
    * 更新 frontmatter 中的标签
    * 使用 YAML 数组格式
    */
   updateTags(content, newTags) {
-    const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-    if (!frontmatterMatch) {
-      return content;
-    }
-    const prefix = frontmatterMatch[1];
-    const frontmatter = frontmatterMatch[2];
-    const suffix = frontmatterMatch[3];
-    const bodyContent = frontmatterMatch[4];
-    const lines = frontmatter.split("\n");
-    const filteredTags = this.normalizeTags(newTags);
-    const newTagLines = ["tags:", ...filteredTags.map((tag) => `  - ${tag}`)];
-    const updatedFrontmatter = this.replaceYamlBlock(lines, "tags", newTagLines).join("\n");
-    return prefix + updatedFrontmatter + suffix + bodyContent;
+    return this.documentService.updateTags(content, newTags);
   }
   /**
    * 删除 frontmatter 中的标签字段
    */
   removeTags(content) {
-    const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-    if (!frontmatterMatch) {
-      return content;
-    }
-    const prefix = frontmatterMatch[1];
-    const frontmatter = frontmatterMatch[2];
-    const suffix = frontmatterMatch[3];
-    const bodyContent = frontmatterMatch[4];
-    const lines = frontmatter.split("\n");
-    const updatedFrontmatter = this.removeYamlBlock(lines, "tags").join("\n").trim();
-    return prefix + updatedFrontmatter + suffix + bodyContent;
-  }
-  extractFrontmatter(content) {
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    return frontmatterMatch ? frontmatterMatch[1] : null;
+    return this.documentService.removeTags(content);
   }
   extractTextField(content, fieldNames) {
-    const frontmatter = this.extractFrontmatter(content);
-    if (!frontmatter) {
-      return null;
-    }
-    const names = Array.isArray(fieldNames) ? fieldNames : [fieldNames];
-    for (const fieldName of names) {
-      const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const fieldRegex = new RegExp(`^${escapedName}:\\s*(.*)$`, "m");
-      const match = frontmatter.match(fieldRegex);
-      if (!match) {
-        continue;
-      }
-      const rawValue = match[1].trim();
-      if (!rawValue) {
-        return null;
-      }
-      const unquoted = rawValue.replace(/^["']|["']$/g, "").trim();
-      return unquoted.length > 0 ? unquoted : null;
-    }
-    return null;
+    return this.documentService.extractTextField(content, fieldNames);
   }
   extractNumberField(content, fieldNames) {
-    const value = this.extractTextField(content, fieldNames);
-    if (!value) {
-      return null;
-    }
-    const numberMatch = value.match(/\d+/);
-    if (!numberMatch) {
-      return null;
-    }
-    const parsed = parseInt(numberMatch[0], 10);
-    return Number.isFinite(parsed) ? parsed : null;
+    return this.documentService.extractNumberField(content, fieldNames);
   }
   extractLocalPlatformSyncContext(content) {
-    return {
-      serialStatus: this.extractTextField(content, "\u8FDE\u8F7D\u72B6\u6001"),
-      progress: this.extractTextField(content, "\u8FDB\u5EA6"),
-      start: this.extractTextField(content, "\u5F00\u59CB"),
-      end: this.extractTextField(content, "\u7ED3\u675F"),
-      episodeCount: this.extractNumberField(content, "\u96C6\u6570"),
-      chapterCount: this.extractNumberField(content, "\u8BDD\u6570"),
-      volumeCount: this.extractNumberField(content, ["\u5377\u6570", "\u518C\u6570"])
-    };
+    return this.documentService.extractLocalPlatformSyncContext(content);
   }
   isPlatformDataCandidate(context) {
-    if (this.isCompletedSerialState(context.serialStatus)) {
-      return false;
-    }
-    if (context.end && context.end.trim().length > 0) {
-      return false;
-    }
-    if (this.isCompletedSerialState(context.progress)) {
-      return false;
-    }
-    return true;
+    return isPlatformDataCandidate(context);
   }
   isCompletedSerialState(value) {
-    if (!value) {
-      return false;
-    }
-    const normalized = value.replace(/\s+/g, "");
-    return /(已完结|完结|已结束|放送结束|已完播|全\d+(话|集|卷)|完)/.test(normalized);
-  }
-  findYamlListBlock(lines, key) {
-    const start = lines.findIndex((line) => new RegExp(`^${key}:\\s*$`).test(line));
-    if (start === -1) {
-      return null;
-    }
-    let end = start + 1;
-    while (end < lines.length && /^\s*-\s+/.test(lines[end])) {
-      end++;
-    }
-    return { start, end };
-  }
-  replaceYamlBlock(lines, key, replacement) {
-    const block = this.findYamlListBlock(lines, key);
-    const inlineIndex = lines.findIndex((line) => new RegExp(`^${key}:\\s*.*$`).test(line));
-    if (block) {
-      return [...lines.slice(0, block.start), ...replacement, ...lines.slice(block.end)];
-    }
-    if (inlineIndex !== -1) {
-      return [...lines.slice(0, inlineIndex), ...replacement, ...lines.slice(inlineIndex + 1)];
-    }
-    return [...lines, ...replacement];
-  }
-  removeYamlBlock(lines, key) {
-    const block = this.findYamlListBlock(lines, key);
-    if (block) {
-      return [...lines.slice(0, block.start), ...lines.slice(block.end)];
-    }
-    const inlineIndex = lines.findIndex((line) => new RegExp(`^${key}:\\s*.*$`).test(line));
-    if (inlineIndex !== -1) {
-      return [...lines.slice(0, inlineIndex), ...lines.slice(inlineIndex + 1)];
-    }
-    return lines;
+    return isCompletedSerialState(value);
   }
   updateTextField(content, fieldName, value) {
-    const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-    if (!frontmatterMatch) {
-      return content;
-    }
-    const prefix = frontmatterMatch[1];
-    let frontmatter = frontmatterMatch[2];
-    const suffix = frontmatterMatch[3];
-    const bodyContent = frontmatterMatch[4];
-    const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const fieldRegex = new RegExp(`^${escapedName}:.*$`, "m");
-    if (value === null || value === void 0 || String(value).trim() === "") {
-      frontmatter = frontmatter.replace(fieldRegex, "").replace(/\n{3,}/g, "\n\n").trim();
-      return prefix + frontmatter + suffix + bodyContent;
-    }
-    const nextLine = `${fieldName}: "${String(value).replace(/"/g, '\\"')}"`;
-    if (fieldRegex.test(frontmatter)) {
-      frontmatter = frontmatter.replace(fieldRegex, nextLine);
-    } else {
-      frontmatter = `${frontmatter}
-${nextLine}`;
-    }
-    return prefix + frontmatter + suffix + bodyContent;
+    return this.documentService.updateTextField(content, fieldName, value);
   }
   updatePlatformMetadata(content, updates) {
-    let nextContent = content;
-    if (updates.serialStatus !== void 0) {
-      nextContent = this.updateTextField(nextContent, "\u8FDE\u8F7D\u72B6\u6001", updates.serialStatus);
-    }
-    if (updates.progress !== void 0) {
-      nextContent = this.updateTextField(nextContent, "\u8FDB\u5EA6", updates.progress);
-    }
-    if (updates.start !== void 0) {
-      nextContent = this.updateTextField(nextContent, "\u5F00\u59CB", updates.start);
-    }
-    if (updates.end !== void 0) {
-      nextContent = this.updateTextField(nextContent, "\u7ED3\u675F", updates.end);
-    }
-    if (updates.episodeCount !== void 0) {
-      nextContent = this.updateTextField(nextContent, "\u96C6\u6570", updates.episodeCount);
-    }
-    if (updates.chapterCount !== void 0) {
-      nextContent = this.updateTextField(nextContent, "\u8BDD\u6570", updates.chapterCount);
-    }
-    if (updates.volumeCount !== void 0) {
-      const hasVolumeField = this.extractTextField(nextContent, "\u5377\u6570") !== null;
-      const hasBookVolumeField = this.extractTextField(nextContent, "\u518C\u6570") !== null;
-      if (hasVolumeField) {
-        nextContent = this.updateTextField(nextContent, "\u5377\u6570", updates.volumeCount);
-      }
-      if (hasBookVolumeField || !hasVolumeField) {
-        nextContent = this.updateTextField(nextContent, "\u518C\u6570", updates.volumeCount);
-      }
-    }
-    return nextContent;
+    return this.documentService.updatePlatformMetadata(content, updates);
   }
   normalizeTags(tags) {
-    if (!tags) {
-      return [];
-    }
-    return Array.from(new Set(
-      tags.map((tag) => tag.trim()).filter((tag) => this.isValidTagValue(tag))
-    ));
-  }
-  isValidTagValue(value) {
-    const normalized = value.trim();
-    if (normalized.length === 0) {
-      return false;
-    }
-    if (/^[^,[\]]+:\s*.+$/.test(normalized)) {
-      return false;
-    }
-    return true;
+    return this.documentService.normalizeTags(tags);
   }
   /**
    * 从 frontmatter 中提取相关链接
@@ -5002,165 +5447,35 @@ ${allLinks.map((l) => `  - "${l}"`).join("\n")}` : "\u76F8\u5173:";
    * 根据条目类型获取状态字段名
    */
   getStatusFieldName(subjectType) {
-    switch (subjectType) {
-      case 1 /* Book */:
-        return "\u9605\u8BFB\u72B6\u6001";
-      case 2 /* Anime */:
-      case 6 /* Real */:
-        return "\u89C2\u770B\u72B6\u6001";
-      case 3 /* Music */:
-        return "\u6536\u85CF\u72B6\u6001";
-      case 4 /* Game */:
-        return "\u6E38\u73A9\u72B6\u6001";
-      default:
-        return "\u89C2\u770B\u72B6\u6001";
-    }
+    return this.documentService.getStatusFieldName(subjectType);
   }
   /**
    * 从 frontmatter 中提取用户评分
    * 字段名: 评分 (范围 1-10)
    */
   extractRate(content) {
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (!frontmatterMatch)
-      return null;
-    const frontmatter = frontmatterMatch[1];
-    const rateMatch = frontmatter.match(/^评分:\s*"?(\d+)"?/m);
-    if (rateMatch) {
-      const rate = parseInt(rateMatch[1], 10);
-      return rate >= 1 && rate <= 10 ? rate : null;
-    }
-    return null;
+    return this.documentService.extractRate(content);
   }
   /**
    * 从 frontmatter 中提取收藏状态
    */
   extractStatus(content, statusFieldName) {
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (!frontmatterMatch)
-      return null;
-    const frontmatter = frontmatterMatch[1];
-    const statusRegex = new RegExp(`^${statusFieldName}:\\s*"?([^"\\n]+)"?`, "m");
-    const statusMatch = frontmatter.match(statusRegex);
-    if (statusMatch) {
-      const statusText = statusMatch[1].trim();
-      return this.parseStatusText(statusText);
-    }
-    return null;
-  }
-  /**
-   * 将状态文本转换为 CollectionType 数字
-   */
-  parseStatusText(text) {
-    var _a, _b;
-    const normalizedText = text.trim().replace(/🕒|✅|▶️|⏸️|❌|\uFE0F|\s/gu, "");
-    const statusMap = {
-      "\u60F3\u770B": 1 /* Wish */,
-      "\u60F3\u8BFB": 1 /* Wish */,
-      "\u60F3\u73A9": 1 /* Wish */,
-      "\u60F3\u542C": 1 /* Wish */,
-      "\u5DF2\u770B": 2 /* Done */,
-      "\u5DF2\u8BFB": 2 /* Done */,
-      "\u5DF2\u73A9": 2 /* Done */,
-      "\u5DF2\u542C": 2 /* Done */,
-      "\u770B\u8FC7": 2 /* Done */,
-      "\u8BFB\u8FC7": 2 /* Done */,
-      "\u73A9\u8FC7": 2 /* Done */,
-      "\u542C\u8FC7": 2 /* Done */,
-      "\u5728\u770B": 3 /* Doing */,
-      "\u5728\u8BFB": 3 /* Doing */,
-      "\u5728\u73A9": 3 /* Doing */,
-      "\u5728\u542C": 3 /* Doing */,
-      "\u6401\u7F6E": 4 /* OnHold */,
-      "\u629B\u5F03": 5 /* Dropped */,
-      "\u653E\u5F03": 5 /* Dropped */
-    };
-    return (_b = (_a = statusMap[normalizedText]) != null ? _a : statusMap[text.trim()]) != null ? _b : null;
-  }
-  /**
-   * 将 CollectionType 数字转换为状态文本
-   */
-  getStatusText(type, statusFieldName) {
-    return getCollectionStatusLabel(type, this.getSubjectTypeFromStatusFieldName(statusFieldName), true);
-  }
-  getSubjectTypeFromStatusFieldName(statusFieldName) {
-    switch (statusFieldName) {
-      case "\u9605\u8BFB\u72B6\u6001":
-        return 1 /* Book */;
-      case "\u6E38\u73A9\u72B6\u6001":
-        return 4 /* Game */;
-      case "\u6536\u85CF\u72B6\u6001":
-        return 3 /* Music */;
-      case "\u89C2\u770B\u72B6\u6001":
-        return 2 /* Anime */;
-      default:
-        return void 0;
-    }
+    return this.documentService.extractStatus(content, statusFieldName);
   }
   /**
    * 更新 frontmatter 中的评分
    */
   updateRate(content, newRate) {
-    const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-    if (!frontmatterMatch)
-      return content;
-    const prefix = frontmatterMatch[1];
-    let frontmatter = frontmatterMatch[2];
-    const suffix = frontmatterMatch[3];
-    const bodyContent = frontmatterMatch[4];
-    if (newRate !== null && newRate >= 1 && newRate <= 10) {
-      const newRateStr = `\u8BC4\u5206: ${newRate}`;
-      const rateRegex = /^评分:\s*"?(\d+)"?/m;
-      if (rateRegex.test(frontmatter)) {
-        frontmatter = frontmatter.replace(rateRegex, newRateStr);
-      } else {
-        frontmatter = frontmatter + "\n" + newRateStr;
-      }
-    }
-    return prefix + frontmatter + suffix + bodyContent;
+    return this.documentService.updateRate(content, newRate);
   }
   /**
    * 更新 frontmatter 中的状态
    */
   updateStatus(content, newStatus, statusFieldName) {
-    const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-    if (!frontmatterMatch)
-      return content;
-    const prefix = frontmatterMatch[1];
-    let frontmatter = frontmatterMatch[2];
-    const suffix = frontmatterMatch[3];
-    const bodyContent = frontmatterMatch[4];
-    const statusText = this.getStatusText(newStatus, statusFieldName);
-    const newStatusStr = `${statusFieldName}: ${statusText}`;
-    const statusRegex = new RegExp(`^${statusFieldName}:.*$`, "m");
-    if (statusRegex.test(frontmatter)) {
-      frontmatter = frontmatter.replace(statusRegex, newStatusStr);
-    } else {
-      frontmatter = frontmatter + "\n" + newStatusStr;
-    }
-    return prefix + frontmatter + suffix + bodyContent;
+    return this.documentService.updateStatus(content, newStatus, statusFieldName);
   }
   updateEpisodeSection(content, renderedEpisodes) {
-    const normalizedContent = content.replace(/\r\n?/g, "\n");
-    const sectionRegex = /^## 集数\s*\n([\s\S]*?)(?=^##\s|\Z)/m;
-    const nextSectionContent = `## \u96C6\u6570
-
-${renderedEpisodes}`.trimEnd();
-    if (sectionRegex.test(normalizedContent)) {
-      return normalizedContent.replace(sectionRegex, `${nextSectionContent}
-
-`);
-    }
-    const recordsHeadingRegex = /^## 记录/m;
-    if (recordsHeadingRegex.test(normalizedContent)) {
-      return normalizedContent.replace(recordsHeadingRegex, `${nextSectionContent}
-
-## \u8BB0\u5F55`);
-    }
-    return `${normalizedContent.trimEnd()}
-
-${nextSectionContent}
-`;
+    return this.documentService.updateEpisodeSection(content, renderedEpisodes);
   }
 };
 
@@ -5945,6 +6260,7 @@ function getFrontmatterStringArray(frontmatter, key) {
 var UserDataExtractor = class {
   constructor(app) {
     this.app = app;
+    this.documentService = new SubjectDocumentService(app);
   }
   extractFromFile(file) {
     const cache = this.app.metadataCache.getFileCache(file);
@@ -5956,8 +6272,8 @@ var UserDataExtractor = class {
     if (!result)
       return null;
     const content = await this.app.vault.read(file);
-    const record = this.extractSection(content, "\u8BB0\u5F55");
-    const thoughts = this.extractSection(content, "\u611F\u60F3");
+    const record = this.documentService.extractSection(content, "\u8BB0\u5F55");
+    const thoughts = this.documentService.extractSection(content, "\u611F\u60F3");
     if (record || thoughts) {
       result.bodySections = {
         record,
@@ -5975,9 +6291,9 @@ var UserDataExtractor = class {
     if (!base)
       return null;
     const content = await this.app.vault.read(file);
-    const record = this.extractSection(content, "\u8BB0\u5F55");
-    const thoughts = this.extractSection(content, "\u611F\u60F3");
-    const shortComment = this.extractComment(content);
+    const record = this.documentService.extractSection(content, "\u8BB0\u5F55");
+    const thoughts = this.documentService.extractSection(content, "\u611F\u60F3");
+    const shortComment = this.documentService.extractComment(content);
     if (hasUserDataType(dataTypes, "bodySections" /* BODY_CONTENT */) && (record || thoughts)) {
       base.bodySections = {
         record,
@@ -6110,22 +6426,7 @@ var UserDataExtractor = class {
     return result;
   }
   extractSection(content, sectionName) {
-    const normalizedContent = content.replace(/\r\n/g, "\n");
-    const lines = normalizedContent.split("\n");
-    const heading = `## ${sectionName}`;
-    const startIndex = lines.findIndex((line) => line.trim() === heading);
-    if (startIndex === -1) {
-      return void 0;
-    }
-    let endIndex = lines.length;
-    for (let i = startIndex + 1; i < lines.length; i++) {
-      if (/^##\s+/.test(lines[i])) {
-        endIndex = i;
-        break;
-      }
-    }
-    const sectionContent = lines.slice(startIndex + 1, endIndex).join("\n").trim();
-    return sectionContent || void 0;
+    return this.documentService.extractSection(content, sectionName);
   }
   determineSubjectType(frontmatter) {
     var _a;
@@ -6164,15 +6465,13 @@ var UserDataExtractor = class {
     const value = frontmatter[key];
     return typeof value === "string" && value.trim() ? value.trim() : void 0;
   }
-  extractComment(content) {
-    return extractShortComment(content);
-  }
 };
 
 // src/userData/userDataMerger.ts
 var UserDataMerger = class {
   constructor(app) {
     this.app = app;
+    this.documentService = new SubjectDocumentService(app);
   }
   mergeUserData(file, newContent, localUserData, settings = DEFAULT_DATA_PROTECTION_SETTINGS) {
     let result = newContent;
@@ -6202,168 +6501,21 @@ var UserDataMerger = class {
     return result;
   }
   updateFrontmatterField(content, field, value) {
-    const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
-    if (!frontmatterMatch)
-      return content;
-    const prefix = frontmatterMatch[1];
-    const frontmatter = frontmatterMatch[2];
-    const suffix = frontmatterMatch[3];
-    const restContent = content.substring(frontmatterMatch[0].length);
-    const nextFrontmatter = this.upsertFrontmatterField(frontmatter, field, value);
-    return prefix + nextFrontmatter + suffix + restContent;
+    return this.documentService.updateFrontmatterField(content, field, value);
   }
   addFrontmatterField(content, field, value) {
-    const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
-    if (!frontmatterMatch)
-      return content;
-    const prefix = frontmatterMatch[1];
-    const frontmatter = frontmatterMatch[2];
-    const suffix = frontmatterMatch[3];
-    const restContent = content.substring(frontmatterMatch[0].length);
-    const entry = this.serializeFrontmatterField(field, value).join("\n");
-    const newFrontmatter = `${frontmatter}
-${entry}`;
-    return prefix + newFrontmatter + suffix + restContent;
+    return this.documentService.addFrontmatterField(content, field, value);
   }
   hasFrontmatterField(content, field) {
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (!frontmatterMatch)
-      return false;
-    const frontmatter = frontmatterMatch[1];
-    const fieldRegex = new RegExp(`^${escapeRegExp(field)}:`, "m");
-    return fieldRegex.test(frontmatter);
+    return this.documentService.hasFrontmatterField(content, field);
   }
   getFrontmatterValue(content, field) {
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (!frontmatterMatch)
-      return void 0;
-    const lines = frontmatterMatch[1].split("\n");
-    const fieldPrefix = `${field}:`;
-    const startIndex = lines.findIndex((line) => line.startsWith(fieldPrefix));
-    if (startIndex === -1) {
-      return void 0;
-    }
-    const inlineValue = lines[startIndex].slice(fieldPrefix.length).trim();
-    if (inlineValue) {
-      return stripQuotedValue(inlineValue);
-    }
-    const listItems = [];
-    for (let i = startIndex + 1; i < lines.length; i++) {
-      const line = lines[i];
-      if (/^[^-\s][^:]*:/.test(line)) {
-        break;
-      }
-      const listMatch = line.match(/^\s*-\s*(.*)$/);
-      if (listMatch) {
-        listItems.push(stripQuotedValue(listMatch[1].trim()));
-        continue;
-      }
-      if (line.trim() && !/^\s/.test(line)) {
-        break;
-      }
-    }
-    return listItems.length > 0 ? listItems.join(", ") : "";
+    return this.documentService.getFrontmatterValue(content, field);
   }
   updateSection(content, sectionName, sectionContent) {
-    const normalizedContent = content.replace(/\r\n/g, "\n");
-    const lines = normalizedContent.split("\n");
-    const heading = `## ${sectionName}`;
-    const startIndex = lines.findIndex((line) => line.trim() === heading);
-    if (startIndex !== -1) {
-      let endIndex = lines.length;
-      for (let i = startIndex + 1; i < lines.length; i++) {
-        if (/^##\s+/.test(lines[i])) {
-          endIndex = i;
-          break;
-        }
-      }
-      const replacement = [heading, "", sectionContent.trim()];
-      const nextLines = [
-        ...lines.slice(0, startIndex),
-        ...replacement,
-        ...lines.slice(endIndex)
-      ];
-      return nextLines.join("\n").replace(/\n+$/, "\n");
-    }
-    return normalizedContent.replace(/\n*$/, "") + `
-
-## ${sectionName}
-
-${sectionContent.trim()}
-`;
-  }
-  formatFrontmatterValue(value) {
-    if (typeof value === "string") {
-      if (value.includes("\n")) {
-        return `|-
-${value.split("\n").map((line) => `  ${line}`).join("\n")}`;
-      }
-      if (value.includes(":") || value.includes("#") || value.includes('"') || value.includes("'") || value.includes("[") || value.includes("{")) {
-        return `"${value.replace(/"/g, '\\"')}"`;
-      }
-      return value;
-    }
-    if (typeof value === "boolean") {
-      return value ? "true" : "false";
-    }
-    if (typeof value === "number") {
-      return String(value);
-    }
-    if (Array.isArray(value)) {
-      return `
-${value.map((item) => `  - ${this.formatFrontmatterValue(item)}`).join("\n")}`;
-    }
-    if (typeof value === "object" && value !== null) {
-      return JSON.stringify(value);
-    }
-    return String(value);
-  }
-  upsertFrontmatterField(frontmatter, field, value) {
-    const lines = frontmatter.split("\n");
-    const startIndex = lines.findIndex((line) => line.startsWith(`${field}:`));
-    const fieldLines = this.serializeFrontmatterField(field, value);
-    if (startIndex === -1) {
-      return `${frontmatter}
-${fieldLines.join("\n")}`;
-    }
-    let endIndex = lines.length;
-    for (let i = startIndex + 1; i < lines.length; i++) {
-      if (isTopLevelFrontmatterLine(lines[i])) {
-        endIndex = i;
-        break;
-      }
-    }
-    const nextLines = [
-      ...lines.slice(0, startIndex),
-      ...fieldLines,
-      ...lines.slice(endIndex)
-    ];
-    return nextLines.join("\n");
-  }
-  serializeFrontmatterField(field, value) {
-    const formattedValue = this.formatFrontmatterValue(value);
-    if (formattedValue.startsWith("|-\n")) {
-      const [firstLine, ...restLines] = formattedValue.split("\n");
-      return [`${field}: ${firstLine}`, ...restLines];
-    }
-    if (formattedValue.startsWith("\n")) {
-      return [`${field}:`, ...formattedValue.slice(1).split("\n")];
-    }
-    return [`${field}: ${formattedValue}`];
+    return this.documentService.updateSection(content, sectionName, sectionContent);
   }
 };
-function isTopLevelFrontmatterLine(line) {
-  return /^[^\s-][^:]*:\s*/.test(line);
-}
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function stripQuotedValue(value) {
-  if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
-    return value.slice(1, -1);
-  }
-  return value;
-}
 
 // src/userData/userDataExporter.ts
 var import_obsidian8 = require("obsidian");
@@ -6471,17 +6623,8 @@ var UserDataExporter = class {
 
 // src/userData/userDataImporter.ts
 var import_obsidian9 = require("obsidian");
-var PROPERTY_ALIAS_CANDIDATES = {
-  "\u5267\u60C5\u8BC4\u5206": ["\u6545\u4E8B\u8BC4\u5206"],
-  "\u6545\u4E8B\u8BC4\u5206": ["\u5267\u60C5\u8BC4\u5206"],
-  "\u4EBA\u8BBE\u8BC4\u5206": ["\u89D2\u8272\u8BC4\u5206"],
-  "\u89D2\u8272\u8BC4\u5206": ["\u4EBA\u8BBE\u8BC4\u5206"],
-  "\u7F8E\u672F\u8BC4\u5206": ["\u4F5C\u753B\u8BC4\u5206", "\u753B\u5DE5\u8BC4\u5206", "\u5236\u4F5C\u8BC4\u5206", "\u63D2\u753B\u8BC4\u5206"],
-  "\u753B\u5DE5\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206", "\u4F5C\u753B\u8BC4\u5206"],
-  "\u4F5C\u753B\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206", "\u753B\u5DE5\u8BC4\u5206"],
-  "\u5236\u4F5C\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206"],
-  "\u63D2\u753B\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206"]
-};
+
+// src/userData/importLogic.ts
 var LIST_LIKE_FIELDS = /* @__PURE__ */ new Set([
   "tags",
   "Tags",
@@ -6494,11 +6637,238 @@ var LIST_LIKE_FIELDS = /* @__PURE__ */ new Set([
   "\u8D44\u6E90",
   "\u6536\u85CF\u6765\u6E90"
 ]);
+function mapLegacyRatingField(identifier, legacyKey) {
+  var _a, _b;
+  const type = identifier.type;
+  const workType = (_b = (_a = identifier.workType) == null ? void 0 : _a.toLowerCase()) != null ? _b : "";
+  if (type === 2 /* Anime */) {
+    return mapRatingFieldByTable(legacyKey, {
+      music: "\u97F3\u4E50\u8BC4\u5206",
+      character: "\u4EBA\u8BBE\u8BC4\u5206",
+      story: "\u5267\u60C5\u8BC4\u5206",
+      art: "\u7F8E\u672F\u8BC4\u5206"
+    });
+  }
+  if (type === 4 /* Game */) {
+    return mapRatingFieldByTable(legacyKey, {
+      story: "\u5267\u60C5\u8BC4\u5206",
+      fun: "\u8DA3\u5473\u8BC4\u5206",
+      music: "\u97F3\u4E50\u8BC4\u5206",
+      art: "\u7F8E\u672F\u8BC4\u5206"
+    });
+  }
+  if (type === 6 /* Real */) {
+    return mapRatingFieldByTable(legacyKey, {
+      story: "\u5267\u60C5\u8BC4\u5206",
+      character: "\u6F14\u6280\u8BC4\u5206",
+      art: "\u5236\u4F5C\u8BC4\u5206"
+    });
+  }
+  if (type === 1 /* Book */ && workType === "comic") {
+    return mapRatingFieldByTable(legacyKey, {
+      story: "\u5267\u60C5\u8BC4\u5206",
+      drawing: "\u753B\u5DE5\u8BC4\u5206",
+      character: "\u4EBA\u8BBE\u8BC4\u5206"
+    });
+  }
+  if (type === 1 /* Book */ && workType === "album") {
+    return mapRatingFieldByTable(legacyKey, {
+      story: "\u5267\u60C5\u8BC4\u5206",
+      drawing: "\u753B\u5DE5\u8BC4\u5206",
+      character: "\u4EBA\u8BBE\u8BC4\u5206"
+    });
+  }
+  return mapRatingFieldByTable(legacyKey, {
+    story: "\u5267\u60C5\u8BC4\u5206",
+    illustration: "\u63D2\u753B\u8BC4\u5206",
+    writing: "\u6587\u7B14\u8BC4\u5206",
+    character: "\u4EBA\u8BBE\u8BC4\u5206"
+  });
+}
+function smartMergeImportValues(localValue, importValue, fieldName) {
+  if (isEmptyImportValue(localValue)) {
+    return normalizeImportValueForWrite(importValue, fieldName);
+  }
+  if (isEmptyImportValue(importValue)) {
+    return normalizeImportValueForWrite(localValue, fieldName);
+  }
+  const localArray = toImportArray(localValue, fieldName);
+  const importArray = toImportArray(importValue, fieldName);
+  if (localArray && importArray) {
+    return Array.from(/* @__PURE__ */ new Set([...localArray, ...importArray]));
+  }
+  if (typeof localValue === "string" && typeof importValue === "string") {
+    return mergeSectionValues(localValue, importValue);
+  }
+  return normalizeImportValueForWrite(importValue, fieldName);
+}
+function mergeSectionValues(localValue, importValue) {
+  const localText = (localValue != null ? localValue : "").trim();
+  const importText = (importValue != null ? importValue : "").trim();
+  if (!localText)
+    return importText;
+  if (!importText)
+    return localText;
+  if (localText === importText)
+    return localText;
+  return `${localText}
+
+---
+
+${importText}`;
+}
+function importValuesEqual(left, right, fieldName) {
+  return stableStringify(normalizeComparableImportValue(left, fieldName)) === stableStringify(normalizeComparableImportValue(right, fieldName));
+}
+function normalizeImportValueForWrite(value, fieldName) {
+  const arrayValue = toImportArray(value, fieldName);
+  if (arrayValue) {
+    return Array.from(new Set(arrayValue));
+  }
+  return value;
+}
+function mapRatingFieldByTable(legacyKey, table) {
+  if (table[legacyKey]) {
+    return table[legacyKey];
+  }
+  return mapGenericRatingField(legacyKey);
+}
+function mapGenericRatingField(legacyKey) {
+  const genericMap = {
+    music: "\u97F3\u4E50\u8BC4\u5206",
+    character: "\u4EBA\u8BBE\u8BC4\u5206",
+    story: "\u5267\u60C5\u8BC4\u5206",
+    art: "\u7F8E\u672F\u8BC4\u5206",
+    illustration: "\u63D2\u753B\u8BC4\u5206",
+    writing: "\u6587\u7B14\u8BC4\u5206",
+    drawing: "\u753B\u5DE5\u8BC4\u5206",
+    fun: "\u8DA3\u5473\u8BC4\u5206"
+  };
+  return genericMap[legacyKey] || null;
+}
+function isEmptyImportValue(value) {
+  if (value === null || value === void 0)
+    return true;
+  if (typeof value === "string")
+    return value.trim() === "";
+  if (Array.isArray(value))
+    return value.length === 0;
+  if (typeof value === "object")
+    return Object.keys(value).length === 0;
+  return false;
+}
+function toImportArray(value, fieldName) {
+  if (Array.isArray(value)) {
+    return normalizeListValues(value);
+  }
+  if (typeof value === "string" && fieldName && LIST_LIKE_FIELDS.has(fieldName)) {
+    const parsed = splitListString(value);
+    return parsed.length > 0 ? parsed : null;
+  }
+  return null;
+}
+function normalizeComparableImportValue(value, fieldName) {
+  if (fieldName === "\u77ED\u8BC4" && typeof value === "string") {
+    return normalizeShortComment(value);
+  }
+  const arrayValue = toImportArray(value, fieldName);
+  if (arrayValue) {
+    return Array.from(new Set(arrayValue)).sort((left, right) => left.localeCompare(right, "zh-CN"));
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      return String(Number(trimmed));
+    }
+    return trimmed.replace(/\r\n/g, "\n");
+  }
+  if (value && typeof value === "object") {
+    return stableNormalize(value);
+  }
+  return value;
+}
+function stableStringify(value) {
+  var _a;
+  if (value === null || value === void 0)
+    return "";
+  if (typeof value === "string")
+    return value;
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
+  if (typeof value === "bigint")
+    return value.toString();
+  if (typeof value === "symbol")
+    return (_a = value.description) != null ? _a : "symbol";
+  if (typeof value === "function")
+    return "[function]";
+  if (Array.isArray(value))
+    return JSON.stringify(value.map((item) => stableNormalize(item)));
+  if (typeof value === "object")
+    return JSON.stringify(stableNormalize(value));
+  return "";
+}
+function stableNormalize(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => stableNormalize(item));
+  }
+  if (value && typeof value === "object") {
+    const record = value;
+    return Object.keys(record).sort().reduce((acc, key) => {
+      acc[key] = stableNormalize(record[key]);
+      return acc;
+    }, {});
+  }
+  return value;
+}
+function normalizeListValues(values) {
+  return values.flatMap((item) => typeof item === "string" ? splitListString(item) : [stringifyImportValue(item)]).map((item) => item.trim()).filter(Boolean);
+}
+function splitListString(value) {
+  return value.split(/[,\n，、；;｜|]/).map((item) => item.trim()).filter(Boolean);
+}
+function stringifyImportValue(value) {
+  var _a;
+  if (typeof value === "string")
+    return value;
+  if (value === null || value === void 0)
+    return "";
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  if (typeof value === "symbol") {
+    return (_a = value.description) != null ? _a : "symbol";
+  }
+  if (typeof value === "function") {
+    return "[function]";
+  }
+  try {
+    return JSON.stringify(stableNormalize(value));
+  } catch (e) {
+    return "[object]";
+  }
+}
+
+// src/userData/userDataImporter.ts
+var PROPERTY_ALIAS_CANDIDATES = {
+  "\u5267\u60C5\u8BC4\u5206": ["\u6545\u4E8B\u8BC4\u5206"],
+  "\u6545\u4E8B\u8BC4\u5206": ["\u5267\u60C5\u8BC4\u5206"],
+  "\u4EBA\u8BBE\u8BC4\u5206": ["\u89D2\u8272\u8BC4\u5206"],
+  "\u89D2\u8272\u8BC4\u5206": ["\u4EBA\u8BBE\u8BC4\u5206"],
+  "\u7F8E\u672F\u8BC4\u5206": ["\u4F5C\u753B\u8BC4\u5206", "\u753B\u5DE5\u8BC4\u5206", "\u5236\u4F5C\u8BC4\u5206", "\u63D2\u753B\u8BC4\u5206"],
+  "\u753B\u5DE5\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206", "\u4F5C\u753B\u8BC4\u5206"],
+  "\u4F5C\u753B\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206", "\u753B\u5DE5\u8BC4\u5206"],
+  "\u5236\u4F5C\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206"],
+  "\u63D2\u753B\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206"]
+};
 var UserDataImporter = class {
   constructor(app) {
     this.app = app;
     this.merger = new UserDataMerger(app);
     this.incrementalSync = new IncrementalSync(app);
+    this.documentService = new SubjectDocumentService(app);
   }
   async importFromFile(filePath, options, onProgress) {
     try {
@@ -6666,15 +7036,15 @@ var UserDataImporter = class {
           continue;
         if (diff.fieldType === "section") {
           const sectionName = diff.fieldName;
-          const localValue = sectionName === "\u77ED\u8BC4" ? this.incrementalSync.extractComment(content) : this.getSectionContent(content, sectionName);
+          const localValue = sectionName === "\u77ED\u8BC4" ? this.documentService.extractComment(content) : this.documentService.extractSection(content, sectionName);
           const nextValue2 = decision === "merge" ? this.mergeSectionValues(localValue, asString(diff.importValue)) : asString(diff.importValue);
           if (nextValue2 && nextValue2 !== localValue) {
-            content = sectionName === "\u77ED\u8BC4" ? this.incrementalSync.updateComment(content, nextValue2) : this.merger.updateSection(content, sectionName, nextValue2);
+            content = sectionName === "\u77ED\u8BC4" ? this.documentService.updateComment(content, nextValue2) : this.documentService.updateSection(content, sectionName, nextValue2);
             changed = true;
           }
           continue;
         }
-        const nextValue = decision === "merge" ? this.smartMergeValues(
+        const nextValue = decision === "merge" ? smartMergeImportValues(
           this.getFrontmatterValueRaw(localFile, diff.fieldName),
           diff.importValue,
           diff.fieldName
@@ -6816,8 +7186,8 @@ var UserDataImporter = class {
         continue;
       if (fieldName === "\u77ED\u8BC4") {
         const importValue = asString(value);
-        const localValue2 = this.incrementalSync.extractComment(content);
-        if (this.valuesEqual(localValue2, importValue, fieldName)) {
+        const localValue2 = this.documentService.extractComment(content);
+        if (importValuesEqual(localValue2, importValue, fieldName)) {
           continue;
         }
         if (options.mergeStrategy === "smart" && this.isEmptyValue(localValue2) && !this.isEmptyValue(importValue)) {
@@ -6844,7 +7214,7 @@ var UserDataImporter = class {
         continue;
       }
       const localValue = this.getFrontmatterValueRaw(localFile, fieldName);
-      if (this.valuesEqual(localValue, value, fieldName)) {
+      if (importValuesEqual(localValue, value, fieldName)) {
         continue;
       }
       if (options.mergeStrategy === "smart" && this.isEmptyValue(localValue) && !this.isEmptyValue(value)) {
@@ -6885,7 +7255,7 @@ var UserDataImporter = class {
     if (!importValue) {
       return { autoImported: 0 };
     }
-    const localValue = this.getSectionContent(content, sectionName);
+    const localValue = this.documentService.extractSection(content, sectionName);
     if (!localValue) {
       return { autoImported: 1 };
     }
@@ -6916,9 +7286,9 @@ var UserDataImporter = class {
       if (!fieldName)
         continue;
       if (fieldName === "\u77ED\u8BC4") {
-        const localValue2 = this.incrementalSync.extractComment(updatedContent);
+        const localValue2 = this.documentService.extractComment(updatedContent);
         const importValue = asString(value);
-        if (this.valuesEqual(localValue2, importValue, fieldName)) {
+        if (importValuesEqual(localValue2, importValue, fieldName)) {
           continue;
         }
         const decisionKey2 = this.buildDiffDecisionKey("section", fieldName);
@@ -6930,8 +7300,8 @@ var UserDataImporter = class {
           options.mergeStrategy,
           explicitDecision2
         );
-        if (nextValue2 !== void 0 && !this.valuesEqual(localValue2, nextValue2, fieldName)) {
-          updatedContent = this.incrementalSync.updateComment(updatedContent, asString(nextValue2));
+        if (nextValue2 !== void 0 && !importValuesEqual(localValue2, nextValue2, fieldName)) {
+          updatedContent = this.documentService.updateComment(updatedContent, asString(nextValue2));
           changed = true;
         }
         continue;
@@ -6945,7 +7315,7 @@ var UserDataImporter = class {
         continue;
       }
       const localValue = this.getFrontmatterValueRaw(localFile, fieldName);
-      if (this.valuesEqual(localValue, value, fieldName)) {
+      if (importValuesEqual(localValue, value, fieldName)) {
         continue;
       }
       const decisionKey = this.buildDiffDecisionKey("frontmatter", fieldName);
@@ -6957,7 +7327,7 @@ var UserDataImporter = class {
         options.mergeStrategy,
         explicitDecision
       );
-      if (nextValue !== void 0 && !this.valuesEqual(localValue, nextValue, fieldName)) {
+      if (nextValue !== void 0 && !importValuesEqual(localValue, nextValue, fieldName)) {
         updatedContent = this.merger.updateFrontmatterField(updatedContent, fieldName, nextValue);
       }
     }
@@ -6986,9 +7356,9 @@ var UserDataImporter = class {
   applySectionChange(content, sectionName, importValue, mergeStrategy, explicitDecision) {
     if (!importValue)
       return content;
-    const localValue = this.getSectionContent(content, sectionName);
+    const localValue = this.documentService.extractSection(content, sectionName);
     if (!localValue) {
-      return this.merger.updateSection(content, sectionName, importValue);
+      return this.documentService.updateSection(content, sectionName, importValue);
     }
     if (localValue === importValue)
       return content;
@@ -6996,10 +7366,10 @@ var UserDataImporter = class {
       return content;
     }
     if (explicitDecision === "import") {
-      return this.merger.updateSection(content, sectionName, importValue);
+      return this.documentService.updateSection(content, sectionName, importValue);
     }
     if (explicitDecision === "merge") {
-      return this.merger.updateSection(
+      return this.documentService.updateSection(
         content,
         sectionName,
         this.mergeSectionValues(localValue, importValue)
@@ -7007,9 +7377,9 @@ var UserDataImporter = class {
     }
     switch (mergeStrategy) {
       case "prefer_import":
-        return this.merger.updateSection(content, sectionName, importValue);
+        return this.documentService.updateSection(content, sectionName, importValue);
       case "smart":
-        return this.merger.updateSection(
+        return this.documentService.updateSection(
           content,
           sectionName,
           this.mergeSectionValues(localValue, importValue)
@@ -7056,7 +7426,7 @@ var UserDataImporter = class {
     }
     if (hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */)) {
       for (const [ratingKey, ratingValue] of Object.entries((_a = legacy.ratingDetails) != null ? _a : {})) {
-        const mappedKey = this.mapLegacyRatingField(userData.identifier, ratingKey);
+        const mappedKey = mapLegacyRatingField(userData.identifier, ratingKey);
         if (!mappedKey)
           continue;
         frontmatter[mappedKey] = ratingValue;
@@ -7098,74 +7468,6 @@ var UserDataImporter = class {
       return true;
     }
     return false;
-  }
-  mapLegacyRatingField(identifier, legacyKey) {
-    var _a, _b;
-    const type = identifier.type;
-    const workType = (_b = (_a = identifier.workType) == null ? void 0 : _a.toLowerCase()) != null ? _b : "";
-    if (type === 2 /* Anime */) {
-      return this.mapRatingFieldByTable(legacyKey, {
-        music: "\u97F3\u4E50\u8BC4\u5206",
-        character: "\u4EBA\u8BBE\u8BC4\u5206",
-        story: "\u5267\u60C5\u8BC4\u5206",
-        art: "\u7F8E\u672F\u8BC4\u5206"
-      });
-    }
-    if (type === 4 /* Game */) {
-      return this.mapRatingFieldByTable(legacyKey, {
-        story: "\u5267\u60C5\u8BC4\u5206",
-        fun: "\u8DA3\u5473\u8BC4\u5206",
-        music: "\u97F3\u4E50\u8BC4\u5206",
-        art: "\u7F8E\u672F\u8BC4\u5206"
-      });
-    }
-    if (type === 6 /* Real */) {
-      return this.mapRatingFieldByTable(legacyKey, {
-        story: "\u5267\u60C5\u8BC4\u5206",
-        character: "\u6F14\u6280\u8BC4\u5206",
-        art: "\u5236\u4F5C\u8BC4\u5206"
-      });
-    }
-    if (type === 1 /* Book */ && workType === "comic") {
-      return this.mapRatingFieldByTable(legacyKey, {
-        story: "\u5267\u60C5\u8BC4\u5206",
-        drawing: "\u753B\u5DE5\u8BC4\u5206",
-        character: "\u4EBA\u8BBE\u8BC4\u5206"
-      });
-    }
-    if (type === 1 /* Book */ && workType === "album") {
-      return this.mapRatingFieldByTable(legacyKey, {
-        story: "\u5267\u60C5\u8BC4\u5206",
-        drawing: "\u753B\u5DE5\u8BC4\u5206",
-        character: "\u4EBA\u8BBE\u8BC4\u5206"
-      });
-    }
-    return this.mapRatingFieldByTable(legacyKey, {
-      story: "\u5267\u60C5\u8BC4\u5206",
-      illustration: "\u63D2\u753B\u8BC4\u5206",
-      writing: "\u6587\u7B14\u8BC4\u5206",
-      character: "\u4EBA\u8BBE\u8BC4\u5206"
-    });
-  }
-  mapRatingFieldByTable(legacyKey, table) {
-    if (table[legacyKey]) {
-      return table[legacyKey];
-    }
-    const genericFallback = this.mapGenericRatingField(legacyKey);
-    return genericFallback ? genericFallback : null;
-  }
-  mapGenericRatingField(legacyKey) {
-    const genericMap = {
-      music: "\u97F3\u4E50\u8BC4\u5206",
-      character: "\u4EBA\u8BBE\u8BC4\u5206",
-      story: "\u5267\u60C5\u8BC4\u5206",
-      art: "\u7F8E\u672F\u8BC4\u5206",
-      illustration: "\u63D2\u753B\u8BC4\u5206",
-      writing: "\u6587\u7B14\u8BC4\u5206",
-      drawing: "\u753B\u5DE5\u8BC4\u5206",
-      fun: "\u8DA3\u5473\u8BC4\u5206"
-    };
-    return genericMap[legacyKey] || null;
   }
   getEffectiveFieldName(rawKey, options) {
     var _a;
@@ -7210,7 +7512,7 @@ var UserDataImporter = class {
       case "import":
         return importValue;
       case "merge":
-        return this.smartMergeValues(localValue, importValue, fieldName);
+        return smartMergeImportValues(localValue, importValue, fieldName);
       default:
         break;
     }
@@ -7218,46 +7520,14 @@ var UserDataImporter = class {
       case "prefer_import":
         return importValue;
       case "smart":
-        return this.smartMergeValues(localValue, importValue, fieldName);
+        return smartMergeImportValues(localValue, importValue, fieldName);
       case "prefer_local":
       default:
         return void 0;
     }
   }
-  smartMergeValues(localValue, importValue, fieldName) {
-    if (this.isEmptyValue(localValue)) {
-      return this.normalizeForWrite(importValue, fieldName);
-    }
-    if (this.isEmptyValue(importValue)) {
-      return this.normalizeForWrite(localValue, fieldName);
-    }
-    const localArray = this.asArray(localValue, fieldName);
-    const importArray = this.asArray(importValue, fieldName);
-    if (localArray && importArray) {
-      return Array.from(/* @__PURE__ */ new Set([...localArray, ...importArray]));
-    }
-    if (typeof localValue === "string" && typeof importValue === "string") {
-      return this.mergeSectionValues(localValue, importValue);
-    }
-    return this.normalizeForWrite(importValue, fieldName);
-  }
   mergeSectionValues(localValue, importValue) {
-    const localText = (localValue != null ? localValue : "").trim();
-    const importText = (importValue != null ? importValue : "").trim();
-    if (!localText)
-      return importText;
-    if (!importText)
-      return localText;
-    if (localText === importText)
-      return localText;
-    return `${localText}
-
----
-
-${importText}`;
-  }
-  valuesEqual(left, right, fieldName) {
-    return stableStringify(this.normalizeComparableValue(left, fieldName)) === stableStringify(this.normalizeComparableValue(right, fieldName));
+    return mergeSectionValues(localValue, importValue);
   }
   isEmptyValue(value) {
     if (value === null || value === void 0)
@@ -7269,46 +7539,6 @@ ${importText}`;
     if (typeof value === "object")
       return Object.keys(value).length === 0;
     return false;
-  }
-  asArray(value, fieldName) {
-    if (Array.isArray(value)) {
-      return normalizeListValues(value);
-    }
-    if (typeof value === "string" && fieldName && this.isListLikeField(fieldName)) {
-      const parsed = splitListString(value);
-      return parsed.length > 0 ? parsed : null;
-    }
-    return null;
-  }
-  normalizeComparableValue(value, fieldName) {
-    const arrayValue = this.asArray(value, fieldName);
-    if (arrayValue) {
-      return Array.from(new Set(arrayValue)).sort((left, right) => left.localeCompare(right, "zh-CN"));
-    }
-    if (typeof value === "number" || typeof value === "boolean") {
-      return String(value);
-    }
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
-        return String(Number(trimmed));
-      }
-      return trimmed.replace(/\r\n/g, "\n");
-    }
-    if (value && typeof value === "object") {
-      return stableNormalize(value);
-    }
-    return value;
-  }
-  normalizeForWrite(value, fieldName) {
-    const arrayValue = this.asArray(value, fieldName);
-    if (arrayValue) {
-      return Array.from(new Set(arrayValue));
-    }
-    return value;
-  }
-  isListLikeField(fieldName) {
-    return LIST_LIKE_FIELDS.has(fieldName);
   }
   collectLocalFrontmatterNames() {
     const propertyNames = /* @__PURE__ */ new Set();
@@ -7329,23 +7559,6 @@ ${importText}`;
     const frontmatter = getFrontmatterRecord(cache == null ? void 0 : cache.frontmatter);
     return frontmatter == null ? void 0 : frontmatter[fieldName];
   }
-  getSectionContent(content, sectionName) {
-    const normalizedContent = content.replace(/\r\n/g, "\n");
-    const lines = normalizedContent.split("\n");
-    const heading = `## ${sectionName}`;
-    const startIndex = lines.findIndex((line) => line.trim() === heading);
-    if (startIndex === -1)
-      return void 0;
-    let endIndex = lines.length;
-    for (let i = startIndex + 1; i < lines.length; i++) {
-      if (/^##\s+/.test(lines[i])) {
-        endIndex = i;
-        break;
-      }
-    }
-    const text = lines.slice(startIndex + 1, endIndex).join("\n").trim();
-    return text || void 0;
-  }
   findLocalFile(subjectId) {
     var _a;
     const files = this.app.vault.getMarkdownFiles();
@@ -7360,45 +7573,6 @@ ${importText}`;
     return null;
   }
 };
-function stableStringify(value) {
-  var _a;
-  if (value === null || value === void 0)
-    return "";
-  if (typeof value === "string")
-    return value;
-  if (typeof value === "number" || typeof value === "boolean")
-    return String(value);
-  if (typeof value === "bigint")
-    return value.toString();
-  if (typeof value === "symbol")
-    return (_a = value.description) != null ? _a : "symbol";
-  if (typeof value === "function")
-    return "[function]";
-  if (Array.isArray(value))
-    return JSON.stringify(value.map((item) => stableNormalize(item)));
-  if (typeof value === "object")
-    return JSON.stringify(stableNormalize(value));
-  return "";
-}
-function stableNormalize(value) {
-  if (Array.isArray(value)) {
-    return value.map((item) => stableNormalize(item));
-  }
-  if (value && typeof value === "object") {
-    const record = value;
-    return Object.keys(record).sort().reduce((acc, key) => {
-      acc[key] = stableNormalize(record[key]);
-      return acc;
-    }, {});
-  }
-  return value;
-}
-function normalizeListValues(values) {
-  return values.flatMap((item) => typeof item === "string" ? splitListString(item) : [String(item).trim()]).map((item) => item.trim()).filter(Boolean);
-}
-function splitListString(value) {
-  return value.split(/[,\n，、；;｜|]/).map((item) => item.trim()).filter(Boolean);
-}
 function asString(value) {
   var _a;
   if (typeof value === "string")
@@ -7416,12 +7590,25 @@ function asString(value) {
   }
   if (typeof value === "object") {
     try {
-      return JSON.stringify(stableNormalize(value));
+      return JSON.stringify(sortObjectKeysDeep(value));
     } catch (e) {
       return "[object]";
     }
   }
   return "";
+}
+function sortObjectKeysDeep(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => sortObjectKeysDeep(item));
+  }
+  if (value && typeof value === "object") {
+    const record = value;
+    return Object.keys(record).sort().reduce((acc, key) => {
+      acc[key] = sortObjectKeysDeep(record[key]);
+      return acc;
+    }, {});
+  }
+  return value;
 }
 
 // src/userData/userDataModal.ts
@@ -8394,7 +8581,7 @@ function extractTemplatePropertyGroupsFromTemplate(template) {
   const customProperties = [];
   const autoProperties = [];
   const identifierProperties = [];
-  const frontmatter = extractFrontmatter(template);
+  const frontmatter = extractFrontmatter2(template);
   if (!frontmatter) {
     return { identifierProperties, autoProperties, customProperties };
   }
@@ -8464,7 +8651,7 @@ function classifyTemplateProperty(propertyName, templateVariables) {
   }
   return templateVariables.every((variable) => AUTO_FILLED_TEMPLATE_VARS.has(variable)) ? "auto" : "custom";
 }
-function extractFrontmatter(template) {
+function extractFrontmatter2(template) {
   const normalized = template.replace(/\r\n?/g, "\n");
   const match = normalized.match(/^---\n([\s\S]*?)\n---/);
   return match ? match[1] : null;
@@ -10761,7 +10948,7 @@ function createFallbackSubject(collection) {
 }
 
 // src/panel/controlPanel.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 
 // src/panel/batchEditorModal.ts
 var import_obsidian18 = require("obsidian");
@@ -11120,7 +11307,7 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
       const properties = {};
       for (const property of this.selectedProperties) {
         const originalValue = item.frontmatter[property];
-        const originalDisplay = formatFrontmatterValue(originalValue);
+        const originalDisplay = formatFrontmatterValue2(originalValue);
         const draftValue = (_b = draft[property]) != null ? _b : "";
         if (draftValue === originalDisplay) {
           continue;
@@ -11148,7 +11335,7 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
         for (const item of this.editableItems) {
           const draft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
           if (draft[property] === void 0) {
-            draft[property] = formatFrontmatterValue(item.frontmatter[property]);
+            draft[property] = formatFrontmatterValue2(item.frontmatter[property]);
             this.draftValues.set(item.filePath, draft);
           }
         }
@@ -11169,7 +11356,7 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
     for (const item of this.editableItems) {
       const draft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
       if (draft[property] === void 0) {
-        draft[property] = formatFrontmatterValue(item.frontmatter[property]);
+        draft[property] = formatFrontmatterValue2(item.frontmatter[property]);
         this.draftValues.set(item.filePath, draft);
       }
     }
@@ -11177,7 +11364,7 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
   createDraftValueRecord(item) {
     const record = {};
     for (const property of this.availableProperties) {
-      record[property] = formatFrontmatterValue(item.frontmatter[property]);
+      record[property] = formatFrontmatterValue2(item.frontmatter[property]);
     }
     return record;
   }
@@ -11328,7 +11515,7 @@ var FrontmatterEditor = class {
     }
   }
 };
-function formatFrontmatterValue(value) {
+function formatFrontmatterValue2(value) {
   var _a;
   if (value === null || value === void 0) {
     return "";
@@ -11382,18 +11569,16 @@ function splitListValue(value) {
 // src/panel/statusSyncModal.ts
 var import_obsidian19 = require("obsidian");
 var StatusSyncModal = class extends import_obsidian19.Modal {
-  constructor(app, client, incrementalSync, diffs, onComplete, episodeStatusManager) {
+  constructor(app, statusSyncService, diffs, onComplete) {
     super(app);
     this.renderTimer = null;
     this.isDisposedFlag = false;
     this.backgroundCompleted = 0;
     this.backgroundTotal = 0;
-    this.client = client;
-    this.incrementalSync = incrementalSync;
+    this.statusSyncService = statusSyncService;
     this.diffs = diffs;
     this.diffIndexBySubjectId = new Map(diffs.map((diff, index) => [diff.subjectId, index]));
     this.onComplete = onComplete;
-    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
   }
   onOpen() {
     const { contentEl } = this;
@@ -11665,6 +11850,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
    * 渲染单个字段行
    */
   renderFieldRow(tbody, fieldName, localValue, cloudValue, fieldKey, diffIndex, supportMerge) {
+    const fieldDiff = this.getUserDecisionField(this.diffs[diffIndex], fieldKey);
     const row = tbody.createEl("tr");
     row.createEl("td", { text: fieldName, cls: "bangumi-field-name" });
     row.createEl("td", { text: localValue, cls: "bangumi-local-value bangumi-sync-value" });
@@ -11677,9 +11863,9 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     if (supportMerge) {
       select.createEl("option", { value: "merge", text: tn("statusSyncModal", "merge") });
     }
-    select.value = this.diffs[diffIndex][fieldKey].decision;
+    select.value = fieldDiff.decision;
     select.addEventListener("change", () => {
-      this.diffs[diffIndex][fieldKey].decision = select.value;
+      fieldDiff.decision = select.value;
     });
   }
   renderPlatformFieldRow(tbody, field, diffIndex) {
@@ -11716,20 +11902,41 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     }
     return getCollectionStatusLabel(validStatus, subjectType, true) || tn("statusSyncModal", "empty");
   }
+  getUserDecisionField(diff, fieldKey) {
+    switch (fieldKey) {
+      case "rate":
+        return diff.rate;
+      case "comment":
+        return diff.comment;
+      case "tags":
+        return diff.tags;
+      case "status":
+        return diff.status;
+      case "episodeStatus":
+        return diff.episodeStatus;
+    }
+  }
+  toValidCollectionType(value) {
+    switch (value) {
+      case 1:
+        return 1 /* Wish */;
+      case 2:
+        return 2 /* Done */;
+      case 3:
+        return 3 /* Doing */;
+      case 4:
+        return 4 /* OnHold */;
+      case 5:
+        return 5 /* Dropped */;
+      default:
+        return null;
+    }
+  }
   /**
    * 全部选择
    */
   selectAll(decision) {
-    this.diffs.forEach((diff) => {
-      diff.rate.decision = decision;
-      diff.comment.decision = decision;
-      diff.tags.decision = decision;
-      diff.status.decision = decision;
-      diff.episodeStatus.decision = decision === "merge" ? "skip" : decision;
-      diff.platformFields.forEach((field) => {
-        field.decision = decision === "cloud" || decision === "merge" ? "cloud" : "skip";
-      });
-    });
+    this.statusSyncService.applyDecisionPreset(this.diffs, decision);
     this.updateStatusSummary();
     this.renderTable();
   }
@@ -11737,52 +11944,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
    * 智能合并：非空值优先，标签合并所有
    */
   smartMerge() {
-    this.diffs.forEach((diff) => {
-      if (diff.rate.hasDiff) {
-        if (diff.rate.localValue && !diff.rate.cloudValue) {
-          diff.rate.decision = "local";
-        } else if (!diff.rate.localValue && diff.rate.cloudValue) {
-          diff.rate.decision = "cloud";
-        } else {
-          diff.rate.decision = "local";
-        }
-      }
-      if (diff.comment.hasDiff) {
-        if (diff.comment.localValue && !diff.comment.cloudValue) {
-          diff.comment.decision = "local";
-        } else if (!diff.comment.localValue && diff.comment.cloudValue) {
-          diff.comment.decision = "cloud";
-        } else if (diff.comment.localValue && diff.comment.cloudValue) {
-          diff.comment.decision = diff.comment.localValue.length >= diff.comment.cloudValue.length ? "local" : "cloud";
-        }
-      }
-      if (diff.tags.hasDiff) {
-        diff.tags.decision = "merge";
-      }
-      if (diff.status.hasDiff) {
-        if (diff.status.localValue && !diff.status.cloudValue) {
-          diff.status.decision = "local";
-        } else if (!diff.status.localValue && diff.status.cloudValue) {
-          diff.status.decision = "cloud";
-        } else {
-          diff.status.decision = "local";
-        }
-      }
-      if (diff.episodeStatus.hasDiff) {
-        if (diff.episodeStatus.localValue && !diff.episodeStatus.cloudValue) {
-          diff.episodeStatus.decision = "local";
-        } else if (!diff.episodeStatus.localValue && diff.episodeStatus.cloudValue) {
-          diff.episodeStatus.decision = "cloud";
-        } else {
-          diff.episodeStatus.decision = "local";
-        }
-      }
-      diff.platformFields.forEach((field) => {
-        if (field.hasDiff) {
-          field.decision = "cloud";
-        }
-      });
-    });
+    this.statusSyncService.applyDecisionPreset(this.diffs, "smart");
     this.updateStatusSummary();
     this.renderTable();
   }
@@ -11791,18 +11953,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
    */
   async executeSync() {
     this.statusEl.setText(tn("statusSyncModal", "syncProgress"));
-    let successCount = 0;
-    let failCount = 0;
-    const actionableDiffs = this.diffs.filter((diff) => diff.hasAnyDiff);
-    for (const diff of actionableDiffs) {
-      try {
-        await this.syncItem(diff);
-        successCount++;
-      } catch (error) {
-        failCount++;
-        console.error(`[Bangumi Sync] \u540C\u6B65\u5931\u8D25: ${diff.name_cn}`, error);
-      }
-    }
+    const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
     this.statusEl.setText(tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount)));
     if (successCount > 0) {
       new import_obsidian19.Notice(tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount)));
@@ -11824,8 +11975,11 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     }, 200);
   }
   getOwnerWindow() {
-    var _a;
-    return (_a = this.containerEl.ownerDocument.defaultView) != null ? _a : window;
+    const ownerWindow = this.containerEl.ownerDocument.defaultView;
+    if (ownerWindow) {
+      return ownerWindow;
+    }
+    return activeWindow;
   }
   updateStatusSummary() {
     if (!this.statusEl) {
@@ -11869,153 +12023,6 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
   /**
    * 同步单个条目
    */
-  async syncItem(diff) {
-    var _a, _b;
-    const file = this.app.vault.getAbstractFileByPath(diff.localPath);
-    if (!(file instanceof import_obsidian19.TFile)) {
-      throw new Error("File not found");
-    }
-    const originalContent = await this.app.vault.read(file);
-    let content = originalContent;
-    const cloudUpdates = {};
-    if (diff.rate.hasDiff && diff.rate.decision !== "skip") {
-      if (diff.rate.decision === "local") {
-        cloudUpdates.rate = diff.rate.localValue || void 0;
-      } else if (diff.rate.decision === "cloud") {
-        content = this.incrementalSync.updateRate(content, diff.rate.cloudValue);
-      }
-    }
-    if (diff.comment.hasDiff && diff.comment.decision !== "skip") {
-      if (diff.comment.decision === "local") {
-        cloudUpdates.comment = diff.comment.localValue || "";
-      } else if (diff.comment.decision === "cloud") {
-        if (diff.comment.cloudValue) {
-          content = this.incrementalSync.updateComment(content, diff.comment.cloudValue);
-        } else {
-          content = this.incrementalSync.removeComment(content);
-        }
-      }
-    }
-    if (diff.tags.hasDiff && diff.tags.decision !== "skip") {
-      if (diff.tags.decision === "local") {
-        cloudUpdates.tags = this.incrementalSync.normalizeTags(diff.tags.localValue);
-      } else if (diff.tags.decision === "cloud") {
-        if (diff.tags.cloudValue && diff.tags.cloudValue.length > 0) {
-          content = this.incrementalSync.updateTags(content, this.incrementalSync.normalizeTags(diff.tags.cloudValue));
-        } else {
-          content = this.incrementalSync.removeTags(content);
-        }
-      } else if (diff.tags.decision === "merge") {
-        const mergedTags = /* @__PURE__ */ new Set();
-        if (diff.tags.localValue)
-          diff.tags.localValue.forEach((t2) => mergedTags.add(t2));
-        if (diff.tags.cloudValue)
-          diff.tags.cloudValue.forEach((t2) => mergedTags.add(t2));
-        const mergedArray = this.incrementalSync.normalizeTags(Array.from(mergedTags));
-        content = this.incrementalSync.updateTags(content, mergedArray);
-        cloudUpdates.tags = mergedArray;
-      }
-    }
-    if (diff.status.hasDiff && diff.status.decision !== "skip") {
-      if (diff.status.decision === "local") {
-        const localStatus = this.toValidCollectionType(diff.status.localValue);
-        if (localStatus !== null) {
-          cloudUpdates.type = localStatus;
-        }
-      } else if (diff.status.decision === "cloud") {
-        content = this.incrementalSync.updateStatus(content, diff.status.cloudValue, diff.statusFieldName);
-      }
-    }
-    if (Object.keys(cloudUpdates).length > 0) {
-      const fallbackType = this.toValidCollectionType(diff.collection.type);
-      const finalUpdates = {
-        ...cloudUpdates,
-        type: (_b = (_a = cloudUpdates.type) != null ? _a : fallbackType) != null ? _b : void 0
-      };
-      await this.syncCloudUpdates(diff.subjectId, finalUpdates);
-    }
-    if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== "skip" && this.episodeStatusManager) {
-      if (content !== originalContent) {
-        await this.app.vault.process(file, () => content);
-        content = await this.app.vault.read(file);
-      }
-      if (diff.episodeStatus.decision === "local") {
-        const result = await this.episodeStatusManager.syncStatusToCloud(file);
-        if (result.failed > 0 && result.success === 0) {
-          throw new Error(`\u5355\u96C6\u72B6\u6001\u540C\u6B65\u5230\u4E91\u7AEF\u5168\u90E8\u5931\u8D25 (${result.failed}\u96C6)`);
-        }
-      } else if (diff.episodeStatus.decision === "cloud") {
-        const synced = await this.episodeStatusManager.syncStatusFromCloud(file, diff.subjectId);
-        if (!synced) {
-          throw new Error("\u5355\u96C6\u72B6\u6001\u4ECE\u4E91\u7AEF\u540C\u6B65\u5931\u8D25");
-        }
-        content = await this.app.vault.read(file);
-      }
-    }
-    if (diff.hasPlatformDiff && diff.platformFields.some((field) => field.hasDiff && field.decision === "cloud")) {
-      content = await this.applyPlatformSync(diff, file, content);
-    }
-    if (content !== originalContent) {
-      await this.app.vault.process(file, () => content);
-    }
-    console.debug(`[Bangumi Sync] \u5DF2\u540C\u6B65: ${diff.name_cn}`);
-  }
-  async applyPlatformSync(diff, file, content) {
-    var _a;
-    if (!diff.platformSyncPayload) {
-      return content;
-    }
-    let nextContent = this.incrementalSync.updatePlatformMetadata(content, diff.platformSyncPayload);
-    if (diff.collection.subject_type !== 2 /* Anime */ && diff.collection.subject_type !== 6 /* Real */) {
-      return nextContent;
-    }
-    const shouldRefreshEpisodeSection = diff.platformFields.some(
-      (field) => field.decision === "cloud" && field.key === "episodeCount"
-    );
-    if (!shouldRefreshEpisodeSection) {
-      return nextContent;
-    }
-    const episodesResult = await this.client.getEpisodes(diff.subjectId);
-    const episodes = (_a = episodesResult == null ? void 0 : episodesResult.data) != null ? _a : [];
-    if (episodes.length === 0) {
-      return nextContent;
-    }
-    const statusMap = /* @__PURE__ */ new Map();
-    if (this.episodeStatusManager) {
-      const localStatuses = await this.episodeStatusManager.getEpisodeStatusMap(file);
-      for (const entry of localStatuses.values()) {
-        statusMap.set(entry.episodeId, entry.status);
-      }
-    }
-    const renderedEpisodes = parseEpisodes(episodes, statusMap);
-    if (!renderedEpisodes) {
-      return nextContent;
-    }
-    nextContent = this.incrementalSync.updateEpisodeSection(nextContent, renderedEpisodes);
-    return nextContent;
-  }
-  toValidCollectionType(value) {
-    if (value === 1 /* Wish */ || value === 2 /* Done */ || value === 3 /* Doing */ || value === 4 /* OnHold */ || value === 5 /* Dropped */) {
-      return value;
-    }
-    return null;
-  }
-  async syncCloudUpdates(subjectId, updates) {
-    const hasUpdates = Object.values(updates).some((value) => value !== void 0);
-    if (!hasUpdates) {
-      return;
-    }
-    try {
-      await this.client.updateCollection(subjectId, updates);
-    } catch (error) {
-      console.error("[Bangumi Sync] \u4E91\u7AEF\u5B57\u6BB5\u540C\u6B65\u5931\u8D25:", {
-        subjectId,
-        payload: updates,
-        error
-      });
-      throw new Error("\u4E91\u7AEF\u7528\u6237\u6570\u636E\u66F4\u65B0\u5931\u8D25");
-    }
-  }
 };
 
 // src/panel/conflictResolver.ts
@@ -12125,8 +12132,516 @@ function isMobile() {
   return activeWindow.matchMedia("(max-width: 767px)").matches;
 }
 
+// src/sync/statusSyncService.ts
+var import_obsidian20 = require("obsidian");
+var StatusSyncService = class {
+  constructor(app, client, documentService, episodeStatusManager) {
+    this.app = app;
+    this.client = client;
+    this.documentService = documentService;
+    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
+  }
+  async buildDiffSession(options) {
+    var _a;
+    const snapshots = (await this.mapWithConcurrency(
+      options.collections,
+      (_a = options.concurrency) != null ? _a : 6,
+      async (collection, index) => {
+        var _a2;
+        (_a2 = options.onProgress) == null ? void 0 : _a2.call(options, index + 1, options.collections.length);
+        return this.buildSnapshot(collection, options.localSubjects, options.getCachedSnapshot, options.onPrefetchHit, options.onPrefetchMiss);
+      }
+    )).filter((snapshot) => snapshot !== null);
+    const diffs = snapshots.map((snapshot) => this.buildStatusSyncDiff(snapshot)).filter((diff) => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
+    return { snapshots, diffs };
+  }
+  async loadBackgroundDiffs(snapshots, callbacks, onProgress, concurrency = 4) {
+    const context = {
+      subjectCache: /* @__PURE__ */ new Map(),
+      cloudEpisodeStatusCache: /* @__PURE__ */ new Map(),
+      platformDiffCache: /* @__PURE__ */ new Map()
+    };
+    const candidates = snapshots.filter(
+      (snapshot) => snapshot.localSnapshot.shouldLoadEpisodeStatus || snapshot.localSnapshot.shouldLoadPlatformData
+    );
+    let completed = 0;
+    callbacks.updateBackgroundProgress(completed, candidates.length);
+    await this.mapWithConcurrency(candidates, concurrency, async (snapshot) => {
+      if (callbacks.isDisposed()) {
+        return;
+      }
+      const loadingPatch = {};
+      if (snapshot.localSnapshot.shouldLoadEpisodeStatus) {
+        loadingPatch.episodeStatusLoadState = "loading";
+      }
+      if (snapshot.localSnapshot.shouldLoadPlatformData) {
+        loadingPatch.platformLoadState = "loading";
+      }
+      callbacks.updateDiff(snapshot.subjectId, loadingPatch);
+      try {
+        const [episodeStatus, platformResult] = await Promise.all([
+          snapshot.localSnapshot.shouldLoadEpisodeStatus ? this.buildEpisodeStatusDiff(snapshot, context) : Promise.resolve(null),
+          snapshot.localSnapshot.shouldLoadPlatformData ? this.buildPlatformFieldDiffs(snapshot, context) : Promise.resolve(null)
+        ]);
+        if (callbacks.isDisposed()) {
+          return;
+        }
+        const patch = { backgroundError: null };
+        if (episodeStatus) {
+          patch.episodeStatus = episodeStatus;
+          patch.episodeStatusLoadState = "ready";
+        }
+        if (platformResult) {
+          patch.platformFields = platformResult.fields;
+          patch.platformSyncPayload = platformResult.payload;
+          patch.platformLoadState = "ready";
+        }
+        callbacks.updateDiff(snapshot.subjectId, patch);
+      } catch (error) {
+        if (callbacks.isDisposed()) {
+          return;
+        }
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        callbacks.updateDiff(snapshot.subjectId, {
+          episodeStatusLoadState: snapshot.localSnapshot.shouldLoadEpisodeStatus ? "failed" : "ready",
+          platformLoadState: snapshot.localSnapshot.shouldLoadPlatformData ? "failed" : "ready",
+          backgroundError: errorMessage
+        });
+      } finally {
+        completed++;
+        callbacks.updateBackgroundProgress(completed, candidates.length);
+        onProgress == null ? void 0 : onProgress(completed, candidates.length);
+      }
+    });
+  }
+  applyDecisionPreset(diffs, decision) {
+    if (decision === "smart") {
+      this.applySmartMerge(diffs);
+      return;
+    }
+    diffs.forEach((diff) => {
+      diff.rate.decision = decision;
+      diff.comment.decision = decision;
+      diff.tags.decision = decision;
+      diff.status.decision = decision;
+      diff.episodeStatus.decision = decision === "merge" ? "skip" : decision;
+      diff.platformFields.forEach((field) => {
+        field.decision = decision === "cloud" || decision === "merge" ? "cloud" : "skip";
+      });
+    });
+  }
+  async executeSync(diffs) {
+    let successCount = 0;
+    let failCount = 0;
+    const actionableDiffs = diffs.filter((diff) => diff.hasAnyDiff);
+    for (const diff of actionableDiffs) {
+      try {
+        await this.syncItem(diff);
+        successCount++;
+      } catch (error) {
+        failCount++;
+        console.error(`[Bangumi Sync] \u540C\u6B65\u5931\u8D25: ${diff.name_cn}`, error);
+      }
+    }
+    return { successCount, failCount };
+  }
+  async buildSnapshot(collection, localSubjects, getCachedSnapshot, onPrefetchHit, onPrefetchMiss) {
+    var _a;
+    const localInfo = localSubjects.get(collection.subject_id);
+    if (!localInfo) {
+      return null;
+    }
+    const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+    if (!(file instanceof import_obsidian20.TFile)) {
+      return null;
+    }
+    const cachedSnapshot = (_a = getCachedSnapshot == null ? void 0 : getCachedSnapshot(collection.subject_id, localInfo.path, file.stat.mtime)) != null ? _a : null;
+    if (cachedSnapshot) {
+      onPrefetchHit == null ? void 0 : onPrefetchHit();
+      return {
+        subjectId: collection.subject_id,
+        collection,
+        localInfo,
+        file,
+        localSnapshot: {
+          ...cachedSnapshot,
+          file,
+          path: localInfo.path,
+          mtime: file.stat.mtime,
+          episodeStatusMap: new Map(cachedSnapshot.episodeStatusMap)
+        }
+      };
+    }
+    onPrefetchMiss == null ? void 0 : onPrefetchMiss();
+    const localSnapshot = await this.documentService.readSnapshot(file, collection.subject_type);
+    return {
+      subjectId: collection.subject_id,
+      collection,
+      localInfo,
+      file,
+      localSnapshot
+    };
+  }
+  buildStatusSyncDiff(snapshot) {
+    const { collection, localInfo } = snapshot;
+    const userDiffs = buildUserStatusSyncDiff({
+      localRate: snapshot.localSnapshot.user.rate,
+      cloudRate: collection.rate || null,
+      localComment: snapshot.localSnapshot.user.comment,
+      cloudComment: collection.comment || null,
+      localTags: snapshot.localSnapshot.user.tags,
+      cloudTags: collection.tags && collection.tags.length > 0 ? this.documentService.normalizeTags(collection.tags) : null,
+      localStatus: snapshot.localSnapshot.user.status,
+      cloudStatus: collection.type || null
+    });
+    const episodeStatus = {
+      localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) : null,
+      cloudValue: null,
+      hasDiff: false,
+      decision: "skip"
+    };
+    return {
+      subjectId: collection.subject_id,
+      name_cn: collection.subject.name_cn || "",
+      name: collection.subject.name || "",
+      localPath: localInfo.path,
+      collection,
+      statusFieldName: snapshot.localSnapshot.user.statusFieldName,
+      rate: { ...userDiffs.rate, decision: "skip" },
+      comment: { ...userDiffs.comment, decision: "skip" },
+      tags: { ...userDiffs.tags, decision: "skip" },
+      status: { ...userDiffs.status, decision: "skip" },
+      episodeStatus,
+      platformFields: [],
+      hasUserDiff: userDiffs.hasUserDiff,
+      hasPlatformDiff: false,
+      hasAnyDiff: userDiffs.hasUserDiff,
+      expanded: false,
+      episodeStatusLoadState: snapshot.localSnapshot.shouldLoadEpisodeStatus ? "pending" : "ready",
+      platformLoadState: snapshot.localSnapshot.shouldLoadPlatformData ? "pending" : "ready",
+      backgroundError: null
+    };
+  }
+  async buildPlatformFieldDiffs(snapshot, context) {
+    return this.getOrCreateCachedPromise(
+      context.platformDiffCache,
+      snapshot.subjectId,
+      async () => {
+        const collection = snapshot.collection;
+        if (collection.subject_type !== 2 /* Anime */ && collection.subject_type !== 6 /* Real */ && collection.subject_type !== 1 /* Book */) {
+          return { fields: [] };
+        }
+        if (!snapshot.localSnapshot.shouldLoadPlatformData) {
+          return { fields: [] };
+        }
+        const subject = await this.getOrCreateCachedPromise(
+          context.subjectCache,
+          snapshot.subjectId,
+          () => this.client.getSubject(snapshot.subjectId)
+        );
+        const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+        const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
+        const fields = [];
+        const localContext = snapshot.localSnapshot.platform;
+        if (cloudPayload.serialStatus && localContext.serialStatus !== cloudPayload.serialStatus) {
+          fields.push({
+            key: "serialState",
+            label: tn("statusSyncModal", "fieldSerialState"),
+            localValue: localContext.serialStatus,
+            cloudValue: cloudPayload.serialStatus,
+            hasDiff: true,
+            decision: "skip"
+          });
+        }
+        if (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */) {
+          const cloudValue = cloudPayload.episodeCount;
+          if (cloudValue !== void 0 && cloudValue !== null && localContext.episodeCount !== cloudValue) {
+            fields.push({
+              key: "episodeCount",
+              label: tn("statusSyncModal", "fieldEpisodeCount"),
+              localValue: localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
+              cloudValue: String(cloudValue),
+              hasDiff: true,
+              decision: "skip"
+            });
+          }
+        }
+        if (collection.subject_type === 1 /* Book */) {
+          const isComic = (parsedInfo.category || "").includes("\u6F2B\u753B") || localContext.chapterCount !== null;
+          if (isComic) {
+            if (cloudPayload.chapterCount !== void 0 && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
+              fields.push({
+                key: "chapterCount",
+                label: tn("statusSyncModal", "fieldChapterCount"),
+                localValue: localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
+                cloudValue: String(cloudPayload.chapterCount),
+                hasDiff: true,
+                decision: "skip"
+              });
+            }
+            if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+              fields.push({
+                key: "volumeCount",
+                label: tn("statusSyncModal", "fieldVolumeCount"),
+                localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+                cloudValue: String(cloudPayload.volumeCount),
+                hasDiff: true,
+                decision: "skip"
+              });
+            }
+          } else if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+            fields.push({
+              key: "volumeCount",
+              label: tn("statusSyncModal", "fieldVolumeCount"),
+              localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+              cloudValue: String(cloudPayload.volumeCount),
+              hasDiff: true,
+              decision: "skip"
+            });
+          }
+        }
+        return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
+      }
+    );
+  }
+  buildPlatformSyncPayload(subject, parsedInfo) {
+    const episodeCount = subject.total_episodes || subject.eps || parsedInfo.episode || null;
+    const volumeCount = subject.volumes || parsedInfo.volumes || null;
+    const serialStatus = parsedInfo.status || null;
+    const start = parsedInfo.start || null;
+    const end = parsedInfo.end || null;
+    const progress = parsedInfo.progress || null;
+    return {
+      serialStatus,
+      progress,
+      start,
+      end,
+      episodeCount,
+      chapterCount: parsedInfo.episode || null,
+      volumeCount
+    };
+  }
+  async buildEpisodeStatusDiff(snapshot, context) {
+    if (!this.episodeStatusManager || !snapshot.localSnapshot.shouldLoadEpisodeStatus) {
+      return {
+        localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) : null,
+        cloudValue: null,
+        hasDiff: false,
+        decision: "skip"
+      };
+    }
+    const cloudMap = await this.getOrCreateCachedPromise(
+      context.cloudEpisodeStatusCache,
+      snapshot.subjectId,
+      () => this.episodeStatusManager.getCloudEpisodeStatusMap(snapshot.subjectId)
+    );
+    const localValue = this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap);
+    const cloudValue = this.episodeStatusManager.summarizeEpisodeStatuses(cloudMap);
+    const hasDiff = this.episodeStatusManager.serializeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) !== this.episodeStatusManager.serializeEpisodeStatuses(cloudMap);
+    return {
+      localValue,
+      cloudValue,
+      hasDiff,
+      decision: "skip"
+    };
+  }
+  hasPendingBackgroundLoad(diff) {
+    return diff.episodeStatusLoadState !== "ready" || diff.platformLoadState !== "ready";
+  }
+  applySmartMerge(diffs) {
+    diffs.forEach((diff) => {
+      if (diff.rate.hasDiff) {
+        diff.rate.decision = diff.rate.localValue && !diff.rate.cloudValue ? "local" : !diff.rate.localValue && diff.rate.cloudValue ? "cloud" : "local";
+      }
+      if (diff.comment.hasDiff) {
+        if (diff.comment.localValue && !diff.comment.cloudValue) {
+          diff.comment.decision = "local";
+        } else if (!diff.comment.localValue && diff.comment.cloudValue) {
+          diff.comment.decision = "cloud";
+        } else if (diff.comment.localValue && diff.comment.cloudValue) {
+          diff.comment.decision = diff.comment.localValue.length >= diff.comment.cloudValue.length ? "local" : "cloud";
+        }
+      }
+      if (diff.tags.hasDiff) {
+        diff.tags.decision = "merge";
+      }
+      if (diff.status.hasDiff) {
+        diff.status.decision = diff.status.localValue && !diff.status.cloudValue ? "local" : !diff.status.localValue && diff.status.cloudValue ? "cloud" : "local";
+      }
+      if (diff.episodeStatus.hasDiff) {
+        diff.episodeStatus.decision = diff.episodeStatus.localValue && !diff.episodeStatus.cloudValue ? "local" : !diff.episodeStatus.localValue && diff.episodeStatus.cloudValue ? "cloud" : "local";
+      }
+      diff.platformFields.forEach((field) => {
+        if (field.hasDiff) {
+          field.decision = "cloud";
+        }
+      });
+    });
+  }
+  async syncItem(diff) {
+    var _a, _b, _c, _d;
+    const file = this.app.vault.getAbstractFileByPath(diff.localPath);
+    if (!(file instanceof import_obsidian20.TFile)) {
+      throw new Error("File not found");
+    }
+    const originalContent = await this.app.vault.read(file);
+    let content = originalContent;
+    const cloudUpdates = {};
+    if (diff.rate.hasDiff && diff.rate.decision !== "skip") {
+      if (diff.rate.decision === "local") {
+        cloudUpdates.rate = diff.rate.localValue || void 0;
+      } else if (diff.rate.decision === "cloud") {
+        content = this.documentService.updateRate(content, diff.rate.cloudValue);
+      }
+    }
+    if (diff.comment.hasDiff && diff.comment.decision !== "skip") {
+      if (diff.comment.decision === "local") {
+        cloudUpdates.comment = diff.comment.localValue || "";
+      } else if (diff.comment.decision === "cloud") {
+        content = diff.comment.cloudValue ? this.documentService.updateComment(content, diff.comment.cloudValue) : this.documentService.removeComment(content);
+      }
+    }
+    if (diff.tags.hasDiff && diff.tags.decision !== "skip") {
+      if (diff.tags.decision === "local") {
+        cloudUpdates.tags = this.documentService.normalizeTags(diff.tags.localValue);
+      } else if (diff.tags.decision === "cloud") {
+        content = diff.tags.cloudValue && diff.tags.cloudValue.length > 0 ? this.documentService.updateTags(content, this.documentService.normalizeTags(diff.tags.cloudValue)) : this.documentService.removeTags(content);
+      } else if (diff.tags.decision === "merge") {
+        const mergedTags = /* @__PURE__ */ new Set();
+        (_a = diff.tags.localValue) == null ? void 0 : _a.forEach((tag) => mergedTags.add(tag));
+        (_b = diff.tags.cloudValue) == null ? void 0 : _b.forEach((tag) => mergedTags.add(tag));
+        const mergedArray = this.documentService.normalizeTags(Array.from(mergedTags));
+        content = this.documentService.updateTags(content, mergedArray);
+        cloudUpdates.tags = mergedArray;
+      }
+    }
+    if (diff.status.hasDiff && diff.status.decision !== "skip") {
+      if (diff.status.decision === "local") {
+        const localStatus = this.toValidCollectionType(diff.status.localValue);
+        if (localStatus !== null) {
+          cloudUpdates.type = localStatus;
+        }
+      } else if (diff.status.decision === "cloud") {
+        content = this.documentService.updateStatus(content, diff.status.cloudValue, diff.statusFieldName);
+      }
+    }
+    if (Object.keys(cloudUpdates).length > 0) {
+      const fallbackType = this.toValidCollectionType(diff.collection.type);
+      const finalUpdates = {
+        ...cloudUpdates,
+        type: (_d = (_c = cloudUpdates.type) != null ? _c : fallbackType) != null ? _d : void 0
+      };
+      await this.syncCloudUpdates(diff.subjectId, finalUpdates);
+    }
+    if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== "skip" && this.episodeStatusManager) {
+      if (content !== originalContent) {
+        await this.app.vault.process(file, () => content);
+        content = await this.app.vault.read(file);
+      }
+      if (diff.episodeStatus.decision === "local") {
+        const result = await this.episodeStatusManager.syncStatusToCloud(file);
+        if (result.failed > 0 && result.success === 0) {
+          throw new Error(`\u5355\u96C6\u72B6\u6001\u540C\u6B65\u5230\u4E91\u7AEF\u5168\u90E8\u5931\u8D25 (${result.failed}\u96C6)`);
+        }
+      } else if (diff.episodeStatus.decision === "cloud") {
+        const synced = await this.episodeStatusManager.syncStatusFromCloud(file, diff.subjectId);
+        if (!synced) {
+          throw new Error("\u5355\u96C6\u72B6\u6001\u4ECE\u4E91\u7AEF\u540C\u6B65\u5931\u8D25");
+        }
+        content = await this.app.vault.read(file);
+      }
+    }
+    if (diff.hasPlatformDiff && diff.platformFields.some((field) => field.hasDiff && field.decision === "cloud")) {
+      content = await this.applyPlatformSync(diff, file, content);
+    }
+    if (content !== originalContent) {
+      await this.app.vault.process(file, () => content);
+    }
+  }
+  async applyPlatformSync(diff, file, content) {
+    var _a;
+    if (!diff.platformSyncPayload) {
+      return content;
+    }
+    const nextContent = this.documentService.updatePlatformMetadata(content, diff.platformSyncPayload);
+    if (diff.collection.subject_type !== 2 /* Anime */ && diff.collection.subject_type !== 6 /* Real */) {
+      return nextContent;
+    }
+    const shouldRefreshEpisodeSection = diff.platformFields.some(
+      (field) => field.decision === "cloud" && field.key === "episodeCount"
+    );
+    if (!shouldRefreshEpisodeSection) {
+      return nextContent;
+    }
+    const episodesResult = await this.client.getEpisodes(diff.subjectId);
+    const episodes = (_a = episodesResult == null ? void 0 : episodesResult.data) != null ? _a : [];
+    if (episodes.length === 0) {
+      return nextContent;
+    }
+    const statusMap = /* @__PURE__ */ new Map();
+    if (this.episodeStatusManager) {
+      const localStatuses = await this.episodeStatusManager.getEpisodeStatusMap(file);
+      for (const entry of localStatuses.values()) {
+        statusMap.set(entry.episodeId, entry.status);
+      }
+    }
+    const renderedEpisodes = parseEpisodes(episodes, statusMap);
+    if (!renderedEpisodes) {
+      return nextContent;
+    }
+    return this.documentService.updateEpisodeSection(nextContent, renderedEpisodes);
+  }
+  toValidCollectionType(value) {
+    if (value === 1 /* Wish */ || value === 2 /* Done */ || value === 3 /* Doing */ || value === 4 /* OnHold */ || value === 5 /* Dropped */) {
+      return value;
+    }
+    return null;
+  }
+  async syncCloudUpdates(subjectId, updates) {
+    const hasUpdates = Object.values(updates).some((value) => value !== void 0);
+    if (!hasUpdates) {
+      return;
+    }
+    try {
+      await this.client.updateCollection(subjectId, updates);
+    } catch (error) {
+      console.error("[Bangumi Sync] \u4E91\u7AEF\u5B57\u6BB5\u540C\u6B65\u5931\u8D25:", {
+        subjectId,
+        payload: updates,
+        error
+      });
+      throw new Error("\u4E91\u7AEF\u7528\u6237\u6570\u636E\u66F4\u65B0\u5931\u8D25");
+    }
+  }
+  async mapWithConcurrency(items, concurrency, task) {
+    const results = new Array(items.length);
+    let nextIndex = 0;
+    const workerCount = Math.max(1, Math.min(concurrency, items.length));
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex++;
+        results[currentIndex] = await task(items[currentIndex], currentIndex);
+      }
+    });
+    await Promise.all(workers);
+    return results;
+  }
+  getOrCreateCachedPromise(cache, key, factory) {
+    const existing = cache.get(key);
+    if (existing) {
+      return existing;
+    }
+    const promise = factory().catch((error) => {
+      cache.delete(key);
+      throw error;
+    });
+    cache.set(key, promise);
+    return promise;
+  }
+};
+
 // src/panel/controlPanel.ts
-var ControlPanel = class extends import_obsidian20.Modal {
+var ControlPanel = class extends import_obsidian21.Modal {
   constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, subjectNoteManager, episodeStatusManager, autoSyncStatus) {
     super(app);
     // 分页
@@ -12175,6 +12690,8 @@ var ControlPanel = class extends import_obsidian20.Modal {
     this.autoSyncStatus = autoSyncStatus != null ? autoSyncStatus : false;
     this.client = new BangumiClient(settings.accessToken);
     this.incrementalSync = new IncrementalSync(app);
+    this.documentService = new SubjectDocumentService(app, this.episodeStatusManager);
+    this.statusSyncService = new StatusSyncService(app, this.client, this.documentService, this.episodeStatusManager);
     this.frontmatterEditor = new FrontmatterEditor(app);
     this.conflictDetector = new ConflictDetector(app);
     this.filters = { ...DEFAULT_PANEL_FILTERS, ...settings.panelFilters };
@@ -12656,12 +13173,12 @@ var ControlPanel = class extends import_obsidian20.Modal {
   }
   async openOrCreateNote(path) {
     if (!this.subjectNoteManager) {
-      new import_obsidian20.Notice(tn("notices", "noteManagerNotInit"));
+      new import_obsidian21.Notice(tn("notices", "noteManagerNotInit"));
       return;
     }
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian20.TFile)) {
-      new import_obsidian20.Notice(tn("controlPanel", "fileNotFound"));
+    if (!(file instanceof import_obsidian21.TFile)) {
+      new import_obsidian21.Notice(tn("controlPanel", "fileNotFound"));
       return;
     }
     await this.subjectNoteManager.createOrAppendForLocalFile(file);
@@ -12706,11 +13223,11 @@ var ControlPanel = class extends import_obsidian20.Modal {
    */
   openFile(path) {
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (file instanceof import_obsidian20.TFile) {
+    if (file instanceof import_obsidian21.TFile) {
       this.close();
       void this.app.workspace.openLinkText(file.path, "", true);
     } else {
-      new import_obsidian20.Notice(tn("controlPanel", "fileNotFound"));
+      new import_obsidian21.Notice(tn("controlPanel", "fileNotFound"));
     }
   }
   /**
@@ -12719,7 +13236,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
    */
   async syncSelected(overwrite = false) {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian20.Notice(tn("controlPanel", "selectToSync"));
+      new import_obsidian21.Notice(tn("controlPanel", "selectToSync"));
       return;
     }
     let selectedCollections;
@@ -12733,7 +13250,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
       );
     }
     if (selectedCollections.length === 0) {
-      new import_obsidian20.Notice(overwrite ? tn("controlPanel", "selectToSync") : tn("controlPanel", "alreadySynced"));
+      new import_obsidian21.Notice(overwrite ? tn("controlPanel", "selectToSync") : tn("controlPanel", "alreadySynced"));
       return;
     }
     const localPropertyResult = await this.collectLocalPropertyValues(selectedCollections);
@@ -12756,7 +13273,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
       );
       this.state.loading = false;
       if (result.success) {
-        new import_obsidian20.Notice(`${tn("controlPanel", "syncComplete")}! ${result.added}, ${result.errors}`);
+        new import_obsidian21.Notice(`${tn("controlPanel", "syncComplete")}! ${result.added}, ${result.errors}`);
         const scanPath = this.settings.scanFolderPath || "ACGN";
         await this.incrementalSync.scanLocalFolder(scanPath);
         this.state.localSubjects = /* @__PURE__ */ new Map();
@@ -12773,13 +13290,13 @@ var ControlPanel = class extends import_obsidian20.Modal {
         this.renderActionBar();
         this.renderPagination();
       } else {
-        new import_obsidian20.Notice(tn("controlPanel", "syncFailed"));
+        new import_obsidian21.Notice(tn("controlPanel", "syncFailed"));
         this.renderStatus(tn("controlPanel", "syncFailed"));
       }
     } catch (error) {
       this.state.loading = false;
       const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian20.Notice(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
+      new import_obsidian21.Notice(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
       this.renderStatus(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
     }
   }
@@ -12795,7 +13312,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
       (message) => {
         if (!warned) {
           warned = true;
-          new import_obsidian20.Notice(message);
+          new import_obsidian21.Notice(message);
         }
       }
     );
@@ -12832,14 +13349,14 @@ var ControlPanel = class extends import_obsidian20.Modal {
    */
   deleteSelected() {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian20.Notice(tn("controlPanel", "selectToDelete"));
+      new import_obsidian21.Notice(tn("controlPanel", "selectToDelete"));
       return;
     }
     const syncedCollections = this.state.collections.filter(
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (syncedCollections.length === 0) {
-      new import_obsidian20.Notice(tn("controlPanel", "selectSyncedToDelete"));
+      new import_obsidian21.Notice(tn("controlPanel", "selectSyncedToDelete"));
       return;
     }
     const modal = new ConfirmModal(
@@ -12854,7 +13371,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
             if (localInfo) {
               try {
                 const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-                if (file instanceof import_obsidian20.TFile) {
+                if (file instanceof import_obsidian21.TFile) {
                   await this.app.fileManager.trashFile(file);
                   this.state.localSubjects.delete(collection.subject_id);
                   deleted++;
@@ -12865,7 +13382,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
               }
             }
           }
-          new import_obsidian20.Notice(`${tn("controlPanel", "deleteComplete")}: ${deleted}, ${failed}`);
+          new import_obsidian21.Notice(`${tn("controlPanel", "deleteComplete")}: ${deleted}, ${failed}`);
           this.state.selectedIds.clear();
           this.renderStatus(`${tn("controlPanel", "totalItems")} ${this.state.collections.length}, ${tn("controlPanel", "synced")} ${this.state.localSubjects.size}`);
           this.renderTable();
@@ -12883,7 +13400,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (selectedCollections.length === 0) {
-      new import_obsidian20.Notice(tn("controlPanel", "selectSyncedToEdit"));
+      new import_obsidian21.Notice(tn("controlPanel", "selectSyncedToEdit"));
       return;
     }
     const targetItems = selectedCollections.map((collection) => {
@@ -12905,7 +13422,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
           targetItems.map((item) => item.filePath),
           (_a = submission.operations) != null ? _a : []
         ) : await this.frontmatterEditor.batchApplyPerItemUpdates((_b = submission.perItemUpdates) != null ? _b : []);
-        new import_obsidian20.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
+        new import_obsidian21.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
         this.renderActionBar();
       }
     );
@@ -12931,15 +13448,15 @@ var ControlPanel = class extends import_obsidian20.Modal {
    */
   async undoLastEdit() {
     if (!this.frontmatterEditor.canUndo()) {
-      new import_obsidian20.Notice(tn("controlPanel", "noUndo"));
+      new import_obsidian21.Notice(tn("controlPanel", "noUndo"));
       return;
     }
     const success = await this.frontmatterEditor.undo();
     if (success) {
-      new import_obsidian20.Notice(tn("controlPanel", "undoSuccess"));
+      new import_obsidian21.Notice(tn("controlPanel", "undoSuccess"));
       this.renderActionBar();
     } else {
-      new import_obsidian20.Notice(tn("controlPanel", "undoFailed"));
+      new import_obsidian21.Notice(tn("controlPanel", "undoFailed"));
     }
   }
   /**
@@ -12986,7 +13503,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
     );
     this.lastStatusSyncPerf.syncedCollections = syncedCollections.length;
     if (syncedCollections.length === 0) {
-      new import_obsidian20.Notice(tn("controlPanel", "noSyncedItemsStatus"));
+      new import_obsidian21.Notice(tn("controlPanel", "noSyncedItemsStatus"));
       return;
     }
     this.state.loading = true;
@@ -12994,23 +13511,33 @@ var ControlPanel = class extends import_obsidian20.Modal {
     console.debug(`[Bangumi Sync][Perf] syncStatus:start synced=${syncedCollections.length}`);
     try {
       const snapshotStart = Date.now();
-      const snapshots = (await this.mapWithConcurrency(
-        syncedCollections,
-        6,
-        async (collection, index) => {
-          this.renderStatus(`${tn("controlPanel", "comparingStatus")} (1/2 ${index + 1}/${syncedCollections.length})`);
-          return this.buildLocalStatusSyncSnapshot(collection);
+      const { snapshots, diffs } = await this.statusSyncService.buildDiffSession({
+        collections: syncedCollections,
+        localSubjects: this.state.localSubjects,
+        getCachedSnapshot: (subjectId, path, mtime) => this.getPrefetchedUserData(subjectId, path, mtime),
+        onProgress: (current, total) => {
+          this.renderStatus(`${tn("controlPanel", "comparingStatus")} (1/2 ${current}/${total})`);
+        },
+        onPrefetchHit: () => {
+          var _a;
+          if (this.lastStatusSyncPerf) {
+            this.lastStatusSyncPerf.prefetchHits = ((_a = this.lastStatusSyncPerf.prefetchHits) != null ? _a : 0) + 1;
+          }
+        },
+        onPrefetchMiss: () => {
+          var _a;
+          if (this.lastStatusSyncPerf) {
+            this.lastStatusSyncPerf.prefetchMisses = ((_a = this.lastStatusSyncPerf.prefetchMisses) != null ? _a : 0) + 1;
+          }
         }
-      )).filter((snapshot) => snapshot !== null);
+      });
       const snapshotDuration = Date.now() - snapshotStart;
       this.lastStatusSyncPerf.snapshotDurationMs = snapshotDuration;
       this.lastStatusSyncPerf.snapshotCount = snapshots.length;
       console.debug(
         `[Bangumi Sync][Perf] syncStatus:snapshots duration=${snapshotDuration}ms snapshots=${snapshots.length}`
       );
-      const diffBuildStart = Date.now();
-      const diffs = snapshots.map((snapshot) => this.buildStatusSyncDiff(snapshot)).filter((diff) => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
-      const diffBuildDuration = Date.now() - diffBuildStart;
+      const diffBuildDuration = 0;
       this.lastStatusSyncPerf.initialDiffDurationMs = diffBuildDuration;
       this.lastStatusSyncPerf.initialVisibleDiffs = diffs.length;
       console.debug(
@@ -13018,19 +13545,17 @@ var ControlPanel = class extends import_obsidian20.Modal {
       );
       this.state.loading = false;
       if (diffs.length === 0) {
-        new import_obsidian20.Notice(tn("controlPanel", "noStatusDiff"));
+        new import_obsidian21.Notice(tn("controlPanel", "noStatusDiff"));
         this.renderStatus(tn("controlPanel", "noStatusDiff"));
         return;
       }
       const modal = new StatusSyncModal(
         this.app,
-        this.client,
-        this.incrementalSync,
+        this.statusSyncService,
         diffs,
         () => {
           void this.loadData();
-        },
-        this.episodeStatusManager
+        }
       );
       modal.open();
       const modalOpenDuration = Date.now() - perfStart;
@@ -13039,236 +13564,30 @@ var ControlPanel = class extends import_obsidian20.Modal {
         `[Bangumi Sync][Perf] syncStatus:modalOpened total=${modalOpenDuration}ms visible=${diffs.length}`
       );
       this.renderStatus(`${tn("controlPanel", "comparingStatus")} (2/2)`);
-      void this.loadBackgroundStatusDiffs(snapshots, modal);
+      void this.statusSyncService.loadBackgroundDiffs(
+        snapshots,
+        {
+          isDisposed: () => modal.isDisposed(),
+          updateDiff: (subjectId, patch) => modal.updateDiff(subjectId, patch),
+          updateBackgroundProgress: (completed, total) => modal.updateBackgroundProgress(completed, total)
+        },
+        (completed, total) => {
+          this.renderStatus(`${tn("controlPanel", "comparingStatus")} (2/2 ${completed}/${total})`);
+          if (this.lastStatusSyncPerf) {
+            this.lastStatusSyncPerf.backgroundCompleted = completed;
+            this.lastStatusSyncPerf.backgroundCandidates = total;
+          }
+        }
+      );
     } catch (error) {
       this.state.loading = false;
       const errorMsg = error instanceof Error ? error.message : String(error);
       if (this.lastStatusSyncPerf) {
         this.lastStatusSyncPerf.lastError = errorMsg;
       }
-      new import_obsidian20.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
+      new import_obsidian21.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
       this.renderStatus(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
     }
-  }
-  /**
-   * 构建状态同步差异对象
-   */
-  buildStatusSyncDiff(snapshot) {
-    const { collection, localInfo, statusFieldName } = snapshot;
-    const cloudRate = collection.rate || null;
-    const cloudComment = collection.comment || null;
-    const cloudTagsRaw = collection.tags && collection.tags.length > 0 ? collection.tags : null;
-    const cloudTags = this.incrementalSync.normalizeTags(cloudTagsRaw);
-    const cloudStatus = collection.type || null;
-    const rateDiff = {
-      localValue: snapshot.localRate,
-      cloudValue: cloudRate,
-      hasDiff: snapshot.localRate !== cloudRate,
-      decision: "skip"
-    };
-    const localCommentNormalized = this.incrementalSync.normalizeComment(snapshot.localComment);
-    const cloudCommentNormalized = this.incrementalSync.normalizeComment(cloudComment);
-    const commentDiff = {
-      localValue: localCommentNormalized,
-      cloudValue: cloudCommentNormalized,
-      hasDiff: localCommentNormalized !== cloudCommentNormalized,
-      decision: "skip"
-    };
-    const localTagSet = new Set(snapshot.localTags.map((t2) => t2.toLowerCase().trim()));
-    const cloudTagSet = cloudTags ? new Set(cloudTags.map((t2) => t2.toLowerCase().trim())) : /* @__PURE__ */ new Set();
-    const tagsHasDiff = localTagSet.size !== cloudTagSet.size || ![...localTagSet].every((t2) => cloudTagSet.has(t2));
-    const tagsDiff = {
-      localValue: snapshot.localTags,
-      cloudValue: cloudTags,
-      hasDiff: tagsHasDiff,
-      decision: "skip"
-    };
-    const statusDiff = {
-      localValue: snapshot.localStatus,
-      cloudValue: cloudStatus,
-      hasDiff: snapshot.localStatus !== cloudStatus,
-      decision: "skip"
-    };
-    const episodeStatus = {
-      localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localEpisodeStatusMap) : null,
-      cloudValue: null,
-      hasDiff: false,
-      decision: "skip"
-    };
-    const hasUserDiff = rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff;
-    const hasPlatformDiff = false;
-    const hasAnyDiff = hasUserDiff || hasPlatformDiff;
-    return {
-      subjectId: collection.subject_id,
-      name_cn: collection.subject.name_cn || "",
-      name: collection.subject.name || "",
-      localPath: localInfo.path,
-      collection,
-      statusFieldName,
-      rate: rateDiff,
-      comment: commentDiff,
-      tags: tagsDiff,
-      status: statusDiff,
-      episodeStatus,
-      platformFields: [],
-      platformSyncPayload: void 0,
-      hasUserDiff,
-      hasPlatformDiff,
-      hasAnyDiff,
-      expanded: false,
-      episodeStatusLoadState: snapshot.shouldLoadEpisodeStatus ? "pending" : "ready",
-      platformLoadState: snapshot.shouldLoadPlatformData ? "pending" : "ready",
-      backgroundError: null
-    };
-  }
-  async buildPlatformFieldDiffs(snapshot, context) {
-    return this.getOrCreateCachedPromise(
-      context.platformDiffCache,
-      snapshot.subjectId,
-      async () => {
-        const collection = snapshot.collection;
-        if (collection.subject_type !== 2 /* Anime */ && collection.subject_type !== 6 /* Real */ && collection.subject_type !== 1 /* Book */) {
-          return { fields: [] };
-        }
-        if (!snapshot.shouldLoadPlatformData) {
-          return { fields: [] };
-        }
-        const subject = await this.getOrCreateCachedPromise(
-          context.subjectCache,
-          snapshot.subjectId,
-          () => this.client.getSubject(snapshot.subjectId)
-        );
-        const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
-        const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
-        const fields = [];
-        const localContext = snapshot.localPlatformContext;
-        if (cloudPayload.serialStatus && localContext.serialStatus !== cloudPayload.serialStatus) {
-          fields.push({
-            key: "serialState",
-            label: tn("statusSyncModal", "fieldSerialState"),
-            localValue: localContext.serialStatus,
-            cloudValue: cloudPayload.serialStatus,
-            hasDiff: true,
-            decision: "skip"
-          });
-        }
-        if (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */) {
-          const cloudValue = cloudPayload.episodeCount;
-          if (cloudValue !== void 0 && cloudValue !== null && localContext.episodeCount !== cloudValue) {
-            fields.push({
-              key: "episodeCount",
-              label: tn("statusSyncModal", "fieldEpisodeCount"),
-              localValue: localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
-              cloudValue: String(cloudValue),
-              hasDiff: true,
-              decision: "skip"
-            });
-          }
-        }
-        if (collection.subject_type === 1 /* Book */) {
-          const isComic = (parsedInfo.category || "").includes("\u6F2B\u753B") || localContext.chapterCount !== null;
-          if (isComic) {
-            if (cloudPayload.chapterCount !== void 0 && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
-              fields.push({
-                key: "chapterCount",
-                label: tn("statusSyncModal", "fieldChapterCount"),
-                localValue: localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
-                cloudValue: String(cloudPayload.chapterCount),
-                hasDiff: true,
-                decision: "skip"
-              });
-            }
-            if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-              fields.push({
-                key: "volumeCount",
-                label: tn("statusSyncModal", "fieldVolumeCount"),
-                localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
-                cloudValue: String(cloudPayload.volumeCount),
-                hasDiff: true,
-                decision: "skip"
-              });
-            }
-          } else if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-            fields.push({
-              key: "volumeCount",
-              label: tn("statusSyncModal", "fieldVolumeCount"),
-              localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
-              cloudValue: String(cloudPayload.volumeCount),
-              hasDiff: true,
-              decision: "skip"
-            });
-          }
-        }
-        return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
-      }
-    );
-  }
-  buildPlatformSyncPayload(subject, parsedInfo) {
-    const episodeCount = subject.total_episodes || subject.eps || parsedInfo.episode || null;
-    const volumeCount = subject.volumes || parsedInfo.volumes || null;
-    const serialStatus = parsedInfo.status || null;
-    const start = parsedInfo.start || null;
-    const end = parsedInfo.end || null;
-    const progress = parsedInfo.progress || null;
-    return {
-      serialStatus,
-      progress,
-      start,
-      end,
-      episodeCount,
-      chapterCount: parsedInfo.episode || null,
-      volumeCount
-    };
-  }
-  async buildEpisodeStatusDiff(snapshot, context) {
-    if (!this.episodeStatusManager || !snapshot.shouldLoadEpisodeStatus) {
-      return {
-        localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localEpisodeStatusMap) : null,
-        cloudValue: null,
-        hasDiff: false,
-        decision: "skip"
-      };
-    }
-    const cloudMap = await this.getOrCreateCachedPromise(
-      context.cloudEpisodeStatusCache,
-      snapshot.subjectId,
-      () => this.episodeStatusManager.getCloudEpisodeStatusMap(snapshot.subjectId)
-    );
-    const localValue = this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localEpisodeStatusMap);
-    const cloudValue = this.episodeStatusManager.summarizeEpisodeStatuses(cloudMap);
-    const hasDiff = this.episodeStatusManager.serializeEpisodeStatuses(snapshot.localEpisodeStatusMap) !== this.episodeStatusManager.serializeEpisodeStatuses(cloudMap);
-    return {
-      localValue,
-      cloudValue,
-      hasDiff,
-      decision: "skip"
-    };
-  }
-  async buildLocalStatusSyncSnapshot(collection) {
-    var _a, _b;
-    const localInfo = this.state.localSubjects.get(collection.subject_id);
-    if (!localInfo) {
-      return null;
-    }
-    const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-    if (!(file instanceof import_obsidian20.TFile)) {
-      return null;
-    }
-    const prefetched = this.getPrefetchedUserData(collection.subject_id, localInfo.path, file.stat.mtime);
-    if (prefetched) {
-      if (this.lastStatusSyncPerf) {
-        this.lastStatusSyncPerf.prefetchHits = ((_a = this.lastStatusSyncPerf.prefetchHits) != null ? _a : 0) + 1;
-      }
-      return this.createSnapshotFromPrefetched(collection, localInfo, file, prefetched);
-    }
-    if (this.lastStatusSyncPerf) {
-      this.lastStatusSyncPerf.prefetchMisses = ((_b = this.lastStatusSyncPerf.prefetchMisses) != null ? _b : 0) + 1;
-    }
-    const extracted = await this.extractPrefetchedUserData(collection, localInfo, file);
-    return extracted ? this.createSnapshotFromPrefetched(collection, localInfo, file, extracted) : null;
-  }
-  hasPendingBackgroundLoad(diff) {
-    return diff.episodeStatusLoadState !== "ready" || diff.platformLoadState !== "ready";
   }
   startUserDataPrefetch() {
     const syncedCollections = this.getSyncedCollections();
@@ -13288,7 +13607,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
         return;
       }
       const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-      if (!(file instanceof import_obsidian20.TFile)) {
+      if (!(file instanceof import_obsidian21.TFile)) {
         return;
       }
       const prefetched = await this.extractPrefetchedUserData(collection, localInfo, file);
@@ -13321,125 +13640,13 @@ var ControlPanel = class extends import_obsidian20.Modal {
     return prefetched;
   }
   async extractPrefetchedUserData(collection, localInfo, file) {
-    const content = await this.app.vault.read(file);
-    const statusFieldName = this.incrementalSync.getStatusFieldName(collection.subject_type);
-    const localPlatformContext = this.incrementalSync.extractLocalPlatformSyncContext(content);
-    const shouldLoadEpisodeStatus = Boolean(
-      this.episodeStatusManager && (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */)
-    );
-    const shouldLoadPlatformData = (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */ || collection.subject_type === 1 /* Book */) && this.incrementalSync.isPlatformDataCandidate(localPlatformContext);
+    const snapshot = await this.documentService.readSnapshot(file, collection.subject_type);
     return {
-      path: localInfo.path,
-      mtime: file.stat.mtime,
-      content,
-      statusFieldName,
-      localRate: this.incrementalSync.extractRate(content),
-      localComment: this.incrementalSync.extractComment(content),
-      localTags: this.incrementalSync.normalizeTags(this.incrementalSync.extractTags(content)),
-      localStatus: this.incrementalSync.extractStatus(content, statusFieldName),
-      localPlatformContext,
-      localEpisodeStatusMap: this.episodeStatusManager ? this.episodeStatusManager.getEpisodeStatusMapFromContent(content) : /* @__PURE__ */ new Map(),
-      shouldLoadEpisodeStatus,
-      shouldLoadPlatformData
-    };
-  }
-  createSnapshotFromPrefetched(collection, localInfo, file, prefetched) {
-    return {
-      subjectId: collection.subject_id,
-      collection,
-      localInfo,
+      ...snapshot,
       file,
-      content: prefetched.content,
-      statusFieldName: prefetched.statusFieldName,
-      localRate: prefetched.localRate,
-      localComment: prefetched.localComment,
-      localTags: prefetched.localTags,
-      localStatus: prefetched.localStatus,
-      localPlatformContext: prefetched.localPlatformContext,
-      localEpisodeStatusMap: new Map(prefetched.localEpisodeStatusMap),
-      shouldLoadEpisodeStatus: prefetched.shouldLoadEpisodeStatus,
-      shouldLoadPlatformData: prefetched.shouldLoadPlatformData
+      path: localInfo.path,
+      mtime: file.stat.mtime
     };
-  }
-  async loadBackgroundStatusDiffs(snapshots, modal) {
-    const backgroundStart = Date.now();
-    const context = {
-      subjectCache: /* @__PURE__ */ new Map(),
-      cloudEpisodeStatusCache: /* @__PURE__ */ new Map(),
-      platformDiffCache: /* @__PURE__ */ new Map()
-    };
-    const candidates = snapshots.filter((snapshot) => snapshot.shouldLoadEpisodeStatus || snapshot.shouldLoadPlatformData);
-    let completed = 0;
-    modal.updateBackgroundProgress(completed, candidates.length);
-    if (this.lastStatusSyncPerf) {
-      this.lastStatusSyncPerf.backgroundCandidates = candidates.length;
-      this.lastStatusSyncPerf.backgroundCompleted = completed;
-      this.lastStatusSyncPerf.backgroundElapsedMs = 0;
-    }
-    console.debug(`[Bangumi Sync][Perf] syncStatus:backgroundStart candidates=${candidates.length}`);
-    await this.mapWithConcurrency(candidates, 4, async (snapshot) => {
-      if (modal.isDisposed()) {
-        return;
-      }
-      const loadingPatch = {};
-      if (snapshot.shouldLoadEpisodeStatus) {
-        loadingPatch.episodeStatusLoadState = "loading";
-      }
-      if (snapshot.shouldLoadPlatformData) {
-        loadingPatch.platformLoadState = "loading";
-      }
-      modal.updateDiff(snapshot.subjectId, loadingPatch);
-      try {
-        const [episodeStatus, platformResult] = await Promise.all([
-          snapshot.shouldLoadEpisodeStatus ? this.buildEpisodeStatusDiff(snapshot, context) : Promise.resolve(null),
-          snapshot.shouldLoadPlatformData ? this.buildPlatformFieldDiffs(snapshot, context) : Promise.resolve(null)
-        ]);
-        if (modal.isDisposed()) {
-          return;
-        }
-        const patch = {
-          backgroundError: null
-        };
-        if (episodeStatus) {
-          patch.episodeStatus = episodeStatus;
-          patch.episodeStatusLoadState = "ready";
-        }
-        if (platformResult) {
-          patch.platformFields = platformResult.fields;
-          patch.platformSyncPayload = platformResult.payload;
-          patch.platformLoadState = "ready";
-        }
-        modal.updateDiff(snapshot.subjectId, patch);
-      } catch (error) {
-        if (modal.isDisposed()) {
-          return;
-        }
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        modal.updateDiff(snapshot.subjectId, {
-          episodeStatusLoadState: snapshot.shouldLoadEpisodeStatus ? "failed" : "ready",
-          platformLoadState: snapshot.shouldLoadPlatformData ? "failed" : "ready",
-          backgroundError: errorMessage
-        });
-      } finally {
-        completed++;
-        modal.updateBackgroundProgress(completed, candidates.length);
-        this.renderStatus(`${tn("controlPanel", "comparingStatus")} (2/2 ${completed}/${candidates.length})`);
-        if (this.lastStatusSyncPerf) {
-          this.lastStatusSyncPerf.backgroundCompleted = completed;
-          this.lastStatusSyncPerf.backgroundElapsedMs = Date.now() - backgroundStart;
-        }
-        console.debug(
-          `[Bangumi Sync][Perf] syncStatus:backgroundProgress completed=${completed}/${candidates.length} elapsed=${Date.now() - backgroundStart}ms`
-        );
-      }
-    });
-    if (this.lastStatusSyncPerf) {
-      this.lastStatusSyncPerf.backgroundDoneMs = Date.now() - backgroundStart;
-      this.lastStatusSyncPerf.backgroundElapsedMs = this.lastStatusSyncPerf.backgroundDoneMs;
-    }
-    console.debug(
-      `[Bangumi Sync][Perf] syncStatus:backgroundDone total=${Date.now() - backgroundStart}ms candidates=${candidates.length}`
-    );
   }
   async mapWithConcurrency(items, concurrency, task) {
     const results = new Array(items.length);
@@ -13453,18 +13660,6 @@ var ControlPanel = class extends import_obsidian20.Modal {
     });
     await Promise.all(workers);
     return results;
-  }
-  getOrCreateCachedPromise(cache, key, factory) {
-    const existing = cache.get(key);
-    if (existing) {
-      return existing;
-    }
-    const promise = factory().catch((error) => {
-      cache.delete(key);
-      throw error;
-    });
-    cache.set(key, promise);
-    return promise;
   }
   /**
    * 处理键盘导航
@@ -13593,7 +13788,7 @@ function parseDateTime(value) {
   const time = Date.parse(value);
   return Number.isFinite(time) ? time : 0;
 }
-var ConfirmModal = class extends import_obsidian20.Modal {
+var ConfirmModal = class extends import_obsidian21.Modal {
   constructor(app, message, onConfirm) {
     super(app);
     this.message = message;
@@ -13637,7 +13832,7 @@ function createCancellationSignal() {
 }
 
 // src/episode/episodeContextMenu.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 
 // src/episode/types.ts
 var EPISODE_STATUS_TEXT = {
@@ -13686,9 +13881,9 @@ var EpisodeContextMenu = class {
     if (!episodeId || !epNumber) {
       return;
     }
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian21.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian22.MarkdownView);
     if (!view) {
-      new import_obsidian21.Notice(tn("episodeContextMenu", "openAnimeFileFirst"));
+      new import_obsidian22.Notice(tn("episodeContextMenu", "openAnimeFileFirst"));
       return;
     }
     const file = view.file;
@@ -13697,11 +13892,11 @@ var EpisodeContextMenu = class {
     }
     const subjectId = await this.getSubjectIdFromFile(file);
     if (!subjectId) {
-      new import_obsidian21.Notice(tn("episodeContextMenu", "cannotIdentifyId"));
+      new import_obsidian22.Notice(tn("episodeContextMenu", "cannotIdentifyId"));
       return;
     }
     const currentStatus = await this.statusManager.getEpisodeStatus(file, episodeId);
-    const menu = new import_obsidian21.Menu();
+    const menu = new import_obsidian22.Menu();
     menu.addItem((item) => {
       item.setTitle(tnFormat("episodeContextMenu", "watchedUpTo", { ep: epNumber })).onClick(() => void this.setWatchedUpTo(file, epNumber));
     });
@@ -13731,10 +13926,10 @@ var EpisodeContextMenu = class {
     try {
       await this.statusManager.updateLocalStatus(file, episodeId, epNumber, status);
       this.updateEpBoxStyle(epBox, status);
-      new import_obsidian21.Notice(tnFormat("episodeContextMenu", "episodeStatusSet", { ep: epNumber, status: getEpisodeStatusText(status) }));
+      new import_obsidian22.Notice(tnFormat("episodeContextMenu", "episodeStatusSet", { ep: epNumber, status: getEpisodeStatusText(status) }));
     } catch (error) {
       console.error("[Bangumi Sync] \u8BBE\u7F6E\u5355\u96C6\u72B6\u6001\u5931\u8D25:", error);
-      new import_obsidian21.Notice(tn("episodeContextMenu", "markFailed"));
+      new import_obsidian22.Notice(tn("episodeContextMenu", "markFailed"));
     }
   }
   /**
@@ -13742,7 +13937,7 @@ var EpisodeContextMenu = class {
    */
   async setWatchedUpTo(file, targetEpNumber) {
     try {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian21.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian22.MarkdownView);
       if (!view)
         return;
       const contentEl = view.contentEl;
@@ -13764,10 +13959,10 @@ var EpisodeContextMenu = class {
       episodesToUpdate.forEach(({ epBox }) => {
         this.updateEpBoxStyle(epBox, 2);
       });
-      new import_obsidian21.Notice(tnFormat("episodeContextMenu", "markedEpisodes", { ep: targetEpNumber }));
+      new import_obsidian22.Notice(tnFormat("episodeContextMenu", "markedEpisodes", { ep: targetEpNumber }));
     } catch (error) {
       console.error('[Bangumi Sync] \u8BBE\u7F6E"\u770B\u5230"\u72B6\u6001\u5931\u8D25:', error);
-      new import_obsidian21.Notice(tn("episodeContextMenu", "markFailed"));
+      new import_obsidian22.Notice(tn("episodeContextMenu", "markFailed"));
     }
   }
   /**
@@ -13778,11 +13973,11 @@ var EpisodeContextMenu = class {
       const result = await this.commentManager.insertEpisodeComment(file, epNumber);
       if (result.success) {
         await this.switchToEditModeAndFocus(result.insertLine, result.insertColumn);
-        new import_obsidian21.Notice(tnFormat("episodeContextMenu", "episodeCommentAdded", { ep: epNumber }));
+        new import_obsidian22.Notice(tnFormat("episodeContextMenu", "episodeCommentAdded", { ep: epNumber }));
       }
     } catch (error) {
       console.error("[Bangumi Sync] \u6DFB\u52A0\u5355\u96C6\u5410\u69FD\u5931\u8D25:", error);
-      new import_obsidian21.Notice(tn("episodeContextMenu", "addCommentFailed"));
+      new import_obsidian22.Notice(tn("episodeContextMenu", "addCommentFailed"));
     }
   }
   /**
@@ -13807,7 +14002,7 @@ var EpisodeContextMenu = class {
    * 切换到编辑模式并定位光标
    */
   async switchToEditModeAndFocus(line, column) {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian21.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian22.MarkdownView);
     if (!view)
       return;
     const ownerWindow = view.contentEl.ownerDocument.defaultView;
@@ -14277,7 +14472,7 @@ ${callout}
 };
 
 // src/note/subjectNoteManager.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 var SubjectNoteManager = class {
   constructor(app, client, settings) {
     this.app = app;
@@ -14286,20 +14481,20 @@ var SubjectNoteManager = class {
   }
   async createOrAppendForCurrentFile() {
     const file = this.app.workspace.getActiveFile();
-    if (!(file instanceof import_obsidian22.TFile)) {
-      new import_obsidian22.Notice(tn("subjectNote", "notSyncedFile"));
+    if (!(file instanceof import_obsidian23.TFile)) {
+      new import_obsidian23.Notice(tn("subjectNote", "notSyncedFile"));
       return;
     }
     await this.createOrAppendForLocalFile(file);
   }
   async createOrAppendForLocalFile(localFile) {
     if (!this.settings.notePathTemplate.trim()) {
-      new import_obsidian22.Notice(tn("subjectNote", "configureNotePath"));
+      new import_obsidian23.Notice(tn("subjectNote", "configureNotePath"));
       return;
     }
     const context = await this.resolveContext(localFile);
     if (!context) {
-      new import_obsidian22.Notice(tn("subjectNote", "missingSubjectId"));
+      new import_obsidian23.Notice(tn("subjectNote", "missingSubjectId"));
       return;
     }
     const candidateIds = await this.buildCandidateIds(context.subject, localFile);
@@ -14311,7 +14506,7 @@ var SubjectNoteManager = class {
       localFile.path,
       true
     );
-    new import_obsidian22.Notice(tn("subjectNote", match ? "appendedToNote" : "createdNote"));
+    new import_obsidian23.Notice(tn("subjectNote", match ? "appendedToNote" : "createdNote"));
   }
   async resolveContext(localFile) {
     const cache = this.app.metadataCache.getFileCache(localFile);
@@ -14334,7 +14529,7 @@ var SubjectNoteManager = class {
     const queue = [localFile];
     while (queue.length > 0 && visited.size < 100) {
       const file = queue.shift();
-      if (!(file instanceof import_obsidian22.TFile) || visited.has(file.path)) {
+      if (!(file instanceof import_obsidian23.TFile) || visited.has(file.path)) {
         continue;
       }
       visited.add(file.path);
@@ -14374,7 +14569,7 @@ var SubjectNoteManager = class {
   }
   findLocalSubjectFile(subjectId) {
     var _a;
-    const scanRoot = (0, import_obsidian22.normalizePath)(this.settings.scanFolderPath || "");
+    const scanRoot = (0, import_obsidian23.normalizePath)(this.settings.scanFolderPath || "");
     for (const file of this.app.vault.getMarkdownFiles()) {
       if (scanRoot && !file.path.startsWith(scanRoot)) {
         continue;
@@ -14404,7 +14599,7 @@ var SubjectNoteManager = class {
         continue;
       }
       const target = this.app.metadataCache.getFirstLinkpathDest(linkPath, sourceFile.path);
-      if (target instanceof import_obsidian22.TFile) {
+      if (target instanceof import_obsidian23.TFile) {
         files.push(target);
       }
     }
@@ -14437,9 +14632,9 @@ var SubjectNoteManager = class {
     return match[1].split("#")[0].trim();
   }
   async createNewNote(context, candidateIds) {
-    const notePath = (0, import_obsidian22.normalizePath)(generateFilePath(this.settings.notePathTemplate, context.subject));
+    const notePath = (0, import_obsidian23.normalizePath)(generateFilePath(this.settings.notePathTemplate, context.subject));
     const existing = this.app.vault.getAbstractFileByPath(notePath);
-    if (existing instanceof import_obsidian22.TFile) {
+    if (existing instanceof import_obsidian23.TFile) {
       const ids = await this.readNoteIds(existing);
       return this.updateExistingNote({ file: existing, ids }, candidateIds, context.heading);
     }
@@ -14618,7 +14813,7 @@ ${nextBody}
 };
 
 // main.ts
-var BangumiPlugin = class extends import_obsidian23.Plugin {
+var BangumiPlugin = class extends import_obsidian24.Plugin {
   constructor() {
     super(...arguments);
     this.syncManager = null;
@@ -14902,12 +15097,12 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
         if (config.filePath) {
           try {
             const file = this.app.vault.getAbstractFileByPath(config.filePath);
-            if (file instanceof import_obsidian23.TFile) {
+            if (file instanceof import_obsidian24.TFile) {
               return await this.app.vault.read(file);
             }
           } catch (error) {
             console.error(`[Bangumi Sync] \u8BFB\u53D6\u6A21\u677F\u6587\u4EF6\u5931\u8D25: ${config.filePath}`, error);
-            new import_obsidian23.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
+            new import_obsidian24.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
           }
         }
         return getBuiltInTemplateByKey(defaultTemplateKey, true);
@@ -14925,7 +15120,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
       this.app,
       this.settings.scanFolderPath,
       (files) => {
-        new import_obsidian23.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
+        new import_obsidian24.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
       }
     );
     modal.open();
@@ -14950,7 +15145,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
             content: await file.text()
           });
         } catch (error) {
-          new import_obsidian23.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
+          new import_obsidian24.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
           return;
         }
       }
@@ -14971,11 +15166,11 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
    */
   openSearchModal() {
     if (!this.settings.accessToken) {
-      new import_obsidian23.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian24.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian23.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian24.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     const modal = new SearchModal(
@@ -14995,7 +15190,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
   openControlPanel(options) {
     var _a;
     if (!this.settings.accessToken) {
-      new import_obsidian23.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian24.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (this.controlPanel) {
@@ -15033,7 +15228,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
    */
   openSyncOptions() {
     if (!this.settings.accessToken) {
-      new import_obsidian23.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian24.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     const modal = new SyncOptionsModal(
@@ -15066,11 +15261,11 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
    */
   async batchDownloadCovers() {
     if (!this.settings.downloadImages) {
-      new import_obsidian23.Notice(tn("notices", "coverDownloadDisabled"));
+      new import_obsidian24.Notice(tn("notices", "coverDownloadDisabled"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian23.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian24.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -15094,9 +15289,9 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar();
       if (result.downloaded === 0 && result.skipped === 0) {
-        new import_obsidian23.Notice(tn("notices", "coverDownloadNoItems"));
+        new import_obsidian24.Notice(tn("notices", "coverDownloadNoItems"));
       } else {
-        new import_obsidian23.Notice(tnFormat("notices", "coverDownloadComplete", {
+        new import_obsidian24.Notice(tnFormat("notices", "coverDownloadComplete", {
           downloaded: result.downloaded,
           skipped: result.skipped,
           failed: result.failed
@@ -15111,7 +15306,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u5931\u8D25:", error);
-      new import_obsidian23.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian24.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
@@ -15119,7 +15314,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
    */
   async scanAndLinkRelated() {
     if (!this.syncManager) {
-      new import_obsidian23.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian24.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -15150,7 +15345,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u626B\u63CF\u5173\u8054\u5931\u8D25:", error);
-      new import_obsidian23.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian24.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
@@ -15158,19 +15353,19 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
    */
   async syncCollectionsWithOptions(options, showPreview = true) {
     if (!this.settings.accessToken) {
-      new import_obsidian23.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian24.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (options.subjectTypes.length === 0) {
-      new import_obsidian23.Notice(tn("notices", "selectSubjectType"));
+      new import_obsidian24.Notice(tn("notices", "selectSubjectType"));
       return;
     }
     if (options.collectionTypes.length === 0) {
-      new import_obsidian23.Notice(tn("notices", "selectCollectionType"));
+      new import_obsidian24.Notice(tn("notices", "selectCollectionType"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian23.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian24.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -15193,12 +15388,12 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
           force: options.force
         });
         if (!prepareResult.success) {
-          new import_obsidian23.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
+          new import_obsidian24.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
           this.cleanupSyncState(0);
           return;
         }
         if (!prepareResult.previewItems || prepareResult.previewItems.length === 0) {
-          new import_obsidian23.Notice(tn("notices", "noItemsToSync"));
+          new import_obsidian24.Notice(tn("notices", "noItemsToSync"));
           this.cleanupSyncState(0);
           return;
         }
@@ -15211,7 +15406,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
         );
         if (localPropertyResult === null) {
           console.debug("[Bangumi Sync] User cancelled custom properties");
-          new import_obsidian23.Notice(tn("notices", "syncCancelled"));
+          new import_obsidian24.Notice(tn("notices", "syncCancelled"));
           this.cleanupSyncState(0);
           return;
         }
@@ -15224,7 +15419,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
           (result) => {
             void (async () => {
               if (result.action === "cancel") {
-                new import_obsidian23.Notice(tn("notices", "syncCancelled"));
+                new import_obsidian24.Notice(tn("notices", "syncCancelled"));
                 return;
               }
               this.cancellationSignal = createCancellationSignal();
@@ -15259,7 +15454,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
         previewModal.open();
       } catch (error) {
         console.error("[Bangumi Sync] Preview flow error:", error);
-        new import_obsidian23.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+        new import_obsidian24.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
         this.cleanupSyncState(0);
       }
     } else {
@@ -15305,7 +15500,7 @@ var BangumiPlugin = class extends import_obsidian23.Plugin {
       (message) => {
         if (!warned) {
           warned = true;
-          new import_obsidian23.Notice(message);
+          new import_obsidian24.Notice(message);
         }
       }
     );

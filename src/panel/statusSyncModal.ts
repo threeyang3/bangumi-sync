@@ -1,87 +1,17 @@
-/**
- * 状态同步弹窗
- * 统一对比本地与云端用户数据差异（评分、短评、标签、状态）
- * 支持双向同步
- */
-
-import { App, Modal, Notice, TFile } from 'obsidian';
-import { UserCollection, CollectionType, SubjectType, getCollectionStatusLabel } from '../../common/api/types';
-import { BangumiClient } from '../api/client';
-import { IncrementalSync } from '../sync/incrementalSync';
-import { EpisodeStatusManager } from '../episode/episodeStatusManager';
+import { App, Modal, Notice } from 'obsidian';
+import { CollectionType, SubjectType, getCollectionStatusLabel } from '../../common/api/types';
 import { tn } from '../i18n';
-import { parseEpisodes } from '../../common/parser/episodeParser';
+import { StatusSyncService } from '../sync/statusSyncService';
+import {
+	FieldDecision,
+	FieldDiff,
+	PlatformFieldDiff,
+	PlatformFieldDecision,
+	StatusSyncDiff,
+	StatusSyncLoadState,
+} from '../sync/statusSyncTypes';
 
-/**
- * 字段决策类型
- */
-export type FieldDecision = 'local' | 'cloud' | 'merge' | 'skip';
-
-/**
- * 单个字段的差异信息
- */
-export interface FieldDiff<T> {
-	localValue: T | null;
-	cloudValue: T | null;
-	hasDiff: boolean;
-	decision: FieldDecision;
-}
-
-export type PlatformFieldKey = 'episodeCount' | 'chapterCount' | 'volumeCount' | 'serialState';
-export type PlatformFieldDecision = 'cloud' | 'skip';
-
-export interface PlatformFieldDiff {
-	key: PlatformFieldKey;
-	label: string;
-	localValue: string | null;
-	cloudValue: string | null;
-	hasDiff: boolean;
-	decision: PlatformFieldDecision;
-}
-
-export interface PlatformSyncPayload {
-	serialStatus?: string | null;
-	progress?: string | null;
-	start?: string | null;
-	end?: string | null;
-	episodeCount?: number | null;
-	chapterCount?: number | null;
-	volumeCount?: number | null;
-}
-
-export type StatusSyncLoadState = 'pending' | 'loading' | 'ready' | 'failed';
-type CloudCollectionUpdates = {
-	type?: CollectionType;
-	rate?: number;
-	comment?: string;
-	tags?: string[];
-};
-
-/**
- * 完整的状态同步差异项
- */
-export interface StatusSyncDiff {
-	subjectId: number;
-	name_cn: string;
-	name: string;
-	localPath: string;
-	collection: UserCollection;
-	statusFieldName: string;
-	rate: FieldDiff<number>;
-	comment: FieldDiff<string>;
-	tags: FieldDiff<string[]>;
-	status: FieldDiff<number>;
-	episodeStatus: FieldDiff<string>;
-	platformFields: PlatformFieldDiff[];
-	platformSyncPayload?: PlatformSyncPayload;
-	hasUserDiff: boolean;
-	hasPlatformDiff: boolean;
-	hasAnyDiff: boolean;
-	expanded: boolean;
-	episodeStatusLoadState: StatusSyncLoadState;
-	platformLoadState: StatusSyncLoadState;
-	backgroundError: string | null;
-}
+type UserDecisionFieldKey = 'rate' | 'comment' | 'tags' | 'status' | 'episodeStatus';
 
 /**
  * 状态同步弹窗（紧凑模式）
@@ -89,9 +19,7 @@ export interface StatusSyncDiff {
 export class StatusSyncModal extends Modal {
 	private diffs: StatusSyncDiff[];
 	private diffIndexBySubjectId: Map<number, number>;
-	private client: BangumiClient;
-	private incrementalSync: IncrementalSync;
-	private episodeStatusManager: EpisodeStatusManager | null;
+	private statusSyncService: StatusSyncService;
 	private onComplete: () => void;
 
 	private tableEl!: HTMLElement;
@@ -103,19 +31,15 @@ export class StatusSyncModal extends Modal {
 
 	constructor(
 		app: App,
-		client: BangumiClient,
-		incrementalSync: IncrementalSync,
+		statusSyncService: StatusSyncService,
 		diffs: StatusSyncDiff[],
 		onComplete: () => void,
-		episodeStatusManager?: EpisodeStatusManager | null
 	) {
 		super(app);
-		this.client = client;
-		this.incrementalSync = incrementalSync;
+		this.statusSyncService = statusSyncService;
 		this.diffs = diffs;
 		this.diffIndexBySubjectId = new Map(diffs.map((diff, index) => [diff.subjectId, index]));
 		this.onComplete = onComplete;
-		this.episodeStatusManager = episodeStatusManager ?? null;
 	}
 
 	onOpen(): void {
@@ -421,10 +345,11 @@ export class StatusSyncModal extends Modal {
 		fieldName: string,
 		localValue: string,
 		cloudValue: string,
-		fieldKey: 'rate' | 'comment' | 'tags' | 'status' | 'episodeStatus',
+		fieldKey: UserDecisionFieldKey,
 		diffIndex: number,
 		supportMerge: boolean
 	): void {
+		const fieldDiff = this.getUserDecisionField(this.diffs[diffIndex], fieldKey);
 		const row = tbody.createEl('tr');
 
 		row.createEl('td', { text: fieldName, cls: 'bangumi-field-name' });
@@ -440,9 +365,9 @@ export class StatusSyncModal extends Modal {
 			select.createEl('option', { value: 'merge', text: tn('statusSyncModal', 'merge') });
 		}
 
-		select.value = this.diffs[diffIndex][fieldKey].decision;
+		select.value = fieldDiff.decision;
 		select.addEventListener('change', () => {
-			this.diffs[diffIndex][fieldKey].decision = select.value as FieldDecision;
+			fieldDiff.decision = select.value as FieldDecision;
 		});
 	}
 
@@ -479,7 +404,7 @@ export class StatusSyncModal extends Modal {
 	/**
 	 * 获取状态文本
 	 */
-	private getStatusText(status: number | null, subjectType: number): string {
+	private getStatusText(status: number | null, subjectType: SubjectType): string {
 		if (status === null) return tn('statusSyncModal', 'empty');
 		const validStatus = this.toValidCollectionType(status);
 		if (validStatus === null) {
@@ -488,20 +413,43 @@ export class StatusSyncModal extends Modal {
 		return getCollectionStatusLabel(validStatus, subjectType, true) || tn('statusSyncModal', 'empty');
 	}
 
+	private getUserDecisionField(diff: StatusSyncDiff, fieldKey: UserDecisionFieldKey): FieldDiff<number> | FieldDiff<string> | FieldDiff<string[]> {
+		switch (fieldKey) {
+			case 'rate':
+				return diff.rate;
+			case 'comment':
+				return diff.comment;
+			case 'tags':
+				return diff.tags;
+			case 'status':
+				return diff.status;
+			case 'episodeStatus':
+				return diff.episodeStatus;
+		}
+	}
+
+	private toValidCollectionType(value: number): CollectionType | null {
+		switch (value) {
+			case 1:
+				return CollectionType.Wish;
+			case 2:
+				return CollectionType.Done;
+			case 3:
+				return CollectionType.Doing;
+			case 4:
+				return CollectionType.OnHold;
+			case 5:
+				return CollectionType.Dropped;
+			default:
+				return null;
+		}
+	}
+
 	/**
 	 * 全部选择
 	 */
 	private selectAll(decision: FieldDecision): void {
-		this.diffs.forEach(diff => {
-			diff.rate.decision = decision;
-			diff.comment.decision = decision;
-			diff.tags.decision = decision;
-			diff.status.decision = decision;
-			diff.episodeStatus.decision = decision === 'merge' ? 'skip' : decision;
-			diff.platformFields.forEach(field => {
-				field.decision = decision === 'cloud' || decision === 'merge' ? 'cloud' : 'skip';
-			});
-		});
+		this.statusSyncService.applyDecisionPreset(this.diffs, decision);
 		this.updateStatusSummary();
 		this.renderTable();
 	}
@@ -510,57 +458,7 @@ export class StatusSyncModal extends Modal {
 	 * 智能合并：非空值优先，标签合并所有
 	 */
 	private smartMerge(): void {
-		this.diffs.forEach(diff => {
-			if (diff.rate.hasDiff) {
-				if (diff.rate.localValue && !diff.rate.cloudValue) {
-					diff.rate.decision = 'local';
-				} else if (!diff.rate.localValue && diff.rate.cloudValue) {
-					diff.rate.decision = 'cloud';
-				} else {
-					diff.rate.decision = 'local';
-				}
-			}
-
-			if (diff.comment.hasDiff) {
-				if (diff.comment.localValue && !diff.comment.cloudValue) {
-					diff.comment.decision = 'local';
-				} else if (!diff.comment.localValue && diff.comment.cloudValue) {
-					diff.comment.decision = 'cloud';
-				} else if (diff.comment.localValue && diff.comment.cloudValue) {
-					diff.comment.decision = diff.comment.localValue.length >= diff.comment.cloudValue.length ? 'local' : 'cloud';
-				}
-			}
-
-			if (diff.tags.hasDiff) {
-				diff.tags.decision = 'merge';
-			}
-
-			if (diff.status.hasDiff) {
-				if (diff.status.localValue && !diff.status.cloudValue) {
-					diff.status.decision = 'local';
-				} else if (!diff.status.localValue && diff.status.cloudValue) {
-					diff.status.decision = 'cloud';
-				} else {
-					diff.status.decision = 'local';
-				}
-			}
-
-			if (diff.episodeStatus.hasDiff) {
-				if (diff.episodeStatus.localValue && !diff.episodeStatus.cloudValue) {
-					diff.episodeStatus.decision = 'local';
-				} else if (!diff.episodeStatus.localValue && diff.episodeStatus.cloudValue) {
-					diff.episodeStatus.decision = 'cloud';
-				} else {
-					diff.episodeStatus.decision = 'local';
-				}
-			}
-
-			diff.platformFields.forEach(field => {
-				if (field.hasDiff) {
-					field.decision = 'cloud';
-				}
-			});
-		});
+		this.statusSyncService.applyDecisionPreset(this.diffs, 'smart');
 		this.updateStatusSummary();
 		this.renderTable();
 	}
@@ -570,19 +468,7 @@ export class StatusSyncModal extends Modal {
 	 */
 	private async executeSync(): Promise<void> {
 		this.statusEl.setText(tn('statusSyncModal', 'syncProgress'));
-		let successCount = 0;
-		let failCount = 0;
-		const actionableDiffs = this.diffs.filter(diff => diff.hasAnyDiff);
-
-		for (const diff of actionableDiffs) {
-			try {
-				await this.syncItem(diff);
-				successCount++;
-			} catch (error) {
-				failCount++;
-				console.error(`[Bangumi Sync] 同步失败: ${diff.name_cn}`, error);
-			}
-		}
+		const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
 
 		this.statusEl.setText(tn('statusSyncModal', 'syncComplete')
 			.replace('{success}', String(successCount))
@@ -613,7 +499,12 @@ export class StatusSyncModal extends Modal {
 	}
 
 	private getOwnerWindow(): Window {
-		return this.containerEl.ownerDocument.defaultView ?? window;
+		const ownerWindow = this.containerEl.ownerDocument.defaultView;
+		if (ownerWindow) {
+			return ownerWindow;
+		}
+
+		return activeWindow;
 	}
 
 	private updateStatusSummary(): void {
@@ -676,181 +567,4 @@ export class StatusSyncModal extends Modal {
 	/**
 	 * 同步单个条目
 	 */
-	private async syncItem(diff: StatusSyncDiff): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(diff.localPath);
-		if (!(file instanceof TFile)) {
-			throw new Error('File not found');
-		}
-
-		const originalContent = await this.app.vault.read(file);
-		let content = originalContent;
-		const cloudUpdates: CloudCollectionUpdates = {};
-
-		// 处理评分
-		if (diff.rate.hasDiff && diff.rate.decision !== 'skip') {
-			if (diff.rate.decision === 'local') {
-				cloudUpdates.rate = diff.rate.localValue || undefined;
-			} else if (diff.rate.decision === 'cloud') {
-				content = this.incrementalSync.updateRate(content, diff.rate.cloudValue);
-			}
-		}
-
-		// 处理短评
-		if (diff.comment.hasDiff && diff.comment.decision !== 'skip') {
-			if (diff.comment.decision === 'local') {
-				cloudUpdates.comment = diff.comment.localValue || '';
-			} else if (diff.comment.decision === 'cloud') {
-				if (diff.comment.cloudValue) {
-					content = this.incrementalSync.updateComment(content, diff.comment.cloudValue);
-				} else {
-					content = this.incrementalSync.removeComment(content);
-				}
-			}
-		}
-
-		// 处理标签
-		if (diff.tags.hasDiff && diff.tags.decision !== 'skip') {
-			if (diff.tags.decision === 'local') {
-				cloudUpdates.tags = this.incrementalSync.normalizeTags(diff.tags.localValue);
-			} else if (diff.tags.decision === 'cloud') {
-				if (diff.tags.cloudValue && diff.tags.cloudValue.length > 0) {
-					content = this.incrementalSync.updateTags(content, this.incrementalSync.normalizeTags(diff.tags.cloudValue));
-				} else {
-					content = this.incrementalSync.removeTags(content);
-				}
-			} else if (diff.tags.decision === 'merge') {
-				const mergedTags = new Set<string>();
-				if (diff.tags.localValue) diff.tags.localValue.forEach(t => mergedTags.add(t));
-				if (diff.tags.cloudValue) diff.tags.cloudValue.forEach(t => mergedTags.add(t));
-				const mergedArray = this.incrementalSync.normalizeTags(Array.from(mergedTags));
-				content = this.incrementalSync.updateTags(content, mergedArray);
-				cloudUpdates.tags = mergedArray;
-			}
-		}
-
-		// 处理状态
-		if (diff.status.hasDiff && diff.status.decision !== 'skip') {
-			if (diff.status.decision === 'local') {
-				const localStatus = this.toValidCollectionType(diff.status.localValue);
-				if (localStatus !== null) {
-					cloudUpdates.type = localStatus;
-				}
-			} else if (diff.status.decision === 'cloud') {
-				content = this.incrementalSync.updateStatus(content, diff.status.cloudValue as CollectionType, diff.statusFieldName);
-			}
-		}
-
-		// 更新云端
-		if (Object.keys(cloudUpdates).length > 0) {
-			const fallbackType = this.toValidCollectionType(diff.collection.type);
-			const finalUpdates = {
-				...cloudUpdates,
-				type: cloudUpdates.type ?? fallbackType ?? undefined,
-			};
-			await this.syncCloudUpdates(diff.subjectId, finalUpdates);
-		}
-
-		if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== 'skip' && this.episodeStatusManager) {
-			if (content !== originalContent) {
-				await this.app.vault.process(file, () => content);
-				content = await this.app.vault.read(file);
-			}
-
-			if (diff.episodeStatus.decision === 'local') {
-				const result = await this.episodeStatusManager.syncStatusToCloud(file);
-				if (result.failed > 0 && result.success === 0) {
-					throw new Error(`单集状态同步到云端全部失败 (${result.failed}集)`);
-				}
-			} else if (diff.episodeStatus.decision === 'cloud') {
-				const synced = await this.episodeStatusManager.syncStatusFromCloud(file, diff.subjectId);
-				if (!synced) {
-					throw new Error('单集状态从云端同步失败');
-				}
-				content = await this.app.vault.read(file);
-			}
-		}
-
-		if (diff.hasPlatformDiff && diff.platformFields.some(field => field.hasDiff && field.decision === 'cloud')) {
-			content = await this.applyPlatformSync(diff, file, content);
-		}
-
-		if (content !== originalContent) {
-			await this.app.vault.process(file, () => content);
-		}
-
-		console.debug(`[Bangumi Sync] 已同步: ${diff.name_cn}`);
-	}
-
-	private async applyPlatformSync(diff: StatusSyncDiff, file: TFile, content: string): Promise<string> {
-		if (!diff.platformSyncPayload) {
-			return content;
-		}
-
-		let nextContent = this.incrementalSync.updatePlatformMetadata(content, diff.platformSyncPayload);
-		if (diff.collection.subject_type !== SubjectType.Anime && diff.collection.subject_type !== SubjectType.Real) {
-			return nextContent;
-		}
-
-		const shouldRefreshEpisodeSection = diff.platformFields.some(field =>
-			field.decision === 'cloud' && field.key === 'episodeCount'
-		);
-
-		if (!shouldRefreshEpisodeSection) {
-			return nextContent;
-		}
-
-		const episodesResult = await this.client.getEpisodes(diff.subjectId);
-		const episodes = episodesResult?.data ?? [];
-		if (episodes.length === 0) {
-			return nextContent;
-		}
-
-		const statusMap = new Map<number, number>();
-		if (this.episodeStatusManager) {
-			const localStatuses = await this.episodeStatusManager.getEpisodeStatusMap(file);
-			for (const entry of localStatuses.values()) {
-				statusMap.set(entry.episodeId, entry.status);
-			}
-		}
-
-		const renderedEpisodes = parseEpisodes(episodes, statusMap);
-		if (!renderedEpisodes) {
-			return nextContent;
-		}
-
-		nextContent = this.incrementalSync.updateEpisodeSection(nextContent, renderedEpisodes);
-		return nextContent;
-	}
-
-	private toValidCollectionType(value: number | null | undefined): CollectionType | null {
-		if (value === CollectionType.Wish ||
-			value === CollectionType.Done ||
-			value === CollectionType.Doing ||
-			value === CollectionType.OnHold ||
-			value === CollectionType.Dropped) {
-			return value;
-		}
-		return null;
-	}
-
-	private async syncCloudUpdates(
-		subjectId: number,
-		updates: CloudCollectionUpdates
-	): Promise<void> {
-		const hasUpdates = Object.values(updates).some(value => value !== undefined);
-		if (!hasUpdates) {
-			return;
-		}
-
-		try {
-			await this.client.updateCollection(subjectId, updates);
-		} catch (error) {
-			console.error('[Bangumi Sync] 云端字段同步失败:', {
-				subjectId,
-				payload: updates,
-				error,
-			});
-			throw new Error('云端用户数据更新失败');
-		}
-	}
 }

@@ -18,6 +18,7 @@
 4. [DEVELOPMENT.md](./DEVELOPMENT.md)
 5. [CODE_STANDARDS.md](./CODE_STANDARDS.md)
 6. [STATUS_SYNC_PITFALLS.md](./STATUS_SYNC_PITFALLS.md)
+7. [REGRESSION_CHECKLIST.md](./REGRESSION_CHECKLIST.md)
 
 ## 文档分工
 
@@ -65,6 +66,15 @@
 
 适合仓库维护者阅读。
 
+### [REGRESSION_CHECKLIST.md](./REGRESSION_CHECKLIST.md)
+
+回答这些问题：
+
+- 发布前除了 `lint / build / test` 还要手工确认什么
+- Sandbox 里最重要的状态同步、短评、导入回归项有哪些
+
+适合在发布前和修改高风险模块后快速对照执行。
+
 ### [CODE_STANDARDS.md](./CODE_STANDARDS.md)
 
 回答这些问题：
@@ -96,3 +106,4 @@
 - 模板变量、模板默认值、自定义属性写法变更时，优先更新 `TEMPLATE_GUIDE.md`
 - 发布流程和维护流程变更时，更新 `DEVELOPMENT.md`
 - 新增审核约束或常见 lint 失败原因时，更新 `CODE_STANDARDS.md`
+- 调整人工回归重点或 Sandbox 验证方式时，更新 `REGRESSION_CHECKLIST.md`

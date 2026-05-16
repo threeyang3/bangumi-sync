@@ -21,7 +21,43 @@
 npm install      # 安装依赖
 npm run dev      # 开发模式（监听文件变化）
 npm run build    # 生产构建
+npm run lint     # 代码检查
+npm run test     # 纯逻辑测试
+npm run test:watch
 ```
+
+## 测试策略
+
+当前采用“两层护栏”：
+
+1. 自动化纯逻辑测试
+2. Sandbox 手工回归
+
+这一阶段优先把最容易回归的核心逻辑抽成纯函数并用 `Vitest` 覆盖，不直接上重 UI 集成测试。原因是：
+
+- 现阶段最脆弱的是判断逻辑，不是渲染框架本身
+- 纯逻辑测试能更快收敛状态同步、短评正文、导入合并这些高风险规则
+- Obsidian 真实运行时仍保留用 CLI + Sandbox 做回归，更贴近插件实际行为
+
+当前自动化覆盖重点：
+
+- `src/comment/shortComment.ts`
+- `src/document/frontmatterAccess.ts`
+- `src/document/markdownSection.ts`
+- `src/sync/statusSyncLogic.ts`
+- `src/userData/importLogic.ts`
+- `common/template/templateRegistry.ts`
+
+当前模块化优先级也有了更明确的落点：
+
+- `src/document/`
+  - 统一 frontmatter / section / 短评 / 平台字段读写
+  - 供状态同步、导入导出、本地用户数据保护共用
+- `src/sync/statusSyncService.ts`
+  - 统一状态同步的 diff 构建、后台补全和执行写回
+  - `ControlPanel` 与 `StatusSyncModal` 只保留编排与展示
+
+人工回归清单见 [REGRESSION_CHECKLIST.md](./REGRESSION_CHECKLIST.md)。
 
 ## 技术文档入口
 
@@ -30,11 +66,13 @@ npm run build    # 生产构建
 - `docs/` 文档应该先怎么看：见 [README.md](./README.md)
 - `main.ts` 如何协调各入口：见 [ARCHITECTURE.md](./ARCHITECTURE.md)
 - 同步、自定义属性、导入导出、状态同步的判断规则：见 [LOGIC_REFERENCE.md](./LOGIC_REFERENCE.md)
+- 自动化测试与人工回归怎么配合：见 [REGRESSION_CHECKLIST.md](./REGRESSION_CHECKLIST.md)
 
 ### 专题文档
 
 - 模板能力、模板变量、默认值：见 [TEMPLATE_GUIDE.md](./TEMPLATE_GUIDE.md)
 - 状态同步和单集功能的已知边界：见 [STATUS_SYNC_PITFALLS.md](./STATUS_SYNC_PITFALLS.md)
+- 发布前必须保留的人工检查：见 [REGRESSION_CHECKLIST.md](./REGRESSION_CHECKLIST.md)
 
 ## 编码规范
 
@@ -163,7 +201,7 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 
 测试版 tag 也必须与 `manifest.json` 版本一致。不要复用正在等待 Obsidian 官方审查的版本号。
 
-2026-05-13 当前最新发布版为 `6.8.5`（从 `adv` 分支发布）。
+2026-05-16 当前最新发布版为 `6.8.9`（从 `adv` 分支发布）。
 
 ### 当前标准发布流程
 

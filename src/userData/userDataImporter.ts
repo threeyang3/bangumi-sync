@@ -7,6 +7,7 @@
 import { App, TFile } from 'obsidian';
 import { UserDataMerger } from './userDataMerger';
 import { IncrementalSync } from '../sync/incrementalSync';
+import { SubjectDocumentService } from '../document/subjectDocumentService';
 import {
 	UserDataExport,
 	UserDataCombinedExport,
@@ -24,7 +25,12 @@ import {
 	isUserPropertyField,
 } from './types';
 import { getFrontmatterNumber, getFrontmatterRecord } from '../../common/utils/frontmatter';
-import { SubjectType } from '../../common/api/types';
+import {
+	importValuesEqual,
+	mapLegacyRatingField,
+	mergeSectionValues as mergeImportedSectionValues,
+	smartMergeImportValues,
+} from './importLogic';
 
 interface NormalizedImportItem {
 	identifier: SubjectIdentifier;
@@ -60,21 +66,17 @@ const PROPERTY_ALIAS_CANDIDATES: Record<string, string[]> = {
 	'插画评分': ['美术评分'],
 };
 
-const LIST_LIKE_FIELDS = new Set([
-	'tags', 'Tags',
-	'版本', '格式', '平台', '存储', '渠道',
-	'改编类别', '资源', '收藏来源',
-]);
-
 export class UserDataImporter {
 	private app: App;
 	private merger: UserDataMerger;
 	private incrementalSync: IncrementalSync;
+	private documentService: SubjectDocumentService;
 
 	constructor(app: App) {
 		this.app = app;
 		this.merger = new UserDataMerger(app);
 		this.incrementalSync = new IncrementalSync(app);
+		this.documentService = new SubjectDocumentService(app);
 	}
 
 	async importFromFile(
@@ -297,22 +299,22 @@ export class UserDataImporter {
 				if (diff.fieldType === 'section') {
 					const sectionName = diff.fieldName;
 					const localValue = sectionName === '短评'
-						? this.incrementalSync.extractComment(content)
-						: this.getSectionContent(content, sectionName);
+						? this.documentService.extractComment(content)
+						: this.documentService.extractSection(content, sectionName);
 					const nextValue = decision === 'merge'
 						? this.mergeSectionValues(localValue, asString(diff.importValue))
 						: asString(diff.importValue);
 					if (nextValue && nextValue !== localValue) {
 						content = sectionName === '短评'
-							? this.incrementalSync.updateComment(content, nextValue)
-							: this.merger.updateSection(content, sectionName, nextValue);
+							? this.documentService.updateComment(content, nextValue)
+							: this.documentService.updateSection(content, sectionName, nextValue);
 						changed = true;
 					}
 					continue;
 				}
 
 				const nextValue = decision === 'merge'
-					? this.smartMergeValues(
+					? smartMergeImportValues(
 						this.getFrontmatterValueRaw(localFile, diff.fieldName),
 						diff.importValue,
 						diff.fieldName
@@ -499,9 +501,9 @@ export class UserDataImporter {
 
 			if (fieldName === '短评') {
 				const importValue = asString(value);
-				const localValue = this.incrementalSync.extractComment(content);
+				const localValue = this.documentService.extractComment(content);
 
-				if (this.valuesEqual(localValue, importValue, fieldName)) {
+				if (importValuesEqual(localValue, importValue, fieldName)) {
 					continue;
 				}
 
@@ -532,7 +534,7 @@ export class UserDataImporter {
 			}
 
 			const localValue = this.getFrontmatterValueRaw(localFile, fieldName);
-			if (this.valuesEqual(localValue, value, fieldName)) {
+			if (importValuesEqual(localValue, value, fieldName)) {
 				continue;
 			}
 
@@ -583,7 +585,7 @@ export class UserDataImporter {
 			return { autoImported: 0 };
 		}
 
-		const localValue = this.getSectionContent(content, sectionName);
+				const localValue = this.documentService.extractSection(content, sectionName);
 		if (!localValue) {
 			return { autoImported: 1 };
 		}
@@ -625,9 +627,9 @@ export class UserDataImporter {
 			if (!fieldName) continue;
 
 			if (fieldName === '短评') {
-				const localValue = this.incrementalSync.extractComment(updatedContent);
+				const localValue = this.documentService.extractComment(updatedContent);
 				const importValue = asString(value);
-				if (this.valuesEqual(localValue, importValue, fieldName)) {
+				if (importValuesEqual(localValue, importValue, fieldName)) {
 					continue;
 				}
 
@@ -640,8 +642,8 @@ export class UserDataImporter {
 					options.mergeStrategy,
 					explicitDecision
 				);
-				if (nextValue !== undefined && !this.valuesEqual(localValue, nextValue, fieldName)) {
-					updatedContent = this.incrementalSync.updateComment(updatedContent, asString(nextValue));
+				if (nextValue !== undefined && !importValuesEqual(localValue, nextValue, fieldName)) {
+					updatedContent = this.documentService.updateComment(updatedContent, asString(nextValue));
 					changed = true;
 				}
 				continue;
@@ -657,7 +659,7 @@ export class UserDataImporter {
 			}
 
 			const localValue = this.getFrontmatterValueRaw(localFile, fieldName);
-			if (this.valuesEqual(localValue, value, fieldName)) {
+			if (importValuesEqual(localValue, value, fieldName)) {
 				continue;
 			}
 
@@ -670,7 +672,7 @@ export class UserDataImporter {
 				options.mergeStrategy,
 				explicitDecision
 			);
-			if (nextValue !== undefined && !this.valuesEqual(localValue, nextValue, fieldName)) {
+			if (nextValue !== undefined && !importValuesEqual(localValue, nextValue, fieldName)) {
 				updatedContent = this.merger.updateFrontmatterField(updatedContent, fieldName, nextValue);
 			}
 		}
@@ -710,9 +712,9 @@ export class UserDataImporter {
 	): string {
 		if (!importValue) return content;
 
-		const localValue = this.getSectionContent(content, sectionName);
+		const localValue = this.documentService.extractSection(content, sectionName);
 		if (!localValue) {
-			return this.merger.updateSection(content, sectionName, importValue);
+			return this.documentService.updateSection(content, sectionName, importValue);
 		}
 		if (localValue === importValue) return content;
 
@@ -720,10 +722,10 @@ export class UserDataImporter {
 			return content;
 		}
 		if (explicitDecision === 'import') {
-			return this.merger.updateSection(content, sectionName, importValue);
+			return this.documentService.updateSection(content, sectionName, importValue);
 		}
 		if (explicitDecision === 'merge') {
-			return this.merger.updateSection(
+			return this.documentService.updateSection(
 				content,
 				sectionName,
 				this.mergeSectionValues(localValue, importValue)
@@ -732,9 +734,9 @@ export class UserDataImporter {
 
 		switch (mergeStrategy) {
 			case 'prefer_import':
-				return this.merger.updateSection(content, sectionName, importValue);
+				return this.documentService.updateSection(content, sectionName, importValue);
 			case 'smart':
-				return this.merger.updateSection(
+				return this.documentService.updateSection(
 					content,
 					sectionName,
 					this.mergeSectionValues(localValue, importValue)
@@ -799,7 +801,7 @@ export class UserDataImporter {
 
 		if (hasUserDataType(dataTypes, UserDataType.CUSTOM_PROPERTIES)) {
 			for (const [ratingKey, ratingValue] of Object.entries(legacy.ratingDetails ?? {})) {
-				const mappedKey = this.mapLegacyRatingField(userData.identifier, ratingKey);
+				const mappedKey = mapLegacyRatingField(userData.identifier, ratingKey);
 				if (!mappedKey) continue;
 				frontmatter[mappedKey] = ratingValue;
 			}
@@ -850,84 +852,6 @@ export class UserDataImporter {
 			return true;
 		}
 		return false;
-	}
-
-	private mapLegacyRatingField(identifier: SubjectIdentifier, legacyKey: string): string | null {
-		const type = identifier.type;
-		const workType = identifier.workType?.toLowerCase() ?? '';
-
-		if (type === SubjectType.Anime) {
-			return this.mapRatingFieldByTable(legacyKey, {
-				music: '音乐评分',
-				character: '人设评分',
-				story: '剧情评分',
-				art: '美术评分',
-			});
-		}
-
-		if (type === SubjectType.Game) {
-			return this.mapRatingFieldByTable(legacyKey, {
-				story: '剧情评分',
-				fun: '趣味评分',
-				music: '音乐评分',
-				art: '美术评分',
-			});
-		}
-
-		if (type === SubjectType.Real) {
-			return this.mapRatingFieldByTable(legacyKey, {
-				story: '剧情评分',
-				character: '演技评分',
-				art: '制作评分',
-			});
-		}
-
-		if (type === SubjectType.Book && workType === 'comic') {
-			return this.mapRatingFieldByTable(legacyKey, {
-				story: '剧情评分',
-				drawing: '画工评分',
-				character: '人设评分',
-			});
-		}
-
-		if (type === SubjectType.Book && workType === 'album') {
-			return this.mapRatingFieldByTable(legacyKey, {
-				story: '剧情评分',
-				drawing: '画工评分',
-				character: '人设评分',
-			});
-		}
-
-		return this.mapRatingFieldByTable(legacyKey, {
-			story: '剧情评分',
-			illustration: '插画评分',
-			writing: '文笔评分',
-			character: '人设评分',
-		});
-	}
-
-	private mapRatingFieldByTable(legacyKey: string, table: Record<string, string>): string | null {
-		if (table[legacyKey]) {
-			return table[legacyKey];
-		}
-
-		const genericFallback = this.mapGenericRatingField(legacyKey);
-		return genericFallback ? genericFallback : null;
-	}
-
-	private mapGenericRatingField(legacyKey: string): string | null {
-		const genericMap: Record<string, string> = {
-			music: '音乐评分',
-			character: '人设评分',
-			story: '剧情评分',
-			art: '美术评分',
-			illustration: '插画评分',
-			writing: '文笔评分',
-			drawing: '画工评分',
-			fun: '趣味评分',
-		};
-
-		return genericMap[legacyKey] || null;
 	}
 
 	private getEffectiveFieldName(rawKey: string, options: ImportOptions): string | null {
@@ -985,7 +909,7 @@ export class UserDataImporter {
 			case 'import':
 				return importValue;
 			case 'merge':
-				return this.smartMergeValues(localValue, importValue, fieldName);
+				return smartMergeImportValues(localValue, importValue, fieldName);
 			default:
 				break;
 		}
@@ -994,46 +918,15 @@ export class UserDataImporter {
 			case 'prefer_import':
 				return importValue;
 			case 'smart':
-				return this.smartMergeValues(localValue, importValue, fieldName);
+				return smartMergeImportValues(localValue, importValue, fieldName);
 			case 'prefer_local':
 			default:
 				return undefined;
 		}
 	}
 
-	private smartMergeValues(localValue: unknown, importValue: unknown, fieldName: string): unknown {
-		if (this.isEmptyValue(localValue)) {
-			return this.normalizeForWrite(importValue, fieldName);
-		}
-		if (this.isEmptyValue(importValue)) {
-			return this.normalizeForWrite(localValue, fieldName);
-		}
-
-		const localArray = this.asArray(localValue, fieldName);
-		const importArray = this.asArray(importValue, fieldName);
-		if (localArray && importArray) {
-			return Array.from(new Set([...localArray, ...importArray]));
-		}
-
-		if (typeof localValue === 'string' && typeof importValue === 'string') {
-			return this.mergeSectionValues(localValue, importValue);
-		}
-
-		return this.normalizeForWrite(importValue, fieldName);
-	}
-
 	private mergeSectionValues(localValue: string | null | undefined, importValue: string | undefined): string {
-		const localText = (localValue ?? '').trim();
-		const importText = (importValue ?? '').trim();
-		if (!localText) return importText;
-		if (!importText) return localText;
-		if (localText === importText) return localText;
-		return `${localText}\n\n---\n\n${importText}`;
-	}
-
-	private valuesEqual(left: unknown, right: unknown, fieldName?: string): boolean {
-		return stableStringify(this.normalizeComparableValue(left, fieldName))
-			=== stableStringify(this.normalizeComparableValue(right, fieldName));
+		return mergeImportedSectionValues(localValue, importValue);
 	}
 
 	private isEmptyValue(value: unknown): boolean {
@@ -1042,56 +935,6 @@ export class UserDataImporter {
 		if (Array.isArray(value)) return value.length === 0;
 		if (typeof value === 'object') return Object.keys(value).length === 0;
 		return false;
-	}
-
-	private asArray(value: unknown, fieldName?: string): string[] | null {
-		if (Array.isArray(value)) {
-			return normalizeListValues(value);
-		}
-
-		if (typeof value === 'string' && fieldName && this.isListLikeField(fieldName)) {
-			const parsed = splitListString(value);
-			return parsed.length > 0 ? parsed : null;
-		}
-
-		return null;
-	}
-
-	private normalizeComparableValue(value: unknown, fieldName?: string): unknown {
-		const arrayValue = this.asArray(value, fieldName);
-		if (arrayValue) {
-			return Array.from(new Set(arrayValue)).sort((left, right) => left.localeCompare(right, 'zh-CN'));
-		}
-
-		if (typeof value === 'number' || typeof value === 'boolean') {
-			return String(value);
-		}
-
-		if (typeof value === 'string') {
-			const trimmed = value.trim();
-			if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
-				return String(Number(trimmed));
-			}
-			return trimmed.replace(/\r\n/g, '\n');
-		}
-
-		if (value && typeof value === 'object') {
-			return stableNormalize(value);
-		}
-
-		return value;
-	}
-
-	private normalizeForWrite(value: unknown, fieldName: string): unknown {
-		const arrayValue = this.asArray(value, fieldName);
-		if (arrayValue) {
-			return Array.from(new Set(arrayValue));
-		}
-		return value;
-	}
-
-	private isListLikeField(fieldName: string): boolean {
-		return LIST_LIKE_FIELDS.has(fieldName);
 	}
 
 	private collectLocalFrontmatterNames(): Set<string> {
@@ -1116,25 +959,6 @@ export class UserDataImporter {
 		return frontmatter?.[fieldName];
 	}
 
-	private getSectionContent(content: string, sectionName: string): string | undefined {
-		const normalizedContent = content.replace(/\r\n/g, '\n');
-		const lines = normalizedContent.split('\n');
-		const heading = `## ${sectionName}`;
-		const startIndex = lines.findIndex(line => line.trim() === heading);
-		if (startIndex === -1) return undefined;
-
-		let endIndex = lines.length;
-		for (let i = startIndex + 1; i < lines.length; i++) {
-			if (/^##\s+/.test(lines[i])) {
-				endIndex = i;
-				break;
-			}
-		}
-
-		const text = lines.slice(startIndex + 1, endIndex).join('\n').trim();
-		return text || undefined;
-	}
-
 	private findLocalFile(subjectId: number): TFile | null {
 		const files = this.app.vault.getMarkdownFiles();
 
@@ -1152,48 +976,6 @@ export class UserDataImporter {
 	}
 }
 
-function stableStringify(value: unknown): string {
-	if (value === null || value === undefined) return '';
-	if (typeof value === 'string') return value;
-	if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-	if (typeof value === 'bigint') return value.toString();
-	if (typeof value === 'symbol') return value.description ?? 'symbol';
-	if (typeof value === 'function') return '[function]';
-	if (Array.isArray(value)) return JSON.stringify(value.map(item => stableNormalize(item)));
-	if (typeof value === 'object') return JSON.stringify(stableNormalize(value));
-	return '';
-}
-
-function stableNormalize(value: unknown): unknown {
-	if (Array.isArray(value)) {
-		return value.map(item => stableNormalize(item));
-	}
-	if (value && typeof value === 'object') {
-		const record = value as Record<string, unknown>;
-		return Object.keys(record)
-			.sort()
-			.reduce<Record<string, unknown>>((acc, key) => {
-				acc[key] = stableNormalize(record[key]);
-				return acc;
-			}, {});
-	}
-	return value;
-}
-
-function normalizeListValues(values: unknown[]): string[] {
-	return values
-		.flatMap(item => typeof item === 'string' ? splitListString(item) : [String(item).trim()])
-		.map(item => item.trim())
-		.filter(Boolean);
-}
-
-function splitListString(value: string): string[] {
-	return value
-		.split(/[,\n，、；;｜|]/)
-		.map(item => item.trim())
-		.filter(Boolean);
-}
-
 function asString(value: unknown): string {
 	if (typeof value === 'string') return value;
 	if (value === null || value === undefined) return '';
@@ -1208,10 +990,26 @@ function asString(value: unknown): string {
 	}
 	if (typeof value === 'object') {
 		try {
-			return JSON.stringify(stableNormalize(value));
+			return JSON.stringify(sortObjectKeysDeep(value));
 		} catch {
 			return '[object]';
 		}
 	}
 	return '';
+}
+
+function sortObjectKeysDeep(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(item => sortObjectKeysDeep(item));
+	}
+	if (value && typeof value === 'object') {
+		const record = value as Record<string, unknown>;
+		return Object.keys(record)
+			.sort()
+			.reduce<Record<string, unknown>>((acc, key) => {
+				acc[key] = sortObjectKeysDeep(record[key]);
+				return acc;
+			}, {});
+	}
+	return value;
 }

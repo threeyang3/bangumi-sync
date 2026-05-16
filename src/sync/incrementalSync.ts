@@ -4,14 +4,11 @@
  */
 
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
-import { SubjectType, CollectionType, getCollectionStatusLabel } from '../../common/api/types';
+import { SubjectType, CollectionType } from '../../common/api/types';
 import { BatchSyncedFile } from './syncStatus';
-import {
-	extractShortComment,
-	normalizeShortComment,
-	removeShortComment,
-	updateShortComment,
-} from '../comment/shortComment';
+import { isCompletedSerialState, isPlatformDataCandidate } from './statusSyncLogic';
+import { SubjectDocumentService } from '../document/subjectDocumentService';
+import { LocalPlatformSyncContext, PlatformMetadataUpdate } from '../document/types';
 
 /**
  * 本地条目信息
@@ -23,32 +20,13 @@ interface LocalSubjectInfo {
 	wasNewlyCreated?: boolean;
 }
 
-export interface LocalPlatformSyncContext {
-	serialStatus: string | null;
-	progress: string | null;
-	start: string | null;
-	end: string | null;
-	episodeCount: number | null;
-	chapterCount: number | null;
-	volumeCount: number | null;
-}
-
-export interface PlatformMetadataUpdate {
-	serialStatus?: string | null;
-	progress?: string | null;
-	start?: string | null;
-	end?: string | null;
-	episodeCount?: number | null;
-	chapterCount?: number | null;
-	volumeCount?: number | null;
-}
-
 /**
  * 增量同步
  * 通过扫描本地文件夹检测已同步的条目
  */
 export class IncrementalSync {
 	private app: App;
+	private documentService: SubjectDocumentService;
 	private localSubjects: Map<number, LocalSubjectInfo> = new Map();
 	private lastScanPath: string = '';
 	// 本批次同步的条目（用于同批次内的相关条目关联）
@@ -58,6 +36,7 @@ export class IncrementalSync {
 
 	constructor(app: App) {
 		this.app = app;
+		this.documentService = new SubjectDocumentService(app);
 	}
 
 	/**
@@ -527,7 +506,7 @@ export class IncrementalSync {
 	 * 短评格式: > [!abstract]+ **短评**\n> {comment}
 	 */
 	extractComment(content: string): string | null {
-		return extractShortComment(content);
+		return this.documentService.extractComment(content);
 	}
 
 	/**
@@ -535,18 +514,18 @@ export class IncrementalSync {
 	 * 如果短评不存在，在简介之前插入
 	 */
 	updateComment(content: string, newComment: string): string {
-		return updateShortComment(content, newComment);
+		return this.documentService.updateComment(content, newComment);
 	}
 
 	/**
 	 * 删除正文中的短评 callout
 	 */
 	removeComment(content: string): string {
-		return removeShortComment(content);
+		return this.documentService.removeComment(content);
 	}
 
 	normalizeComment(comment: string | null | undefined): string | null {
-		return normalizeShortComment(comment);
+		return this.documentService.normalizeComment(comment);
 	}
 
 	/**
@@ -556,34 +535,7 @@ export class IncrementalSync {
 	 * 2. 逗号分隔格式: tags: tag1, tag2
 	 */
 	extractTags(content: string): string[] | null {
-		const frontmatter = this.extractFrontmatter(content);
-		if (!frontmatter) {
-			return null;
-		}
-
-		const lines = frontmatter.split('\n');
-		const tagBlock = this.findYamlListBlock(lines, 'tags');
-
-		if (tagBlock) {
-			const tags = this.normalizeTags(lines
-				.slice(tagBlock.start + 1, tagBlock.end)
-				.map(line => line.replace(/^\s*-\s*/, '').trim())
-			);
-			return tags.length > 0 ? tags : null;
-		}
-
-		const inlineLine = lines.find(line => /^tags:\s*\S/.test(line));
-		if (inlineLine) {
-			const tagStr = inlineLine.replace(/^tags:\s*/, '').trim();
-			const cleanStr = tagStr.replace(/^["']|["']$/g, '');
-			const tags = this.normalizeTags(cleanStr
-				.split(',')
-				.map(t => t.trim())
-			);
-			return tags.length > 0 ? tags : null;
-		}
-
-		return null;
+		return this.documentService.extractTags(content);
 	}
 
 	/**
@@ -591,258 +543,46 @@ export class IncrementalSync {
 	 * 使用 YAML 数组格式
 	 */
 	updateTags(content: string, newTags: string[]): string {
-		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-		if (!frontmatterMatch) {
-			return content;
-		}
-
-		const prefix = frontmatterMatch[1];
-		const frontmatter = frontmatterMatch[2];
-		const suffix = frontmatterMatch[3];
-		const bodyContent = frontmatterMatch[4];
-
-		const lines = frontmatter.split('\n');
-		const filteredTags = this.normalizeTags(newTags);
-		const newTagLines = ['tags:', ...filteredTags.map(tag => `  - ${tag}`)];
-		const updatedFrontmatter = this.replaceYamlBlock(lines, 'tags', newTagLines).join('\n');
-
-		return prefix + updatedFrontmatter + suffix + bodyContent;
+		return this.documentService.updateTags(content, newTags);
 	}
 
 	/**
 	 * 删除 frontmatter 中的标签字段
 	 */
 	removeTags(content: string): string {
-		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-		if (!frontmatterMatch) {
-			return content;
-		}
-
-		const prefix = frontmatterMatch[1];
-		const frontmatter = frontmatterMatch[2];
-		const suffix = frontmatterMatch[3];
-		const bodyContent = frontmatterMatch[4];
-
-		const lines = frontmatter.split('\n');
-		const updatedFrontmatter = this.removeYamlBlock(lines, 'tags').join('\n').trim();
-
-		return prefix + updatedFrontmatter + suffix + bodyContent;
-	}
-
-	private extractFrontmatter(content: string): string | null {
-		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-		return frontmatterMatch ? frontmatterMatch[1] : null;
+		return this.documentService.removeTags(content);
 	}
 
 	extractTextField(content: string, fieldNames: string | string[]): string | null {
-		const frontmatter = this.extractFrontmatter(content);
-		if (!frontmatter) {
-			return null;
-		}
-
-		const names = Array.isArray(fieldNames) ? fieldNames : [fieldNames];
-		for (const fieldName of names) {
-			const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			const fieldRegex = new RegExp(`^${escapedName}:\\s*(.*)$`, 'm');
-			const match = frontmatter.match(fieldRegex);
-			if (!match) {
-				continue;
-			}
-
-			const rawValue = match[1].trim();
-			if (!rawValue) {
-				return null;
-			}
-
-			const unquoted = rawValue.replace(/^["']|["']$/g, '').trim();
-			return unquoted.length > 0 ? unquoted : null;
-		}
-
-		return null;
+		return this.documentService.extractTextField(content, fieldNames);
 	}
 
 	extractNumberField(content: string, fieldNames: string | string[]): number | null {
-		const value = this.extractTextField(content, fieldNames);
-		if (!value) {
-			return null;
-		}
-
-		const numberMatch = value.match(/\d+/);
-		if (!numberMatch) {
-			return null;
-		}
-
-		const parsed = parseInt(numberMatch[0], 10);
-		return Number.isFinite(parsed) ? parsed : null;
+		return this.documentService.extractNumberField(content, fieldNames);
 	}
 
 	extractLocalPlatformSyncContext(content: string): LocalPlatformSyncContext {
-		return {
-			serialStatus: this.extractTextField(content, '连载状态'),
-			progress: this.extractTextField(content, '进度'),
-			start: this.extractTextField(content, '开始'),
-			end: this.extractTextField(content, '结束'),
-			episodeCount: this.extractNumberField(content, '集数'),
-			chapterCount: this.extractNumberField(content, '话数'),
-			volumeCount: this.extractNumberField(content, ['卷数', '册数']),
-		};
+		return this.documentService.extractLocalPlatformSyncContext(content);
 	}
 
 	isPlatformDataCandidate(context: LocalPlatformSyncContext): boolean {
-		if (this.isCompletedSerialState(context.serialStatus)) {
-			return false;
-		}
-
-		if (context.end && context.end.trim().length > 0) {
-			return false;
-		}
-
-		if (this.isCompletedSerialState(context.progress)) {
-			return false;
-		}
-
-		return true;
+		return isPlatformDataCandidate(context);
 	}
 
 	isCompletedSerialState(value: string | null | undefined): boolean {
-		if (!value) {
-			return false;
-		}
-
-		const normalized = value.replace(/\s+/g, '');
-		return /(已完结|完结|已结束|放送结束|已完播|全\d+(话|集|卷)|完)/.test(normalized);
-	}
-
-	private findYamlListBlock(lines: string[], key: string): { start: number; end: number } | null {
-		const start = lines.findIndex(line => new RegExp(`^${key}:\\s*$`).test(line));
-		if (start === -1) {
-			return null;
-		}
-
-		let end = start + 1;
-		while (end < lines.length && /^\s*-\s+/.test(lines[end])) {
-			end++;
-		}
-
-		return { start, end };
-	}
-
-	private replaceYamlBlock(lines: string[], key: string, replacement: string[]): string[] {
-		const block = this.findYamlListBlock(lines, key);
-		const inlineIndex = lines.findIndex(line => new RegExp(`^${key}:\\s*.*$`).test(line));
-
-		if (block) {
-			return [...lines.slice(0, block.start), ...replacement, ...lines.slice(block.end)];
-		}
-
-		if (inlineIndex !== -1) {
-			return [...lines.slice(0, inlineIndex), ...replacement, ...lines.slice(inlineIndex + 1)];
-		}
-
-		return [...lines, ...replacement];
-	}
-
-	private removeYamlBlock(lines: string[], key: string): string[] {
-		const block = this.findYamlListBlock(lines, key);
-		if (block) {
-			return [...lines.slice(0, block.start), ...lines.slice(block.end)];
-		}
-
-		const inlineIndex = lines.findIndex(line => new RegExp(`^${key}:\\s*.*$`).test(line));
-		if (inlineIndex !== -1) {
-			return [...lines.slice(0, inlineIndex), ...lines.slice(inlineIndex + 1)];
-		}
-
-		return lines;
+		return isCompletedSerialState(value);
 	}
 
 	updateTextField(content: string, fieldName: string, value: string | number | null | undefined): string {
-		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-		if (!frontmatterMatch) {
-			return content;
-		}
-
-		const prefix = frontmatterMatch[1];
-		let frontmatter = frontmatterMatch[2];
-		const suffix = frontmatterMatch[3];
-		const bodyContent = frontmatterMatch[4];
-		const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		const fieldRegex = new RegExp(`^${escapedName}:.*$`, 'm');
-
-		if (value === null || value === undefined || String(value).trim() === '') {
-			frontmatter = frontmatter.replace(fieldRegex, '').replace(/\n{3,}/g, '\n\n').trim();
-			return prefix + frontmatter + suffix + bodyContent;
-		}
-
-		const nextLine = `${fieldName}: "${String(value).replace(/"/g, '\\"')}"`;
-		if (fieldRegex.test(frontmatter)) {
-			frontmatter = frontmatter.replace(fieldRegex, nextLine);
-		} else {
-			frontmatter = `${frontmatter}\n${nextLine}`;
-		}
-
-		return prefix + frontmatter + suffix + bodyContent;
+		return this.documentService.updateTextField(content, fieldName, value);
 	}
 
 	updatePlatformMetadata(content: string, updates: PlatformMetadataUpdate): string {
-		let nextContent = content;
-
-		if (updates.serialStatus !== undefined) {
-			nextContent = this.updateTextField(nextContent, '连载状态', updates.serialStatus);
-		}
-		if (updates.progress !== undefined) {
-			nextContent = this.updateTextField(nextContent, '进度', updates.progress);
-		}
-		if (updates.start !== undefined) {
-			nextContent = this.updateTextField(nextContent, '开始', updates.start);
-		}
-		if (updates.end !== undefined) {
-			nextContent = this.updateTextField(nextContent, '结束', updates.end);
-		}
-		if (updates.episodeCount !== undefined) {
-			nextContent = this.updateTextField(nextContent, '集数', updates.episodeCount);
-		}
-		if (updates.chapterCount !== undefined) {
-			nextContent = this.updateTextField(nextContent, '话数', updates.chapterCount);
-		}
-		if (updates.volumeCount !== undefined) {
-			const hasVolumeField = this.extractTextField(nextContent, '卷数') !== null;
-			const hasBookVolumeField = this.extractTextField(nextContent, '册数') !== null;
-			if (hasVolumeField) {
-				nextContent = this.updateTextField(nextContent, '卷数', updates.volumeCount);
-			}
-			if (hasBookVolumeField || !hasVolumeField) {
-				nextContent = this.updateTextField(nextContent, '册数', updates.volumeCount);
-			}
-		}
-
-		return nextContent;
+		return this.documentService.updatePlatformMetadata(content, updates);
 	}
 
 	normalizeTags(tags: string[] | null | undefined): string[] {
-		if (!tags) {
-			return [];
-		}
-
-		return Array.from(new Set(
-			tags
-				.map(tag => tag.trim())
-				.filter(tag => this.isValidTagValue(tag))
-		));
-	}
-
-	private isValidTagValue(value: string): boolean {
-		const normalized = value.trim();
-		if (normalized.length === 0) {
-			return false;
-		}
-
-		// 忽略明显是旧损坏 frontmatter 中混入的键值对，例如“评分: 9”
-		if (/^[^,[\]]+:\s*.+$/.test(normalized)) {
-			return false;
-		}
-
-		return true;
+		return this.documentService.normalizeTags(tags);
 	}
 
 	/**
@@ -981,19 +721,7 @@ export class IncrementalSync {
 	 * 根据条目类型获取状态字段名
 	 */
 	getStatusFieldName(subjectType: SubjectType): string {
-		switch (subjectType) {
-			case SubjectType.Book:
-				return '阅读状态';
-			case SubjectType.Anime:
-			case SubjectType.Real:
-				return '观看状态';
-			case SubjectType.Music:
-				return '收藏状态';
-			case SubjectType.Game:
-				return '游玩状态';
-			default:
-				return '观看状态';
-		}
+		return this.documentService.getStatusFieldName(subjectType);
 	}
 
 	/**
@@ -1001,155 +729,32 @@ export class IncrementalSync {
 	 * 字段名: 评分 (范围 1-10)
 	 */
 	extractRate(content: string): number | null {
-		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-		if (!frontmatterMatch) return null;
-
-		const frontmatter = frontmatterMatch[1];
-		const rateMatch = frontmatter.match(/^评分:\s*"?(\d+)"?/m);
-
-		if (rateMatch) {
-			const rate = parseInt(rateMatch[1], 10);
-			return (rate >= 1 && rate <= 10) ? rate : null;
-		}
-		return null;
+		return this.documentService.extractRate(content);
 	}
 
 	/**
 	 * 从 frontmatter 中提取收藏状态
 	 */
 	extractStatus(content: string, statusFieldName: string): number | null {
-		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-		if (!frontmatterMatch) return null;
-
-		const frontmatter = frontmatterMatch[1];
-		const statusRegex = new RegExp(`^${statusFieldName}:\\s*"?([^"\\n]+)"?`, 'm');
-		const statusMatch = frontmatter.match(statusRegex);
-
-		if (statusMatch) {
-			const statusText = statusMatch[1].trim();
-			return this.parseStatusText(statusText);
-		}
-		return null;
-	}
-
-	/**
-	 * 将状态文本转换为 CollectionType 数字
-	 */
-	private parseStatusText(text: string): number | null {
-		const normalizedText = text
-			.trim()
-			.replace(/🕒|✅|▶️|⏸️|❌|\uFE0F|\s/gu, '');
-		const statusMap: Record<string, number> = {
-			'想看': CollectionType.Wish,
-			'想读': CollectionType.Wish,
-			'想玩': CollectionType.Wish,
-			'想听': CollectionType.Wish,
-			'已看': CollectionType.Done,
-			'已读': CollectionType.Done,
-			'已玩': CollectionType.Done,
-			'已听': CollectionType.Done,
-			'看过': CollectionType.Done,
-			'读过': CollectionType.Done,
-			'玩过': CollectionType.Done,
-			'听过': CollectionType.Done,
-			'在看': CollectionType.Doing,
-			'在读': CollectionType.Doing,
-			'在玩': CollectionType.Doing,
-			'在听': CollectionType.Doing,
-			'搁置': CollectionType.OnHold,
-			'抛弃': CollectionType.Dropped,
-			'放弃': CollectionType.Dropped,
-		};
-		return statusMap[normalizedText] ?? statusMap[text.trim()] ?? null;
-	}
-
-	/**
-	 * 将 CollectionType 数字转换为状态文本
-	 */
-	private getStatusText(type: CollectionType, statusFieldName: string): string {
-		return getCollectionStatusLabel(type, this.getSubjectTypeFromStatusFieldName(statusFieldName), true);
-	}
-
-	private getSubjectTypeFromStatusFieldName(statusFieldName: string): SubjectType | undefined {
-		switch (statusFieldName) {
-			case '阅读状态':
-				return SubjectType.Book;
-			case '游玩状态':
-				return SubjectType.Game;
-			case '收藏状态':
-				return SubjectType.Music;
-			case '观看状态':
-				return SubjectType.Anime;
-			default:
-				return undefined;
-		}
+		return this.documentService.extractStatus(content, statusFieldName);
 	}
 
 	/**
 	 * 更新 frontmatter 中的评分
 	 */
 	updateRate(content: string, newRate: number | null): string {
-		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-		if (!frontmatterMatch) return content;
-
-		const prefix = frontmatterMatch[1];
-		let frontmatter = frontmatterMatch[2];
-		const suffix = frontmatterMatch[3];
-		const bodyContent = frontmatterMatch[4];
-
-		if (newRate !== null && newRate >= 1 && newRate <= 10) {
-			const newRateStr = `评分: ${newRate}`;
-			const rateRegex = /^评分:\s*"?(\d+)"?/m;
-			if (rateRegex.test(frontmatter)) {
-				frontmatter = frontmatter.replace(rateRegex, newRateStr);
-			} else {
-				frontmatter = frontmatter + '\n' + newRateStr;
-			}
-		}
-
-		return prefix + frontmatter + suffix + bodyContent;
+		return this.documentService.updateRate(content, newRate);
 	}
 
 	/**
 	 * 更新 frontmatter 中的状态
 	 */
 	updateStatus(content: string, newStatus: CollectionType, statusFieldName: string): string {
-		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-		if (!frontmatterMatch) return content;
-
-		const prefix = frontmatterMatch[1];
-		let frontmatter = frontmatterMatch[2];
-		const suffix = frontmatterMatch[3];
-		const bodyContent = frontmatterMatch[4];
-
-		const statusText = this.getStatusText(newStatus, statusFieldName);
-		const newStatusStr = `${statusFieldName}: ${statusText}`;
-
-		const statusRegex = new RegExp(`^${statusFieldName}:.*$`, 'm');
-		if (statusRegex.test(frontmatter)) {
-			frontmatter = frontmatter.replace(statusRegex, newStatusStr);
-		} else {
-			frontmatter = frontmatter + '\n' + newStatusStr;
-		}
-
-		return prefix + frontmatter + suffix + bodyContent;
+		return this.documentService.updateStatus(content, newStatus, statusFieldName);
 	}
 
 	updateEpisodeSection(content: string, renderedEpisodes: string): string {
-		const normalizedContent = content.replace(/\r\n?/g, '\n');
-		const sectionRegex = /^## 集数\s*\n([\s\S]*?)(?=^##\s|\Z)/m;
-		const nextSectionContent = `## 集数\n\n${renderedEpisodes}`.trimEnd();
-
-		if (sectionRegex.test(normalizedContent)) {
-			return normalizedContent.replace(sectionRegex, `${nextSectionContent}\n\n`);
-		}
-
-		const recordsHeadingRegex = /^## 记录/m;
-		if (recordsHeadingRegex.test(normalizedContent)) {
-			return normalizedContent.replace(recordsHeadingRegex, `${nextSectionContent}\n\n## 记录`);
-		}
-
-		return `${normalizedContent.trimEnd()}\n\n${nextSectionContent}\n`;
+		return this.documentService.updateEpisodeSection(content, renderedEpisodes);
 	}
 }
 

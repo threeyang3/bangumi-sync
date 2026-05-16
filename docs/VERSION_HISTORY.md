@@ -1,5 +1,15 @@
 # 版本历史
 
+## v6.8.9
+
+### 改进
+- 抽出 `src/document/` 文档服务层，统一本地条目的短评、frontmatter、section、平台字段与单集状态快照读写
+- 抽出 `StatusSyncService`，把状态同步的 diff 构建、后台补全、默认决策和执行写回从 UI 编排层中收口
+- 新增 frontmatter 访问与 markdown section 读写测试，纯逻辑测试扩展到 26 项
+
+### 修复
+- `statusSyncModal` 不再回退到全局 `window`，继续符合 Obsidian 的 popout window 兼容规范
+
 ## v6.8.8
 
 ### 改进

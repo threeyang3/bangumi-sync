@@ -9,7 +9,7 @@
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
 import { SubjectType } from '../../common/api/types';
 import { getFrontmatterRecord, getFrontmatterString } from '../../common/utils/frontmatter';
-import { extractShortComment } from '../comment/shortComment';
+import { SubjectDocumentService } from '../document/subjectDocumentService';
 import {
 	SubjectUserData,
 	IDENTIFIER_FIELDS,
@@ -21,9 +21,11 @@ import {
 
 export class UserDataExtractor {
 	private app: App;
+	private documentService: SubjectDocumentService;
 
 	constructor(app: App) {
 		this.app = app;
+		this.documentService = new SubjectDocumentService(app);
 	}
 
 	extractFromFile(file: TFile): SubjectUserData | null {
@@ -37,8 +39,8 @@ export class UserDataExtractor {
 		if (!result) return null;
 
 		const content = await this.app.vault.read(file);
-		const record = this.extractSection(content, '记录');
-		const thoughts = this.extractSection(content, '感想');
+		const record = this.documentService.extractSection(content, '记录');
+		const thoughts = this.documentService.extractSection(content, '感想');
 		if (record || thoughts) {
 			result.bodySections = {
 				record,
@@ -61,9 +63,9 @@ export class UserDataExtractor {
 		if (!base) return null;
 
 		const content = await this.app.vault.read(file);
-		const record = this.extractSection(content, '记录');
-		const thoughts = this.extractSection(content, '感想');
-		const shortComment = this.extractComment(content);
+		const record = this.documentService.extractSection(content, '记录');
+		const thoughts = this.documentService.extractSection(content, '感想');
+		const shortComment = this.documentService.extractComment(content);
 		if (hasUserDataType(dataTypes, UserDataType.BODY_CONTENT) && (record || thoughts)) {
 			base.bodySections = {
 				record,
@@ -229,24 +231,7 @@ export class UserDataExtractor {
 	}
 
 	extractSection(content: string, sectionName: string): string | undefined {
-		const normalizedContent = content.replace(/\r\n/g, '\n');
-		const lines = normalizedContent.split('\n');
-		const heading = `## ${sectionName}`;
-		const startIndex = lines.findIndex(line => line.trim() === heading);
-		if (startIndex === -1) {
-			return undefined;
-		}
-
-		let endIndex = lines.length;
-		for (let i = startIndex + 1; i < lines.length; i++) {
-			if (/^##\s+/.test(lines[i])) {
-				endIndex = i;
-				break;
-			}
-		}
-
-		const sectionContent = lines.slice(startIndex + 1, endIndex).join('\n').trim();
-		return sectionContent || undefined;
+		return this.documentService.extractSection(content, sectionName);
 	}
 
 	private determineSubjectType(frontmatter: Record<string, unknown>): number {
@@ -294,7 +279,4 @@ export class UserDataExtractor {
 		return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 	}
 
-	private extractComment(content: string): string | null {
-		return extractShortComment(content);
-	}
 }
