@@ -570,7 +570,7 @@ export class BatchEditorModal extends Modal {
 			return {};
 		}
 
-		const parsed = parseYaml(match[1]);
+		const parsed: unknown = parseYaml(match[1]);
 		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
 			return {};
 		}
@@ -677,13 +677,14 @@ export class FrontmatterEditor {
 
 		try {
 			await this.app.fileManager.processFrontMatter(file, frontmatter => {
+				const frontmatterRecord = frontmatter as Record<string, unknown>;
 				for (const operation of operations) {
 					if (operation.type === 'delete') {
-						delete frontmatter[operation.property];
+						delete frontmatterRecord[operation.property];
 						continue;
 					}
 
-					frontmatter[operation.property] = operation.value ?? '';
+					frontmatterRecord[operation.property] = operation.value ?? '';
 				}
 			});
 			return true;
@@ -701,8 +702,9 @@ export class FrontmatterEditor {
 
 		try {
 			await this.app.fileManager.processFrontMatter(file, frontmatter => {
+				const frontmatterRecord = frontmatter as Record<string, unknown>;
 				for (const [property, value] of Object.entries(update.properties)) {
-					frontmatter[property] = value;
+					frontmatterRecord[property] = value;
 				}
 			});
 			return true;
@@ -760,11 +762,20 @@ function formatFrontmatterValue(value: unknown): string {
 		try {
 			return JSON.stringify(value);
 		} catch {
-			return String(value);
+			return '[object]';
 		}
 	}
+	if (typeof value === 'bigint') {
+		return value.toString();
+	}
+	if (typeof value === 'symbol') {
+		return value.description ?? 'symbol';
+	}
+	if (typeof value === 'function') {
+		return '[function]';
+	}
 
-	return String(value);
+	return '';
 }
 
 function coerceDraftValue(value: string, originalValue: unknown): unknown {

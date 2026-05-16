@@ -470,6 +470,13 @@ export interface TranslationStrings {
 		syncProgress: string;
 		syncComplete: string;
 		syncFailed: string;
+		backgroundLoading: string;
+		backgroundLoadFailed: string;
+		loadPending: string;
+		loadInProgress: string;
+		progressSummaryLoading: string;
+		progressSummaryDone: string;
+		progressSummaryVisible: string;
 	};
 
 	// 搜索弹窗
@@ -1092,6 +1099,13 @@ const en: TranslationStrings = {
 			syncProgress: 'Syncing...',
 			syncComplete: 'Sync complete: {success} succeeded, {failed} failed',
 			syncFailed: 'Sync failed, please check network connection',
+			backgroundLoading: 'Background load',
+			backgroundLoadFailed: 'Load failed',
+			loadPending: 'Pending',
+			loadInProgress: 'Loading',
+			progressSummaryLoading: 'Loaded {completed}/{total}, showing {visible} items',
+			progressSummaryDone: 'Completed {completed}/{total}, showing {visible} items',
+			progressSummaryVisible: 'Showing {visible} items',
 		},
 
 	searchModal: {
@@ -1704,6 +1718,13 @@ const zhCN: TranslationStrings = {
 			syncProgress: '正在同步...',
 			syncComplete: '同步完成：成功 {success} 个，失败 {failed} 个',
 			syncFailed: '同步失败，请检查网络连接',
+			backgroundLoading: '后台加载',
+			backgroundLoadFailed: '加载失败',
+			loadPending: '待加载',
+			loadInProgress: '加载中',
+			progressSummaryLoading: '已加载 {completed}/{total}，当前显示 {visible} 项',
+			progressSummaryDone: '已完成 {completed}/{total}，当前显示 {visible} 项',
+			progressSummaryVisible: '当前显示 {visible} 项',
 		},
 
 	searchModal: {

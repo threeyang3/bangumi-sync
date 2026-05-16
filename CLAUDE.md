@@ -143,6 +143,7 @@ gh release edit {版本号} --target adv
 ## 同步注意事项
 
 - 收藏更新统一使用 `POST /v0/users/-/collections/{subject_id}`
+- 本地 -> 云端的评分 / 短评 / 标签 / 收藏状态应尽量合并成一次 `updateCollection`，不要按字段拆成多次请求
 - 收藏状态查询不能再使用 `/v0/users/-/collections/{subject_id}`，必须先拿真实用户名再查询 `/v0/users/{username}/collections/{subject_id}`
 - 清空云端标签时要显式发送 `tags: []`
 - 短评比较前必须先做换行/空白规范化
@@ -150,6 +151,8 @@ gh release edit {版本号} --target adv
 - 单集状态修改必须同时更新 `ep_statuses` 与正文 `.ep-box`
 - 单集状态从云端覆盖本地前必须先清空旧本地状态
 - `.ep-box` 解析不要依赖固定属性顺序
+- Bangumi OpenAPI 的 `updated_at` 不能当作可靠的用户收藏修改水位；官方说明它不会稳定覆盖评分、短评、标签、章节状态等修改
+- “检查并同步状态”当前采用本地预热缓存 + 本轮内存缓存提速，而不是依赖不可靠的云端时间戳跳过对比
 
 ## 自定义属性注意事项
 
@@ -158,7 +161,8 @@ gh release edit {版本号} --target adv
 - 评分明细不再是单独的数据通道；除兼容旧模板外，应与其他自定义属性同等处理
 - 列表型自定义属性使用 `[]` 作为模板默认值，并在 UI 中按英文逗号拆分为数组
 - 快速同步 / 自动同步不弹自定义属性窗口，只能使用模板默认值或空值
-- 导出 / 导入 / 强制同步继承必须统一保留三部分：辨识属性、自定义属性、记录/感想
+- 导出 / 导入 / 强制同步继承都要按同一套用户数据分层思考：辨识属性、用户属性、自定义属性、正文内容
+- 本地 `短评` 的真实来源是正文 `> [!abstract]+ **短评**` callout；状态同步、导入对比、导出提取都必须读取同一处
 
 详细坑点见 [docs/STATUS_SYNC_PITFALLS.md](docs/STATUS_SYNC_PITFALLS.md)
 
@@ -219,17 +223,15 @@ rating: {{rating|未评分}}
 # 2. 构建
 npm run build
 
-# 3. 创建发布目录
-mkdir -p release/v{版本号}
-cp main.js manifest.json styles.css release/
-cp main.js manifest.json styles.css release/v{版本号}/
+# 3. 构建并同步 release 三件套
+npm run build
 
 # 4. 提交并推送
 git add -A && git commit -m "release: v{版本号}"
 git push
 
 # 5. 使用 gh 创建 GitHub Release（tag 不带 v 前缀）
-gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css --title "v{版本号}" --notes "更新内容"
+gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css --title "v{版本号}" --notes "更新内容" --target adv
 ```
 
 **重要**：Release tag 必须与 manifest.json 版本号一致，不带 `v` 前缀。

@@ -5,6 +5,7 @@
  */
 
 import { App, TFile, normalizePath } from 'obsidian';
+import { SubjectType } from '../../common/api/types';
 import { UserDataExtractor } from './userDataExtractor';
 import {
 	UserDataCombinedExport,
@@ -116,7 +117,7 @@ export class UserDataExporter {
 
 		const workType = userData.identifier.workType?.trim();
 		if (workType) {
-			if (userData.identifier.type === 1) {
+			if (userData.identifier.type === SubjectType.Book) {
 				const lowered = workType.toLowerCase();
 				if (lowered === 'comic') return '漫画';
 				if (lowered === 'album') return '画集';

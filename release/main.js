@@ -740,7 +740,14 @@ var en = {
     cancel: "Cancel",
     syncProgress: "Syncing...",
     syncComplete: "Sync complete: {success} succeeded, {failed} failed",
-    syncFailed: "Sync failed, please check network connection"
+    syncFailed: "Sync failed, please check network connection",
+    backgroundLoading: "Background load",
+    backgroundLoadFailed: "Load failed",
+    loadPending: "Pending",
+    loadInProgress: "Loading",
+    progressSummaryLoading: "Loaded {completed}/{total}, showing {visible} items",
+    progressSummaryDone: "Completed {completed}/{total}, showing {visible} items",
+    progressSummaryVisible: "Showing {visible} items"
   },
   searchModal: {
     title: "Search subjects",
@@ -1328,7 +1335,14 @@ var zhCN = {
     cancel: "\u53D6\u6D88",
     syncProgress: "\u6B63\u5728\u540C\u6B65...",
     syncComplete: "\u540C\u6B65\u5B8C\u6210\uFF1A\u6210\u529F {success} \u4E2A\uFF0C\u5931\u8D25 {failed} \u4E2A",
-    syncFailed: "\u540C\u6B65\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u8FDE\u63A5"
+    syncFailed: "\u540C\u6B65\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u8FDE\u63A5",
+    backgroundLoading: "\u540E\u53F0\u52A0\u8F7D",
+    backgroundLoadFailed: "\u52A0\u8F7D\u5931\u8D25",
+    loadPending: "\u5F85\u52A0\u8F7D",
+    loadInProgress: "\u52A0\u8F7D\u4E2D",
+    progressSummaryLoading: "\u5DF2\u52A0\u8F7D {completed}/{total}\uFF0C\u5F53\u524D\u663E\u793A {visible} \u9879",
+    progressSummaryDone: "\u5DF2\u5B8C\u6210 {completed}/{total}\uFF0C\u5F53\u524D\u663E\u793A {visible} \u9879",
+    progressSummaryVisible: "\u5F53\u524D\u663E\u793A {visible} \u9879"
   },
   searchModal: {
     title: "\u641C\u7D22\u6761\u76EE",
@@ -6420,7 +6434,7 @@ var UserDataExporter = class {
     }
     const workType = (_b = userData.identifier.workType) == null ? void 0 : _b.trim();
     if (workType) {
-      if (userData.identifier.type === 1) {
+      if (userData.identifier.type === 1 /* Book */) {
         const lowered = workType.toLowerCase();
         if (lowered === "comic")
           return "\u6F2B\u753B";
@@ -7347,25 +7361,33 @@ ${importText}`;
   }
 };
 function stableStringify(value) {
+  var _a;
   if (value === null || value === void 0)
     return "";
   if (typeof value === "string")
     return value;
   if (typeof value === "number" || typeof value === "boolean")
     return String(value);
+  if (typeof value === "bigint")
+    return value.toString();
+  if (typeof value === "symbol")
+    return (_a = value.description) != null ? _a : "symbol";
+  if (typeof value === "function")
+    return "[function]";
   if (Array.isArray(value))
     return JSON.stringify(value.map((item) => stableNormalize(item)));
   if (typeof value === "object")
     return JSON.stringify(stableNormalize(value));
-  return String(value);
+  return "";
 }
 function stableNormalize(value) {
   if (Array.isArray(value)) {
     return value.map((item) => stableNormalize(item));
   }
   if (value && typeof value === "object") {
-    return Object.keys(value).sort().reduce((acc, key) => {
-      acc[key] = stableNormalize(value[key]);
+    const record = value;
+    return Object.keys(record).sort().reduce((acc, key) => {
+      acc[key] = stableNormalize(record[key]);
       return acc;
     }, {});
   }
@@ -7378,11 +7400,28 @@ function splitListString(value) {
   return value.split(/[,\n，、；;｜|]/).map((item) => item.trim()).filter(Boolean);
 }
 function asString(value) {
+  var _a;
   if (typeof value === "string")
     return value;
   if (value === null || value === void 0)
     return "";
-  return String(value);
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  if (typeof value === "symbol") {
+    return (_a = value.description) != null ? _a : "symbol";
+  }
+  if (typeof value === "function") {
+    return "[function]";
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(stableNormalize(value));
+    } catch (e) {
+      return "[object]";
+    }
+  }
+  return "";
 }
 
 // src/userData/userDataModal.ts
@@ -11231,12 +11270,13 @@ var FrontmatterEditor = class {
     try {
       await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
         var _a;
+        const frontmatterRecord = frontmatter;
         for (const operation of operations) {
           if (operation.type === "delete") {
-            delete frontmatter[operation.property];
+            delete frontmatterRecord[operation.property];
             continue;
           }
-          frontmatter[operation.property] = (_a = operation.value) != null ? _a : "";
+          frontmatterRecord[operation.property] = (_a = operation.value) != null ? _a : "";
         }
       });
       return true;
@@ -11252,8 +11292,9 @@ var FrontmatterEditor = class {
     }
     try {
       await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        const frontmatterRecord = frontmatter;
         for (const [property, value] of Object.entries(update.properties)) {
-          frontmatter[property] = value;
+          frontmatterRecord[property] = value;
         }
       });
       return true;
@@ -11288,6 +11329,7 @@ var FrontmatterEditor = class {
   }
 };
 function formatFrontmatterValue(value) {
+  var _a;
   if (value === null || value === void 0) {
     return "";
   }
@@ -11298,10 +11340,19 @@ function formatFrontmatterValue(value) {
     try {
       return JSON.stringify(value);
     } catch (e) {
-      return String(value);
+      return "[object]";
     }
   }
-  return String(value);
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (typeof value === "symbol") {
+    return (_a = value.description) != null ? _a : "symbol";
+  }
+  if (typeof value === "function") {
+    return "[function]";
+  }
+  return "";
 }
 function coerceDraftValue(value, originalValue) {
   if (Array.isArray(originalValue)) {
@@ -11340,6 +11391,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     this.client = client;
     this.incrementalSync = incrementalSync;
     this.diffs = diffs;
+    this.diffIndexBySubjectId = new Map(diffs.map((diff, index) => [diff.subjectId, index]));
     this.onComplete = onComplete;
     this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
   }
@@ -11403,10 +11455,11 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     if (this.isDisposedFlag) {
       return;
     }
-    const diff = this.diffs.find((item) => item.subjectId === subjectId);
-    if (!diff) {
+    const diffIndex = this.diffIndexBySubjectId.get(subjectId);
+    if (diffIndex === void 0) {
       return;
     }
+    const diff = this.diffs[diffIndex];
     Object.assign(diff, patch);
     this.recalculateDiffState(diff);
     this.updateStatusSummary();
@@ -11430,8 +11483,8 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     headerRow.createEl("th", { text: tn("statusSyncModal", "action") });
     const tbody = table.createEl("tbody");
     visibleDiffs.forEach((diff) => {
-      const index = this.diffs.findIndex((item) => item.subjectId === diff.subjectId);
-      if (index === -1) {
+      const index = this.diffIndexBySubjectId.get(diff.subjectId);
+      if (index === void 0) {
         return;
       }
       const row = tbody.createEl("tr", { cls: "bangumi-status-row" });
@@ -11509,13 +11562,13 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
   }
   getLoadingHint(diff) {
     if (diff.backgroundError) {
-      return "\u52A0\u8F7D\u5931\u8D25";
+      return this.getLoadStateText("failed");
     }
     if (diff.episodeStatusLoadState === "loading" || diff.platformLoadState === "loading") {
-      return "\u52A0\u8F7D\u4E2D";
+      return this.getLoadStateText("loading");
     }
     if (this.isDiffLoading(diff)) {
-      return "\u5F85\u52A0\u8F7D";
+      return this.getLoadStateText("pending");
     }
     return tn("statusSyncModal", "noDiff");
   }
@@ -11600,7 +11653,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     }
     if (diff.backgroundError) {
       const row = tbody.createEl("tr");
-      row.createEl("td", { text: "\u540E\u53F0\u52A0\u8F7D", cls: "bangumi-field-name" });
+      row.createEl("td", { text: tn("statusSyncModal", "backgroundLoading"), cls: "bangumi-field-name" });
       row.createEl("td", { text: diff.backgroundError, attr: { colspan: "3" } });
     }
   }
@@ -11648,9 +11701,8 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
   }
   renderLoadingRow(tbody, fieldName, state) {
     const row = tbody.createEl("tr");
-    const stateText = state === "failed" ? "\u52A0\u8F7D\u5931\u8D25" : state === "loading" ? "\u52A0\u8F7D\u4E2D" : "\u5F85\u52A0\u8F7D";
     row.createEl("td", { text: fieldName, cls: "bangumi-field-name" });
-    row.createEl("td", { text: stateText, attr: { colspan: "3" } });
+    row.createEl("td", { text: this.getLoadStateText(state), attr: { colspan: "3" } });
   }
   /**
    * 获取状态文本
@@ -11781,19 +11833,38 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     }
     const visibleCount = this.getVisibleDiffs().length;
     if (this.backgroundTotal > 0 && this.backgroundCompleted < this.backgroundTotal) {
-      this.statusEl.setText(`\u5DF2\u52A0\u8F7D ${this.backgroundCompleted}/${this.backgroundTotal}\uFF0C\u5F53\u524D\u663E\u793A ${visibleCount} \u9879`);
+      this.statusEl.setText(
+        tn("statusSyncModal", "progressSummaryLoading").replace("{completed}", String(this.backgroundCompleted)).replace("{total}", String(this.backgroundTotal)).replace("{visible}", String(visibleCount))
+      );
       return;
     }
     if (this.backgroundTotal > 0) {
-      this.statusEl.setText(`\u5DF2\u5B8C\u6210 ${this.backgroundCompleted}/${this.backgroundTotal}\uFF0C\u5F53\u524D\u663E\u793A ${visibleCount} \u9879`);
+      this.statusEl.setText(
+        tn("statusSyncModal", "progressSummaryDone").replace("{completed}", String(this.backgroundCompleted)).replace("{total}", String(this.backgroundTotal)).replace("{visible}", String(visibleCount))
+      );
       return;
     }
-    this.statusEl.setText(`\u5F53\u524D\u663E\u793A ${visibleCount} \u9879`);
+    this.statusEl.setText(
+      tn("statusSyncModal", "progressSummaryVisible").replace("{visible}", String(visibleCount))
+    );
   }
   recalculateDiffState(diff) {
     diff.hasUserDiff = diff.rate.hasDiff || diff.comment.hasDiff || diff.tags.hasDiff || diff.status.hasDiff || diff.episodeStatus.hasDiff;
     diff.hasPlatformDiff = diff.platformFields.some((field) => field.hasDiff);
     diff.hasAnyDiff = diff.hasUserDiff || diff.hasPlatformDiff;
+  }
+  getLoadStateText(state) {
+    switch (state) {
+      case "failed":
+        return tn("statusSyncModal", "backgroundLoadFailed");
+      case "loading":
+        return tn("statusSyncModal", "loadInProgress");
+      case "pending":
+        return tn("statusSyncModal", "loadPending");
+      case "ready":
+      default:
+        return tn("statusSyncModal", "noDiff");
+    }
   }
   /**
    * 同步单个条目
@@ -11930,35 +12001,19 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     return null;
   }
   async syncCloudUpdates(subjectId, updates) {
-    const baseType = updates.type;
-    const errors = [];
-    const operations = [];
-    if (updates.rate !== void 0) {
-      operations.push({ field: "rate", payload: { type: baseType, rate: updates.rate } });
+    const hasUpdates = Object.values(updates).some((value) => value !== void 0);
+    if (!hasUpdates) {
+      return;
     }
-    if (updates.comment !== void 0) {
-      operations.push({ field: "comment", payload: { type: baseType, comment: updates.comment } });
-    }
-    if (updates.tags !== void 0) {
-      operations.push({ field: "tags", payload: { type: baseType, tags: updates.tags } });
-    }
-    if (operations.length === 0 && baseType !== void 0) {
-      operations.push({ field: "type", payload: { type: baseType } });
-    }
-    for (const operation of operations) {
-      try {
-        await this.client.updateCollection(subjectId, operation.payload);
-      } catch (error) {
-        console.error(`[Bangumi Sync] \u4E91\u7AEF\u5B57\u6BB5\u540C\u6B65\u5931\u8D25: ${operation.field}`, {
-          subjectId,
-          payload: operation.payload,
-          error
-        });
-        errors.push(operation.field);
-      }
-    }
-    if (errors.length > 0) {
-      throw new Error(`\u4E91\u7AEF\u66F4\u65B0\u5931\u8D25\u5B57\u6BB5: ${errors.join(", ")}`);
+    try {
+      await this.client.updateCollection(subjectId, updates);
+    } catch (error) {
+      console.error("[Bangumi Sync] \u4E91\u7AEF\u5B57\u6BB5\u540C\u6B65\u5931\u8D25:", {
+        subjectId,
+        payload: updates,
+        error
+      });
+      throw new Error("\u4E91\u7AEF\u7528\u6237\u6570\u636E\u66F4\u65B0\u5931\u8D25");
     }
   }
 };

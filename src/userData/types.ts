@@ -67,7 +67,7 @@ export function isCustomPropertyField(fieldName: string): boolean {
 export interface SubjectIdentifier {
 	id: number;
 	name_cn: string;
-	type: number;
+	type: SubjectType;
 	workType?: string;
 }
 

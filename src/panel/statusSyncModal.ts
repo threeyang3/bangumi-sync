@@ -50,6 +50,12 @@ export interface PlatformSyncPayload {
 }
 
 export type StatusSyncLoadState = 'pending' | 'loading' | 'ready' | 'failed';
+type CloudCollectionUpdates = {
+	type?: CollectionType;
+	rate?: number;
+	comment?: string;
+	tags?: string[];
+};
 
 /**
  * 完整的状态同步差异项
@@ -82,6 +88,7 @@ export interface StatusSyncDiff {
  */
 export class StatusSyncModal extends Modal {
 	private diffs: StatusSyncDiff[];
+	private diffIndexBySubjectId: Map<number, number>;
 	private client: BangumiClient;
 	private incrementalSync: IncrementalSync;
 	private episodeStatusManager: EpisodeStatusManager | null;
@@ -106,6 +113,7 @@ export class StatusSyncModal extends Modal {
 		this.client = client;
 		this.incrementalSync = incrementalSync;
 		this.diffs = diffs;
+		this.diffIndexBySubjectId = new Map(diffs.map((diff, index) => [diff.subjectId, index]));
 		this.onComplete = onComplete;
 		this.episodeStatusManager = episodeStatusManager ?? null;
 	}
@@ -188,11 +196,12 @@ export class StatusSyncModal extends Modal {
 			return;
 		}
 
-		const diff = this.diffs.find(item => item.subjectId === subjectId);
-		if (!diff) {
+		const diffIndex = this.diffIndexBySubjectId.get(subjectId);
+		if (diffIndex === undefined) {
 			return;
 		}
 
+		const diff = this.diffs[diffIndex];
 		Object.assign(diff, patch);
 		this.recalculateDiffState(diff);
 		this.updateStatusSummary();
@@ -225,8 +234,8 @@ export class StatusSyncModal extends Modal {
 		const tbody = table.createEl('tbody');
 
 		visibleDiffs.forEach(diff => {
-			const index = this.diffs.findIndex(item => item.subjectId === diff.subjectId);
-			if (index === -1) {
+			const index = this.diffIndexBySubjectId.get(diff.subjectId);
+			if (index === undefined) {
 				return;
 			}
 
@@ -309,13 +318,13 @@ export class StatusSyncModal extends Modal {
 
 	private getLoadingHint(diff: StatusSyncDiff): string {
 		if (diff.backgroundError) {
-			return '加载失败';
+			return this.getLoadStateText('failed');
 		}
 		if (diff.episodeStatusLoadState === 'loading' || diff.platformLoadState === 'loading') {
-			return '加载中';
+			return this.getLoadStateText('loading');
 		}
 		if (this.isDiffLoading(diff)) {
-			return '待加载';
+			return this.getLoadStateText('pending');
 		}
 		return tn('statusSyncModal', 'noDiff');
 	}
@@ -394,7 +403,7 @@ export class StatusSyncModal extends Modal {
 
 		if (diff.backgroundError) {
 			const row = tbody.createEl('tr');
-			row.createEl('td', { text: '后台加载', cls: 'bangumi-field-name' });
+			row.createEl('td', { text: tn('statusSyncModal', 'backgroundLoading'), cls: 'bangumi-field-name' });
 			row.createEl('td', { text: diff.backgroundError, attr: { colspan: '3' } });
 		}
 	}
@@ -463,14 +472,8 @@ export class StatusSyncModal extends Modal {
 
 	private renderLoadingRow(tbody: HTMLElement, fieldName: string, state: StatusSyncLoadState): void {
 		const row = tbody.createEl('tr');
-		const stateText = state === 'failed'
-			? '加载失败'
-			: state === 'loading'
-				? '加载中'
-				: '待加载';
-
 		row.createEl('td', { text: fieldName, cls: 'bangumi-field-name' });
-		row.createEl('td', { text: stateText, attr: { colspan: '3' } });
+		row.createEl('td', { text: this.getLoadStateText(state), attr: { colspan: '3' } });
 	}
 
 	/**
@@ -620,16 +623,29 @@ export class StatusSyncModal extends Modal {
 
 		const visibleCount = this.getVisibleDiffs().length;
 		if (this.backgroundTotal > 0 && this.backgroundCompleted < this.backgroundTotal) {
-			this.statusEl.setText(`已加载 ${this.backgroundCompleted}/${this.backgroundTotal}，当前显示 ${visibleCount} 项`);
+			this.statusEl.setText(
+				tn('statusSyncModal', 'progressSummaryLoading')
+					.replace('{completed}', String(this.backgroundCompleted))
+					.replace('{total}', String(this.backgroundTotal))
+					.replace('{visible}', String(visibleCount))
+			);
 			return;
 		}
 
 		if (this.backgroundTotal > 0) {
-			this.statusEl.setText(`已完成 ${this.backgroundCompleted}/${this.backgroundTotal}，当前显示 ${visibleCount} 项`);
+			this.statusEl.setText(
+				tn('statusSyncModal', 'progressSummaryDone')
+					.replace('{completed}', String(this.backgroundCompleted))
+					.replace('{total}', String(this.backgroundTotal))
+					.replace('{visible}', String(visibleCount))
+			);
 			return;
 		}
 
-		this.statusEl.setText(`当前显示 ${visibleCount} 项`);
+		this.statusEl.setText(
+			tn('statusSyncModal', 'progressSummaryVisible')
+				.replace('{visible}', String(visibleCount))
+		);
 	}
 
 	private recalculateDiffState(diff: StatusSyncDiff): void {
@@ -643,6 +659,20 @@ export class StatusSyncModal extends Modal {
 		diff.hasAnyDiff = diff.hasUserDiff || diff.hasPlatformDiff;
 	}
 
+	private getLoadStateText(state: StatusSyncLoadState): string {
+		switch (state) {
+			case 'failed':
+				return tn('statusSyncModal', 'backgroundLoadFailed');
+			case 'loading':
+				return tn('statusSyncModal', 'loadInProgress');
+			case 'pending':
+				return tn('statusSyncModal', 'loadPending');
+			case 'ready':
+			default:
+				return tn('statusSyncModal', 'noDiff');
+		}
+	}
+
 	/**
 	 * 同步单个条目
 	 */
@@ -654,7 +684,7 @@ export class StatusSyncModal extends Modal {
 
 		const originalContent = await this.app.vault.read(file);
 		let content = originalContent;
-		const cloudUpdates: { type?: CollectionType; rate?: number; comment?: string; tags?: string[] } = {};
+		const cloudUpdates: CloudCollectionUpdates = {};
 
 		// 处理评分
 		if (diff.rate.hasDiff && diff.rate.decision !== 'skip') {
@@ -805,44 +835,22 @@ export class StatusSyncModal extends Modal {
 
 	private async syncCloudUpdates(
 		subjectId: number,
-		updates: { type?: CollectionType; rate?: number; comment?: string; tags?: string[] }
+		updates: CloudCollectionUpdates
 	): Promise<void> {
-		const baseType = updates.type;
-		const errors: string[] = [];
-
-		const operations: Array<{ field: string; payload: { type?: CollectionType; rate?: number; comment?: string; tags?: string[] } }> = [];
-
-		if (updates.rate !== undefined) {
-			operations.push({ field: 'rate', payload: { type: baseType, rate: updates.rate } });
+		const hasUpdates = Object.values(updates).some(value => value !== undefined);
+		if (!hasUpdates) {
+			return;
 		}
 
-		if (updates.comment !== undefined) {
-			operations.push({ field: 'comment', payload: { type: baseType, comment: updates.comment } });
-		}
-
-		if (updates.tags !== undefined) {
-			operations.push({ field: 'tags', payload: { type: baseType, tags: updates.tags } });
-		}
-
-		if (operations.length === 0 && baseType !== undefined) {
-			operations.push({ field: 'type', payload: { type: baseType } });
-		}
-
-		for (const operation of operations) {
-			try {
-				await this.client.updateCollection(subjectId, operation.payload);
-			} catch (error) {
-				console.error(`[Bangumi Sync] 云端字段同步失败: ${operation.field}`, {
-					subjectId,
-					payload: operation.payload,
-					error,
-				});
-				errors.push(operation.field);
-			}
-		}
-
-		if (errors.length > 0) {
-			throw new Error(`云端更新失败字段: ${errors.join(', ')}`);
+		try {
+			await this.client.updateCollection(subjectId, updates);
+		} catch (error) {
+			console.error('[Bangumi Sync] 云端字段同步失败:', {
+				subjectId,
+				payload: updates,
+				error,
+			});
+			throw new Error('云端用户数据更新失败');
 		}
 	}
 }

@@ -59,7 +59,7 @@ export function findTemplateCategoryOption(category?: string): TemplateCategoryO
 	return TEMPLATE_CATEGORY_OPTIONS_BY_CATEGORY[category];
 }
 
-export function getTemplateKeyFallbackForSubjectType(subjectType: number): TemplateKey {
+export function getTemplateKeyFallbackForSubjectType(subjectType: SubjectType): TemplateKey {
 	switch (subjectType) {
 		case SubjectType.Anime:
 			return 'animeTemplateConfig';
@@ -75,7 +75,7 @@ export function getTemplateKeyFallbackForSubjectType(subjectType: number): Templ
 	}
 }
 
-export function resolveTemplateTarget(subjectType: number, category?: string): {
+export function resolveTemplateTarget(subjectType: SubjectType, category?: string): {
 	categoryOption?: TemplateCategoryOption;
 	templateKey: TemplateKey;
 } {

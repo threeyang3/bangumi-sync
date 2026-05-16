@@ -386,8 +386,8 @@ export class UserDataImporter {
 						subjectId,
 						normalized,
 						options,
-						diffDecisionMap.get(subjectId) ?? new Map(),
-						missingDecisionMap.get(subjectId) ?? new Map()
+						diffDecisionMap.get(subjectId) ?? new Map<string, PropertyDiff['decision']>(),
+						missingDecisionMap.get(subjectId) ?? new Map<string, MissingFieldDecision['decision']>()
 					);
 					if (changed) {
 						result.success++;
@@ -1156,9 +1156,12 @@ function stableStringify(value: unknown): string {
 	if (value === null || value === undefined) return '';
 	if (typeof value === 'string') return value;
 	if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+	if (typeof value === 'bigint') return value.toString();
+	if (typeof value === 'symbol') return value.description ?? 'symbol';
+	if (typeof value === 'function') return '[function]';
 	if (Array.isArray(value)) return JSON.stringify(value.map(item => stableNormalize(item)));
 	if (typeof value === 'object') return JSON.stringify(stableNormalize(value));
-	return String(value);
+	return '';
 }
 
 function stableNormalize(value: unknown): unknown {
@@ -1166,10 +1169,11 @@ function stableNormalize(value: unknown): unknown {
 		return value.map(item => stableNormalize(item));
 	}
 	if (value && typeof value === 'object') {
-		return Object.keys(value as Record<string, unknown>)
+		const record = value as Record<string, unknown>;
+		return Object.keys(record)
 			.sort()
 			.reduce<Record<string, unknown>>((acc, key) => {
-				acc[key] = stableNormalize((value as Record<string, unknown>)[key]);
+				acc[key] = stableNormalize(record[key]);
 				return acc;
 			}, {});
 	}
@@ -1193,5 +1197,21 @@ function splitListString(value: string): string[] {
 function asString(value: unknown): string {
 	if (typeof value === 'string') return value;
 	if (value === null || value === undefined) return '';
-	return String(value);
+	if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+		return String(value);
+	}
+	if (typeof value === 'symbol') {
+		return value.description ?? 'symbol';
+	}
+	if (typeof value === 'function') {
+		return '[function]';
+	}
+	if (typeof value === 'object') {
+		try {
+			return JSON.stringify(stableNormalize(value));
+		} catch {
+			return '[object]';
+		}
+	}
+	return '';
 }

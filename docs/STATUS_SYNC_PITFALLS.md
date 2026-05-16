@@ -12,6 +12,8 @@
 - Bangumi v0 收藏更新统一走 `POST /v0/users/-/collections/{subject_id}`。
 - 不要再用旧的 `PATCH` 路径，也不要保留“PATCH 失败再 POST”的分支。
 - 清空标签时必须显式发送 `tags: []`，否则云端不会删除旧标签。
+- `type / rate / comment / tags` 同时要回写云端时，优先合并成一次 `updateCollection`，不要按字段拆成多次 POST，既慢也更容易出现部分成功的中间态。
+- Bangumi OpenAPI 里的 `updated_at` 不能当作可靠的收藏修改时间；官方说明它不会稳定覆盖评分、短评、标签、章节状态等修改。
 
 ## 3. 评论/短评比较
 
@@ -58,6 +60,8 @@
 
 - 面板宽度要用高优先级选择器限制在状态同步 modal 自身，例如 `.modal:has(.bangumi-status-sync-modal)`。
 - 单集状态已经并入主状态同步流程，不要再把它当成完全独立的附加操作。
+- 状态同步应分成两段：用户数据全量对比；平台数据先排除本地明确已完结条目，再后台补全候选条目的云端差异。
+- 打开控制面板后会预热本地已同步条目的用户数据快照；“检查并同步状态”要尽量复用这批预热结果，避免重复读取正文。
 
 ## 9. API 返回 null data 与 episode null
 

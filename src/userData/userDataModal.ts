@@ -468,7 +468,7 @@ export class MissingFieldModal extends Modal {
             fieldInfoEl.createEl('span', { text: `${field.fieldName}: ` });
             fieldInfoEl.createEl('span', { text: String(field.fieldValue), cls: 'bangumi-missing-field-value' });
             itemEl.createEl('div', {
-                text: `${tn('userData', 'decision')}: ${missingDecisionLabel(currentDecision as MissingFieldDecision['decision'])}`,
+                text: `${tn('userData', 'decision')}: ${missingDecisionLabel(currentDecision)}`,
                 cls: 'bangumi-import-compare-diff-count',
             });
 

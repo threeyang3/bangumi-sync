@@ -229,10 +229,6 @@ export class UserDataMerger {
 	}
 }
 
-function buildFrontmatterFieldRegex(field: string): RegExp {
-	return new RegExp(`^${escapeRegExp(field)}:\\s*.*(?:\\n  - .*?)*$`, 'm');
-}
-
 function isTopLevelFrontmatterLine(line: string): boolean {
 	return /^[^\s-][^:]*:\s*/.test(line);
 }
