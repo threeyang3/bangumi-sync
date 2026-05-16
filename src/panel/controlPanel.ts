@@ -4,14 +4,14 @@
  */
 
 import { App, Modal, Notice, TFile } from 'obsidian';
-import { UserCollection, SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName, getCollectionStatusLabel } from '../../common/api/types';
+import { UserCollection, SubjectType, CollectionType, Subject, getSubjectTypeName, getCollectionTypeName, getCollectionStatusLabel } from '../../common/api/types';
 import { BangumiPluginSettings, PanelFilters, DEFAULT_PANEL_FILTERS } from '../settings/settings';
 import { SyncManager } from '../sync/syncManager';
 import { IncrementalSync } from '../sync/incrementalSync';
 import { BangumiClient } from '../api/client';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { BatchEditorModal, FrontmatterEditor } from './batchEditorModal';
-import { StatusSyncModal, StatusSyncDiff, FieldDiff } from './statusSyncModal';
+import { StatusSyncModal, StatusSyncDiff, FieldDiff, PlatformFieldDiff, PlatformSyncPayload } from './statusSyncModal';
 import { ConflictDetector } from './conflictResolver';
 import { SearchModal } from '../ui/searchModal';
 import { getLocale, tn } from '../i18n';
@@ -19,6 +19,7 @@ import { EpisodeStatusManager } from '../episode/episodeStatusManager';
 import { SubjectNoteManager } from '../note/subjectNoteManager';
 import { loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult, hasLocalPropertyFieldsForCollections } from '../ui/localPropertyModal';
 import { isMobile } from '../utils/mobile';
+import { parseInfoByType } from '../../common/parser/infoboxParser';
 
 /**
  * 本地条目信息
@@ -1111,7 +1112,7 @@ export class ControlPanel extends Modal {
 
 	/**
 	 * 同步状态
-	 * 统一对比本地与云端用户数据（评分、短评、标签、状态）
+	 * 用户数据对全部条目对比；平台数据仅对本地未明确已完结的条目对比
 	 */
 	private async syncStatus(): Promise<void> {
 		// 获取已同步的条目
@@ -1149,7 +1150,7 @@ export class ControlPanel extends Modal {
 				const localTags = this.incrementalSync.normalizeTags(this.incrementalSync.extractTags(content));
 				const localStatus = this.incrementalSync.extractStatus(content, statusFieldName);
 
-				// 云端数据
+				// 云端用户数据
 				const cloudRate = collection.rate || null;
 				const cloudComment = collection.comment || null;
 				const cloudTagsRaw = collection.tags && collection.tags.length > 0 ? collection.tags : null;
@@ -1168,6 +1169,8 @@ export class ControlPanel extends Modal {
 					};
 				}
 
+				const platformFields = await this.buildPlatformFieldDiffs(collection, content);
+
 				// 构建差异对象
 				const diff = this.buildStatusSyncDiff(
 					collection,
@@ -1177,7 +1180,9 @@ export class ControlPanel extends Modal {
 					localComment, cloudComment,
 					localTags, cloudTags,
 					localStatus, cloudStatus,
-					episodeStatusDiff
+					episodeStatusDiff,
+					platformFields.fields,
+					platformFields.payload
 				);
 
 				if (diff.hasAnyDiff) {
@@ -1230,7 +1235,9 @@ export class ControlPanel extends Modal {
 		cloudTags: string[] | null,
 		localStatus: number | null,
 		cloudStatus: number | null,
-		episodeStatus: FieldDiff<string>
+		episodeStatus: FieldDiff<string>,
+		platformFields: PlatformFieldDiff[],
+		platformSyncPayload?: PlatformSyncPayload
 	): StatusSyncDiff {
 		// 评分差异
 		const rateDiff: FieldDiff<number> = {
@@ -1270,8 +1277,9 @@ export class ControlPanel extends Modal {
 			decision: 'skip',
 		};
 
-		// 是否有任何差异
-		const hasAnyDiff = rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff || episodeStatus.hasDiff;
+		const hasUserDiff = rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff || episodeStatus.hasDiff;
+		const hasPlatformDiff = platformFields.some(field => field.hasDiff);
+		const hasAnyDiff = hasUserDiff || hasPlatformDiff;
 
 		return {
 			subjectId: collection.subject_id,
@@ -1285,8 +1293,116 @@ export class ControlPanel extends Modal {
 			tags: tagsDiff,
 			status: statusDiff,
 			episodeStatus,
+			platformFields,
+			platformSyncPayload,
+			hasUserDiff,
+			hasPlatformDiff,
 			hasAnyDiff,
 			expanded: false,
+		};
+	}
+
+	private async buildPlatformFieldDiffs(
+		collection: UserCollection,
+		content: string,
+	): Promise<{ fields: PlatformFieldDiff[]; payload?: PlatformSyncPayload }> {
+		if (
+			collection.subject_type !== SubjectType.Anime &&
+			collection.subject_type !== SubjectType.Real &&
+			collection.subject_type !== SubjectType.Book
+		) {
+			return { fields: [] };
+		}
+
+		const localContext = this.incrementalSync.extractLocalPlatformSyncContext(content);
+		if (!this.incrementalSync.isPlatformDataCandidate(localContext)) {
+			return { fields: [] };
+		}
+
+		const subject = await this.client.getSubject(collection.subject_id);
+		const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+		const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
+		const fields: PlatformFieldDiff[] = [];
+
+		if (cloudPayload.serialStatus && localContext.serialStatus !== cloudPayload.serialStatus) {
+			fields.push({
+				key: 'serialState',
+				label: tn('statusSyncModal', 'fieldSerialState'),
+				localValue: localContext.serialStatus,
+				cloudValue: cloudPayload.serialStatus,
+				hasDiff: true,
+				decision: 'skip',
+			});
+		}
+
+		if (collection.subject_type === SubjectType.Anime || collection.subject_type === SubjectType.Real) {
+			const cloudValue = cloudPayload.episodeCount;
+			if (cloudValue !== undefined && cloudValue !== null && localContext.episodeCount !== cloudValue) {
+				fields.push({
+					key: 'episodeCount',
+					label: tn('statusSyncModal', 'fieldEpisodeCount'),
+					localValue: localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
+					cloudValue: String(cloudValue),
+					hasDiff: true,
+					decision: 'skip',
+				});
+			}
+		}
+
+		if (collection.subject_type === SubjectType.Book) {
+			const isComic = (parsedInfo.category || '').includes('漫画') || localContext.chapterCount !== null;
+			if (isComic) {
+				if (cloudPayload.chapterCount !== undefined && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
+					fields.push({
+						key: 'chapterCount',
+						label: tn('statusSyncModal', 'fieldChapterCount'),
+						localValue: localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
+						cloudValue: String(cloudPayload.chapterCount),
+						hasDiff: true,
+						decision: 'skip',
+					});
+				}
+				if (cloudPayload.volumeCount !== undefined && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+					fields.push({
+						key: 'volumeCount',
+						label: tn('statusSyncModal', 'fieldVolumeCount'),
+						localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+						cloudValue: String(cloudPayload.volumeCount),
+						hasDiff: true,
+						decision: 'skip',
+					});
+				}
+			} else if (cloudPayload.volumeCount !== undefined && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+				fields.push({
+					key: 'volumeCount',
+					label: tn('statusSyncModal', 'fieldVolumeCount'),
+					localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+					cloudValue: String(cloudPayload.volumeCount),
+					hasDiff: true,
+					decision: 'skip',
+				});
+			}
+		}
+
+		return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
+	}
+
+	private buildPlatformSyncPayload(subject: Subject, parsedInfo: ReturnType<typeof parseInfoByType>): PlatformSyncPayload {
+		const episodeCount = subject.total_episodes || subject.eps || parsedInfo.episode || null;
+		const volumeCount = subject.volumes || parsedInfo.volumes || null;
+		const serialStatus = parsedInfo.status || null;
+		const start = parsedInfo.start || null;
+		const end = parsedInfo.end || null;
+		const progress = parsedInfo.progress || null;
+
+		return {
+			serialStatus,
+			progress,
+			start,
+			end,
+			episodeCount,
+			chapterCount: parsedInfo.episode || null,
+			volumeCount,
 		};
 	}
 

@@ -231,6 +231,9 @@ export function parseAnimeInfo(infobox: InfoboxItem[] | undefined, platform?: st
 		category = getInfoboxValue(infobox, '类型') || '';
 	}
 
+	const start = getInfoboxValue(infobox, '放送开始', ['开始']);
+	const end = getInfoboxValue(infobox, '放送结束', ['结束']);
+
 	return {
 		category,
 		episode: getInfoboxNumber(infobox, '话数'),
@@ -244,6 +247,10 @@ export function parseAnimeInfo(infobox: InfoboxItem[] | undefined, platform?: st
 		animeChief: getInfoboxValue(infobox, '总作画监督', ['作画监督']),
 		from: getInfoboxValue(infobox, '原作', ['原案']),
 		website: getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']),
+		status: end ? '已完结' : (start ? '连载中' : ''),
+		progress: start ? `${start} - ${end || '连载中'}` : undefined,
+		start,
+		end,
 	};
 }
 
@@ -335,6 +342,7 @@ export function parseComicInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 	const author = getInfoboxValue(infobox, '作者', ['原作']);
 	const start = getInfoboxValue(infobox, '开始', ['连载开始']);
 	const end = getInfoboxValue(infobox, '结束', ['连载结束']);
+	const volumes = getNumberFromVersion(infobox, '版本', '册数') || getInfoboxNumber(infobox, '册数', ['卷数']);
 
 	return {
 		category: getInfoboxValue(infobox, '类型') || '漫画',
@@ -343,6 +351,7 @@ export function parseComicInfo(infobox: InfoboxItem[] | undefined): ParsedInfo {
 		publish: getInfoboxValue(infobox, '出版社'),
 		journal: getInfoboxValue(infobox, '连载杂志', ['连载']),
 		episode: getInfoboxNumber(infobox, '话数', ['册数']),
+		volumes,
 		status: end ? '已完结' : '连载中',
 		progress: start ? `${start} - ${end || '连载中'}` : undefined,
 		start,
@@ -389,6 +398,9 @@ export function parseAlbumInfo(infobox: InfoboxItem[] | undefined, platform?: st
  * 解析三次元信息（电影/电视剧/综艺等）
  */
 export function parseRealInfo(infobox: InfoboxItem[] | undefined, platform?: string): ParsedInfo {
+	const start = getInfoboxValue(infobox, '放送开始', ['开始']);
+	const end = getInfoboxValue(infobox, '放送结束', ['结束']);
+
 	return {
 		category: platform || '三次元',
 		director: getInfoboxValue(infobox, '导演', ['监督']),
@@ -401,6 +413,10 @@ export function parseRealInfo(infobox: InfoboxItem[] | undefined, platform?: str
 		tvStation: getInfoboxValue(infobox, '电视台', ['播放电视台', '网络']),
 		website: getWebsiteValue(infobox, ['官方网站', '官网', '网站', '链接']),
 		imdbId: getInfoboxValue(infobox, 'imdb_id', ['IMDb']),
+		status: end ? '已完结' : (start ? '连载中' : ''),
+		progress: start ? `${start} - ${end || '连载中'}` : undefined,
+		start,
+		end,
 	};
 }
 

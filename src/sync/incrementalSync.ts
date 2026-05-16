@@ -6,6 +6,12 @@
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
 import { SubjectType, CollectionType, getCollectionStatusLabel } from '../../common/api/types';
 import { BatchSyncedFile } from './syncStatus';
+import {
+	extractShortComment,
+	normalizeShortComment,
+	removeShortComment,
+	updateShortComment,
+} from '../comment/shortComment';
 
 /**
  * 本地条目信息
@@ -15,6 +21,26 @@ interface LocalSubjectInfo {
 	path: string;
 	name_cn: string;
 	wasNewlyCreated?: boolean;
+}
+
+export interface LocalPlatformSyncContext {
+	serialStatus: string | null;
+	progress: string | null;
+	start: string | null;
+	end: string | null;
+	episodeCount: number | null;
+	chapterCount: number | null;
+	volumeCount: number | null;
+}
+
+export interface PlatformMetadataUpdate {
+	serialStatus?: string | null;
+	progress?: string | null;
+	start?: string | null;
+	end?: string | null;
+	episodeCount?: number | null;
+	chapterCount?: number | null;
+	volumeCount?: number | null;
 }
 
 /**
@@ -501,19 +527,7 @@ export class IncrementalSync {
 	 * 短评格式: > [!abstract]+ **短评**\n> {comment}
 	 */
 	extractComment(content: string): string | null {
-		const block = this.findCommentBlock(content);
-		if (!block) {
-			return null;
-		}
-
-		const bodyLines = block.lines.slice(1).map(line => {
-			if (/^>\s?/.test(line)) {
-				return line.replace(/^>\s?/, '');
-			}
-			return line.trim();
-		});
-
-		return this.normalizeComment(bodyLines.join('\n'));
+		return extractShortComment(content);
 	}
 
 	/**
@@ -521,122 +535,18 @@ export class IncrementalSync {
 	 * 如果短评不存在，在简介之前插入
 	 */
 	updateComment(content: string, newComment: string): string {
-		const normalizedComment = this.normalizeComment(newComment);
-		if (!normalizedComment) {
-			return this.removeComment(content);
-		}
-
-		const newCommentLines = normalizedComment
-			.split('\n')
-			.map(line => line.length > 0 ? `> ${line}` : '>');
-		const newCommentBlock = ['> [!abstract]+ **短评**', ...newCommentLines].join('\n');
-		const block = this.findCommentBlock(content);
-
-		if (block) {
-			return content.slice(0, block.start) + newCommentBlock + content.slice(block.end);
-		}
-
-		const introMatch = content.match(/^> \[!abstract\]\+\s*\*\*简介\*\*/m);
-		if (introMatch && introMatch.index !== undefined) {
-			return content.slice(0, introMatch.index) + newCommentBlock + '\n\n' + content.slice(introMatch.index);
-		}
-
-		const frontmatterEnd = content.indexOf('---', 3);
-		if (frontmatterEnd !== -1) {
-			const afterFrontmatter = content.substring(frontmatterEnd + 3).trimStart();
-			return content.substring(0, frontmatterEnd + 3) + '\n\n' + newCommentBlock + '\n\n' + afterFrontmatter;
-		}
-
-		return `${newCommentBlock}\n\n${content}`;
+		return updateShortComment(content, newComment);
 	}
 
 	/**
 	 * 删除正文中的短评 callout
 	 */
 	removeComment(content: string): string {
-		const block = this.findCommentBlock(content);
-		if (!block) {
-			return content;
-		}
-
-		let updated = content.slice(0, block.start) + content.slice(block.end);
-		updated = updated.replace(/\n{3,}/g, '\n\n');
-		return updated;
+		return removeShortComment(content);
 	}
 
 	normalizeComment(comment: string | null | undefined): string | null {
-		if (!comment) {
-			return null;
-		}
-
-		// Bangumi API \u7528 \n \u5206\u6bb5\uff0cMarkdown callout \u9700\u8981 \n\n \u624d\u80fd\u6e32\u67d3\u4e3a\u6bb5\u843d
-		const normalized = comment
-			.replace(/\r\n?/g, '\n')
-			.replace(/\u00a0/g, ' ')
-			.split('\n\n')
-			.map(para => para.split('\n').map(line => line.replace(/\s+$/g, '').trim()).join('\n').replace(/\n/g, '\n\n'))
-			.join('\n\n')
-			.replace(/\n{3,}/g, '\n\n')
-			.trim();
-
-		return normalized.length > 0 ? normalized : null;
-	}
-
-	private findCommentBlock(content: string): { start: number; end: number; lines: string[] } | null {
-		const normalizedContent = content.replace(/\r\n?/g, '\n');
-		const lines = normalizedContent.split('\n');
-		const headerIndex = lines.findIndex(line => /^> \[!abstract\]\+\s*\*\*短评\*\*\s*$/.test(line));
-
-		if (headerIndex === -1) {
-			return null;
-		}
-
-		// callout 内空行（段落分隔）可能省略 > 前缀
-		// 空行后若仍有 > 开头的行，则空行属于 callout 内部；否则空行为 callout 结束
-		let endIndex = headerIndex + 1;
-		while (endIndex < lines.length) {
-			const line = lines[endIndex];
-			if (this.isCalloutHeader(line)) {
-				break;
-			}
-			if (/^> ?/.test(line)) {
-				endIndex++;
-			} else if (line.trim() === '') {
-				// 向前看：空行后是否还有 callout 内容
-				let nextNonEmpty = endIndex + 1;
-				while (nextNonEmpty < lines.length && lines[nextNonEmpty].trim() === '') {
-					nextNonEmpty++;
-				}
-				if (
-					nextNonEmpty < lines.length
-					&& /^> ?/.test(lines[nextNonEmpty])
-					&& !this.isCalloutHeader(lines[nextNonEmpty])
-				) {
-					endIndex = nextNonEmpty + 1;
-				} else {
-					break;
-				}
-			} else {
-				break;
-			}
-		}
-		// 文件尾部空行不属于 callout 内容，回退
-		while (endIndex > headerIndex + 1 && lines[endIndex - 1].trim() === '') {
-			endIndex--;
-		}
-
-		const start = lines.slice(0, headerIndex).join('\n').length + (headerIndex > 0 ? 1 : 0);
-		const end = lines.slice(0, endIndex).join('\n').length + (endIndex < lines.length ? 1 : 0);
-
-		return {
-			start,
-			end,
-			lines: lines.slice(headerIndex, endIndex),
-		};
-	}
-
-	private isCalloutHeader(line: string): boolean {
-		return /^> \[![^\]]+\]/.test(line);
+		return normalizeShortComment(comment);
 	}
 
 	/**
@@ -724,6 +634,85 @@ export class IncrementalSync {
 		return frontmatterMatch ? frontmatterMatch[1] : null;
 	}
 
+	extractTextField(content: string, fieldNames: string | string[]): string | null {
+		const frontmatter = this.extractFrontmatter(content);
+		if (!frontmatter) {
+			return null;
+		}
+
+		const names = Array.isArray(fieldNames) ? fieldNames : [fieldNames];
+		for (const fieldName of names) {
+			const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			const fieldRegex = new RegExp(`^${escapedName}:\\s*(.*)$`, 'm');
+			const match = frontmatter.match(fieldRegex);
+			if (!match) {
+				continue;
+			}
+
+			const rawValue = match[1].trim();
+			if (!rawValue) {
+				return null;
+			}
+
+			const unquoted = rawValue.replace(/^["']|["']$/g, '').trim();
+			return unquoted.length > 0 ? unquoted : null;
+		}
+
+		return null;
+	}
+
+	extractNumberField(content: string, fieldNames: string | string[]): number | null {
+		const value = this.extractTextField(content, fieldNames);
+		if (!value) {
+			return null;
+		}
+
+		const numberMatch = value.match(/\d+/);
+		if (!numberMatch) {
+			return null;
+		}
+
+		const parsed = parseInt(numberMatch[0], 10);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+
+	extractLocalPlatformSyncContext(content: string): LocalPlatformSyncContext {
+		return {
+			serialStatus: this.extractTextField(content, '连载状态'),
+			progress: this.extractTextField(content, '进度'),
+			start: this.extractTextField(content, '开始'),
+			end: this.extractTextField(content, '结束'),
+			episodeCount: this.extractNumberField(content, '集数'),
+			chapterCount: this.extractNumberField(content, '话数'),
+			volumeCount: this.extractNumberField(content, ['卷数', '册数']),
+		};
+	}
+
+	isPlatformDataCandidate(context: LocalPlatformSyncContext): boolean {
+		if (this.isCompletedSerialState(context.serialStatus)) {
+			return false;
+		}
+
+		if (context.end && context.end.trim().length > 0) {
+			return false;
+		}
+
+		if (this.isCompletedSerialState(context.progress)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	isCompletedSerialState(value: string | null | undefined): boolean {
+		if (!value) {
+			return false;
+		}
+
+		const normalized = value.replace(/\s+/g, '');
+		return /(已完结|完结|已结束|放送结束|已完播|全\d+(话|集|卷)|完)/.test(normalized);
+	}
+
 	private findYamlListBlock(lines: string[], key: string): { start: number; end: number } | null {
 		const start = lines.findIndex(line => new RegExp(`^${key}:\\s*$`).test(line));
 		if (start === -1) {
@@ -765,6 +754,69 @@ export class IncrementalSync {
 		}
 
 		return lines;
+	}
+
+	updateTextField(content: string, fieldName: string, value: string | number | null | undefined): string {
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+		if (!frontmatterMatch) {
+			return content;
+		}
+
+		const prefix = frontmatterMatch[1];
+		let frontmatter = frontmatterMatch[2];
+		const suffix = frontmatterMatch[3];
+		const bodyContent = frontmatterMatch[4];
+		const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const fieldRegex = new RegExp(`^${escapedName}:.*$`, 'm');
+
+		if (value === null || value === undefined || String(value).trim() === '') {
+			frontmatter = frontmatter.replace(fieldRegex, '').replace(/\n{3,}/g, '\n\n').trim();
+			return prefix + frontmatter + suffix + bodyContent;
+		}
+
+		const nextLine = `${fieldName}: "${String(value).replace(/"/g, '\\"')}"`;
+		if (fieldRegex.test(frontmatter)) {
+			frontmatter = frontmatter.replace(fieldRegex, nextLine);
+		} else {
+			frontmatter = `${frontmatter}\n${nextLine}`;
+		}
+
+		return prefix + frontmatter + suffix + bodyContent;
+	}
+
+	updatePlatformMetadata(content: string, updates: PlatformMetadataUpdate): string {
+		let nextContent = content;
+
+		if (updates.serialStatus !== undefined) {
+			nextContent = this.updateTextField(nextContent, '连载状态', updates.serialStatus);
+		}
+		if (updates.progress !== undefined) {
+			nextContent = this.updateTextField(nextContent, '进度', updates.progress);
+		}
+		if (updates.start !== undefined) {
+			nextContent = this.updateTextField(nextContent, '开始', updates.start);
+		}
+		if (updates.end !== undefined) {
+			nextContent = this.updateTextField(nextContent, '结束', updates.end);
+		}
+		if (updates.episodeCount !== undefined) {
+			nextContent = this.updateTextField(nextContent, '集数', updates.episodeCount);
+		}
+		if (updates.chapterCount !== undefined) {
+			nextContent = this.updateTextField(nextContent, '话数', updates.chapterCount);
+		}
+		if (updates.volumeCount !== undefined) {
+			const hasVolumeField = this.extractTextField(nextContent, '卷数') !== null;
+			const hasBookVolumeField = this.extractTextField(nextContent, '册数') !== null;
+			if (hasVolumeField) {
+				nextContent = this.updateTextField(nextContent, '卷数', updates.volumeCount);
+			}
+			if (hasBookVolumeField || !hasVolumeField) {
+				nextContent = this.updateTextField(nextContent, '册数', updates.volumeCount);
+			}
+		}
+
+		return nextContent;
 	}
 
 	normalizeTags(tags: string[] | null | undefined): string[] {
@@ -1081,6 +1133,23 @@ export class IncrementalSync {
 		}
 
 		return prefix + frontmatter + suffix + bodyContent;
+	}
+
+	updateEpisodeSection(content: string, renderedEpisodes: string): string {
+		const normalizedContent = content.replace(/\r\n?/g, '\n');
+		const sectionRegex = /^## 集数\s*\n([\s\S]*?)(?=^##\s|\Z)/m;
+		const nextSectionContent = `## 集数\n\n${renderedEpisodes}`.trimEnd();
+
+		if (sectionRegex.test(normalizedContent)) {
+			return normalizedContent.replace(sectionRegex, `${nextSectionContent}\n\n`);
+		}
+
+		const recordsHeadingRegex = /^## 记录/m;
+		if (recordsHeadingRegex.test(normalizedContent)) {
+			return normalizedContent.replace(recordsHeadingRegex, `${nextSectionContent}\n\n## 记录`);
+		}
+
+		return `${normalizedContent.trimEnd()}\n\n${nextSectionContent}\n`;
 	}
 }
 

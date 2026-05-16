@@ -719,9 +719,14 @@ var en = {
     fieldTags: "Tags",
     fieldStatus: "Status",
     fieldEpisodeStatus: "Episode status",
+    fieldSerialState: "Serial state",
+    fieldEpisodeCount: "Episodes",
+    fieldChapterCount: "Chapters",
+    fieldVolumeCount: "Volumes",
     empty: "(empty)",
     keepLocal: "Keep local",
     keepCloud: "Keep cloud",
+    keepCloudOnly: "Use cloud",
     merge: "Merge",
     skip: "Skip",
     noDiff: "No differences",
@@ -729,6 +734,8 @@ var en = {
     allCloud: "All cloud",
     allSkip: "All skip",
     smartMerge: "Smart merge",
+    userDataGroup: "User data",
+    platformDataGroup: "Platform data",
     execute: "Execute sync",
     cancel: "Cancel",
     syncProgress: "Syncing...",
@@ -1300,9 +1307,14 @@ var zhCN = {
     fieldTags: "\u6807\u7B7E",
     fieldStatus: "\u72B6\u6001",
     fieldEpisodeStatus: "\u5355\u96C6\u72B6\u6001",
+    fieldSerialState: "\u8FDE\u8F7D\u72B6\u6001",
+    fieldEpisodeCount: "\u96C6\u6570",
+    fieldChapterCount: "\u8BDD\u6570",
+    fieldVolumeCount: "\u5377\u6570/\u518C\u6570",
     empty: "(\u7A7A)",
     keepLocal: "\u4FDD\u7559\u672C\u5730",
     keepCloud: "\u4FDD\u7559\u4E91\u7AEF",
+    keepCloudOnly: "\u4F7F\u7528\u4E91\u7AEF",
     merge: "\u5408\u5E76",
     skip: "\u8DF3\u8FC7",
     noDiff: "\u6CA1\u6709\u5DEE\u5F02",
@@ -1310,6 +1322,8 @@ var zhCN = {
     allCloud: "\u5168\u90E8\u4E91\u7AEF",
     allSkip: "\u5168\u90E8\u8DF3\u8FC7",
     smartMerge: "\u667A\u80FD\u5408\u5E76",
+    userDataGroup: "\u7528\u6237\u6570\u636E",
+    platformDataGroup: "\u5E73\u53F0\u6570\u636E",
     execute: "\u6267\u884C\u540C\u6B65",
     cancel: "\u53D6\u6D88",
     syncProgress: "\u6B63\u5728\u540C\u6B65...",
@@ -1586,6 +1600,10 @@ tags:
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u5C01\u9762: "{{cover}}"
+\u8FDE\u8F7D\u72B6\u6001: "{{status}}"
+\u5F00\u59CB: "{{start}}"
+\u7ED3\u675F: "{{end}}"
+\u8FDB\u5EA6: "{{progress}}"
 \u5F00\u64AD\u65F6\u95F4: "{{year}} \u5E74 {{month}} \u6708"
 \u96C6\u6570: "{{episode}}"
 \u52A8\u753B\u516C\u53F8: "{{animeMake}}"
@@ -1651,6 +1669,9 @@ tags:
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u4E66\u7CFB: "{{series}}"
+\u8FDE\u8F7D\u72B6\u6001: "{{status}}"
+\u5F00\u59CB: "{{start}}"
+\u7ED3\u675F: "{{end}}"
 \u8FDB\u5EA6: "{{progress}}"
 \u518C\u6570: "{{volumes}}"
 \u5C01\u9762: "{{cover}}"
@@ -1706,7 +1727,11 @@ tags:
 \u77ED\u8BC4: "{{my_comment}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
+\u8FDE\u8F7D\u72B6\u6001: "{{status}}"
+\u5F00\u59CB: "{{start}}"
+\u7ED3\u675F: "{{end}}"
 \u8BDD\u6570: "{{episode}}"
+\u5377\u6570: "{{volumes}}"
 \u8FDB\u5EA6: "{{progress}}"
 \u6742\u5FD7: "{{journal}}"
 \u4F5C\u8005: "{{author}}"{{#if staff}}
@@ -1892,6 +1917,10 @@ tags:
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 \u56FD\u5BB6: "{{country}}"
 \u8BED\u8A00: "{{language}}"
+\u8FDE\u8F7D\u72B6\u6001: "{{status}}"
+\u5F00\u59CB: "{{start}}"
+\u7ED3\u675F: "{{end}}"
+\u8FDB\u5EA6: "{{progress}}"
 \u96C6\u6570: "{{episode}}"
 \u6BCF\u96C6\u957F: "{{episodeLength}}"
 \u5BFC\u6F14: "{{director}}"
@@ -1960,6 +1989,10 @@ tags:
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u5C01\u9762: "{{cover}}"
+\u8FDE\u8F7D\u72B6\u6001: "{{status}}"
+\u5F00\u59CB: "{{start}}"
+\u7ED3\u675F: "{{end}}"
+\u8FDB\u5EA6: "{{progress}}"
 \u5F00\u64AD\u65F6\u95F4: "{{year}} \u5E74 {{month}} \u6708"
 \u96C6\u6570: "{{episode}}"
 \u52A8\u753B\u516C\u53F8: "{{animeMake}}"
@@ -2044,6 +2077,9 @@ Kindle: false
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
 \u4E66\u7CFB: "{{series}}"
+\u8FDE\u8F7D\u72B6\u6001: "{{status}}"
+\u5F00\u59CB: "{{start}}"
+\u7ED3\u675F: "{{end}}"
 \u8FDB\u5EA6: "{{progress}}"
 \u518C\u6570: "{{volumes}}"
 \u5C01\u9762: "{{cover}}"
@@ -2117,7 +2153,11 @@ Kindle: false
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 Bangumi\u8BC4\u5206: "{{rating}}"
 Bangumi\u94FE\u63A5: "{{bangumi_url}}"
+\u8FDE\u8F7D\u72B6\u6001: "{{status}}"
+\u5F00\u59CB: "{{start}}"
+\u7ED3\u675F: "{{end}}"
 \u8BDD\u6570: "{{episode}}"
+\u5377\u6570: "{{volumes}}"
 \u8FDB\u5EA6: "{{progress}}"
 \u6742\u5FD7: "{{journal}}"
 \u4F5C\u8005: "[[{{author}}]]"{{#if staff}}
@@ -2310,6 +2350,10 @@ tags:
 \u5177\u4F53\u7C7B\u578B: "{{category}}"
 \u56FD\u5BB6: "{{country}}"
 \u8BED\u8A00: "{{language}}"
+\u8FDE\u8F7D\u72B6\u6001: "{{status}}"
+\u5F00\u59CB: "{{start}}"
+\u7ED3\u675F: "{{end}}"
+\u8FDB\u5EA6: "{{progress}}"
 \u96C6\u6570: "{{episode}}"
 \u6BCF\u96C6\u957F: "{{episodeLength}}"
 \u5BFC\u6F14: "[[{{director}}]]"
@@ -4127,6 +4171,96 @@ var ImageHandler = class {
 
 // src/sync/incrementalSync.ts
 var import_obsidian6 = require("obsidian");
+
+// src/comment/shortComment.ts
+var SHORT_COMMENT_HEADER = /^> \[!abstract\]\+\s*\*\*短评\*\*\s*$/;
+var CALLOUT_HEADER = /^> \[![^\]]+\]/;
+var MARKDOWN_HEADING = /^#{1,6}\s+/;
+var FRONTMATTER_FENCE = /^---\s*$/;
+function isCalloutHeader(line) {
+  return CALLOUT_HEADER.test(line);
+}
+function findShortCommentBlock(content) {
+  const normalizedContent = content.replace(/\r\n?/g, "\n");
+  const lines = normalizedContent.split("\n");
+  const headerIndex = lines.findIndex((line) => SHORT_COMMENT_HEADER.test(line));
+  if (headerIndex === -1) {
+    return null;
+  }
+  let endIndex = headerIndex + 1;
+  while (endIndex < lines.length) {
+    const line = lines[endIndex];
+    if (isCalloutHeader(line) || MARKDOWN_HEADING.test(line) || FRONTMATTER_FENCE.test(line)) {
+      break;
+    }
+    endIndex++;
+  }
+  while (endIndex > headerIndex + 1 && lines[endIndex - 1].trim() === "") {
+    endIndex--;
+  }
+  const start = lines.slice(0, headerIndex).join("\n").length + (headerIndex > 0 ? 1 : 0);
+  const end = lines.slice(0, endIndex).join("\n").length + (endIndex < lines.length ? 1 : 0);
+  return {
+    start,
+    end,
+    lines: lines.slice(headerIndex, endIndex)
+  };
+}
+function normalizeShortComment(comment) {
+  if (!comment) {
+    return null;
+  }
+  const normalized = comment.replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ").split("\n\n").map((para) => para.split("\n").map((line) => line.replace(/\s+$/g, "").trim()).join("\n").replace(/\n/g, "\n\n")).join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
+  return normalized.length > 0 ? normalized : null;
+}
+function extractShortComment(content) {
+  const block = findShortCommentBlock(content);
+  if (!block) {
+    return null;
+  }
+  const bodyLines = block.lines.slice(1).map((line) => {
+    if (/^>\s?/.test(line)) {
+      return line.replace(/^>\s?/, "");
+    }
+    return line.replace(/\s+$/g, "");
+  });
+  return normalizeShortComment(bodyLines.join("\n"));
+}
+function updateShortComment(content, newComment) {
+  const normalizedComment = normalizeShortComment(newComment);
+  if (!normalizedComment) {
+    return removeShortComment(content);
+  }
+  const newCommentLines = normalizedComment.split("\n").map((line) => line.length > 0 ? `> ${line}` : ">");
+  const newCommentBlock = ["> [!abstract]+ **\u77ED\u8BC4**", ...newCommentLines].join("\n");
+  const block = findShortCommentBlock(content);
+  if (block) {
+    return content.slice(0, block.start) + newCommentBlock + content.slice(block.end);
+  }
+  const introMatch = content.match(/^> \[!abstract\]\+\s*\*\*简介\*\*/m);
+  if (introMatch && introMatch.index !== void 0) {
+    return content.slice(0, introMatch.index) + newCommentBlock + "\n\n" + content.slice(introMatch.index);
+  }
+  const frontmatterEnd = content.indexOf("---", 3);
+  if (frontmatterEnd !== -1) {
+    const afterFrontmatter = content.substring(frontmatterEnd + 3).trimStart();
+    return content.substring(0, frontmatterEnd + 3) + "\n\n" + newCommentBlock + "\n\n" + afterFrontmatter;
+  }
+  return `${newCommentBlock}
+
+${content}`;
+}
+function removeShortComment(content) {
+  const block = findShortCommentBlock(content);
+  if (!block) {
+    return content;
+  }
+  let updated = content.slice(0, block.start) + content.slice(block.end);
+  updated = updated.replace(/\n{3,}/g, "\n\n");
+  return updated;
+}
+
+// src/sync/incrementalSync.ts
 var IncrementalSync = class {
   constructor(app) {
     this.localSubjects = /* @__PURE__ */ new Map();
@@ -4489,107 +4623,23 @@ var IncrementalSync = class {
    * 短评格式: > [!abstract]+ **短评**\n> {comment}
    */
   extractComment(content) {
-    const block = this.findCommentBlock(content);
-    if (!block) {
-      return null;
-    }
-    const bodyLines = block.lines.slice(1).map((line) => {
-      if (/^>\s?/.test(line)) {
-        return line.replace(/^>\s?/, "");
-      }
-      return line.trim();
-    });
-    return this.normalizeComment(bodyLines.join("\n"));
+    return extractShortComment(content);
   }
   /**
    * 更新正文中的短评
    * 如果短评不存在，在简介之前插入
    */
   updateComment(content, newComment) {
-    const normalizedComment = this.normalizeComment(newComment);
-    if (!normalizedComment) {
-      return this.removeComment(content);
-    }
-    const newCommentLines = normalizedComment.split("\n").map((line) => line.length > 0 ? `> ${line}` : ">");
-    const newCommentBlock = ["> [!abstract]+ **\u77ED\u8BC4**", ...newCommentLines].join("\n");
-    const block = this.findCommentBlock(content);
-    if (block) {
-      return content.slice(0, block.start) + newCommentBlock + content.slice(block.end);
-    }
-    const introMatch = content.match(/^> \[!abstract\]\+\s*\*\*简介\*\*/m);
-    if (introMatch && introMatch.index !== void 0) {
-      return content.slice(0, introMatch.index) + newCommentBlock + "\n\n" + content.slice(introMatch.index);
-    }
-    const frontmatterEnd = content.indexOf("---", 3);
-    if (frontmatterEnd !== -1) {
-      const afterFrontmatter = content.substring(frontmatterEnd + 3).trimStart();
-      return content.substring(0, frontmatterEnd + 3) + "\n\n" + newCommentBlock + "\n\n" + afterFrontmatter;
-    }
-    return `${newCommentBlock}
-
-${content}`;
+    return updateShortComment(content, newComment);
   }
   /**
    * 删除正文中的短评 callout
    */
   removeComment(content) {
-    const block = this.findCommentBlock(content);
-    if (!block) {
-      return content;
-    }
-    let updated = content.slice(0, block.start) + content.slice(block.end);
-    updated = updated.replace(/\n{3,}/g, "\n\n");
-    return updated;
+    return removeShortComment(content);
   }
   normalizeComment(comment) {
-    if (!comment) {
-      return null;
-    }
-    const normalized = comment.replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ").split("\n\n").map((para) => para.split("\n").map((line) => line.replace(/\s+$/g, "").trim()).join("\n").replace(/\n/g, "\n\n")).join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
-    return normalized.length > 0 ? normalized : null;
-  }
-  findCommentBlock(content) {
-    const normalizedContent = content.replace(/\r\n?/g, "\n");
-    const lines = normalizedContent.split("\n");
-    const headerIndex = lines.findIndex((line) => /^> \[!abstract\]\+\s*\*\*短评\*\*\s*$/.test(line));
-    if (headerIndex === -1) {
-      return null;
-    }
-    let endIndex = headerIndex + 1;
-    while (endIndex < lines.length) {
-      const line = lines[endIndex];
-      if (this.isCalloutHeader(line)) {
-        break;
-      }
-      if (/^> ?/.test(line)) {
-        endIndex++;
-      } else if (line.trim() === "") {
-        let nextNonEmpty = endIndex + 1;
-        while (nextNonEmpty < lines.length && lines[nextNonEmpty].trim() === "") {
-          nextNonEmpty++;
-        }
-        if (nextNonEmpty < lines.length && /^> ?/.test(lines[nextNonEmpty]) && !this.isCalloutHeader(lines[nextNonEmpty])) {
-          endIndex = nextNonEmpty + 1;
-        } else {
-          break;
-        }
-      } else {
-        break;
-      }
-    }
-    while (endIndex > headerIndex + 1 && lines[endIndex - 1].trim() === "") {
-      endIndex--;
-    }
-    const start = lines.slice(0, headerIndex).join("\n").length + (headerIndex > 0 ? 1 : 0);
-    const end = lines.slice(0, endIndex).join("\n").length + (endIndex < lines.length ? 1 : 0);
-    return {
-      start,
-      end,
-      lines: lines.slice(headerIndex, endIndex)
-    };
-  }
-  isCalloutHeader(line) {
-    return /^> \[![^\]]+\]/.test(line);
+    return normalizeShortComment(comment);
   }
   /**
    * 从 frontmatter 中提取标签
@@ -4660,6 +4710,70 @@ ${content}`;
     const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
     return frontmatterMatch ? frontmatterMatch[1] : null;
   }
+  extractTextField(content, fieldNames) {
+    const frontmatter = this.extractFrontmatter(content);
+    if (!frontmatter) {
+      return null;
+    }
+    const names = Array.isArray(fieldNames) ? fieldNames : [fieldNames];
+    for (const fieldName of names) {
+      const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const fieldRegex = new RegExp(`^${escapedName}:\\s*(.*)$`, "m");
+      const match = frontmatter.match(fieldRegex);
+      if (!match) {
+        continue;
+      }
+      const rawValue = match[1].trim();
+      if (!rawValue) {
+        return null;
+      }
+      const unquoted = rawValue.replace(/^["']|["']$/g, "").trim();
+      return unquoted.length > 0 ? unquoted : null;
+    }
+    return null;
+  }
+  extractNumberField(content, fieldNames) {
+    const value = this.extractTextField(content, fieldNames);
+    if (!value) {
+      return null;
+    }
+    const numberMatch = value.match(/\d+/);
+    if (!numberMatch) {
+      return null;
+    }
+    const parsed = parseInt(numberMatch[0], 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  extractLocalPlatformSyncContext(content) {
+    return {
+      serialStatus: this.extractTextField(content, "\u8FDE\u8F7D\u72B6\u6001"),
+      progress: this.extractTextField(content, "\u8FDB\u5EA6"),
+      start: this.extractTextField(content, "\u5F00\u59CB"),
+      end: this.extractTextField(content, "\u7ED3\u675F"),
+      episodeCount: this.extractNumberField(content, "\u96C6\u6570"),
+      chapterCount: this.extractNumberField(content, "\u8BDD\u6570"),
+      volumeCount: this.extractNumberField(content, ["\u5377\u6570", "\u518C\u6570"])
+    };
+  }
+  isPlatformDataCandidate(context) {
+    if (this.isCompletedSerialState(context.serialStatus)) {
+      return false;
+    }
+    if (context.end && context.end.trim().length > 0) {
+      return false;
+    }
+    if (this.isCompletedSerialState(context.progress)) {
+      return false;
+    }
+    return true;
+  }
+  isCompletedSerialState(value) {
+    if (!value) {
+      return false;
+    }
+    const normalized = value.replace(/\s+/g, "");
+    return /(已完结|完结|已结束|放送结束|已完播|全\d+(话|集|卷)|完)/.test(normalized);
+  }
   findYamlListBlock(lines, key) {
     const start = lines.findIndex((line) => new RegExp(`^${key}:\\s*$`).test(line));
     if (start === -1) {
@@ -4692,6 +4806,62 @@ ${content}`;
       return [...lines.slice(0, inlineIndex), ...lines.slice(inlineIndex + 1)];
     }
     return lines;
+  }
+  updateTextField(content, fieldName, value) {
+    const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+    if (!frontmatterMatch) {
+      return content;
+    }
+    const prefix = frontmatterMatch[1];
+    let frontmatter = frontmatterMatch[2];
+    const suffix = frontmatterMatch[3];
+    const bodyContent = frontmatterMatch[4];
+    const escapedName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const fieldRegex = new RegExp(`^${escapedName}:.*$`, "m");
+    if (value === null || value === void 0 || String(value).trim() === "") {
+      frontmatter = frontmatter.replace(fieldRegex, "").replace(/\n{3,}/g, "\n\n").trim();
+      return prefix + frontmatter + suffix + bodyContent;
+    }
+    const nextLine = `${fieldName}: "${String(value).replace(/"/g, '\\"')}"`;
+    if (fieldRegex.test(frontmatter)) {
+      frontmatter = frontmatter.replace(fieldRegex, nextLine);
+    } else {
+      frontmatter = `${frontmatter}
+${nextLine}`;
+    }
+    return prefix + frontmatter + suffix + bodyContent;
+  }
+  updatePlatformMetadata(content, updates) {
+    let nextContent = content;
+    if (updates.serialStatus !== void 0) {
+      nextContent = this.updateTextField(nextContent, "\u8FDE\u8F7D\u72B6\u6001", updates.serialStatus);
+    }
+    if (updates.progress !== void 0) {
+      nextContent = this.updateTextField(nextContent, "\u8FDB\u5EA6", updates.progress);
+    }
+    if (updates.start !== void 0) {
+      nextContent = this.updateTextField(nextContent, "\u5F00\u59CB", updates.start);
+    }
+    if (updates.end !== void 0) {
+      nextContent = this.updateTextField(nextContent, "\u7ED3\u675F", updates.end);
+    }
+    if (updates.episodeCount !== void 0) {
+      nextContent = this.updateTextField(nextContent, "\u96C6\u6570", updates.episodeCount);
+    }
+    if (updates.chapterCount !== void 0) {
+      nextContent = this.updateTextField(nextContent, "\u8BDD\u6570", updates.chapterCount);
+    }
+    if (updates.volumeCount !== void 0) {
+      const hasVolumeField = this.extractTextField(nextContent, "\u5377\u6570") !== null;
+      const hasBookVolumeField = this.extractTextField(nextContent, "\u518C\u6570") !== null;
+      if (hasVolumeField) {
+        nextContent = this.updateTextField(nextContent, "\u5377\u6570", updates.volumeCount);
+      }
+      if (hasBookVolumeField || !hasVolumeField) {
+        nextContent = this.updateTextField(nextContent, "\u518C\u6570", updates.volumeCount);
+      }
+    }
+    return nextContent;
   }
   normalizeTags(tags) {
     if (!tags) {
@@ -4943,6 +5113,28 @@ ${allLinks.map((l) => `  - "${l}"`).join("\n")}` : "\u76F8\u5173:";
     }
     return prefix + frontmatter + suffix + bodyContent;
   }
+  updateEpisodeSection(content, renderedEpisodes) {
+    const normalizedContent = content.replace(/\r\n?/g, "\n");
+    const sectionRegex = /^## 集数\s*\n([\s\S]*?)(?=^##\s|\Z)/m;
+    const nextSectionContent = `## \u96C6\u6570
+
+${renderedEpisodes}`.trimEnd();
+    if (sectionRegex.test(normalizedContent)) {
+      return normalizedContent.replace(sectionRegex, `${nextSectionContent}
+
+`);
+    }
+    const recordsHeadingRegex = /^## 记录/m;
+    if (recordsHeadingRegex.test(normalizedContent)) {
+      return normalizedContent.replace(recordsHeadingRegex, `${nextSectionContent}
+
+## \u8BB0\u5F55`);
+    }
+    return `${normalizedContent.trimEnd()}
+
+${nextSectionContent}
+`;
+  }
 };
 
 // common/parser/characterParser.ts
@@ -5100,6 +5292,8 @@ function parseAnimeInfo(infobox, platform, persons) {
   } else {
     category = getInfoboxValue(infobox, "\u7C7B\u578B") || "";
   }
+  const start = getInfoboxValue(infobox, "\u653E\u9001\u5F00\u59CB", ["\u5F00\u59CB"]);
+  const end = getInfoboxValue(infobox, "\u653E\u9001\u7ED3\u675F", ["\u7ED3\u675F"]);
   return {
     category,
     episode: getInfoboxNumber(infobox, "\u8BDD\u6570"),
@@ -5112,7 +5306,11 @@ function parseAnimeInfo(infobox, platform, persons) {
     artDirector: getInfoboxValue(infobox, "\u7F8E\u672F\u76D1\u7763", ["\u7F8E\u672F"]),
     animeChief: getInfoboxValue(infobox, "\u603B\u4F5C\u753B\u76D1\u7763", ["\u4F5C\u753B\u76D1\u7763"]),
     from: getInfoboxValue(infobox, "\u539F\u4F5C", ["\u539F\u6848"]),
-    website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"])
+    website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"]),
+    status: end ? "\u5DF2\u5B8C\u7ED3" : start ? "\u8FDE\u8F7D\u4E2D" : "",
+    progress: start ? `${start} - ${end || "\u8FDE\u8F7D\u4E2D"}` : void 0,
+    start,
+    end
   };
 }
 function extractAnimeMakeFromCopyright(infobox) {
@@ -5201,6 +5399,7 @@ function parseComicInfo(infobox) {
   const author = getInfoboxValue(infobox, "\u4F5C\u8005", ["\u539F\u4F5C"]);
   const start = getInfoboxValue(infobox, "\u5F00\u59CB", ["\u8FDE\u8F7D\u5F00\u59CB"]);
   const end = getInfoboxValue(infobox, "\u7ED3\u675F", ["\u8FDE\u8F7D\u7ED3\u675F"]);
+  const volumes = getNumberFromVersion(infobox, "\u7248\u672C", "\u518C\u6570") || getInfoboxNumber(infobox, "\u518C\u6570", ["\u5377\u6570"]);
   return {
     category: getInfoboxValue(infobox, "\u7C7B\u578B") || "\u6F2B\u753B",
     author,
@@ -5208,6 +5407,7 @@ function parseComicInfo(infobox) {
     publish: getInfoboxValue(infobox, "\u51FA\u7248\u793E"),
     journal: getInfoboxValue(infobox, "\u8FDE\u8F7D\u6742\u5FD7", ["\u8FDE\u8F7D"]),
     episode: getInfoboxNumber(infobox, "\u8BDD\u6570", ["\u518C\u6570"]),
+    volumes,
     status: end ? "\u5DF2\u5B8C\u7ED3" : "\u8FDE\u8F7D\u4E2D",
     progress: start ? `${start} - ${end || "\u8FDE\u8F7D\u4E2D"}` : void 0,
     start,
@@ -5242,6 +5442,8 @@ function parseAlbumInfo(infobox, platform) {
   };
 }
 function parseRealInfo(infobox, platform) {
+  const start = getInfoboxValue(infobox, "\u653E\u9001\u5F00\u59CB", ["\u5F00\u59CB"]);
+  const end = getInfoboxValue(infobox, "\u653E\u9001\u7ED3\u675F", ["\u7ED3\u675F"]);
   return {
     category: platform || "\u4E09\u6B21\u5143",
     director: getInfoboxValue(infobox, "\u5BFC\u6F14", ["\u76D1\u7763"]),
@@ -5253,7 +5455,11 @@ function parseRealInfo(infobox, platform) {
     episodeLength: getInfoboxValue(infobox, "\u6BCF\u96C6\u957F", ["\u5355\u96C6\u7247\u957F", "\u7247\u957F"]),
     tvStation: getInfoboxValue(infobox, "\u7535\u89C6\u53F0", ["\u64AD\u653E\u7535\u89C6\u53F0", "\u7F51\u7EDC"]),
     website: getWebsiteValue(infobox, ["\u5B98\u65B9\u7F51\u7AD9", "\u5B98\u7F51", "\u7F51\u7AD9", "\u94FE\u63A5"]),
-    imdbId: getInfoboxValue(infobox, "imdb_id", ["IMDb"])
+    imdbId: getInfoboxValue(infobox, "imdb_id", ["IMDb"]),
+    status: end ? "\u5DF2\u5B8C\u7ED3" : start ? "\u8FDE\u8F7D\u4E2D" : "",
+    progress: start ? `${start} - ${end || "\u8FDE\u8F7D\u4E2D"}` : void 0,
+    start,
+    end
   };
 }
 function parseInfoByType(infobox, subjectType, platform, persons) {
@@ -5932,33 +6138,7 @@ var UserDataExtractor = class {
     return typeof value === "string" && value.trim() ? value.trim() : void 0;
   }
   extractComment(content) {
-    const normalizedContent = content.replace(/\r\n?/g, "\n");
-    const lines = normalizedContent.split("\n");
-    const headerIndex = lines.findIndex((line) => /^> \[!abstract\]\+\s*\*\*短评\*\*\s*$/.test(line));
-    if (headerIndex === -1) {
-      return null;
-    }
-    const commentLines = [];
-    for (let i = headerIndex + 1; i < lines.length; i++) {
-      const line = lines[i];
-      if (this.isCalloutHeader(line) || /^##\s+/.test(line)) {
-        break;
-      }
-      if (line.startsWith("> ")) {
-        commentLines.push(line.slice(2));
-      } else if (line.trim() === ">") {
-        commentLines.push("");
-      } else if (line.trim() === "") {
-        commentLines.push("");
-      } else {
-        break;
-      }
-    }
-    const comment = commentLines.join("\n").trim();
-    return comment || null;
-  }
-  isCalloutHeader(line) {
-    return /^> \[![^\]]+\]/.test(line);
+    return extractShortComment(content);
   }
 };
 
@@ -11240,6 +11420,8 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       icons.push("\u{1F4CA}");
     if (diff.episodeStatus.hasDiff)
       icons.push("\u{1F39E}\uFE0F");
+    if (diff.hasPlatformDiff)
+      icons.push("\u{1F4DA}");
     if (icons.length > 0) {
       el.createSpan({ text: " " + icons.join(""), cls: "bangumi-diff-icons" });
     }
@@ -11259,6 +11441,11 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       fields.push(tn("statusSyncModal", "fieldStatus"));
     if (diff.episodeStatus.hasDiff)
       fields.push(tn("statusSyncModal", "fieldEpisodeStatus"));
+    for (const platformField of diff.platformFields) {
+      if (platformField.hasDiff) {
+        fields.push(platformField.label);
+      }
+    }
     return fields;
   }
   /**
@@ -11273,6 +11460,9 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     headerRow.createEl("th", { text: tn("statusSyncModal", "cloud") });
     headerRow.createEl("th", { text: tn("statusSyncModal", "decision") });
     const tbody = detailTable.createEl("tbody");
+    if (diff.hasUserDiff) {
+      this.renderSectionHeader(tbody, tn("statusSyncModal", "userDataGroup"));
+    }
     if (diff.rate.hasDiff) {
       this.renderFieldRow(
         tbody,
@@ -11328,6 +11518,14 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         false
       );
     }
+    if (diff.hasPlatformDiff) {
+      this.renderSectionHeader(tbody, tn("statusSyncModal", "platformDataGroup"));
+      diff.platformFields.filter((field) => field.hasDiff).forEach((field) => this.renderPlatformFieldRow(tbody, field, index));
+    }
+  }
+  renderSectionHeader(tbody, text) {
+    const row = tbody.createEl("tr", { cls: "bangumi-detail-section-row" });
+    row.createEl("td", { text, attr: { colspan: "4" }, cls: "bangumi-field-name" });
   }
   /**
    * 渲染单个字段行
@@ -11348,6 +11546,23 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     select.value = this.diffs[diffIndex][fieldKey].decision;
     select.addEventListener("change", () => {
       this.diffs[diffIndex][fieldKey].decision = select.value;
+    });
+  }
+  renderPlatformFieldRow(tbody, field, diffIndex) {
+    const row = tbody.createEl("tr");
+    row.createEl("td", { text: field.label, cls: "bangumi-field-name" });
+    row.createEl("td", { text: field.localValue || tn("statusSyncModal", "empty"), cls: "bangumi-local-value bangumi-sync-value" });
+    row.createEl("td", { text: field.cloudValue || tn("statusSyncModal", "empty"), cls: "bangumi-cloud-value bangumi-sync-value" });
+    const decisionCell = row.createEl("td");
+    const select = decisionCell.createEl("select", { cls: "bangumi-sync-decision-select" });
+    select.createEl("option", { value: "skip", text: tn("statusSyncModal", "skip") });
+    select.createEl("option", { value: "cloud", text: tn("statusSyncModal", "keepCloudOnly") });
+    select.value = field.decision;
+    select.addEventListener("change", () => {
+      const platformField = this.diffs[diffIndex].platformFields.find((item) => item.key === field.key);
+      if (platformField) {
+        platformField.decision = select.value;
+      }
     });
   }
   /**
@@ -11372,6 +11587,9 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       diff.tags.decision = decision;
       diff.status.decision = decision;
       diff.episodeStatus.decision = decision === "merge" ? "skip" : decision;
+      diff.platformFields.forEach((field) => {
+        field.decision = decision === "cloud" || decision === "merge" ? "cloud" : "skip";
+      });
     });
     this.renderTable();
   }
@@ -11419,6 +11637,11 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
           diff.episodeStatus.decision = "local";
         }
       }
+      diff.platformFields.forEach((field) => {
+        if (field.hasDiff) {
+          field.decision = "cloud";
+        }
+      });
     });
     this.renderTable();
   }
@@ -11507,9 +11730,6 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         content = this.incrementalSync.updateStatus(content, diff.status.cloudValue, diff.statusFieldName);
       }
     }
-    if (content !== originalContent) {
-      await this.app.vault.process(file, () => content);
-    }
     if (Object.keys(cloudUpdates).length > 0) {
       const fallbackType = this.toValidCollectionType(diff.collection.type);
       const finalUpdates = {
@@ -11519,6 +11739,10 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       await this.syncCloudUpdates(diff.subjectId, finalUpdates);
     }
     if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== "skip" && this.episodeStatusManager) {
+      if (content !== originalContent) {
+        await this.app.vault.process(file, () => content);
+        content = await this.app.vault.read(file);
+      }
       if (diff.episodeStatus.decision === "local") {
         const result = await this.episodeStatusManager.syncStatusToCloud(file);
         if (result.failed > 0 && result.success === 0) {
@@ -11529,9 +11753,50 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         if (!synced) {
           throw new Error("\u5355\u96C6\u72B6\u6001\u4ECE\u4E91\u7AEF\u540C\u6B65\u5931\u8D25");
         }
+        content = await this.app.vault.read(file);
       }
     }
+    if (diff.hasPlatformDiff && diff.platformFields.some((field) => field.hasDiff && field.decision === "cloud")) {
+      content = await this.applyPlatformSync(diff, file, content);
+    }
+    if (content !== originalContent) {
+      await this.app.vault.process(file, () => content);
+    }
     console.debug(`[Bangumi Sync] \u5DF2\u540C\u6B65: ${diff.name_cn}`);
+  }
+  async applyPlatformSync(diff, file, content) {
+    var _a;
+    if (!diff.platformSyncPayload) {
+      return content;
+    }
+    let nextContent = this.incrementalSync.updatePlatformMetadata(content, diff.platformSyncPayload);
+    if (diff.collection.subject_type !== 2 /* Anime */ && diff.collection.subject_type !== 6 /* Real */) {
+      return nextContent;
+    }
+    const shouldRefreshEpisodeSection = diff.platformFields.some(
+      (field) => field.decision === "cloud" && field.key === "episodeCount"
+    );
+    if (!shouldRefreshEpisodeSection) {
+      return nextContent;
+    }
+    const episodesResult = await this.client.getEpisodes(diff.subjectId);
+    const episodes = (_a = episodesResult == null ? void 0 : episodesResult.data) != null ? _a : [];
+    if (episodes.length === 0) {
+      return nextContent;
+    }
+    const statusMap = /* @__PURE__ */ new Map();
+    if (this.episodeStatusManager) {
+      const localStatuses = await this.episodeStatusManager.getEpisodeStatusMap(file);
+      for (const entry of localStatuses.values()) {
+        statusMap.set(entry.episodeId, entry.status);
+      }
+    }
+    const renderedEpisodes = parseEpisodes(episodes, statusMap);
+    if (!renderedEpisodes) {
+      return nextContent;
+    }
+    nextContent = this.incrementalSync.updateEpisodeSection(nextContent, renderedEpisodes);
+    return nextContent;
   }
   toValidCollectionType(value) {
     if (value === 1 /* Wish */ || value === 2 /* Done */ || value === 3 /* Doing */ || value === 4 /* OnHold */ || value === 5 /* Dropped */) {
@@ -12492,7 +12757,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
   }
   /**
    * 同步状态
-   * 统一对比本地与云端用户数据（评分、短评、标签、状态）
+   * 用户数据对全部条目对比；平台数据仅对本地未明确已完结的条目对比
    */
   async syncStatus() {
     const syncedCollections = this.state.collections.filter(
@@ -12536,6 +12801,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
             decision: "skip"
           };
         }
+        const platformFields = await this.buildPlatformFieldDiffs(collection, content);
         const diff = this.buildStatusSyncDiff(
           collection,
           localInfo,
@@ -12548,7 +12814,9 @@ var ControlPanel = class extends import_obsidian20.Modal {
           cloudTags,
           localStatus,
           cloudStatus,
-          episodeStatusDiff
+          episodeStatusDiff,
+          platformFields.fields,
+          platformFields.payload
         );
         if (diff.hasAnyDiff) {
           diffs.push(diff);
@@ -12581,7 +12849,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
   /**
    * 构建状态同步差异对象
    */
-  buildStatusSyncDiff(collection, localInfo, statusFieldName, localRate, cloudRate, localComment, cloudComment, localTags, cloudTags, localStatus, cloudStatus, episodeStatus) {
+  buildStatusSyncDiff(collection, localInfo, statusFieldName, localRate, cloudRate, localComment, cloudComment, localTags, cloudTags, localStatus, cloudStatus, episodeStatus, platformFields, platformSyncPayload) {
     const rateDiff = {
       localValue: localRate,
       cloudValue: cloudRate,
@@ -12611,7 +12879,9 @@ var ControlPanel = class extends import_obsidian20.Modal {
       hasDiff: localStatus !== cloudStatus,
       decision: "skip"
     };
-    const hasAnyDiff = rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff || episodeStatus.hasDiff;
+    const hasUserDiff = rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff || episodeStatus.hasDiff;
+    const hasPlatformDiff = platformFields.some((field) => field.hasDiff);
+    const hasAnyDiff = hasUserDiff || hasPlatformDiff;
     return {
       subjectId: collection.subject_id,
       name_cn: collection.subject.name_cn || "",
@@ -12624,8 +12894,100 @@ var ControlPanel = class extends import_obsidian20.Modal {
       tags: tagsDiff,
       status: statusDiff,
       episodeStatus,
+      platformFields,
+      platformSyncPayload,
+      hasUserDiff,
+      hasPlatformDiff,
       hasAnyDiff,
       expanded: false
+    };
+  }
+  async buildPlatformFieldDiffs(collection, content) {
+    if (collection.subject_type !== 2 /* Anime */ && collection.subject_type !== 6 /* Real */ && collection.subject_type !== 1 /* Book */) {
+      return { fields: [] };
+    }
+    const localContext = this.incrementalSync.extractLocalPlatformSyncContext(content);
+    if (!this.incrementalSync.isPlatformDataCandidate(localContext)) {
+      return { fields: [] };
+    }
+    const subject = await this.client.getSubject(collection.subject_id);
+    const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+    const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
+    const fields = [];
+    if (cloudPayload.serialStatus && localContext.serialStatus !== cloudPayload.serialStatus) {
+      fields.push({
+        key: "serialState",
+        label: tn("statusSyncModal", "fieldSerialState"),
+        localValue: localContext.serialStatus,
+        cloudValue: cloudPayload.serialStatus,
+        hasDiff: true,
+        decision: "skip"
+      });
+    }
+    if (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */) {
+      const cloudValue = cloudPayload.episodeCount;
+      if (cloudValue !== void 0 && cloudValue !== null && localContext.episodeCount !== cloudValue) {
+        fields.push({
+          key: "episodeCount",
+          label: tn("statusSyncModal", "fieldEpisodeCount"),
+          localValue: localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
+          cloudValue: String(cloudValue),
+          hasDiff: true,
+          decision: "skip"
+        });
+      }
+    }
+    if (collection.subject_type === 1 /* Book */) {
+      const isComic = (parsedInfo.category || "").includes("\u6F2B\u753B") || localContext.chapterCount !== null;
+      if (isComic) {
+        if (cloudPayload.chapterCount !== void 0 && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
+          fields.push({
+            key: "chapterCount",
+            label: tn("statusSyncModal", "fieldChapterCount"),
+            localValue: localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
+            cloudValue: String(cloudPayload.chapterCount),
+            hasDiff: true,
+            decision: "skip"
+          });
+        }
+        if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+          fields.push({
+            key: "volumeCount",
+            label: tn("statusSyncModal", "fieldVolumeCount"),
+            localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+            cloudValue: String(cloudPayload.volumeCount),
+            hasDiff: true,
+            decision: "skip"
+          });
+        }
+      } else if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+        fields.push({
+          key: "volumeCount",
+          label: tn("statusSyncModal", "fieldVolumeCount"),
+          localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+          cloudValue: String(cloudPayload.volumeCount),
+          hasDiff: true,
+          decision: "skip"
+        });
+      }
+    }
+    return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
+  }
+  buildPlatformSyncPayload(subject, parsedInfo) {
+    const episodeCount = subject.total_episodes || subject.eps || parsedInfo.episode || null;
+    const volumeCount = subject.volumes || parsedInfo.volumes || null;
+    const serialStatus = parsedInfo.status || null;
+    const start = parsedInfo.start || null;
+    const end = parsedInfo.end || null;
+    const progress = parsedInfo.progress || null;
+    return {
+      serialStatus,
+      progress,
+      start,
+      end,
+      episodeCount,
+      chapterCount: parsedInfo.episode || null,
+      volumeCount
     };
   }
   async buildEpisodeStatusDiff(file, subjectId, subjectType) {

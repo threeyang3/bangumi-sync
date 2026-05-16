@@ -5,11 +5,12 @@
  */
 
 import { App, Modal, Notice, TFile } from 'obsidian';
-import { UserCollection, CollectionType, getCollectionStatusLabel } from '../../common/api/types';
+import { UserCollection, CollectionType, Episode, SubjectType, getCollectionStatusLabel } from '../../common/api/types';
 import { BangumiClient } from '../api/client';
 import { IncrementalSync } from '../sync/incrementalSync';
 import { EpisodeStatusManager } from '../episode/episodeStatusManager';
 import { tn } from '../i18n';
+import { parseEpisodes } from '../../common/parser/episodeParser';
 
 /**
  * 字段决策类型
@@ -24,6 +25,28 @@ export interface FieldDiff<T> {
 	cloudValue: T | null;
 	hasDiff: boolean;
 	decision: FieldDecision;
+}
+
+export type PlatformFieldKey = 'episodeCount' | 'chapterCount' | 'volumeCount' | 'serialState';
+export type PlatformFieldDecision = 'cloud' | 'skip';
+
+export interface PlatformFieldDiff {
+	key: PlatformFieldKey;
+	label: string;
+	localValue: string | null;
+	cloudValue: string | null;
+	hasDiff: boolean;
+	decision: PlatformFieldDecision;
+}
+
+export interface PlatformSyncPayload {
+	serialStatus?: string | null;
+	progress?: string | null;
+	start?: string | null;
+	end?: string | null;
+	episodeCount?: number | null;
+	chapterCount?: number | null;
+	volumeCount?: number | null;
 }
 
 /**
@@ -41,6 +64,10 @@ export interface StatusSyncDiff {
 	tags: FieldDiff<string[]>;
 	status: FieldDiff<number>;
 	episodeStatus: FieldDiff<string>;
+	platformFields: PlatformFieldDiff[];
+	platformSyncPayload?: PlatformSyncPayload;
+	hasUserDiff: boolean;
+	hasPlatformDiff: boolean;
 	hasAnyDiff: boolean;
 	expanded: boolean;
 }
@@ -195,6 +222,7 @@ export class StatusSyncModal extends Modal {
 		if (diff.tags.hasDiff) icons.push('🏷️');
 		if (diff.status.hasDiff) icons.push('📊');
 		if (diff.episodeStatus.hasDiff) icons.push('🎞️');
+		if (diff.hasPlatformDiff) icons.push('📚');
 		if (icons.length > 0) {
 			el.createSpan({ text: ' ' + icons.join(''), cls: 'bangumi-diff-icons' });
 		}
@@ -210,6 +238,11 @@ export class StatusSyncModal extends Modal {
 		if (diff.tags.hasDiff) fields.push(tn('statusSyncModal', 'fieldTags'));
 		if (diff.status.hasDiff) fields.push(tn('statusSyncModal', 'fieldStatus'));
 		if (diff.episodeStatus.hasDiff) fields.push(tn('statusSyncModal', 'fieldEpisodeStatus'));
+		for (const platformField of diff.platformFields) {
+			if (platformField.hasDiff) {
+				fields.push(platformField.label);
+			}
+		}
 		return fields;
 	}
 
@@ -229,6 +262,10 @@ export class StatusSyncModal extends Modal {
 
 		// 表体
 		const tbody = detailTable.createEl('tbody');
+
+		if (diff.hasUserDiff) {
+			this.renderSectionHeader(tbody, tn('statusSyncModal', 'userDataGroup'));
+		}
 
 		// 评分行
 		if (diff.rate.hasDiff) {
@@ -268,6 +305,18 @@ export class StatusSyncModal extends Modal {
 				diff.episodeStatus.cloudValue || tn('statusSyncModal', 'empty'),
 				'episodeStatus', index, false);
 		}
+
+		if (diff.hasPlatformDiff) {
+			this.renderSectionHeader(tbody, tn('statusSyncModal', 'platformDataGroup'));
+			diff.platformFields
+				.filter(field => field.hasDiff)
+				.forEach(field => this.renderPlatformFieldRow(tbody, field, index));
+		}
+	}
+
+	private renderSectionHeader(tbody: HTMLElement, text: string): void {
+		const row = tbody.createEl('tr', { cls: 'bangumi-detail-section-row' });
+		row.createEl('td', { text, attr: { colspan: '4' }, cls: 'bangumi-field-name' });
 	}
 
 	/**
@@ -303,6 +352,30 @@ export class StatusSyncModal extends Modal {
 		});
 	}
 
+	private renderPlatformFieldRow(
+		tbody: HTMLElement,
+		field: PlatformFieldDiff,
+		diffIndex: number,
+	): void {
+		const row = tbody.createEl('tr');
+
+		row.createEl('td', { text: field.label, cls: 'bangumi-field-name' });
+		row.createEl('td', { text: field.localValue || tn('statusSyncModal', 'empty'), cls: 'bangumi-local-value bangumi-sync-value' });
+		row.createEl('td', { text: field.cloudValue || tn('statusSyncModal', 'empty'), cls: 'bangumi-cloud-value bangumi-sync-value' });
+
+		const decisionCell = row.createEl('td');
+		const select = decisionCell.createEl('select', { cls: 'bangumi-sync-decision-select' });
+		select.createEl('option', { value: 'skip', text: tn('statusSyncModal', 'skip') });
+		select.createEl('option', { value: 'cloud', text: tn('statusSyncModal', 'keepCloudOnly') });
+		select.value = field.decision;
+		select.addEventListener('change', () => {
+			const platformField = this.diffs[diffIndex].platformFields.find(item => item.key === field.key);
+			if (platformField) {
+				platformField.decision = select.value as PlatformFieldDecision;
+			}
+		});
+	}
+
 	/**
 	 * 获取状态文本
 	 */
@@ -325,6 +398,9 @@ export class StatusSyncModal extends Modal {
 			diff.tags.decision = decision;
 			diff.status.decision = decision;
 			diff.episodeStatus.decision = decision === 'merge' ? 'skip' : decision;
+			diff.platformFields.forEach(field => {
+				field.decision = decision === 'cloud' || decision === 'merge' ? 'cloud' : 'skip';
+			});
 		});
 		this.renderTable();
 	}
@@ -377,6 +453,12 @@ export class StatusSyncModal extends Modal {
 					diff.episodeStatus.decision = 'local';
 				}
 			}
+
+			diff.platformFields.forEach(field => {
+				if (field.hasDiff) {
+					field.decision = 'cloud';
+				}
+			});
 		});
 		this.renderTable();
 	}
@@ -481,11 +563,6 @@ export class StatusSyncModal extends Modal {
 			}
 		}
 
-		// 更新本地文件
-		if (content !== originalContent) {
-			await this.app.vault.process(file, () => content);
-		}
-
 		// 更新云端
 		if (Object.keys(cloudUpdates).length > 0) {
 			const fallbackType = this.toValidCollectionType(diff.collection.type);
@@ -497,6 +574,11 @@ export class StatusSyncModal extends Modal {
 		}
 
 		if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== 'skip' && this.episodeStatusManager) {
+			if (content !== originalContent) {
+				await this.app.vault.process(file, () => content);
+				content = await this.app.vault.read(file);
+			}
+
 			if (diff.episodeStatus.decision === 'local') {
 				const result = await this.episodeStatusManager.syncStatusToCloud(file);
 				if (result.failed > 0 && result.success === 0) {
@@ -507,10 +589,60 @@ export class StatusSyncModal extends Modal {
 				if (!synced) {
 					throw new Error('单集状态从云端同步失败');
 				}
+				content = await this.app.vault.read(file);
 			}
 		}
 
+		if (diff.hasPlatformDiff && diff.platformFields.some(field => field.hasDiff && field.decision === 'cloud')) {
+			content = await this.applyPlatformSync(diff, file, content);
+		}
+
+		if (content !== originalContent) {
+			await this.app.vault.process(file, () => content);
+		}
+
 		console.debug(`[Bangumi Sync] 已同步: ${diff.name_cn}`);
+	}
+
+	private async applyPlatformSync(diff: StatusSyncDiff, file: TFile, content: string): Promise<string> {
+		if (!diff.platformSyncPayload) {
+			return content;
+		}
+
+		let nextContent = this.incrementalSync.updatePlatformMetadata(content, diff.platformSyncPayload);
+		if (diff.collection.subject_type !== SubjectType.Anime && diff.collection.subject_type !== SubjectType.Real) {
+			return nextContent;
+		}
+
+		const shouldRefreshEpisodeSection = diff.platformFields.some(field =>
+			field.decision === 'cloud' && field.key === 'episodeCount'
+		);
+
+		if (!shouldRefreshEpisodeSection) {
+			return nextContent;
+		}
+
+		const episodesResult = await this.client.getEpisodes(diff.subjectId);
+		const episodes = episodesResult?.data ?? [];
+		if (episodes.length === 0) {
+			return nextContent;
+		}
+
+		const statusMap = new Map<number, number>();
+		if (this.episodeStatusManager) {
+			const localStatuses = await this.episodeStatusManager.getEpisodeStatusMap(file);
+			for (const entry of localStatuses.values()) {
+				statusMap.set(entry.episodeId, entry.status);
+			}
+		}
+
+		const renderedEpisodes = parseEpisodes(episodes as Episode[], statusMap);
+		if (!renderedEpisodes) {
+			return nextContent;
+		}
+
+		nextContent = this.incrementalSync.updateEpisodeSection(nextContent, renderedEpisodes);
+		return nextContent;
 	}
 
 	private toValidCollectionType(value: number | null | undefined): CollectionType | null {

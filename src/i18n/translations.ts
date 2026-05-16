@@ -448,9 +448,14 @@ export interface TranslationStrings {
 		fieldTags: string;
 		fieldStatus: string;
 		fieldEpisodeStatus: string;
+		fieldSerialState: string;
+		fieldEpisodeCount: string;
+		fieldChapterCount: string;
+		fieldVolumeCount: string;
 		empty: string;
 		keepLocal: string;
 		keepCloud: string;
+		keepCloudOnly: string;
 		merge: string;
 		skip: string;
 		noDiff: string;
@@ -458,6 +463,8 @@ export interface TranslationStrings {
 		allCloud: string;
 		allSkip: string;
 		smartMerge: string;
+		userDataGroup: string;
+		platformDataGroup: string;
 		execute: string;
 		cancel: string;
 		syncProgress: string;
@@ -1063,9 +1070,14 @@ const en: TranslationStrings = {
 			fieldTags: 'Tags',
 			fieldStatus: 'Status',
 			fieldEpisodeStatus: 'Episode status',
+			fieldSerialState: 'Serial state',
+			fieldEpisodeCount: 'Episodes',
+			fieldChapterCount: 'Chapters',
+			fieldVolumeCount: 'Volumes',
 			empty: '(empty)',
 			keepLocal: 'Keep local',
 			keepCloud: 'Keep cloud',
+			keepCloudOnly: 'Use cloud',
 			merge: 'Merge',
 			skip: 'Skip',
 			noDiff: 'No differences',
@@ -1073,6 +1085,8 @@ const en: TranslationStrings = {
 			allCloud: 'All cloud',
 			allSkip: 'All skip',
 			smartMerge: 'Smart merge',
+			userDataGroup: 'User data',
+			platformDataGroup: 'Platform data',
 			execute: 'Execute sync',
 			cancel: 'Cancel',
 			syncProgress: 'Syncing...',
@@ -1668,9 +1682,14 @@ const zhCN: TranslationStrings = {
 			fieldTags: '标签',
 			fieldStatus: '状态',
 			fieldEpisodeStatus: '单集状态',
+			fieldSerialState: '连载状态',
+			fieldEpisodeCount: '集数',
+			fieldChapterCount: '话数',
+			fieldVolumeCount: '卷数/册数',
 			empty: '(空)',
 			keepLocal: '保留本地',
 			keepCloud: '保留云端',
+			keepCloudOnly: '使用云端',
 			merge: '合并',
 			skip: '跳过',
 			noDiff: '没有差异',
@@ -1678,6 +1697,8 @@ const zhCN: TranslationStrings = {
 			allCloud: '全部云端',
 			allSkip: '全部跳过',
 			smartMerge: '智能合并',
+			userDataGroup: '用户数据',
+			platformDataGroup: '平台数据',
 			execute: '执行同步',
 			cancel: '取消',
 			syncProgress: '正在同步...',

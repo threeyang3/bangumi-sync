@@ -9,6 +9,7 @@
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
 import { SubjectType } from '../../common/api/types';
 import { getFrontmatterRecord, getFrontmatterString } from '../../common/utils/frontmatter';
+import { extractShortComment } from '../comment/shortComment';
 import {
 	SubjectUserData,
 	IDENTIFIER_FIELDS,
@@ -294,35 +295,6 @@ export class UserDataExtractor {
 	}
 
 	private extractComment(content: string): string | null {
-		const normalizedContent = content.replace(/\r\n?/g, '\n');
-		const lines = normalizedContent.split('\n');
-		const headerIndex = lines.findIndex(line => /^> \[!abstract\]\+\s*\*\*短评\*\*\s*$/.test(line));
-		if (headerIndex === -1) {
-			return null;
-		}
-
-		const commentLines: string[] = [];
-		for (let i = headerIndex + 1; i < lines.length; i++) {
-			const line = lines[i];
-			if (this.isCalloutHeader(line) || /^##\s+/.test(line)) {
-				break;
-			}
-			if (line.startsWith('> ')) {
-				commentLines.push(line.slice(2));
-			} else if (line.trim() === '>') {
-				commentLines.push('');
-			} else if (line.trim() === '') {
-				commentLines.push('');
-			} else {
-				break;
-			}
-		}
-
-		const comment = commentLines.join('\n').trim();
-		return comment || null;
-	}
-
-	private isCalloutHeader(line: string): boolean {
-		return /^> \[![^\]]+\]/.test(line);
+		return extractShortComment(content);
 	}
 }
