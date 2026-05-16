@@ -5,7 +5,7 @@
  */
 
 import { App, Modal, Notice, TFile } from 'obsidian';
-import { UserCollection, CollectionType, Episode, SubjectType, getCollectionStatusLabel } from '../../common/api/types';
+import { UserCollection, CollectionType, SubjectType, getCollectionStatusLabel } from '../../common/api/types';
 import { BangumiClient } from '../api/client';
 import { IncrementalSync } from '../sync/incrementalSync';
 import { EpisodeStatusManager } from '../episode/episodeStatusManager';
@@ -49,6 +49,8 @@ export interface PlatformSyncPayload {
 	volumeCount?: number | null;
 }
 
+export type StatusSyncLoadState = 'pending' | 'loading' | 'ready' | 'failed';
+
 /**
  * 完整的状态同步差异项
  */
@@ -70,6 +72,9 @@ export interface StatusSyncDiff {
 	hasPlatformDiff: boolean;
 	hasAnyDiff: boolean;
 	expanded: boolean;
+	episodeStatusLoadState: StatusSyncLoadState;
+	platformLoadState: StatusSyncLoadState;
+	backgroundError: string | null;
 }
 
 /**
@@ -84,6 +89,10 @@ export class StatusSyncModal extends Modal {
 
 	private tableEl!: HTMLElement;
 	private statusEl!: HTMLElement;
+	private renderTimer: number | null = null;
+	private isDisposedFlag = false;
+	private backgroundCompleted = 0;
+	private backgroundTotal = 0;
 
 	constructor(
 		app: App,
@@ -103,6 +112,7 @@ export class StatusSyncModal extends Modal {
 
 	onOpen(): void {
 		const { contentEl } = this;
+		this.isDisposedFlag = false;
 
 		contentEl.addClass('bangumi-status-sync-modal');
 
@@ -132,6 +142,7 @@ export class StatusSyncModal extends Modal {
 
 		// 状态栏
 		this.statusEl = contentEl.createDiv({ cls: 'bangumi-status-sync-status' });
+		this.updateStatusSummary();
 
 		// 表格
 		this.tableEl = contentEl.createDiv({ cls: 'bangumi-status-sync-table' });
@@ -149,8 +160,43 @@ export class StatusSyncModal extends Modal {
 	}
 
 	onClose(): void {
+		this.isDisposedFlag = true;
+		if (this.renderTimer !== null) {
+			this.getOwnerWindow().clearTimeout(this.renderTimer);
+			this.renderTimer = null;
+		}
 		const { contentEl } = this;
 		contentEl.empty();
+	}
+
+	isDisposed(): boolean {
+		return this.isDisposedFlag;
+	}
+
+	updateBackgroundProgress(completed: number, total: number): void {
+		if (this.isDisposedFlag) {
+			return;
+		}
+
+		this.backgroundCompleted = completed;
+		this.backgroundTotal = total;
+		this.updateStatusSummary();
+	}
+
+	updateDiff(subjectId: number, patch: Partial<StatusSyncDiff>): void {
+		if (this.isDisposedFlag) {
+			return;
+		}
+
+		const diff = this.diffs.find(item => item.subjectId === subjectId);
+		if (!diff) {
+			return;
+		}
+
+		Object.assign(diff, patch);
+		this.recalculateDiffState(diff);
+		this.updateStatusSummary();
+		this.scheduleRender();
 	}
 
 	/**
@@ -159,7 +205,9 @@ export class StatusSyncModal extends Modal {
 	private renderTable(): void {
 		this.tableEl.empty();
 
-		if (this.diffs.length === 0) {
+		const visibleDiffs = this.getVisibleDiffs();
+
+		if (visibleDiffs.length === 0) {
 			this.tableEl.createDiv({ text: tn('statusSyncModal', 'noDiff'), cls: 'bangumi-empty-message' });
 			return;
 		}
@@ -176,7 +224,12 @@ export class StatusSyncModal extends Modal {
 		// 表体
 		const tbody = table.createEl('tbody');
 
-		this.diffs.forEach((diff, index) => {
+		visibleDiffs.forEach(diff => {
+			const index = this.diffs.findIndex(item => item.subjectId === diff.subjectId);
+			if (index === -1) {
+				return;
+			}
+
 			// 主行
 			const row = tbody.createEl('tr', { cls: 'bangumi-status-row' });
 
@@ -188,7 +241,7 @@ export class StatusSyncModal extends Modal {
 			// 差异字段列表
 			const fieldsCell = row.createEl('td', { cls: 'bangumi-fields-cell' });
 			const diffFields = this.getDiffFields(diff);
-			fieldsCell.setText(diffFields.join('/'));
+			fieldsCell.setText(diffFields.length > 0 ? diffFields.join('/') : this.getLoadingHint(diff));
 
 			// 操作按钮
 			const actionCell = row.createEl('td', { cls: 'bangumi-action-cell' });
@@ -244,6 +297,27 @@ export class StatusSyncModal extends Modal {
 			}
 		}
 		return fields;
+	}
+
+	private getVisibleDiffs(): StatusSyncDiff[] {
+		return this.diffs.filter(diff => diff.hasAnyDiff || this.isDiffLoading(diff));
+	}
+
+	private isDiffLoading(diff: StatusSyncDiff): boolean {
+		return diff.episodeStatusLoadState !== 'ready' || diff.platformLoadState !== 'ready';
+	}
+
+	private getLoadingHint(diff: StatusSyncDiff): string {
+		if (diff.backgroundError) {
+			return '加载失败';
+		}
+		if (diff.episodeStatusLoadState === 'loading' || diff.platformLoadState === 'loading') {
+			return '加载中';
+		}
+		if (this.isDiffLoading(diff)) {
+			return '待加载';
+		}
+		return tn('statusSyncModal', 'noDiff');
 	}
 
 	/**
@@ -304,6 +378,8 @@ export class StatusSyncModal extends Modal {
 				diff.episodeStatus.localValue || tn('statusSyncModal', 'empty'),
 				diff.episodeStatus.cloudValue || tn('statusSyncModal', 'empty'),
 				'episodeStatus', index, false);
+		} else if (diff.episodeStatusLoadState !== 'ready') {
+			this.renderLoadingRow(tbody, tn('statusSyncModal', 'fieldEpisodeStatus'), diff.episodeStatusLoadState);
 		}
 
 		if (diff.hasPlatformDiff) {
@@ -311,6 +387,15 @@ export class StatusSyncModal extends Modal {
 			diff.platformFields
 				.filter(field => field.hasDiff)
 				.forEach(field => this.renderPlatformFieldRow(tbody, field, index));
+		} else if (diff.platformLoadState !== 'ready') {
+			this.renderSectionHeader(tbody, tn('statusSyncModal', 'platformDataGroup'));
+			this.renderLoadingRow(tbody, tn('statusSyncModal', 'platformDataGroup'), diff.platformLoadState);
+		}
+
+		if (diff.backgroundError) {
+			const row = tbody.createEl('tr');
+			row.createEl('td', { text: '后台加载', cls: 'bangumi-field-name' });
+			row.createEl('td', { text: diff.backgroundError, attr: { colspan: '3' } });
 		}
 	}
 
@@ -376,6 +461,18 @@ export class StatusSyncModal extends Modal {
 		});
 	}
 
+	private renderLoadingRow(tbody: HTMLElement, fieldName: string, state: StatusSyncLoadState): void {
+		const row = tbody.createEl('tr');
+		const stateText = state === 'failed'
+			? '加载失败'
+			: state === 'loading'
+				? '加载中'
+				: '待加载';
+
+		row.createEl('td', { text: fieldName, cls: 'bangumi-field-name' });
+		row.createEl('td', { text: stateText, attr: { colspan: '3' } });
+	}
+
 	/**
 	 * 获取状态文本
 	 */
@@ -402,6 +499,7 @@ export class StatusSyncModal extends Modal {
 				field.decision = decision === 'cloud' || decision === 'merge' ? 'cloud' : 'skip';
 			});
 		});
+		this.updateStatusSummary();
 		this.renderTable();
 	}
 
@@ -460,6 +558,7 @@ export class StatusSyncModal extends Modal {
 				}
 			});
 		});
+		this.updateStatusSummary();
 		this.renderTable();
 	}
 
@@ -470,8 +569,9 @@ export class StatusSyncModal extends Modal {
 		this.statusEl.setText(tn('statusSyncModal', 'syncProgress'));
 		let successCount = 0;
 		let failCount = 0;
+		const actionableDiffs = this.diffs.filter(diff => diff.hasAnyDiff);
 
-		for (const diff of this.diffs) {
+		for (const diff of actionableDiffs) {
 			try {
 				await this.syncItem(diff);
 				successCount++;
@@ -494,6 +594,53 @@ export class StatusSyncModal extends Modal {
 		} else {
 			new Notice(tn('statusSyncModal', 'syncFailed'));
 		}
+	}
+
+	private scheduleRender(): void {
+		if (this.renderTimer !== null || this.isDisposedFlag) {
+			return;
+		}
+
+		this.renderTimer = this.getOwnerWindow().setTimeout(() => {
+			this.renderTimer = null;
+			if (!this.isDisposedFlag) {
+				this.renderTable();
+			}
+		}, 200);
+	}
+
+	private getOwnerWindow(): Window {
+		return this.containerEl.ownerDocument.defaultView ?? window;
+	}
+
+	private updateStatusSummary(): void {
+		if (!this.statusEl) {
+			return;
+		}
+
+		const visibleCount = this.getVisibleDiffs().length;
+		if (this.backgroundTotal > 0 && this.backgroundCompleted < this.backgroundTotal) {
+			this.statusEl.setText(`已加载 ${this.backgroundCompleted}/${this.backgroundTotal}，当前显示 ${visibleCount} 项`);
+			return;
+		}
+
+		if (this.backgroundTotal > 0) {
+			this.statusEl.setText(`已完成 ${this.backgroundCompleted}/${this.backgroundTotal}，当前显示 ${visibleCount} 项`);
+			return;
+		}
+
+		this.statusEl.setText(`当前显示 ${visibleCount} 项`);
+	}
+
+	private recalculateDiffState(diff: StatusSyncDiff): void {
+		diff.hasUserDiff =
+			diff.rate.hasDiff ||
+			diff.comment.hasDiff ||
+			diff.tags.hasDiff ||
+			diff.status.hasDiff ||
+			diff.episodeStatus.hasDiff;
+		diff.hasPlatformDiff = diff.platformFields.some(field => field.hasDiff);
+		diff.hasAnyDiff = diff.hasUserDiff || diff.hasPlatformDiff;
 	}
 
 	/**
@@ -636,7 +783,7 @@ export class StatusSyncModal extends Modal {
 			}
 		}
 
-		const renderedEpisodes = parseEpisodes(episodes as Episode[], statusMap);
+		const renderedEpisodes = parseEpisodes(episodes, statusMap);
 		if (!renderedEpisodes) {
 			return nextContent;
 		}

@@ -57,13 +57,39 @@ export function normalizeShortComment(comment: string | null | undefined): strin
 	const normalized = comment
 		.replace(/\r\n?/g, '\n')
 		.replace(/\u00a0/g, ' ')
-		.split('\n\n')
-		.map(para => para.split('\n').map(line => line.replace(/\s+$/g, '').trim()).join('\n').replace(/\n/g, '\n\n'))
-		.join('\n\n')
-		.replace(/\n{3,}/g, '\n\n')
+		.split('\n')
+		.map(line => line.replace(/\s+$/g, '').trim())
+		.filter(line => line.length > 0)
+		.join('\n')
 		.trim();
 
 	return normalized.length > 0 ? normalized : null;
+}
+
+export function renderShortCommentCalloutContinuation(comment: string | null | undefined): string {
+	const normalized = normalizeShortComment(comment);
+	if (!normalized) {
+		return '';
+	}
+
+	return normalized
+		.split('\n')
+		.map((line, index) => index === 0 ? line : `> ${line}`)
+		.join('\n');
+}
+
+export function buildShortCommentCalloutBlock(comment: string | null | undefined): string | null {
+	const normalized = normalizeShortComment(comment);
+	if (!normalized) {
+		return null;
+	}
+
+	const body = normalized
+		.split('\n')
+		.map(line => `> ${line}`)
+		.join('\n');
+
+	return ['> [!abstract]+ **短评**', body].join('\n');
 }
 
 export function extractShortComment(content: string): string | null {
@@ -83,15 +109,11 @@ export function extractShortComment(content: string): string | null {
 }
 
 export function updateShortComment(content: string, newComment: string): string {
-	const normalizedComment = normalizeShortComment(newComment);
-	if (!normalizedComment) {
+	const newCommentBlock = buildShortCommentCalloutBlock(newComment);
+	if (!newCommentBlock) {
 		return removeShortComment(content);
 	}
 
-	const newCommentLines = normalizedComment
-		.split('\n')
-		.map(line => line.length > 0 ? `> ${line}` : '>');
-	const newCommentBlock = ['> [!abstract]+ **短评**', ...newCommentLines].join('\n');
 	const block = findShortCommentBlock(content);
 
 	if (block) {

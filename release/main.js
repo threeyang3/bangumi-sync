@@ -2813,7 +2813,7 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
     this.addFieldTable(containerEl, tn("settings", "fieldsCollectionVars"), [
       ["{{my_rate}}", "\u6211\u7684\u8BC4\u5206\uFF080-10\uFF09", "9"],
       ["{{my_comment}}", "\u77ED\u8BC4\uFF08YAML \u5B89\u5168\uFF0C\u591A\u884C\u8F6C\u4E49\u4E3A \\n\uFF09", "\u503C\u5F97\u4E00\u770B"],
-      ["{{my_comment_raw}}", "\u77ED\u8BC4\uFF08\u4FDD\u7559\u539F\u59CB\u6362\u884C\uFF0C\u7528\u4E8E\u6B63\u6587 callout\uFF09", "\u503C\u5F97\u4E00\u770B"],
+      ["{{my_comment_raw}}", "\u77ED\u8BC4\uFF08callout \u5B89\u5168\u683C\u5F0F\uFF0C\u591A\u884C\u5185\u5BB9\u4F1A\u81EA\u52A8\u4FDD\u6301\u5728\u6B63\u6587 callout \u4E2D\uFF09", "\u503C\u5F97\u4E00\u770B"],
       ["{{my_status}}", "\u6536\u85CF\u72B6\u6001", "\u5728\u770B"],
       ["{{my_tags}}", "\u6211\u7684\u6807\u7B7E\uFF08\u9017\u53F7\u5206\u9694\uFF09", "\u795E\u4F5C, \u70ED\u8840"],
       ["{{tags}}", "\u6211\u7684\u6807\u7B7E\uFF08YAML \u6570\u7EC4\u683C\u5F0F\uFF09", "  - \u795E\u4F5C\n  - \u70ED\u8840"]
@@ -4210,8 +4210,23 @@ function normalizeShortComment(comment) {
   if (!comment) {
     return null;
   }
-  const normalized = comment.replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ").split("\n\n").map((para) => para.split("\n").map((line) => line.replace(/\s+$/g, "").trim()).join("\n").replace(/\n/g, "\n\n")).join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
+  const normalized = comment.replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ").split("\n").map((line) => line.replace(/\s+$/g, "").trim()).filter((line) => line.length > 0).join("\n").trim();
   return normalized.length > 0 ? normalized : null;
+}
+function renderShortCommentCalloutContinuation(comment) {
+  const normalized = normalizeShortComment(comment);
+  if (!normalized) {
+    return "";
+  }
+  return normalized.split("\n").map((line, index) => index === 0 ? line : `> ${line}`).join("\n");
+}
+function buildShortCommentCalloutBlock(comment) {
+  const normalized = normalizeShortComment(comment);
+  if (!normalized) {
+    return null;
+  }
+  const body = normalized.split("\n").map((line) => `> ${line}`).join("\n");
+  return ["> [!abstract]+ **\u77ED\u8BC4**", body].join("\n");
 }
 function extractShortComment(content) {
   const block = findShortCommentBlock(content);
@@ -4227,12 +4242,10 @@ function extractShortComment(content) {
   return normalizeShortComment(bodyLines.join("\n"));
 }
 function updateShortComment(content, newComment) {
-  const normalizedComment = normalizeShortComment(newComment);
-  if (!normalizedComment) {
+  const newCommentBlock = buildShortCommentCalloutBlock(newComment);
+  if (!newCommentBlock) {
     return removeShortComment(content);
   }
-  const newCommentLines = normalizedComment.split("\n").map((line) => line.length > 0 ? `> ${line}` : ">");
-  const newCommentBlock = ["> [!abstract]+ **\u77ED\u8BC4**", ...newCommentLines].join("\n");
   const block = findShortCommentBlock(content);
   if (block) {
     return content.slice(0, block.start) + newCommentBlock + content.slice(block.end);
@@ -5683,8 +5696,8 @@ function extractTemplateVars(subject, collection, characters, ratingDetails, epi
     cover = ((_b = subject.images) == null ? void 0 : _b.large) || ((_c = subject.images) == null ? void 0 : _c.common) || "";
   }
   const my_rate = (collection == null ? void 0 : collection.rate) ? String(collection.rate) : "";
-  const my_comment_raw = (collection == null ? void 0 : collection.comment) ? collection.comment.replace(/\r\n?/g, "\n").split("\n\n").map((para) => para.replace(/\n/g, "\n\n")).join("\n\n") : "";
-  const my_comment = (collection == null ? void 0 : collection.comment) || "";
+  const my_comment = normalizeShortComment(collection == null ? void 0 : collection.comment) || "";
+  const my_comment_raw = renderShortCommentCalloutContinuation(collection == null ? void 0 : collection.comment);
   const my_status = collection ? getCollectionStatusLabel(collection.type, subject.type) : "";
   let episodesContent = "";
   let volumesContent = "";
@@ -11320,6 +11333,10 @@ var import_obsidian19 = require("obsidian");
 var StatusSyncModal = class extends import_obsidian19.Modal {
   constructor(app, client, incrementalSync, diffs, onComplete, episodeStatusManager) {
     super(app);
+    this.renderTimer = null;
+    this.isDisposedFlag = false;
+    this.backgroundCompleted = 0;
+    this.backgroundTotal = 0;
     this.client = client;
     this.incrementalSync = incrementalSync;
     this.diffs = diffs;
@@ -11328,6 +11345,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
   }
   onOpen() {
     const { contentEl } = this;
+    this.isDisposedFlag = false;
     contentEl.addClass("bangumi-status-sync-modal");
     contentEl.createEl("h2", { text: tn("statusSyncModal", "title") });
     contentEl.createEl("p", {
@@ -11348,6 +11366,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       btn.addEventListener("click", () => this.selectAll("skip"));
     });
     this.statusEl = contentEl.createDiv({ cls: "bangumi-status-sync-status" });
+    this.updateStatusSummary();
     this.tableEl = contentEl.createDiv({ cls: "bangumi-status-sync-table" });
     this.renderTable();
     const footer = contentEl.createDiv({ cls: "bangumi-status-sync-footer" });
@@ -11361,15 +11380,45 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     });
   }
   onClose() {
+    this.isDisposedFlag = true;
+    if (this.renderTimer !== null) {
+      this.getOwnerWindow().clearTimeout(this.renderTimer);
+      this.renderTimer = null;
+    }
     const { contentEl } = this;
     contentEl.empty();
+  }
+  isDisposed() {
+    return this.isDisposedFlag;
+  }
+  updateBackgroundProgress(completed, total) {
+    if (this.isDisposedFlag) {
+      return;
+    }
+    this.backgroundCompleted = completed;
+    this.backgroundTotal = total;
+    this.updateStatusSummary();
+  }
+  updateDiff(subjectId, patch) {
+    if (this.isDisposedFlag) {
+      return;
+    }
+    const diff = this.diffs.find((item) => item.subjectId === subjectId);
+    if (!diff) {
+      return;
+    }
+    Object.assign(diff, patch);
+    this.recalculateDiffState(diff);
+    this.updateStatusSummary();
+    this.scheduleRender();
   }
   /**
    * 渲染表格（紧凑模式）
    */
   renderTable() {
     this.tableEl.empty();
-    if (this.diffs.length === 0) {
+    const visibleDiffs = this.getVisibleDiffs();
+    if (visibleDiffs.length === 0) {
       this.tableEl.createDiv({ text: tn("statusSyncModal", "noDiff"), cls: "bangumi-empty-message" });
       return;
     }
@@ -11380,14 +11429,18 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     headerRow.createEl("th", { text: tn("statusSyncModal", "diffFields") });
     headerRow.createEl("th", { text: tn("statusSyncModal", "action") });
     const tbody = table.createEl("tbody");
-    this.diffs.forEach((diff, index) => {
+    visibleDiffs.forEach((diff) => {
+      const index = this.diffs.findIndex((item) => item.subjectId === diff.subjectId);
+      if (index === -1) {
+        return;
+      }
       const row = tbody.createEl("tr", { cls: "bangumi-status-row" });
       const nameCell = row.createEl("td", { cls: "bangumi-name-cell" });
       nameCell.createSpan({ text: diff.name_cn || diff.name || "Unknown" });
       this.appendDiffIcons(nameCell, diff);
       const fieldsCell = row.createEl("td", { cls: "bangumi-fields-cell" });
       const diffFields = this.getDiffFields(diff);
-      fieldsCell.setText(diffFields.join("/"));
+      fieldsCell.setText(diffFields.length > 0 ? diffFields.join("/") : this.getLoadingHint(diff));
       const actionCell = row.createEl("td", { cls: "bangumi-action-cell" });
       actionCell.createEl("button", {
         text: diff.expanded ? tn("statusSyncModal", "collapse") : tn("statusSyncModal", "expand"),
@@ -11447,6 +11500,24 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       }
     }
     return fields;
+  }
+  getVisibleDiffs() {
+    return this.diffs.filter((diff) => diff.hasAnyDiff || this.isDiffLoading(diff));
+  }
+  isDiffLoading(diff) {
+    return diff.episodeStatusLoadState !== "ready" || diff.platformLoadState !== "ready";
+  }
+  getLoadingHint(diff) {
+    if (diff.backgroundError) {
+      return "\u52A0\u8F7D\u5931\u8D25";
+    }
+    if (diff.episodeStatusLoadState === "loading" || diff.platformLoadState === "loading") {
+      return "\u52A0\u8F7D\u4E2D";
+    }
+    if (this.isDiffLoading(diff)) {
+      return "\u5F85\u52A0\u8F7D";
+    }
+    return tn("statusSyncModal", "noDiff");
   }
   /**
    * 渲染详情表格
@@ -11517,10 +11588,20 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         index,
         false
       );
+    } else if (diff.episodeStatusLoadState !== "ready") {
+      this.renderLoadingRow(tbody, tn("statusSyncModal", "fieldEpisodeStatus"), diff.episodeStatusLoadState);
     }
     if (diff.hasPlatformDiff) {
       this.renderSectionHeader(tbody, tn("statusSyncModal", "platformDataGroup"));
       diff.platformFields.filter((field) => field.hasDiff).forEach((field) => this.renderPlatformFieldRow(tbody, field, index));
+    } else if (diff.platformLoadState !== "ready") {
+      this.renderSectionHeader(tbody, tn("statusSyncModal", "platformDataGroup"));
+      this.renderLoadingRow(tbody, tn("statusSyncModal", "platformDataGroup"), diff.platformLoadState);
+    }
+    if (diff.backgroundError) {
+      const row = tbody.createEl("tr");
+      row.createEl("td", { text: "\u540E\u53F0\u52A0\u8F7D", cls: "bangumi-field-name" });
+      row.createEl("td", { text: diff.backgroundError, attr: { colspan: "3" } });
     }
   }
   renderSectionHeader(tbody, text) {
@@ -11565,6 +11646,12 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       }
     });
   }
+  renderLoadingRow(tbody, fieldName, state) {
+    const row = tbody.createEl("tr");
+    const stateText = state === "failed" ? "\u52A0\u8F7D\u5931\u8D25" : state === "loading" ? "\u52A0\u8F7D\u4E2D" : "\u5F85\u52A0\u8F7D";
+    row.createEl("td", { text: fieldName, cls: "bangumi-field-name" });
+    row.createEl("td", { text: stateText, attr: { colspan: "3" } });
+  }
   /**
    * 获取状态文本
    */
@@ -11591,6 +11678,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         field.decision = decision === "cloud" || decision === "merge" ? "cloud" : "skip";
       });
     });
+    this.updateStatusSummary();
     this.renderTable();
   }
   /**
@@ -11643,6 +11731,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         }
       });
     });
+    this.updateStatusSummary();
     this.renderTable();
   }
   /**
@@ -11652,7 +11741,8 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     this.statusEl.setText(tn("statusSyncModal", "syncProgress"));
     let successCount = 0;
     let failCount = 0;
-    for (const diff of this.diffs) {
+    const actionableDiffs = this.diffs.filter((diff) => diff.hasAnyDiff);
+    for (const diff of actionableDiffs) {
       try {
         await this.syncItem(diff);
         successCount++;
@@ -11669,6 +11759,41 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     } else {
       new import_obsidian19.Notice(tn("statusSyncModal", "syncFailed"));
     }
+  }
+  scheduleRender() {
+    if (this.renderTimer !== null || this.isDisposedFlag) {
+      return;
+    }
+    this.renderTimer = this.getOwnerWindow().setTimeout(() => {
+      this.renderTimer = null;
+      if (!this.isDisposedFlag) {
+        this.renderTable();
+      }
+    }, 200);
+  }
+  getOwnerWindow() {
+    var _a;
+    return (_a = this.containerEl.ownerDocument.defaultView) != null ? _a : window;
+  }
+  updateStatusSummary() {
+    if (!this.statusEl) {
+      return;
+    }
+    const visibleCount = this.getVisibleDiffs().length;
+    if (this.backgroundTotal > 0 && this.backgroundCompleted < this.backgroundTotal) {
+      this.statusEl.setText(`\u5DF2\u52A0\u8F7D ${this.backgroundCompleted}/${this.backgroundTotal}\uFF0C\u5F53\u524D\u663E\u793A ${visibleCount} \u9879`);
+      return;
+    }
+    if (this.backgroundTotal > 0) {
+      this.statusEl.setText(`\u5DF2\u5B8C\u6210 ${this.backgroundCompleted}/${this.backgroundTotal}\uFF0C\u5F53\u524D\u663E\u793A ${visibleCount} \u9879`);
+      return;
+    }
+    this.statusEl.setText(`\u5F53\u524D\u663E\u793A ${visibleCount} \u9879`);
+  }
+  recalculateDiffState(diff) {
+    diff.hasUserDiff = diff.rate.hasDiff || diff.comment.hasDiff || diff.tags.hasDiff || diff.status.hasDiff || diff.episodeStatus.hasDiff;
+    diff.hasPlatformDiff = diff.platformFields.some((field) => field.hasDiff);
+    diff.hasAnyDiff = diff.hasUserDiff || diff.hasPlatformDiff;
   }
   /**
    * 同步单个条目
@@ -11962,6 +12087,9 @@ var ControlPanel = class extends import_obsidian20.Modal {
     this.touchStartHandler = null;
     this.touchMoveHandler = null;
     this.touchEndHandler = null;
+    this.prefetchedUserDataById = /* @__PURE__ */ new Map();
+    this.userDataPrefetchGeneration = 0;
+    this.userDataPrefetchPromise = null;
     this.mobileShortLabels = getLocale() === "zh-CN" ? {
       refresh: "\u5237\u65B0",
       syncSelected: "\u540C\u6B65",
@@ -11981,6 +12109,7 @@ var ControlPanel = class extends import_obsidian20.Modal {
       undo: "Undo",
       search: "Search"
     };
+    this.lastStatusSyncPerf = null;
     this.settings = settings;
     this.syncManager = syncManager;
     this.subjectNoteManager = subjectNoteManager != null ? subjectNoteManager : null;
@@ -12020,15 +12149,16 @@ var ControlPanel = class extends import_obsidian20.Modal {
     if (this.cachedData && this.cachedData.collections.length > 0) {
       this.renderStatus(`${tn("controlPanel", "cachedDataLoaded")} ${this.state.collections.length}`);
       this.applyFilters();
-      if (this.autoSyncStatus) {
-        void this.syncStatus();
-      }
+      this.startUserDataPrefetch();
+      this.triggerAutoSyncStatus();
     } else {
       void this.loadData();
     }
     this.setupSwipeToClose();
   }
   onClose() {
+    this.userDataPrefetchGeneration++;
+    this.userDataPrefetchPromise = null;
     if (this.touchStartHandler) {
       this.contentEl.removeEventListener("touchstart", this.touchStartHandler);
     }
@@ -12227,6 +12357,8 @@ var ControlPanel = class extends import_obsidian20.Modal {
         localSubjects: new Map(this.state.localSubjects)
       });
       this.applyFilters();
+      this.startUserDataPrefetch();
+      this.triggerAutoSyncStatus();
     } catch (error) {
       this.state.loading = false;
       this.state.error = error instanceof Error ? error.message : String(error);
@@ -12759,69 +12891,76 @@ var ControlPanel = class extends import_obsidian20.Modal {
    * 同步状态
    * 用户数据对全部条目对比；平台数据仅对本地未明确已完结的条目对比
    */
+  triggerAutoSyncStatus() {
+    if (!this.autoSyncStatus) {
+      return;
+    }
+    this.autoSyncStatus = false;
+    void this.syncStatusAfterPrefetchWarmup();
+  }
+  async syncStatusAfterPrefetchWarmup() {
+    const prefetchPromise = this.userDataPrefetchPromise;
+    if (prefetchPromise) {
+      try {
+        await Promise.race([
+          prefetchPromise,
+          this.delay(1e3)
+        ]);
+      } catch (error) {
+        console.warn("\u72B6\u6001\u540C\u6B65\u9884\u70ED\u7F13\u5B58\u5931\u8D25\uFF0C\u7EE7\u7EED\u6267\u884C\u540C\u6B65:", error);
+      }
+    }
+    await this.syncStatus();
+  }
+  delay(ms) {
+    var _a;
+    const ownerWindow = (_a = this.contentEl.ownerDocument.defaultView) != null ? _a : activeWindow;
+    return new Promise((resolve) => ownerWindow.setTimeout(resolve, ms));
+  }
   async syncStatus() {
+    const perfStart = Date.now();
+    this.lastStatusSyncPerf = {
+      startAt: perfStart,
+      syncedCollections: 0,
+      prefetchHits: 0,
+      prefetchMisses: 0,
+      lastError: null
+    };
     const syncedCollections = this.state.collections.filter(
       (c) => this.state.localSubjects.has(c.subject_id)
     );
+    this.lastStatusSyncPerf.syncedCollections = syncedCollections.length;
     if (syncedCollections.length === 0) {
       new import_obsidian20.Notice(tn("controlPanel", "noSyncedItemsStatus"));
       return;
     }
     this.state.loading = true;
-    this.renderStatus(tn("controlPanel", "comparingStatus"));
+    this.renderStatus(`${tn("controlPanel", "comparingStatus")} (1/2)`);
+    console.debug(`[Bangumi Sync][Perf] syncStatus:start synced=${syncedCollections.length}`);
     try {
-      const diffs = [];
-      for (const collection of syncedCollections) {
-        const localInfo = this.state.localSubjects.get(collection.subject_id);
-        if (!localInfo)
-          continue;
-        const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-        if (!(file instanceof import_obsidian20.TFile))
-          continue;
-        const content = await this.app.vault.read(file);
-        const statusFieldName = this.incrementalSync.getStatusFieldName(collection.subject_type);
-        const localRate = this.incrementalSync.extractRate(content);
-        const localComment = this.incrementalSync.extractComment(content);
-        const localTags = this.incrementalSync.normalizeTags(this.incrementalSync.extractTags(content));
-        const localStatus = this.incrementalSync.extractStatus(content, statusFieldName);
-        const cloudRate = collection.rate || null;
-        const cloudComment = collection.comment || null;
-        const cloudTagsRaw = collection.tags && collection.tags.length > 0 ? collection.tags : null;
-        const cloudTags = this.incrementalSync.normalizeTags(cloudTagsRaw);
-        const cloudStatus = collection.type || null;
-        let episodeStatusDiff;
-        try {
-          episodeStatusDiff = await this.buildEpisodeStatusDiff(file, collection.subject_id, collection.subject_type);
-        } catch (epError) {
-          console.warn(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u72B6\u6001\u5931\u8D25 (${collection.subject_id}):`, epError);
-          episodeStatusDiff = {
-            localValue: null,
-            cloudValue: null,
-            hasDiff: false,
-            decision: "skip"
-          };
+      const snapshotStart = Date.now();
+      const snapshots = (await this.mapWithConcurrency(
+        syncedCollections,
+        6,
+        async (collection, index) => {
+          this.renderStatus(`${tn("controlPanel", "comparingStatus")} (1/2 ${index + 1}/${syncedCollections.length})`);
+          return this.buildLocalStatusSyncSnapshot(collection);
         }
-        const platformFields = await this.buildPlatformFieldDiffs(collection, content);
-        const diff = this.buildStatusSyncDiff(
-          collection,
-          localInfo,
-          statusFieldName,
-          localRate,
-          cloudRate,
-          localComment,
-          cloudComment,
-          localTags,
-          cloudTags,
-          localStatus,
-          cloudStatus,
-          episodeStatusDiff,
-          platformFields.fields,
-          platformFields.payload
-        );
-        if (diff.hasAnyDiff) {
-          diffs.push(diff);
-        }
-      }
+      )).filter((snapshot) => snapshot !== null);
+      const snapshotDuration = Date.now() - snapshotStart;
+      this.lastStatusSyncPerf.snapshotDurationMs = snapshotDuration;
+      this.lastStatusSyncPerf.snapshotCount = snapshots.length;
+      console.debug(
+        `[Bangumi Sync][Perf] syncStatus:snapshots duration=${snapshotDuration}ms snapshots=${snapshots.length}`
+      );
+      const diffBuildStart = Date.now();
+      const diffs = snapshots.map((snapshot) => this.buildStatusSyncDiff(snapshot)).filter((diff) => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
+      const diffBuildDuration = Date.now() - diffBuildStart;
+      this.lastStatusSyncPerf.initialDiffDurationMs = diffBuildDuration;
+      this.lastStatusSyncPerf.initialVisibleDiffs = diffs.length;
+      console.debug(
+        `[Bangumi Sync][Perf] syncStatus:initialDiffs duration=${diffBuildDuration}ms visible=${diffs.length}`
+      );
       this.state.loading = false;
       if (diffs.length === 0) {
         new import_obsidian20.Notice(tn("controlPanel", "noStatusDiff"));
@@ -12839,9 +12978,19 @@ var ControlPanel = class extends import_obsidian20.Modal {
         this.episodeStatusManager
       );
       modal.open();
+      const modalOpenDuration = Date.now() - perfStart;
+      this.lastStatusSyncPerf.modalOpenedMs = modalOpenDuration;
+      console.debug(
+        `[Bangumi Sync][Perf] syncStatus:modalOpened total=${modalOpenDuration}ms visible=${diffs.length}`
+      );
+      this.renderStatus(`${tn("controlPanel", "comparingStatus")} (2/2)`);
+      void this.loadBackgroundStatusDiffs(snapshots, modal);
     } catch (error) {
       this.state.loading = false;
       const errorMsg = error instanceof Error ? error.message : String(error);
+      if (this.lastStatusSyncPerf) {
+        this.lastStatusSyncPerf.lastError = errorMsg;
+      }
       new import_obsidian20.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
       this.renderStatus(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
     }
@@ -12849,14 +12998,20 @@ var ControlPanel = class extends import_obsidian20.Modal {
   /**
    * 构建状态同步差异对象
    */
-  buildStatusSyncDiff(collection, localInfo, statusFieldName, localRate, cloudRate, localComment, cloudComment, localTags, cloudTags, localStatus, cloudStatus, episodeStatus, platformFields, platformSyncPayload) {
+  buildStatusSyncDiff(snapshot) {
+    const { collection, localInfo, statusFieldName } = snapshot;
+    const cloudRate = collection.rate || null;
+    const cloudComment = collection.comment || null;
+    const cloudTagsRaw = collection.tags && collection.tags.length > 0 ? collection.tags : null;
+    const cloudTags = this.incrementalSync.normalizeTags(cloudTagsRaw);
+    const cloudStatus = collection.type || null;
     const rateDiff = {
-      localValue: localRate,
+      localValue: snapshot.localRate,
       cloudValue: cloudRate,
-      hasDiff: localRate !== cloudRate,
+      hasDiff: snapshot.localRate !== cloudRate,
       decision: "skip"
     };
-    const localCommentNormalized = this.incrementalSync.normalizeComment(localComment);
+    const localCommentNormalized = this.incrementalSync.normalizeComment(snapshot.localComment);
     const cloudCommentNormalized = this.incrementalSync.normalizeComment(cloudComment);
     const commentDiff = {
       localValue: localCommentNormalized,
@@ -12864,23 +13019,29 @@ var ControlPanel = class extends import_obsidian20.Modal {
       hasDiff: localCommentNormalized !== cloudCommentNormalized,
       decision: "skip"
     };
-    const localTagSet = localTags ? new Set(localTags.map((t2) => t2.toLowerCase().trim())) : /* @__PURE__ */ new Set();
+    const localTagSet = new Set(snapshot.localTags.map((t2) => t2.toLowerCase().trim()));
     const cloudTagSet = cloudTags ? new Set(cloudTags.map((t2) => t2.toLowerCase().trim())) : /* @__PURE__ */ new Set();
     const tagsHasDiff = localTagSet.size !== cloudTagSet.size || ![...localTagSet].every((t2) => cloudTagSet.has(t2));
     const tagsDiff = {
-      localValue: localTags,
+      localValue: snapshot.localTags,
       cloudValue: cloudTags,
       hasDiff: tagsHasDiff,
       decision: "skip"
     };
     const statusDiff = {
-      localValue: localStatus,
+      localValue: snapshot.localStatus,
       cloudValue: cloudStatus,
-      hasDiff: localStatus !== cloudStatus,
+      hasDiff: snapshot.localStatus !== cloudStatus,
       decision: "skip"
     };
-    const hasUserDiff = rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff || episodeStatus.hasDiff;
-    const hasPlatformDiff = platformFields.some((field) => field.hasDiff);
+    const episodeStatus = {
+      localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localEpisodeStatusMap) : null,
+      cloudValue: null,
+      hasDiff: false,
+      decision: "skip"
+    };
+    const hasUserDiff = rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff;
+    const hasPlatformDiff = false;
     const hasAnyDiff = hasUserDiff || hasPlatformDiff;
     return {
       subjectId: collection.subject_id,
@@ -12894,84 +13055,98 @@ var ControlPanel = class extends import_obsidian20.Modal {
       tags: tagsDiff,
       status: statusDiff,
       episodeStatus,
-      platformFields,
-      platformSyncPayload,
+      platformFields: [],
+      platformSyncPayload: void 0,
       hasUserDiff,
       hasPlatformDiff,
       hasAnyDiff,
-      expanded: false
+      expanded: false,
+      episodeStatusLoadState: snapshot.shouldLoadEpisodeStatus ? "pending" : "ready",
+      platformLoadState: snapshot.shouldLoadPlatformData ? "pending" : "ready",
+      backgroundError: null
     };
   }
-  async buildPlatformFieldDiffs(collection, content) {
-    if (collection.subject_type !== 2 /* Anime */ && collection.subject_type !== 6 /* Real */ && collection.subject_type !== 1 /* Book */) {
-      return { fields: [] };
-    }
-    const localContext = this.incrementalSync.extractLocalPlatformSyncContext(content);
-    if (!this.incrementalSync.isPlatformDataCandidate(localContext)) {
-      return { fields: [] };
-    }
-    const subject = await this.client.getSubject(collection.subject_id);
-    const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
-    const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
-    const fields = [];
-    if (cloudPayload.serialStatus && localContext.serialStatus !== cloudPayload.serialStatus) {
-      fields.push({
-        key: "serialState",
-        label: tn("statusSyncModal", "fieldSerialState"),
-        localValue: localContext.serialStatus,
-        cloudValue: cloudPayload.serialStatus,
-        hasDiff: true,
-        decision: "skip"
-      });
-    }
-    if (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */) {
-      const cloudValue = cloudPayload.episodeCount;
-      if (cloudValue !== void 0 && cloudValue !== null && localContext.episodeCount !== cloudValue) {
-        fields.push({
-          key: "episodeCount",
-          label: tn("statusSyncModal", "fieldEpisodeCount"),
-          localValue: localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
-          cloudValue: String(cloudValue),
-          hasDiff: true,
-          decision: "skip"
-        });
-      }
-    }
-    if (collection.subject_type === 1 /* Book */) {
-      const isComic = (parsedInfo.category || "").includes("\u6F2B\u753B") || localContext.chapterCount !== null;
-      if (isComic) {
-        if (cloudPayload.chapterCount !== void 0 && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
+  async buildPlatformFieldDiffs(snapshot, context) {
+    return this.getOrCreateCachedPromise(
+      context.platformDiffCache,
+      snapshot.subjectId,
+      async () => {
+        const collection = snapshot.collection;
+        if (collection.subject_type !== 2 /* Anime */ && collection.subject_type !== 6 /* Real */ && collection.subject_type !== 1 /* Book */) {
+          return { fields: [] };
+        }
+        if (!snapshot.shouldLoadPlatformData) {
+          return { fields: [] };
+        }
+        const subject = await this.getOrCreateCachedPromise(
+          context.subjectCache,
+          snapshot.subjectId,
+          () => this.client.getSubject(snapshot.subjectId)
+        );
+        const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+        const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
+        const fields = [];
+        const localContext = snapshot.localPlatformContext;
+        if (cloudPayload.serialStatus && localContext.serialStatus !== cloudPayload.serialStatus) {
           fields.push({
-            key: "chapterCount",
-            label: tn("statusSyncModal", "fieldChapterCount"),
-            localValue: localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
-            cloudValue: String(cloudPayload.chapterCount),
+            key: "serialState",
+            label: tn("statusSyncModal", "fieldSerialState"),
+            localValue: localContext.serialStatus,
+            cloudValue: cloudPayload.serialStatus,
             hasDiff: true,
             decision: "skip"
           });
         }
-        if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-          fields.push({
-            key: "volumeCount",
-            label: tn("statusSyncModal", "fieldVolumeCount"),
-            localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
-            cloudValue: String(cloudPayload.volumeCount),
-            hasDiff: true,
-            decision: "skip"
-          });
+        if (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */) {
+          const cloudValue = cloudPayload.episodeCount;
+          if (cloudValue !== void 0 && cloudValue !== null && localContext.episodeCount !== cloudValue) {
+            fields.push({
+              key: "episodeCount",
+              label: tn("statusSyncModal", "fieldEpisodeCount"),
+              localValue: localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
+              cloudValue: String(cloudValue),
+              hasDiff: true,
+              decision: "skip"
+            });
+          }
         }
-      } else if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-        fields.push({
-          key: "volumeCount",
-          label: tn("statusSyncModal", "fieldVolumeCount"),
-          localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
-          cloudValue: String(cloudPayload.volumeCount),
-          hasDiff: true,
-          decision: "skip"
-        });
+        if (collection.subject_type === 1 /* Book */) {
+          const isComic = (parsedInfo.category || "").includes("\u6F2B\u753B") || localContext.chapterCount !== null;
+          if (isComic) {
+            if (cloudPayload.chapterCount !== void 0 && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
+              fields.push({
+                key: "chapterCount",
+                label: tn("statusSyncModal", "fieldChapterCount"),
+                localValue: localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
+                cloudValue: String(cloudPayload.chapterCount),
+                hasDiff: true,
+                decision: "skip"
+              });
+            }
+            if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+              fields.push({
+                key: "volumeCount",
+                label: tn("statusSyncModal", "fieldVolumeCount"),
+                localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+                cloudValue: String(cloudPayload.volumeCount),
+                hasDiff: true,
+                decision: "skip"
+              });
+            }
+          } else if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+            fields.push({
+              key: "volumeCount",
+              label: tn("statusSyncModal", "fieldVolumeCount"),
+              localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+              cloudValue: String(cloudPayload.volumeCount),
+              hasDiff: true,
+              decision: "skip"
+            });
+          }
+        }
+        return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
       }
-    }
-    return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
+    );
   }
   buildPlatformSyncPayload(subject, parsedInfo) {
     const episodeCount = subject.total_episodes || subject.eps || parsedInfo.episode || null;
@@ -12990,28 +13165,251 @@ var ControlPanel = class extends import_obsidian20.Modal {
       volumeCount
     };
   }
-  async buildEpisodeStatusDiff(file, subjectId, subjectType) {
-    if (!this.episodeStatusManager || subjectType !== 2 /* Anime */ && subjectType !== 6 /* Real */) {
+  async buildEpisodeStatusDiff(snapshot, context) {
+    if (!this.episodeStatusManager || !snapshot.shouldLoadEpisodeStatus) {
       return {
-        localValue: null,
+        localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localEpisodeStatusMap) : null,
         cloudValue: null,
         hasDiff: false,
         decision: "skip"
       };
     }
-    const [localMap, cloudMap] = await Promise.all([
-      this.episodeStatusManager.getEpisodeStatusMap(file),
-      this.episodeStatusManager.getCloudEpisodeStatusMap(subjectId)
-    ]);
-    const localValue = this.episodeStatusManager.summarizeEpisodeStatuses(localMap);
+    const cloudMap = await this.getOrCreateCachedPromise(
+      context.cloudEpisodeStatusCache,
+      snapshot.subjectId,
+      () => this.episodeStatusManager.getCloudEpisodeStatusMap(snapshot.subjectId)
+    );
+    const localValue = this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localEpisodeStatusMap);
     const cloudValue = this.episodeStatusManager.summarizeEpisodeStatuses(cloudMap);
-    const hasDiff = this.episodeStatusManager.serializeEpisodeStatuses(localMap) !== this.episodeStatusManager.serializeEpisodeStatuses(cloudMap);
+    const hasDiff = this.episodeStatusManager.serializeEpisodeStatuses(snapshot.localEpisodeStatusMap) !== this.episodeStatusManager.serializeEpisodeStatuses(cloudMap);
     return {
       localValue,
       cloudValue,
       hasDiff,
       decision: "skip"
     };
+  }
+  async buildLocalStatusSyncSnapshot(collection) {
+    var _a, _b;
+    const localInfo = this.state.localSubjects.get(collection.subject_id);
+    if (!localInfo) {
+      return null;
+    }
+    const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+    if (!(file instanceof import_obsidian20.TFile)) {
+      return null;
+    }
+    const prefetched = this.getPrefetchedUserData(collection.subject_id, localInfo.path, file.stat.mtime);
+    if (prefetched) {
+      if (this.lastStatusSyncPerf) {
+        this.lastStatusSyncPerf.prefetchHits = ((_a = this.lastStatusSyncPerf.prefetchHits) != null ? _a : 0) + 1;
+      }
+      return this.createSnapshotFromPrefetched(collection, localInfo, file, prefetched);
+    }
+    if (this.lastStatusSyncPerf) {
+      this.lastStatusSyncPerf.prefetchMisses = ((_b = this.lastStatusSyncPerf.prefetchMisses) != null ? _b : 0) + 1;
+    }
+    const extracted = await this.extractPrefetchedUserData(collection, localInfo, file);
+    return extracted ? this.createSnapshotFromPrefetched(collection, localInfo, file, extracted) : null;
+  }
+  hasPendingBackgroundLoad(diff) {
+    return diff.episodeStatusLoadState !== "ready" || diff.platformLoadState !== "ready";
+  }
+  startUserDataPrefetch() {
+    const syncedCollections = this.getSyncedCollections();
+    const generation = ++this.userDataPrefetchGeneration;
+    if (syncedCollections.length === 0) {
+      this.prefetchedUserDataById.clear();
+      this.userDataPrefetchPromise = null;
+      return;
+    }
+    this.prefetchedUserDataById.clear();
+    this.userDataPrefetchPromise = this.mapWithConcurrency(syncedCollections, 4, async (collection) => {
+      if (generation !== this.userDataPrefetchGeneration) {
+        return;
+      }
+      const localInfo = this.state.localSubjects.get(collection.subject_id);
+      if (!localInfo) {
+        return;
+      }
+      const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+      if (!(file instanceof import_obsidian20.TFile)) {
+        return;
+      }
+      const prefetched = await this.extractPrefetchedUserData(collection, localInfo, file);
+      if (!prefetched || generation !== this.userDataPrefetchGeneration) {
+        return;
+      }
+      this.prefetchedUserDataById.set(collection.subject_id, prefetched);
+    }).then(() => {
+      if (generation === this.userDataPrefetchGeneration) {
+        console.debug(`[Bangumi Sync] \u7528\u6237\u6570\u636E\u9884\u70ED\u5B8C\u6210: ${this.prefetchedUserDataById.size}`);
+      }
+    }).catch((error) => {
+      if (generation === this.userDataPrefetchGeneration) {
+        console.warn("[Bangumi Sync] \u7528\u6237\u6570\u636E\u9884\u70ED\u5931\u8D25:", error);
+      }
+    });
+  }
+  getSyncedCollections() {
+    return this.state.collections.filter((collection) => this.state.localSubjects.has(collection.subject_id));
+  }
+  getPrefetchedUserData(subjectId, path, mtime) {
+    const prefetched = this.prefetchedUserDataById.get(subjectId);
+    if (!prefetched) {
+      return null;
+    }
+    if (prefetched.path !== path || prefetched.mtime !== mtime) {
+      this.prefetchedUserDataById.delete(subjectId);
+      return null;
+    }
+    return prefetched;
+  }
+  async extractPrefetchedUserData(collection, localInfo, file) {
+    const content = await this.app.vault.read(file);
+    const statusFieldName = this.incrementalSync.getStatusFieldName(collection.subject_type);
+    const localPlatformContext = this.incrementalSync.extractLocalPlatformSyncContext(content);
+    const shouldLoadEpisodeStatus = Boolean(
+      this.episodeStatusManager && (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */)
+    );
+    const shouldLoadPlatformData = (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */ || collection.subject_type === 1 /* Book */) && this.incrementalSync.isPlatformDataCandidate(localPlatformContext);
+    return {
+      path: localInfo.path,
+      mtime: file.stat.mtime,
+      content,
+      statusFieldName,
+      localRate: this.incrementalSync.extractRate(content),
+      localComment: this.incrementalSync.extractComment(content),
+      localTags: this.incrementalSync.normalizeTags(this.incrementalSync.extractTags(content)),
+      localStatus: this.incrementalSync.extractStatus(content, statusFieldName),
+      localPlatformContext,
+      localEpisodeStatusMap: this.episodeStatusManager ? this.episodeStatusManager.getEpisodeStatusMapFromContent(content) : /* @__PURE__ */ new Map(),
+      shouldLoadEpisodeStatus,
+      shouldLoadPlatformData
+    };
+  }
+  createSnapshotFromPrefetched(collection, localInfo, file, prefetched) {
+    return {
+      subjectId: collection.subject_id,
+      collection,
+      localInfo,
+      file,
+      content: prefetched.content,
+      statusFieldName: prefetched.statusFieldName,
+      localRate: prefetched.localRate,
+      localComment: prefetched.localComment,
+      localTags: prefetched.localTags,
+      localStatus: prefetched.localStatus,
+      localPlatformContext: prefetched.localPlatformContext,
+      localEpisodeStatusMap: new Map(prefetched.localEpisodeStatusMap),
+      shouldLoadEpisodeStatus: prefetched.shouldLoadEpisodeStatus,
+      shouldLoadPlatformData: prefetched.shouldLoadPlatformData
+    };
+  }
+  async loadBackgroundStatusDiffs(snapshots, modal) {
+    const backgroundStart = Date.now();
+    const context = {
+      subjectCache: /* @__PURE__ */ new Map(),
+      cloudEpisodeStatusCache: /* @__PURE__ */ new Map(),
+      platformDiffCache: /* @__PURE__ */ new Map()
+    };
+    const candidates = snapshots.filter((snapshot) => snapshot.shouldLoadEpisodeStatus || snapshot.shouldLoadPlatformData);
+    let completed = 0;
+    modal.updateBackgroundProgress(completed, candidates.length);
+    if (this.lastStatusSyncPerf) {
+      this.lastStatusSyncPerf.backgroundCandidates = candidates.length;
+      this.lastStatusSyncPerf.backgroundCompleted = completed;
+      this.lastStatusSyncPerf.backgroundElapsedMs = 0;
+    }
+    console.debug(`[Bangumi Sync][Perf] syncStatus:backgroundStart candidates=${candidates.length}`);
+    await this.mapWithConcurrency(candidates, 4, async (snapshot) => {
+      if (modal.isDisposed()) {
+        return;
+      }
+      const loadingPatch = {};
+      if (snapshot.shouldLoadEpisodeStatus) {
+        loadingPatch.episodeStatusLoadState = "loading";
+      }
+      if (snapshot.shouldLoadPlatformData) {
+        loadingPatch.platformLoadState = "loading";
+      }
+      modal.updateDiff(snapshot.subjectId, loadingPatch);
+      try {
+        const [episodeStatus, platformResult] = await Promise.all([
+          snapshot.shouldLoadEpisodeStatus ? this.buildEpisodeStatusDiff(snapshot, context) : Promise.resolve(null),
+          snapshot.shouldLoadPlatformData ? this.buildPlatformFieldDiffs(snapshot, context) : Promise.resolve(null)
+        ]);
+        if (modal.isDisposed()) {
+          return;
+        }
+        const patch = {
+          backgroundError: null
+        };
+        if (episodeStatus) {
+          patch.episodeStatus = episodeStatus;
+          patch.episodeStatusLoadState = "ready";
+        }
+        if (platformResult) {
+          patch.platformFields = platformResult.fields;
+          patch.platformSyncPayload = platformResult.payload;
+          patch.platformLoadState = "ready";
+        }
+        modal.updateDiff(snapshot.subjectId, patch);
+      } catch (error) {
+        if (modal.isDisposed()) {
+          return;
+        }
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        modal.updateDiff(snapshot.subjectId, {
+          episodeStatusLoadState: snapshot.shouldLoadEpisodeStatus ? "failed" : "ready",
+          platformLoadState: snapshot.shouldLoadPlatformData ? "failed" : "ready",
+          backgroundError: errorMessage
+        });
+      } finally {
+        completed++;
+        modal.updateBackgroundProgress(completed, candidates.length);
+        this.renderStatus(`${tn("controlPanel", "comparingStatus")} (2/2 ${completed}/${candidates.length})`);
+        if (this.lastStatusSyncPerf) {
+          this.lastStatusSyncPerf.backgroundCompleted = completed;
+          this.lastStatusSyncPerf.backgroundElapsedMs = Date.now() - backgroundStart;
+        }
+        console.debug(
+          `[Bangumi Sync][Perf] syncStatus:backgroundProgress completed=${completed}/${candidates.length} elapsed=${Date.now() - backgroundStart}ms`
+        );
+      }
+    });
+    if (this.lastStatusSyncPerf) {
+      this.lastStatusSyncPerf.backgroundDoneMs = Date.now() - backgroundStart;
+      this.lastStatusSyncPerf.backgroundElapsedMs = this.lastStatusSyncPerf.backgroundDoneMs;
+    }
+    console.debug(
+      `[Bangumi Sync][Perf] syncStatus:backgroundDone total=${Date.now() - backgroundStart}ms candidates=${candidates.length}`
+    );
+  }
+  async mapWithConcurrency(items, concurrency, task) {
+    const results = new Array(items.length);
+    let nextIndex = 0;
+    const workerCount = Math.max(1, Math.min(concurrency, items.length));
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex++;
+        results[currentIndex] = await task(items[currentIndex], currentIndex);
+      }
+    });
+    await Promise.all(workers);
+    return results;
+  }
+  getOrCreateCachedPromise(cache, key, factory) {
+    const existing = cache.get(key);
+    if (existing) {
+      return existing;
+    }
+    const promise = factory().catch((error) => {
+      cache.delete(key);
+      throw error;
+    });
+    cache.set(key, promise);
+    return promise;
   }
   /**
    * 处理键盘导航
@@ -13389,6 +13787,9 @@ var EpisodeStatusManager = class {
    */
   async getEpisodeStatusMap(file) {
     const content = await this.app.vault.read(file);
+    return this.getEpisodeStatusMapFromContent(content);
+  }
+  getEpisodeStatusMapFromContent(content) {
     const statusMap = this.extractEpisodeStatusMapFromFrontmatter(content);
     const contentStatusMap = this.extractEpisodeStatusMapFromEpisodeBoxes(content);
     for (const [episodeId, entry] of contentStatusMap) {

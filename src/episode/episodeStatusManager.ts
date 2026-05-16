@@ -26,6 +26,10 @@ export class EpisodeStatusManager {
 	 */
 	async getEpisodeStatusMap(file: TFile): Promise<Map<number, LocalEpisodeStatus>> {
 		const content = await this.app.vault.read(file);
+		return this.getEpisodeStatusMapFromContent(content);
+	}
+
+	getEpisodeStatusMapFromContent(content: string): Map<number, LocalEpisodeStatus> {
 		const statusMap = this.extractEpisodeStatusMapFromFrontmatter(content);
 		const contentStatusMap = this.extractEpisodeStatusMapFromEpisodeBoxes(content);
 

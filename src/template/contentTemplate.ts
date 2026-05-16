@@ -13,6 +13,7 @@ import { getTemplateFallbackLookupKey, resolveTemplateTarget } from '../../commo
 import { getTypeSuffixForName } from '../../common/template/pathTemplate';
 import { parseEpisodes, createUserStatusMap } from '../../common/parser/episodeParser';
 import { CoverLinkType } from '../settings/settings';
+import { normalizeShortComment, renderShortCommentCalloutContinuation } from '../comment/shortComment';
 
 export interface CustomTemplates {
 	[category: string]: string | undefined;
@@ -111,16 +112,10 @@ export function extractTemplateVars(
 
 	// 收藏信息
 		const my_rate = collection?.rate ? String(collection.rate) : '';
-		// 短评：my_comment 用于 frontmatter（renderContentTemplate 统一转义），my_comment_raw 用于正文 callout
-		// Bangumi API 用 \n 分段，Markdown 需要 \n\n 才能渲染为段落，因此 my_comment_raw 需要转换
-		const my_comment_raw = collection?.comment
-			? collection.comment
-				.replace(/\r\n?/g, '\n')
-				.split('\n\n')
-				.map(para => para.replace(/\n/g, '\n\n'))
-				.join('\n\n')
-			: '';
-		const my_comment = collection?.comment || '';
+		// 短评：my_comment 用于 frontmatter（renderContentTemplate 统一转义），
+		// my_comment_raw 用于正文 callout，需保证多行内容的每一行都能留在 callout 内。
+		const my_comment = normalizeShortComment(collection?.comment) || '';
+		const my_comment_raw = renderShortCommentCalloutContinuation(collection?.comment);
 		const my_status = collection
 		? getCollectionStatusLabel(collection.type, subject.type)
 		: '';

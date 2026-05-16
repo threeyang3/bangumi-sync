@@ -16,10 +16,12 @@ import { ConflictDetector } from './conflictResolver';
 import { SearchModal } from '../ui/searchModal';
 import { getLocale, tn } from '../i18n';
 import { EpisodeStatusManager } from '../episode/episodeStatusManager';
+import { LocalEpisodeStatus } from '../episode/types';
 import { SubjectNoteManager } from '../note/subjectNoteManager';
 import { loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult, hasLocalPropertyFieldsForCollections } from '../ui/localPropertyModal';
 import { isMobile } from '../utils/mobile';
 import { parseInfoByType } from '../../common/parser/infoboxParser';
+import { LocalPlatformSyncContext } from '../sync/incrementalSync';
 
 /**
  * 本地条目信息
@@ -28,6 +30,61 @@ interface LocalSubjectInfo {
 	id: number;
 	path: string;
 	name_cn: string;
+}
+
+interface LocalStatusSyncSnapshot {
+	subjectId: number;
+	collection: UserCollection;
+	localInfo: LocalSubjectInfo;
+	file: TFile;
+	content: string;
+	statusFieldName: string;
+	localRate: number | null;
+	localComment: string | null;
+	localTags: string[];
+	localStatus: number | null;
+	localPlatformContext: LocalPlatformSyncContext;
+	localEpisodeStatusMap: Map<number, LocalEpisodeStatus>;
+	shouldLoadEpisodeStatus: boolean;
+	shouldLoadPlatformData: boolean;
+}
+
+interface StatusSyncBuildContext {
+	subjectCache: Map<number, Promise<Subject>>;
+	cloudEpisodeStatusCache: Map<number, Promise<Map<number, LocalEpisodeStatus>>>;
+	platformDiffCache: Map<number, Promise<{ fields: PlatformFieldDiff[]; payload?: PlatformSyncPayload }>>;
+}
+
+interface PrefetchedUserData {
+	path: string;
+	mtime: number;
+	content: string;
+	statusFieldName: string;
+	localRate: number | null;
+	localComment: string | null;
+	localTags: string[];
+	localStatus: number | null;
+	localPlatformContext: LocalPlatformSyncContext;
+	localEpisodeStatusMap: Map<number, LocalEpisodeStatus>;
+	shouldLoadEpisodeStatus: boolean;
+	shouldLoadPlatformData: boolean;
+}
+
+interface StatusSyncPerfMetrics {
+	startAt: number;
+	syncedCollections: number;
+	snapshotDurationMs?: number;
+	snapshotCount?: number;
+	prefetchHits?: number;
+	prefetchMisses?: number;
+	initialDiffDurationMs?: number;
+	initialVisibleDiffs?: number;
+	modalOpenedMs?: number;
+	backgroundCandidates?: number;
+	backgroundCompleted?: number;
+	backgroundElapsedMs?: number;
+	backgroundDoneMs?: number;
+	lastError?: string | null;
 }
 
 /**
@@ -99,6 +156,9 @@ export class ControlPanel extends Modal {
 	private touchStartHandler: ((e: TouchEvent) => void) | null = null;
 	private touchMoveHandler: ((e: TouchEvent) => void) | null = null;
 	private touchEndHandler: (() => void) | null = null;
+	private prefetchedUserDataById: Map<number, PrefetchedUserData> = new Map();
+	private userDataPrefetchGeneration = 0;
+	private userDataPrefetchPromise: Promise<void> | null = null;
 
 	private readonly mobileShortLabels = getLocale() === 'zh-CN'
 		? {
@@ -121,6 +181,8 @@ export class ControlPanel extends Modal {
 			undo: 'Undo',
 			search: 'Search',
 		};
+
+	public lastStatusSyncPerf: StatusSyncPerfMetrics | null = null;
 
 	constructor(
 		app: App,
@@ -192,11 +254,10 @@ export class ControlPanel extends Modal {
 			// 使用缓存数据，直接显示
 			this.renderStatus(`${tn('controlPanel', 'cachedDataLoaded')} ${this.state.collections.length}`);
 			this.applyFilters();
+			this.startUserDataPrefetch();
 
 			// 自动触发状态同步
-			if (this.autoSyncStatus) {
-				void this.syncStatus();
-			}
+			this.triggerAutoSyncStatus();
 		} else {
 			// 无缓存，加载数据
 			void this.loadData();
@@ -207,6 +268,8 @@ export class ControlPanel extends Modal {
 	}
 
 	onClose(): void {
+		this.userDataPrefetchGeneration++;
+		this.userDataPrefetchPromise = null;
 		// 清理触摸事件监听器
 		if (this.touchStartHandler) {
 			this.contentEl.removeEventListener('touchstart', this.touchStartHandler);
@@ -444,6 +507,8 @@ export class ControlPanel extends Modal {
 			});
 
 			this.applyFilters();
+			this.startUserDataPrefetch();
+			this.triggerAutoSyncStatus();
 
 		} catch (error) {
 			this.state.loading = false;
@@ -1114,11 +1179,50 @@ export class ControlPanel extends Modal {
 	 * 同步状态
 	 * 用户数据对全部条目对比；平台数据仅对本地未明确已完结的条目对比
 	 */
+	private triggerAutoSyncStatus(): void {
+		if (!this.autoSyncStatus) {
+			return;
+		}
+
+		this.autoSyncStatus = false;
+		void this.syncStatusAfterPrefetchWarmup();
+	}
+
+	private async syncStatusAfterPrefetchWarmup(): Promise<void> {
+		const prefetchPromise = this.userDataPrefetchPromise;
+		if (prefetchPromise) {
+			try {
+				await Promise.race([
+					prefetchPromise,
+					this.delay(1000)
+				]);
+			} catch (error) {
+				console.warn('状态同步预热缓存失败，继续执行同步:', error);
+			}
+		}
+
+		await this.syncStatus();
+	}
+
+	private delay(ms: number): Promise<void> {
+		const ownerWindow = this.contentEl.ownerDocument.defaultView ?? activeWindow;
+		return new Promise(resolve => ownerWindow.setTimeout(resolve, ms));
+	}
+
 	private async syncStatus(): Promise<void> {
+		const perfStart = Date.now();
+		this.lastStatusSyncPerf = {
+			startAt: perfStart,
+			syncedCollections: 0,
+			prefetchHits: 0,
+			prefetchMisses: 0,
+			lastError: null,
+		};
 		// 获取已同步的条目
 		const syncedCollections = this.state.collections.filter(c =>
 			this.state.localSubjects.has(c.subject_id)
 		);
+		this.lastStatusSyncPerf.syncedCollections = syncedCollections.length;
 
 		if (syncedCollections.length === 0) {
 			new Notice(tn('controlPanel', 'noSyncedItemsStatus'));
@@ -1126,69 +1230,36 @@ export class ControlPanel extends Modal {
 		}
 
 		this.state.loading = true;
-		this.renderStatus(tn('controlPanel', 'comparingStatus'));
+		this.renderStatus(`${tn('controlPanel', 'comparingStatus')} (1/2)`);
+		console.debug(`[Bangumi Sync][Perf] syncStatus:start synced=${syncedCollections.length}`);
 
 		try {
-			const diffs: StatusSyncDiff[] = [];
-
-			for (const collection of syncedCollections) {
-				const localInfo = this.state.localSubjects.get(collection.subject_id);
-				if (!localInfo) continue;
-
-				// 读取本地文件
-				const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-				if (!(file instanceof TFile)) continue;
-
-				const content = await this.app.vault.read(file);
-
-				// 获取状态字段名
-				const statusFieldName = this.incrementalSync.getStatusFieldName(collection.subject_type);
-
-				// 提取本地数据
-				const localRate = this.incrementalSync.extractRate(content);
-				const localComment = this.incrementalSync.extractComment(content);
-				const localTags = this.incrementalSync.normalizeTags(this.incrementalSync.extractTags(content));
-				const localStatus = this.incrementalSync.extractStatus(content, statusFieldName);
-
-				// 云端用户数据
-				const cloudRate = collection.rate || null;
-				const cloudComment = collection.comment || null;
-				const cloudTagsRaw = collection.tags && collection.tags.length > 0 ? collection.tags : null;
-				const cloudTags = this.incrementalSync.normalizeTags(cloudTagsRaw);
-				const cloudStatus = collection.type || null;
-				let episodeStatusDiff: FieldDiff<string>;
-				try {
-					episodeStatusDiff = await this.buildEpisodeStatusDiff(file, collection.subject_id, collection.subject_type);
-				} catch (epError) {
-					console.warn(`[Bangumi Sync] 获取章节状态失败 (${collection.subject_id}):`, epError);
-					episodeStatusDiff = {
-						localValue: null,
-						cloudValue: null,
-						hasDiff: false,
-						decision: 'skip',
-					};
+			const snapshotStart = Date.now();
+			const snapshots = (await this.mapWithConcurrency(
+				syncedCollections,
+				6,
+				async (collection, index) => {
+					this.renderStatus(`${tn('controlPanel', 'comparingStatus')} (1/2 ${index + 1}/${syncedCollections.length})`);
+					return this.buildLocalStatusSyncSnapshot(collection);
 				}
+			)).filter((snapshot): snapshot is LocalStatusSyncSnapshot => snapshot !== null);
+			const snapshotDuration = Date.now() - snapshotStart;
+			this.lastStatusSyncPerf.snapshotDurationMs = snapshotDuration;
+			this.lastStatusSyncPerf.snapshotCount = snapshots.length;
+			console.debug(
+				`[Bangumi Sync][Perf] syncStatus:snapshots duration=${snapshotDuration}ms snapshots=${snapshots.length}`
+			);
 
-				const platformFields = await this.buildPlatformFieldDiffs(collection, content);
-
-				// 构建差异对象
-				const diff = this.buildStatusSyncDiff(
-					collection,
-					localInfo,
-					statusFieldName,
-					localRate, cloudRate,
-					localComment, cloudComment,
-					localTags, cloudTags,
-					localStatus, cloudStatus,
-					episodeStatusDiff,
-					platformFields.fields,
-					platformFields.payload
-				);
-
-				if (diff.hasAnyDiff) {
-					diffs.push(diff);
-				}
-			}
+			const diffBuildStart = Date.now();
+			const diffs = snapshots
+				.map(snapshot => this.buildStatusSyncDiff(snapshot))
+				.filter(diff => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
+			const diffBuildDuration = Date.now() - diffBuildStart;
+			this.lastStatusSyncPerf.initialDiffDurationMs = diffBuildDuration;
+			this.lastStatusSyncPerf.initialVisibleDiffs = diffs.length;
+			console.debug(
+				`[Bangumi Sync][Perf] syncStatus:initialDiffs duration=${diffBuildDuration}ms visible=${diffs.length}`
+			);
 
 			this.state.loading = false;
 
@@ -1211,10 +1282,20 @@ export class ControlPanel extends Modal {
 				this.episodeStatusManager
 			);
 			modal.open();
+			const modalOpenDuration = Date.now() - perfStart;
+			this.lastStatusSyncPerf.modalOpenedMs = modalOpenDuration;
+			console.debug(
+				`[Bangumi Sync][Perf] syncStatus:modalOpened total=${modalOpenDuration}ms visible=${diffs.length}`
+			);
+			this.renderStatus(`${tn('controlPanel', 'comparingStatus')} (2/2)`);
+			void this.loadBackgroundStatusDiffs(snapshots, modal);
 
 		} catch (error) {
 			this.state.loading = false;
 			const errorMsg = error instanceof Error ? error.message : String(error);
+			if (this.lastStatusSyncPerf) {
+				this.lastStatusSyncPerf.lastError = errorMsg;
+			}
 			new Notice(`${tn('controlPanel', 'compareStatusFailed')}: ${errorMsg}`);
 			this.renderStatus(`${tn('controlPanel', 'compareStatusFailed')}: ${errorMsg}`);
 		}
@@ -1223,32 +1304,24 @@ export class ControlPanel extends Modal {
 	/**
 	 * 构建状态同步差异对象
 	 */
-	private buildStatusSyncDiff(
-		collection: UserCollection,
-		localInfo: LocalSubjectInfo,
-		statusFieldName: string,
-		localRate: number | null,
-		cloudRate: number | null,
-		localComment: string | null,
-		cloudComment: string | null,
-		localTags: string[] | null,
-		cloudTags: string[] | null,
-		localStatus: number | null,
-		cloudStatus: number | null,
-		episodeStatus: FieldDiff<string>,
-		platformFields: PlatformFieldDiff[],
-		platformSyncPayload?: PlatformSyncPayload
-	): StatusSyncDiff {
+	private buildStatusSyncDiff(snapshot: LocalStatusSyncSnapshot): StatusSyncDiff {
+		const { collection, localInfo, statusFieldName } = snapshot;
+		const cloudRate = collection.rate || null;
+		const cloudComment = collection.comment || null;
+		const cloudTagsRaw = collection.tags && collection.tags.length > 0 ? collection.tags : null;
+		const cloudTags = this.incrementalSync.normalizeTags(cloudTagsRaw);
+		const cloudStatus = collection.type || null;
+
 		// 评分差异
 		const rateDiff: FieldDiff<number> = {
-			localValue: localRate,
+			localValue: snapshot.localRate,
 			cloudValue: cloudRate,
-			hasDiff: localRate !== cloudRate,
+			hasDiff: snapshot.localRate !== cloudRate,
 			decision: 'skip',
 		};
 
 		// 短评差异（忽略空白差异）
-		const localCommentNormalized = this.incrementalSync.normalizeComment(localComment);
+		const localCommentNormalized = this.incrementalSync.normalizeComment(snapshot.localComment);
 		const cloudCommentNormalized = this.incrementalSync.normalizeComment(cloudComment);
 		const commentDiff: FieldDiff<string> = {
 			localValue: localCommentNormalized,
@@ -1258,12 +1331,12 @@ export class ControlPanel extends Modal {
 		};
 
 		// 标签差异（忽略顺序）
-		const localTagSet = localTags ? new Set(localTags.map(t => t.toLowerCase().trim())) : new Set();
+		const localTagSet = new Set(snapshot.localTags.map(t => t.toLowerCase().trim()));
 		const cloudTagSet = cloudTags ? new Set(cloudTags.map(t => t.toLowerCase().trim())) : new Set();
 		const tagsHasDiff = localTagSet.size !== cloudTagSet.size ||
 			![...localTagSet].every(t => cloudTagSet.has(t));
 		const tagsDiff: FieldDiff<string[]> = {
-			localValue: localTags,
+			localValue: snapshot.localTags,
 			cloudValue: cloudTags,
 			hasDiff: tagsHasDiff,
 			decision: 'skip',
@@ -1271,14 +1344,23 @@ export class ControlPanel extends Modal {
 
 		// 状态差异
 		const statusDiff: FieldDiff<number> = {
-			localValue: localStatus,
+			localValue: snapshot.localStatus,
 			cloudValue: cloudStatus,
-			hasDiff: localStatus !== cloudStatus,
+			hasDiff: snapshot.localStatus !== cloudStatus,
 			decision: 'skip',
 		};
 
-		const hasUserDiff = rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff || episodeStatus.hasDiff;
-		const hasPlatformDiff = platformFields.some(field => field.hasDiff);
+		const episodeStatus: FieldDiff<string> = {
+			localValue: this.episodeStatusManager
+				? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localEpisodeStatusMap)
+				: null,
+			cloudValue: null,
+			hasDiff: false,
+			decision: 'skip',
+		};
+
+		const hasUserDiff = rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff;
+		const hasPlatformDiff = false;
 		const hasAnyDiff = hasUserDiff || hasPlatformDiff;
 
 		return {
@@ -1293,98 +1375,112 @@ export class ControlPanel extends Modal {
 			tags: tagsDiff,
 			status: statusDiff,
 			episodeStatus,
-			platformFields,
-			platformSyncPayload,
+			platformFields: [],
+			platformSyncPayload: undefined,
 			hasUserDiff,
 			hasPlatformDiff,
 			hasAnyDiff,
 			expanded: false,
+			episodeStatusLoadState: snapshot.shouldLoadEpisodeStatus ? 'pending' : 'ready',
+			platformLoadState: snapshot.shouldLoadPlatformData ? 'pending' : 'ready',
+			backgroundError: null,
 		};
 	}
 
 	private async buildPlatformFieldDiffs(
-		collection: UserCollection,
-		content: string,
+		snapshot: LocalStatusSyncSnapshot,
+		context: StatusSyncBuildContext,
 	): Promise<{ fields: PlatformFieldDiff[]; payload?: PlatformSyncPayload }> {
-		if (
-			collection.subject_type !== SubjectType.Anime &&
-			collection.subject_type !== SubjectType.Real &&
-			collection.subject_type !== SubjectType.Book
-		) {
-			return { fields: [] };
-		}
+		return this.getOrCreateCachedPromise(
+			context.platformDiffCache,
+			snapshot.subjectId,
+			async () => {
+				const collection = snapshot.collection;
+				if (
+					collection.subject_type !== SubjectType.Anime &&
+					collection.subject_type !== SubjectType.Real &&
+					collection.subject_type !== SubjectType.Book
+				) {
+					return { fields: [] };
+				}
 
-		const localContext = this.incrementalSync.extractLocalPlatformSyncContext(content);
-		if (!this.incrementalSync.isPlatformDataCandidate(localContext)) {
-			return { fields: [] };
-		}
+				if (!snapshot.shouldLoadPlatformData) {
+					return { fields: [] };
+				}
 
-		const subject = await this.client.getSubject(collection.subject_id);
-		const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
-		const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
-		const fields: PlatformFieldDiff[] = [];
+				const subject = await this.getOrCreateCachedPromise(
+					context.subjectCache,
+					snapshot.subjectId,
+					() => this.client.getSubject(snapshot.subjectId)
+				);
+				const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+				const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
+				const fields: PlatformFieldDiff[] = [];
+				const localContext = snapshot.localPlatformContext;
 
-		if (cloudPayload.serialStatus && localContext.serialStatus !== cloudPayload.serialStatus) {
-			fields.push({
-				key: 'serialState',
-				label: tn('statusSyncModal', 'fieldSerialState'),
-				localValue: localContext.serialStatus,
-				cloudValue: cloudPayload.serialStatus,
-				hasDiff: true,
-				decision: 'skip',
-			});
-		}
-
-		if (collection.subject_type === SubjectType.Anime || collection.subject_type === SubjectType.Real) {
-			const cloudValue = cloudPayload.episodeCount;
-			if (cloudValue !== undefined && cloudValue !== null && localContext.episodeCount !== cloudValue) {
-				fields.push({
-					key: 'episodeCount',
-					label: tn('statusSyncModal', 'fieldEpisodeCount'),
-					localValue: localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
-					cloudValue: String(cloudValue),
-					hasDiff: true,
-					decision: 'skip',
-				});
-			}
-		}
-
-		if (collection.subject_type === SubjectType.Book) {
-			const isComic = (parsedInfo.category || '').includes('漫画') || localContext.chapterCount !== null;
-			if (isComic) {
-				if (cloudPayload.chapterCount !== undefined && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
+				if (cloudPayload.serialStatus && localContext.serialStatus !== cloudPayload.serialStatus) {
 					fields.push({
-						key: 'chapterCount',
-						label: tn('statusSyncModal', 'fieldChapterCount'),
-						localValue: localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
-						cloudValue: String(cloudPayload.chapterCount),
+						key: 'serialState',
+						label: tn('statusSyncModal', 'fieldSerialState'),
+						localValue: localContext.serialStatus,
+						cloudValue: cloudPayload.serialStatus,
 						hasDiff: true,
 						decision: 'skip',
 					});
 				}
-				if (cloudPayload.volumeCount !== undefined && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-					fields.push({
-						key: 'volumeCount',
-						label: tn('statusSyncModal', 'fieldVolumeCount'),
-						localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
-						cloudValue: String(cloudPayload.volumeCount),
-						hasDiff: true,
-						decision: 'skip',
-					});
-				}
-			} else if (cloudPayload.volumeCount !== undefined && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-				fields.push({
-					key: 'volumeCount',
-					label: tn('statusSyncModal', 'fieldVolumeCount'),
-					localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
-					cloudValue: String(cloudPayload.volumeCount),
-					hasDiff: true,
-					decision: 'skip',
-				});
-			}
-		}
 
-		return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
+				if (collection.subject_type === SubjectType.Anime || collection.subject_type === SubjectType.Real) {
+					const cloudValue = cloudPayload.episodeCount;
+					if (cloudValue !== undefined && cloudValue !== null && localContext.episodeCount !== cloudValue) {
+						fields.push({
+							key: 'episodeCount',
+							label: tn('statusSyncModal', 'fieldEpisodeCount'),
+							localValue: localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
+							cloudValue: String(cloudValue),
+							hasDiff: true,
+							decision: 'skip',
+						});
+					}
+				}
+
+				if (collection.subject_type === SubjectType.Book) {
+					const isComic = (parsedInfo.category || '').includes('漫画') || localContext.chapterCount !== null;
+					if (isComic) {
+						if (cloudPayload.chapterCount !== undefined && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
+							fields.push({
+								key: 'chapterCount',
+								label: tn('statusSyncModal', 'fieldChapterCount'),
+								localValue: localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
+								cloudValue: String(cloudPayload.chapterCount),
+								hasDiff: true,
+								decision: 'skip',
+							});
+						}
+						if (cloudPayload.volumeCount !== undefined && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+							fields.push({
+								key: 'volumeCount',
+								label: tn('statusSyncModal', 'fieldVolumeCount'),
+								localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+								cloudValue: String(cloudPayload.volumeCount),
+								hasDiff: true,
+								decision: 'skip',
+							});
+						}
+					} else if (cloudPayload.volumeCount !== undefined && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+						fields.push({
+							key: 'volumeCount',
+							label: tn('statusSyncModal', 'fieldVolumeCount'),
+							localValue: localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+							cloudValue: String(cloudPayload.volumeCount),
+							hasDiff: true,
+							decision: 'skip',
+						});
+					}
+				}
+
+				return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
+			}
+		);
 	}
 
 	private buildPlatformSyncPayload(subject: Subject, parsedInfo: ReturnType<typeof parseInfoByType>): PlatformSyncPayload {
@@ -1407,27 +1503,29 @@ export class ControlPanel extends Modal {
 	}
 
 	private async buildEpisodeStatusDiff(
-		file: TFile,
-		subjectId: number,
-		subjectType: SubjectType
+		snapshot: LocalStatusSyncSnapshot,
+		context: StatusSyncBuildContext,
 	): Promise<FieldDiff<string>> {
-		if (!this.episodeStatusManager || (subjectType !== SubjectType.Anime && subjectType !== SubjectType.Real)) {
+		if (!this.episodeStatusManager || !snapshot.shouldLoadEpisodeStatus) {
 			return {
-				localValue: null,
+				localValue: this.episodeStatusManager
+					? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localEpisodeStatusMap)
+					: null,
 				cloudValue: null,
 				hasDiff: false,
 				decision: 'skip',
 			};
 		}
 
-		const [localMap, cloudMap] = await Promise.all([
-			this.episodeStatusManager.getEpisodeStatusMap(file),
-			this.episodeStatusManager.getCloudEpisodeStatusMap(subjectId),
-		]);
+		const cloudMap = await this.getOrCreateCachedPromise(
+			context.cloudEpisodeStatusCache,
+			snapshot.subjectId,
+			() => this.episodeStatusManager!.getCloudEpisodeStatusMap(snapshot.subjectId)
+		);
 
-		const localValue = this.episodeStatusManager.summarizeEpisodeStatuses(localMap);
+		const localValue = this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localEpisodeStatusMap);
 		const cloudValue = this.episodeStatusManager.summarizeEpisodeStatuses(cloudMap);
-		const hasDiff = this.episodeStatusManager.serializeEpisodeStatuses(localMap) !==
+		const hasDiff = this.episodeStatusManager.serializeEpisodeStatuses(snapshot.localEpisodeStatusMap) !==
 			this.episodeStatusManager.serializeEpisodeStatuses(cloudMap);
 
 		return {
@@ -1436,6 +1534,294 @@ export class ControlPanel extends Modal {
 			hasDiff,
 			decision: 'skip',
 		};
+	}
+
+	private async buildLocalStatusSyncSnapshot(collection: UserCollection): Promise<LocalStatusSyncSnapshot | null> {
+		const localInfo = this.state.localSubjects.get(collection.subject_id);
+		if (!localInfo) {
+			return null;
+		}
+
+		const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+		if (!(file instanceof TFile)) {
+			return null;
+		}
+
+		const prefetched = this.getPrefetchedUserData(collection.subject_id, localInfo.path, file.stat.mtime);
+		if (prefetched) {
+			if (this.lastStatusSyncPerf) {
+				this.lastStatusSyncPerf.prefetchHits = (this.lastStatusSyncPerf.prefetchHits ?? 0) + 1;
+			}
+			return this.createSnapshotFromPrefetched(collection, localInfo, file, prefetched);
+		}
+		if (this.lastStatusSyncPerf) {
+			this.lastStatusSyncPerf.prefetchMisses = (this.lastStatusSyncPerf.prefetchMisses ?? 0) + 1;
+		}
+
+		const extracted = await this.extractPrefetchedUserData(collection, localInfo, file);
+		return extracted
+			? this.createSnapshotFromPrefetched(collection, localInfo, file, extracted)
+			: null;
+	}
+
+	private hasPendingBackgroundLoad(diff: StatusSyncDiff): boolean {
+		return diff.episodeStatusLoadState !== 'ready' || diff.platformLoadState !== 'ready';
+	}
+
+	private startUserDataPrefetch(): void {
+		const syncedCollections = this.getSyncedCollections();
+		const generation = ++this.userDataPrefetchGeneration;
+
+		if (syncedCollections.length === 0) {
+			this.prefetchedUserDataById.clear();
+			this.userDataPrefetchPromise = null;
+			return;
+		}
+
+		this.prefetchedUserDataById.clear();
+		this.userDataPrefetchPromise = this.mapWithConcurrency(syncedCollections, 4, async (collection) => {
+			if (generation !== this.userDataPrefetchGeneration) {
+				return;
+			}
+
+			const localInfo = this.state.localSubjects.get(collection.subject_id);
+			if (!localInfo) {
+				return;
+			}
+
+			const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+			if (!(file instanceof TFile)) {
+				return;
+			}
+
+			const prefetched = await this.extractPrefetchedUserData(collection, localInfo, file);
+			if (!prefetched || generation !== this.userDataPrefetchGeneration) {
+				return;
+			}
+
+			this.prefetchedUserDataById.set(collection.subject_id, prefetched);
+		}).then(() => {
+			if (generation === this.userDataPrefetchGeneration) {
+				console.debug(`[Bangumi Sync] 用户数据预热完成: ${this.prefetchedUserDataById.size}`);
+			}
+		}).catch(error => {
+			if (generation === this.userDataPrefetchGeneration) {
+				console.warn('[Bangumi Sync] 用户数据预热失败:', error);
+			}
+		});
+	}
+
+	private getSyncedCollections(): UserCollection[] {
+		return this.state.collections.filter(collection => this.state.localSubjects.has(collection.subject_id));
+	}
+
+	private getPrefetchedUserData(
+		subjectId: number,
+		path: string,
+		mtime: number,
+	): PrefetchedUserData | null {
+		const prefetched = this.prefetchedUserDataById.get(subjectId);
+		if (!prefetched) {
+			return null;
+		}
+
+		if (prefetched.path !== path || prefetched.mtime !== mtime) {
+			this.prefetchedUserDataById.delete(subjectId);
+			return null;
+		}
+
+		return prefetched;
+	}
+
+	private async extractPrefetchedUserData(
+		collection: UserCollection,
+		localInfo: LocalSubjectInfo,
+		file: TFile,
+	): Promise<PrefetchedUserData | null> {
+		const content = await this.app.vault.read(file);
+		const statusFieldName = this.incrementalSync.getStatusFieldName(collection.subject_type);
+		const localPlatformContext = this.incrementalSync.extractLocalPlatformSyncContext(content);
+		const shouldLoadEpisodeStatus = Boolean(
+			this.episodeStatusManager &&
+			(collection.subject_type === SubjectType.Anime || collection.subject_type === SubjectType.Real)
+		);
+		const shouldLoadPlatformData =
+			(collection.subject_type === SubjectType.Anime ||
+				collection.subject_type === SubjectType.Real ||
+				collection.subject_type === SubjectType.Book) &&
+			this.incrementalSync.isPlatformDataCandidate(localPlatformContext);
+
+		return {
+			path: localInfo.path,
+			mtime: file.stat.mtime,
+			content,
+			statusFieldName,
+			localRate: this.incrementalSync.extractRate(content),
+			localComment: this.incrementalSync.extractComment(content),
+			localTags: this.incrementalSync.normalizeTags(this.incrementalSync.extractTags(content)),
+			localStatus: this.incrementalSync.extractStatus(content, statusFieldName),
+			localPlatformContext,
+			localEpisodeStatusMap: this.episodeStatusManager
+				? this.episodeStatusManager.getEpisodeStatusMapFromContent(content)
+				: new Map<number, LocalEpisodeStatus>(),
+			shouldLoadEpisodeStatus,
+			shouldLoadPlatformData,
+		};
+	}
+
+	private createSnapshotFromPrefetched(
+		collection: UserCollection,
+		localInfo: LocalSubjectInfo,
+		file: TFile,
+		prefetched: PrefetchedUserData,
+	): LocalStatusSyncSnapshot {
+		return {
+			subjectId: collection.subject_id,
+			collection,
+			localInfo,
+			file,
+			content: prefetched.content,
+			statusFieldName: prefetched.statusFieldName,
+			localRate: prefetched.localRate,
+			localComment: prefetched.localComment,
+			localTags: prefetched.localTags,
+			localStatus: prefetched.localStatus,
+			localPlatformContext: prefetched.localPlatformContext,
+			localEpisodeStatusMap: new Map(prefetched.localEpisodeStatusMap),
+			shouldLoadEpisodeStatus: prefetched.shouldLoadEpisodeStatus,
+			shouldLoadPlatformData: prefetched.shouldLoadPlatformData,
+		};
+	}
+
+	private async loadBackgroundStatusDiffs(
+		snapshots: LocalStatusSyncSnapshot[],
+		modal: StatusSyncModal,
+	): Promise<void> {
+		const backgroundStart = Date.now();
+		const context: StatusSyncBuildContext = {
+			subjectCache: new Map(),
+			cloudEpisodeStatusCache: new Map(),
+			platformDiffCache: new Map(),
+		};
+		const candidates = snapshots.filter(snapshot => snapshot.shouldLoadEpisodeStatus || snapshot.shouldLoadPlatformData);
+		let completed = 0;
+		modal.updateBackgroundProgress(completed, candidates.length);
+		if (this.lastStatusSyncPerf) {
+			this.lastStatusSyncPerf.backgroundCandidates = candidates.length;
+			this.lastStatusSyncPerf.backgroundCompleted = completed;
+			this.lastStatusSyncPerf.backgroundElapsedMs = 0;
+		}
+		console.debug(`[Bangumi Sync][Perf] syncStatus:backgroundStart candidates=${candidates.length}`);
+
+		await this.mapWithConcurrency(candidates, 4, async (snapshot) => {
+			if (modal.isDisposed()) {
+				return;
+			}
+
+			const loadingPatch: Partial<StatusSyncDiff> = {};
+			if (snapshot.shouldLoadEpisodeStatus) {
+				loadingPatch.episodeStatusLoadState = 'loading';
+			}
+			if (snapshot.shouldLoadPlatformData) {
+				loadingPatch.platformLoadState = 'loading';
+			}
+			modal.updateDiff(snapshot.subjectId, loadingPatch);
+
+			try {
+				const [episodeStatus, platformResult] = await Promise.all([
+					snapshot.shouldLoadEpisodeStatus
+						? this.buildEpisodeStatusDiff(snapshot, context)
+						: Promise.resolve(null),
+					snapshot.shouldLoadPlatformData
+						? this.buildPlatformFieldDiffs(snapshot, context)
+						: Promise.resolve(null),
+				]);
+
+				if (modal.isDisposed()) {
+					return;
+				}
+
+				const patch: Partial<StatusSyncDiff> = {
+					backgroundError: null,
+				};
+				if (episodeStatus) {
+					patch.episodeStatus = episodeStatus;
+					patch.episodeStatusLoadState = 'ready';
+				}
+				if (platformResult) {
+					patch.platformFields = platformResult.fields;
+					patch.platformSyncPayload = platformResult.payload;
+					patch.platformLoadState = 'ready';
+				}
+				modal.updateDiff(snapshot.subjectId, patch);
+			} catch (error) {
+				if (modal.isDisposed()) {
+					return;
+				}
+
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				modal.updateDiff(snapshot.subjectId, {
+					episodeStatusLoadState: snapshot.shouldLoadEpisodeStatus ? 'failed' : 'ready',
+					platformLoadState: snapshot.shouldLoadPlatformData ? 'failed' : 'ready',
+					backgroundError: errorMessage,
+				});
+			} finally {
+				completed++;
+				modal.updateBackgroundProgress(completed, candidates.length);
+				this.renderStatus(`${tn('controlPanel', 'comparingStatus')} (2/2 ${completed}/${candidates.length})`);
+				if (this.lastStatusSyncPerf) {
+					this.lastStatusSyncPerf.backgroundCompleted = completed;
+					this.lastStatusSyncPerf.backgroundElapsedMs = Date.now() - backgroundStart;
+				}
+				console.debug(
+					`[Bangumi Sync][Perf] syncStatus:backgroundProgress completed=${completed}/${candidates.length} elapsed=${Date.now() - backgroundStart}ms`
+				);
+			}
+		});
+
+		if (this.lastStatusSyncPerf) {
+			this.lastStatusSyncPerf.backgroundDoneMs = Date.now() - backgroundStart;
+			this.lastStatusSyncPerf.backgroundElapsedMs = this.lastStatusSyncPerf.backgroundDoneMs;
+		}
+		console.debug(
+			`[Bangumi Sync][Perf] syncStatus:backgroundDone total=${Date.now() - backgroundStart}ms candidates=${candidates.length}`
+		);
+	}
+
+	private async mapWithConcurrency<T, R>(
+		items: T[],
+		concurrency: number,
+		task: (item: T, index: number) => Promise<R>,
+	): Promise<R[]> {
+		const results = new Array<R>(items.length);
+		let nextIndex = 0;
+		const workerCount = Math.max(1, Math.min(concurrency, items.length));
+		const workers = Array.from({ length: workerCount }, async () => {
+			while (nextIndex < items.length) {
+				const currentIndex = nextIndex++;
+				results[currentIndex] = await task(items[currentIndex], currentIndex);
+			}
+		});
+		await Promise.all(workers);
+		return results;
+	}
+
+	private getOrCreateCachedPromise<T>(
+		cache: Map<number, Promise<T>>,
+		key: number,
+		factory: () => Promise<T>,
+	): Promise<T> {
+		const existing = cache.get(key);
+		if (existing) {
+			return existing;
+		}
+
+		const promise = factory().catch(error => {
+			cache.delete(key);
+			throw error;
+		});
+		cache.set(key, promise);
+		return promise;
 	}
 
 	/**

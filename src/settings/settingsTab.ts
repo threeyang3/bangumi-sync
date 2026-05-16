@@ -591,7 +591,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 		this.addFieldTable(containerEl, tn('settings', 'fieldsCollectionVars'), [
 			['{{my_rate}}', '我的评分（0-10）', '9'],
 			['{{my_comment}}', '短评（YAML 安全，多行转义为 \\n）', '值得一看'],
-			['{{my_comment_raw}}', '短评（保留原始换行，用于正文 callout）', '值得一看'],
+			['{{my_comment_raw}}', '短评（callout 安全格式，多行内容会自动保持在正文 callout 中）', '值得一看'],
 			['{{my_status}}', '收藏状态', '在看'],
 			['{{my_tags}}', '我的标签（逗号分隔）', '神作, 热血'],
 			['{{tags}}', '我的标签（YAML 数组格式）', '  - 神作\n  - 热血'],
