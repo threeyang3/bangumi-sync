@@ -12,6 +12,7 @@ import {
         StatusSyncLoadState,
         hasSelectedPlatformFields,
         hasSelectedUserFields,
+        normalizeStatusSyncFieldSelection,
 } from '../sync/statusSyncTypes';
 
 type UserDecisionFieldKey = 'rate' | 'comment' | 'tags' | 'status' | 'episodeStatus';
@@ -39,8 +40,8 @@ export class StatusSyncModal extends Modal {
         ) {
                 super(app);
                 this.statusSyncService = statusSyncService;
-                this.selection = selection;
-                this.diffs = diffs;
+                this.selection = normalizeStatusSyncFieldSelection(selection);
+                this.diffs = diffs.map(diff => this.normalizeDiff(diff));
                 this.diffIndexBySubjectId = new Map(diffs.map((diff, index) => [diff.subjectId, index]));
                 this.onComplete = onComplete;
         }
@@ -50,44 +51,56 @@ export class StatusSyncModal extends Modal {
                 this.isDisposedFlag = false;
                 contentEl.empty();
                 contentEl.addClass('bangumi-status-sync-modal');
+                this.selection = normalizeStatusSyncFieldSelection(this.selection);
+                this.diffs = this.diffs.map(diff => this.normalizeDiff(diff));
+                this.diffIndexBySubjectId = new Map(this.diffs.map((diff, index) => [diff.subjectId, index]));
 
-                contentEl.createEl('h2', { text: this.getTitle() });
-                contentEl.createEl('p', {
-                        text: this.getDescription().replace('{count}', String(this.diffs.length)),
-                        cls: 'bangumi-sync-description',
-                });
+                try {
+                        contentEl.createEl('h2', { text: this.getTitle() });
+                        contentEl.createEl('p', {
+                                text: this.getDescription().replace('{count}', String(this.diffs.length)),
+                                cls: 'bangumi-sync-description',
+                        });
 
-                const actionBar = contentEl.createDiv({ cls: 'bangumi-status-sync-actions' });
-                actionBar.createEl('button', { text: tn('statusSyncModal', 'allCloud') }, button => {
-                        button.addEventListener('click', () => this.selectAll('cloud'));
-                });
-                if (hasSelectedUserFields(this.selection)) {
-                        actionBar.createEl('button', { text: tn('statusSyncModal', 'allLocal') }, button => {
-                                button.addEventListener('click', () => this.selectAll('local'));
+                        const actionBar = contentEl.createDiv({ cls: 'bangumi-status-sync-actions' });
+                        actionBar.createEl('button', { text: tn('statusSyncModal', 'allCloud') }, button => {
+                                button.addEventListener('click', () => this.selectAll('cloud'));
                         });
-                        actionBar.createEl('button', { text: tn('statusSyncModal', 'smartMerge') }, button => {
-                                button.addEventListener('click', () => this.smartMerge());
+                        if (hasSelectedUserFields(this.selection)) {
+                                actionBar.createEl('button', { text: tn('statusSyncModal', 'allLocal') }, button => {
+                                        button.addEventListener('click', () => this.selectAll('local'));
+                                });
+                                actionBar.createEl('button', { text: tn('statusSyncModal', 'smartMerge') }, button => {
+                                        button.addEventListener('click', () => this.smartMerge());
+                                });
+                        }
+                        actionBar.createEl('button', { text: tn('statusSyncModal', 'allSkip') }, button => {
+                                button.addEventListener('click', () => this.selectAll('skip'));
                         });
+
+                        this.statusEl = contentEl.createDiv({ cls: 'bangumi-status-sync-status' });
+                        this.updateStatusSummary();
+
+                        this.tableEl = contentEl.createDiv({ cls: 'bangumi-status-sync-table' });
+                        this.renderTable();
+
+                        const footer = contentEl.createDiv({ cls: 'bangumi-status-sync-footer' });
+                        footer.createEl('button', { text: tn('statusSyncModal', 'execute'), cls: 'mod-cta' }, button => {
+                                button.addEventListener('click', () => {
+                                        void this.executeSync();
+                                });
+                        });
+                        footer.createEl('button', { text: tn('statusSyncModal', 'cancel') }, button => {
+                                button.addEventListener('click', () => this.close());
+                        });
+                } catch (error) {
+                        console.error('[Bangumi Sync] 状态同步弹窗渲染失败:', error, {
+                                selection: this.selection,
+                                diffCount: this.diffs.length,
+                                sampleDiff: this.diffs[0],
+                        });
+                        this.renderErrorState(error);
                 }
-                actionBar.createEl('button', { text: tn('statusSyncModal', 'allSkip') }, button => {
-                        button.addEventListener('click', () => this.selectAll('skip'));
-                });
-
-                this.statusEl = contentEl.createDiv({ cls: 'bangumi-status-sync-status' });
-                this.updateStatusSummary();
-
-                this.tableEl = contentEl.createDiv({ cls: 'bangumi-status-sync-table' });
-                this.renderTable();
-
-                const footer = contentEl.createDiv({ cls: 'bangumi-status-sync-footer' });
-                footer.createEl('button', { text: tn('statusSyncModal', 'execute'), cls: 'mod-cta' }, button => {
-                        button.addEventListener('click', () => {
-                                void this.executeSync();
-                        });
-                });
-                footer.createEl('button', { text: tn('statusSyncModal', 'cancel') }, button => {
-                        button.addEventListener('click', () => this.close());
-                });
         }
 
         onClose(): void {
@@ -123,8 +136,11 @@ export class StatusSyncModal extends Modal {
                 }
 
                 const diff = this.diffs[diffIndex];
-                Object.assign(diff, patch);
-                this.recalculateDiffState(diff);
+                this.diffs[diffIndex] = this.normalizeDiff({
+                        ...diff,
+                        ...patch,
+                });
+                this.recalculateDiffState(this.diffs[diffIndex]);
                 this.updateStatusSummary();
                 this.scheduleRender();
         }
@@ -182,11 +198,11 @@ export class StatusSyncModal extends Modal {
 
         private appendDiffIcons(el: HTMLElement, diff: StatusSyncDiff): void {
                 const icons: string[] = [];
-                if (this.selection.user.rate && diff.rate.hasDiff) icons.push('⭐');
-                if (this.selection.user.comment && diff.comment.hasDiff) icons.push('📝');
-                if (this.selection.user.tags && diff.tags.hasDiff) icons.push('🏷️');
-                if (this.selection.user.status && diff.status.hasDiff) icons.push('📊');
-                if (this.selection.user.episodeStatus && diff.episodeStatus.hasDiff) icons.push('🎞️');
+                if (this.isUserFieldEnabled('rate') && diff.rate.hasDiff) icons.push('⭐');
+                if (this.isUserFieldEnabled('comment') && diff.comment.hasDiff) icons.push('📝');
+                if (this.isUserFieldEnabled('tags') && diff.tags.hasDiff) icons.push('🏷️');
+                if (this.isUserFieldEnabled('status') && diff.status.hasDiff) icons.push('📊');
+                if (this.isUserFieldEnabled('episodeStatus') && diff.episodeStatus.hasDiff) icons.push('🎞️');
                 if (diff.hasPlatformDiff) icons.push('📚');
                 if (icons.length > 0) {
                         el.createSpan({ text: ` ${icons.join('')}`, cls: 'bangumi-diff-icons' });
@@ -195,11 +211,11 @@ export class StatusSyncModal extends Modal {
 
         private getDiffFields(diff: StatusSyncDiff): string[] {
                 const fields: string[] = [];
-                if (this.selection.user.rate && diff.rate.hasDiff) fields.push(tn('statusSyncModal', 'fieldRate'));
-                if (this.selection.user.comment && diff.comment.hasDiff) fields.push(tn('statusSyncModal', 'fieldComment'));
-                if (this.selection.user.tags && diff.tags.hasDiff) fields.push(tn('statusSyncModal', 'fieldTags'));
-                if (this.selection.user.status && diff.status.hasDiff) fields.push(tn('statusSyncModal', 'fieldStatus'));
-                if (this.selection.user.episodeStatus && diff.episodeStatus.hasDiff) fields.push(tn('statusSyncModal', 'fieldEpisodeStatus'));
+                if (this.isUserFieldEnabled('rate') && diff.rate.hasDiff) fields.push(tn('statusSyncModal', 'fieldRate'));
+                if (this.isUserFieldEnabled('comment') && diff.comment.hasDiff) fields.push(tn('statusSyncModal', 'fieldComment'));
+                if (this.isUserFieldEnabled('tags') && diff.tags.hasDiff) fields.push(tn('statusSyncModal', 'fieldTags'));
+                if (this.isUserFieldEnabled('status') && diff.status.hasDiff) fields.push(tn('statusSyncModal', 'fieldStatus'));
+                if (this.isUserFieldEnabled('episodeStatus') && diff.episodeStatus.hasDiff) fields.push(tn('statusSyncModal', 'fieldEpisodeStatus'));
                 for (const platformField of diff.platformFields) {
                         if (platformField.hasDiff) {
                                 fields.push(platformField.label);
@@ -243,7 +259,7 @@ export class StatusSyncModal extends Modal {
                         this.renderSectionHeader(tbody, tn('statusSyncModal', 'userDataGroup'));
                 }
 
-                if (this.selection.user.rate && diff.rate.hasDiff) {
+                if (this.isUserFieldEnabled('rate') && diff.rate.hasDiff) {
                         this.renderFieldRow(
                                 tbody,
                                 tn('statusSyncModal', 'fieldRate'),
@@ -255,7 +271,7 @@ export class StatusSyncModal extends Modal {
                         );
                 }
 
-                if (this.selection.user.comment && diff.comment.hasDiff) {
+                if (this.isUserFieldEnabled('comment') && diff.comment.hasDiff) {
                         this.renderFieldRow(
                                 tbody,
                                 tn('statusSyncModal', 'fieldComment'),
@@ -267,7 +283,7 @@ export class StatusSyncModal extends Modal {
                         );
                 }
 
-                if (this.selection.user.tags && diff.tags.hasDiff) {
+                if (this.isUserFieldEnabled('tags') && diff.tags.hasDiff) {
                         this.renderFieldRow(
                                 tbody,
                                 tn('statusSyncModal', 'fieldTags'),
@@ -279,7 +295,7 @@ export class StatusSyncModal extends Modal {
                         );
                 }
 
-                if (this.selection.user.status && diff.status.hasDiff) {
+                if (this.isUserFieldEnabled('status') && diff.status.hasDiff) {
                         this.renderFieldRow(
                                 tbody,
                                 tn('statusSyncModal', 'fieldStatus'),
@@ -291,7 +307,7 @@ export class StatusSyncModal extends Modal {
                         );
                 }
 
-                if (this.selection.user.episodeStatus && diff.episodeStatus.hasDiff) {
+                if (this.isUserFieldEnabled('episodeStatus') && diff.episodeStatus.hasDiff) {
                         this.renderFieldRow(
                                 tbody,
                                 tn('statusSyncModal', 'fieldEpisodeStatus'),
@@ -301,7 +317,7 @@ export class StatusSyncModal extends Modal {
                                 index,
                                 false,
                         );
-                } else if (this.selection.user.episodeStatus && diff.episodeStatusLoadState !== 'ready') {
+                } else if (this.isUserFieldEnabled('episodeStatus') && diff.episodeStatusLoadState !== 'ready') {
                         this.renderLoadingRow(tbody, tn('statusSyncModal', 'fieldEpisodeStatus'), diff.episodeStatusLoadState);
                 }
 
@@ -520,14 +536,68 @@ export class StatusSyncModal extends Modal {
 
         private recalculateDiffState(diff: StatusSyncDiff): void {
                 diff.hasUserDiff = hasSelectedUserFields(this.selection) && (
-                        (this.selection.user.rate && diff.rate.hasDiff) ||
-                        (this.selection.user.comment && diff.comment.hasDiff) ||
-                        (this.selection.user.tags && diff.tags.hasDiff) ||
-                        (this.selection.user.status && diff.status.hasDiff) ||
-                        (this.selection.user.episodeStatus && diff.episodeStatus.hasDiff)
+                        (this.isUserFieldEnabled('rate') && diff.rate.hasDiff) ||
+                        (this.isUserFieldEnabled('comment') && diff.comment.hasDiff) ||
+                        (this.isUserFieldEnabled('tags') && diff.tags.hasDiff) ||
+                        (this.isUserFieldEnabled('status') && diff.status.hasDiff) ||
+                        (this.isUserFieldEnabled('episodeStatus') && diff.episodeStatus.hasDiff)
                 );
                 diff.hasPlatformDiff = diff.platformFields.some(field => field.hasDiff);
                 diff.hasAnyDiff = diff.hasUserDiff || diff.hasPlatformDiff;
+        }
+
+        private isUserFieldEnabled(key: UserDecisionFieldKey): boolean {
+                return Boolean(this.selection.user?.[key]);
+        }
+
+        private normalizeDiff(diff: StatusSyncDiff): StatusSyncDiff {
+                const normalized: StatusSyncDiff = {
+                        ...diff,
+                        rate: this.normalizeFieldDiff<number>(diff.rate),
+                        comment: this.normalizeFieldDiff<string>(diff.comment),
+                        tags: this.normalizeFieldDiff<string[]>(diff.tags),
+                        status: this.normalizeFieldDiff<number>(diff.status),
+                        episodeStatus: this.normalizeFieldDiff<string>(diff.episodeStatus),
+                        platformFields: Array.isArray(diff.platformFields)
+                                ? diff.platformFields.map(field => ({
+                                        ...field,
+                                        localValue: field.localValue ?? null,
+                                        cloudValue: field.cloudValue ?? null,
+                                        hasDiff: Boolean(field.hasDiff),
+                                        decision: field.decision ?? 'skip',
+                                }))
+                                : [],
+                        expanded: Boolean(diff.expanded),
+                        episodeStatusLoadState: diff.episodeStatusLoadState ?? 'ready',
+                        platformLoadState: diff.platformLoadState ?? 'ready',
+                        backgroundError: diff.backgroundError ?? null,
+                };
+                this.recalculateDiffState(normalized);
+                return normalized;
+        }
+
+        private normalizeFieldDiff<T>(fieldDiff: FieldDiff<T> | undefined): FieldDiff<T> {
+                return {
+                        localValue: fieldDiff?.localValue ?? null,
+                        cloudValue: fieldDiff?.cloudValue ?? null,
+                        hasDiff: Boolean(fieldDiff?.hasDiff),
+                        decision: fieldDiff?.decision ?? 'skip',
+                };
+        }
+
+        private renderErrorState(error: unknown): void {
+                const { contentEl } = this;
+                contentEl.empty();
+                contentEl.addClass('bangumi-status-sync-modal');
+                contentEl.createEl('h2', { text: this.getTitle() });
+                contentEl.createEl('p', {
+                        text: `${tn('controlPanel', 'compareStatusFailed')}: ${error instanceof Error ? error.message : String(error)}`,
+                        cls: 'bangumi-sync-description',
+                });
+                const footer = contentEl.createDiv({ cls: 'bangumi-status-sync-footer' });
+                footer.createEl('button', { text: tn('statusSyncModal', 'cancel') }, button => {
+                        button.addEventListener('click', () => this.close());
+                });
         }
 
         private getLoadStateText(state: StatusSyncLoadState): string {

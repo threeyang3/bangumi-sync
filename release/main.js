@@ -11597,8 +11597,8 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     this.backgroundCompleted = 0;
     this.backgroundTotal = 0;
     this.statusSyncService = statusSyncService;
-    this.selection = selection;
-    this.diffs = diffs;
+    this.selection = normalizeStatusSyncFieldSelection(selection);
+    this.diffs = diffs.map((diff) => this.normalizeDiff(diff));
     this.diffIndexBySubjectId = new Map(diffs.map((diff, index) => [diff.subjectId, index]));
     this.onComplete = onComplete;
   }
@@ -11607,39 +11607,51 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     this.isDisposedFlag = false;
     contentEl.empty();
     contentEl.addClass("bangumi-status-sync-modal");
-    contentEl.createEl("h2", { text: this.getTitle() });
-    contentEl.createEl("p", {
-      text: this.getDescription().replace("{count}", String(this.diffs.length)),
-      cls: "bangumi-sync-description"
-    });
-    const actionBar = contentEl.createDiv({ cls: "bangumi-status-sync-actions" });
-    actionBar.createEl("button", { text: tn("statusSyncModal", "allCloud") }, (button) => {
-      button.addEventListener("click", () => this.selectAll("cloud"));
-    });
-    if (hasSelectedUserFields(this.selection)) {
-      actionBar.createEl("button", { text: tn("statusSyncModal", "allLocal") }, (button) => {
-        button.addEventListener("click", () => this.selectAll("local"));
+    this.selection = normalizeStatusSyncFieldSelection(this.selection);
+    this.diffs = this.diffs.map((diff) => this.normalizeDiff(diff));
+    this.diffIndexBySubjectId = new Map(this.diffs.map((diff, index) => [diff.subjectId, index]));
+    try {
+      contentEl.createEl("h2", { text: this.getTitle() });
+      contentEl.createEl("p", {
+        text: this.getDescription().replace("{count}", String(this.diffs.length)),
+        cls: "bangumi-sync-description"
       });
-      actionBar.createEl("button", { text: tn("statusSyncModal", "smartMerge") }, (button) => {
-        button.addEventListener("click", () => this.smartMerge());
+      const actionBar = contentEl.createDiv({ cls: "bangumi-status-sync-actions" });
+      actionBar.createEl("button", { text: tn("statusSyncModal", "allCloud") }, (button) => {
+        button.addEventListener("click", () => this.selectAll("cloud"));
       });
+      if (hasSelectedUserFields(this.selection)) {
+        actionBar.createEl("button", { text: tn("statusSyncModal", "allLocal") }, (button) => {
+          button.addEventListener("click", () => this.selectAll("local"));
+        });
+        actionBar.createEl("button", { text: tn("statusSyncModal", "smartMerge") }, (button) => {
+          button.addEventListener("click", () => this.smartMerge());
+        });
+      }
+      actionBar.createEl("button", { text: tn("statusSyncModal", "allSkip") }, (button) => {
+        button.addEventListener("click", () => this.selectAll("skip"));
+      });
+      this.statusEl = contentEl.createDiv({ cls: "bangumi-status-sync-status" });
+      this.updateStatusSummary();
+      this.tableEl = contentEl.createDiv({ cls: "bangumi-status-sync-table" });
+      this.renderTable();
+      const footer = contentEl.createDiv({ cls: "bangumi-status-sync-footer" });
+      footer.createEl("button", { text: tn("statusSyncModal", "execute"), cls: "mod-cta" }, (button) => {
+        button.addEventListener("click", () => {
+          void this.executeSync();
+        });
+      });
+      footer.createEl("button", { text: tn("statusSyncModal", "cancel") }, (button) => {
+        button.addEventListener("click", () => this.close());
+      });
+    } catch (error) {
+      console.error("[Bangumi Sync] \u72B6\u6001\u540C\u6B65\u5F39\u7A97\u6E32\u67D3\u5931\u8D25:", error, {
+        selection: this.selection,
+        diffCount: this.diffs.length,
+        sampleDiff: this.diffs[0]
+      });
+      this.renderErrorState(error);
     }
-    actionBar.createEl("button", { text: tn("statusSyncModal", "allSkip") }, (button) => {
-      button.addEventListener("click", () => this.selectAll("skip"));
-    });
-    this.statusEl = contentEl.createDiv({ cls: "bangumi-status-sync-status" });
-    this.updateStatusSummary();
-    this.tableEl = contentEl.createDiv({ cls: "bangumi-status-sync-table" });
-    this.renderTable();
-    const footer = contentEl.createDiv({ cls: "bangumi-status-sync-footer" });
-    footer.createEl("button", { text: tn("statusSyncModal", "execute"), cls: "mod-cta" }, (button) => {
-      button.addEventListener("click", () => {
-        void this.executeSync();
-      });
-    });
-    footer.createEl("button", { text: tn("statusSyncModal", "cancel") }, (button) => {
-      button.addEventListener("click", () => this.close());
-    });
   }
   onClose() {
     this.isDisposedFlag = true;
@@ -11669,8 +11681,11 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       return;
     }
     const diff = this.diffs[diffIndex];
-    Object.assign(diff, patch);
-    this.recalculateDiffState(diff);
+    this.diffs[diffIndex] = this.normalizeDiff({
+      ...diff,
+      ...patch
+    });
+    this.recalculateDiffState(this.diffs[diffIndex]);
     this.updateStatusSummary();
     this.scheduleRender();
   }
@@ -11719,15 +11734,15 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
   }
   appendDiffIcons(el, diff) {
     const icons = [];
-    if (this.selection.user.rate && diff.rate.hasDiff)
+    if (this.isUserFieldEnabled("rate") && diff.rate.hasDiff)
       icons.push("\u2B50");
-    if (this.selection.user.comment && diff.comment.hasDiff)
+    if (this.isUserFieldEnabled("comment") && diff.comment.hasDiff)
       icons.push("\u{1F4DD}");
-    if (this.selection.user.tags && diff.tags.hasDiff)
+    if (this.isUserFieldEnabled("tags") && diff.tags.hasDiff)
       icons.push("\u{1F3F7}\uFE0F");
-    if (this.selection.user.status && diff.status.hasDiff)
+    if (this.isUserFieldEnabled("status") && diff.status.hasDiff)
       icons.push("\u{1F4CA}");
-    if (this.selection.user.episodeStatus && diff.episodeStatus.hasDiff)
+    if (this.isUserFieldEnabled("episodeStatus") && diff.episodeStatus.hasDiff)
       icons.push("\u{1F39E}\uFE0F");
     if (diff.hasPlatformDiff)
       icons.push("\u{1F4DA}");
@@ -11737,15 +11752,15 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
   }
   getDiffFields(diff) {
     const fields = [];
-    if (this.selection.user.rate && diff.rate.hasDiff)
+    if (this.isUserFieldEnabled("rate") && diff.rate.hasDiff)
       fields.push(tn("statusSyncModal", "fieldRate"));
-    if (this.selection.user.comment && diff.comment.hasDiff)
+    if (this.isUserFieldEnabled("comment") && diff.comment.hasDiff)
       fields.push(tn("statusSyncModal", "fieldComment"));
-    if (this.selection.user.tags && diff.tags.hasDiff)
+    if (this.isUserFieldEnabled("tags") && diff.tags.hasDiff)
       fields.push(tn("statusSyncModal", "fieldTags"));
-    if (this.selection.user.status && diff.status.hasDiff)
+    if (this.isUserFieldEnabled("status") && diff.status.hasDiff)
       fields.push(tn("statusSyncModal", "fieldStatus"));
-    if (this.selection.user.episodeStatus && diff.episodeStatus.hasDiff)
+    if (this.isUserFieldEnabled("episodeStatus") && diff.episodeStatus.hasDiff)
       fields.push(tn("statusSyncModal", "fieldEpisodeStatus"));
     for (const platformField of diff.platformFields) {
       if (platformField.hasDiff) {
@@ -11784,7 +11799,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     if (diff.hasUserDiff) {
       this.renderSectionHeader(tbody, tn("statusSyncModal", "userDataGroup"));
     }
-    if (this.selection.user.rate && diff.rate.hasDiff) {
+    if (this.isUserFieldEnabled("rate") && diff.rate.hasDiff) {
       this.renderFieldRow(
         tbody,
         tn("statusSyncModal", "fieldRate"),
@@ -11795,7 +11810,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         false
       );
     }
-    if (this.selection.user.comment && diff.comment.hasDiff) {
+    if (this.isUserFieldEnabled("comment") && diff.comment.hasDiff) {
       this.renderFieldRow(
         tbody,
         tn("statusSyncModal", "fieldComment"),
@@ -11806,7 +11821,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         false
       );
     }
-    if (this.selection.user.tags && diff.tags.hasDiff) {
+    if (this.isUserFieldEnabled("tags") && diff.tags.hasDiff) {
       this.renderFieldRow(
         tbody,
         tn("statusSyncModal", "fieldTags"),
@@ -11817,7 +11832,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         true
       );
     }
-    if (this.selection.user.status && diff.status.hasDiff) {
+    if (this.isUserFieldEnabled("status") && diff.status.hasDiff) {
       this.renderFieldRow(
         tbody,
         tn("statusSyncModal", "fieldStatus"),
@@ -11828,7 +11843,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         false
       );
     }
-    if (this.selection.user.episodeStatus && diff.episodeStatus.hasDiff) {
+    if (this.isUserFieldEnabled("episodeStatus") && diff.episodeStatus.hasDiff) {
       this.renderFieldRow(
         tbody,
         tn("statusSyncModal", "fieldEpisodeStatus"),
@@ -11838,7 +11853,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         index,
         false
       );
-    } else if (this.selection.user.episodeStatus && diff.episodeStatusLoadState !== "ready") {
+    } else if (this.isUserFieldEnabled("episodeStatus") && diff.episodeStatusLoadState !== "ready") {
       this.renderLoadingRow(tbody, tn("statusSyncModal", "fieldEpisodeStatus"), diff.episodeStatusLoadState);
     }
     if (diff.hasPlatformDiff) {
@@ -12009,9 +12024,63 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     );
   }
   recalculateDiffState(diff) {
-    diff.hasUserDiff = hasSelectedUserFields(this.selection) && (this.selection.user.rate && diff.rate.hasDiff || this.selection.user.comment && diff.comment.hasDiff || this.selection.user.tags && diff.tags.hasDiff || this.selection.user.status && diff.status.hasDiff || this.selection.user.episodeStatus && diff.episodeStatus.hasDiff);
+    diff.hasUserDiff = hasSelectedUserFields(this.selection) && (this.isUserFieldEnabled("rate") && diff.rate.hasDiff || this.isUserFieldEnabled("comment") && diff.comment.hasDiff || this.isUserFieldEnabled("tags") && diff.tags.hasDiff || this.isUserFieldEnabled("status") && diff.status.hasDiff || this.isUserFieldEnabled("episodeStatus") && diff.episodeStatus.hasDiff);
     diff.hasPlatformDiff = diff.platformFields.some((field) => field.hasDiff);
     diff.hasAnyDiff = diff.hasUserDiff || diff.hasPlatformDiff;
+  }
+  isUserFieldEnabled(key) {
+    var _a;
+    return Boolean((_a = this.selection.user) == null ? void 0 : _a[key]);
+  }
+  normalizeDiff(diff) {
+    var _a, _b, _c;
+    const normalized = {
+      ...diff,
+      rate: this.normalizeFieldDiff(diff.rate),
+      comment: this.normalizeFieldDiff(diff.comment),
+      tags: this.normalizeFieldDiff(diff.tags),
+      status: this.normalizeFieldDiff(diff.status),
+      episodeStatus: this.normalizeFieldDiff(diff.episodeStatus),
+      platformFields: Array.isArray(diff.platformFields) ? diff.platformFields.map((field) => {
+        var _a2, _b2, _c2;
+        return {
+          ...field,
+          localValue: (_a2 = field.localValue) != null ? _a2 : null,
+          cloudValue: (_b2 = field.cloudValue) != null ? _b2 : null,
+          hasDiff: Boolean(field.hasDiff),
+          decision: (_c2 = field.decision) != null ? _c2 : "skip"
+        };
+      }) : [],
+      expanded: Boolean(diff.expanded),
+      episodeStatusLoadState: (_a = diff.episodeStatusLoadState) != null ? _a : "ready",
+      platformLoadState: (_b = diff.platformLoadState) != null ? _b : "ready",
+      backgroundError: (_c = diff.backgroundError) != null ? _c : null
+    };
+    this.recalculateDiffState(normalized);
+    return normalized;
+  }
+  normalizeFieldDiff(fieldDiff) {
+    var _a, _b, _c;
+    return {
+      localValue: (_a = fieldDiff == null ? void 0 : fieldDiff.localValue) != null ? _a : null,
+      cloudValue: (_b = fieldDiff == null ? void 0 : fieldDiff.cloudValue) != null ? _b : null,
+      hasDiff: Boolean(fieldDiff == null ? void 0 : fieldDiff.hasDiff),
+      decision: (_c = fieldDiff == null ? void 0 : fieldDiff.decision) != null ? _c : "skip"
+    };
+  }
+  renderErrorState(error) {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("bangumi-status-sync-modal");
+    contentEl.createEl("h2", { text: this.getTitle() });
+    contentEl.createEl("p", {
+      text: `${tn("controlPanel", "compareStatusFailed")}: ${error instanceof Error ? error.message : String(error)}`,
+      cls: "bangumi-sync-description"
+    });
+    const footer = contentEl.createDiv({ cls: "bangumi-status-sync-footer" });
+    footer.createEl("button", { text: tn("statusSyncModal", "cancel") }, (button) => {
+      button.addEventListener("click", () => this.close());
+    });
   }
   getLoadStateText(state) {
     switch (state) {
