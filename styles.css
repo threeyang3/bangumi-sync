@@ -6,144 +6,224 @@
 	display: none !important;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) {
-	width: min(960px, calc(100vw - 32px));
+.bangumi-status-sync-scope-window {
+        width: min(960px, calc(100vw - 32px)) !important;
+        max-width: 960px !important;
+        max-height: min(92vh, 860px) !important;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .modal-content,
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-modal {
-	max-width: 960px;
+.bangumi-status-sync-scope-window .modal-content {
+        width: 100% !important;
+        max-width: none !important;
+        max-height: min(92vh, 860px) !important;
+        overflow: hidden !important;
+        padding: 0 !important;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-grid {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 16px;
-	margin-top: 16px;
+.bangumi-status-sync-scope-modal {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        max-height: min(92vh, 860px);
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-card {
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 14px;
-	background: var(--background-secondary);
-	overflow: hidden;
+.bangumi-status-sync-scope-header {
+        padding: 22px 24px 14px;
+        border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-card.is-default {
-	border-color: var(--interactive-accent);
-	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 24%, transparent);
+.bangumi-status-sync-scope-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-head {
-	padding: 14px 16px 12px;
-	border-bottom: 1px solid var(--background-modifier-border);
-	background: color-mix(in srgb, var(--background-secondary-alt) 55%, transparent);
+.bangumi-status-sync-scope-heading {
+        margin: 0;
+        font-size: var(--h2-size);
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-topline {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
+.bangumi-status-sync-scope-subtitle {
+        margin: 10px 0 0;
+        color: var(--text-muted);
+        font-size: var(--font-ui-small);
+        line-height: 1.5;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-title-wrap,
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-master {
-	display: flex;
-	align-items: center;
-	gap: 10px;
+.bangumi-status-sync-scope-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 18px 24px 20px;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-title {
-	font-weight: var(--font-semibold);
-	font-size: var(--font-ui-medium);
+.bangumi-status-sync-scope-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-badge {
-	padding: 2px 8px;
-	border-radius: 999px;
-	font-size: var(--font-ui-smaller);
-	color: var(--interactive-accent);
-	background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
-	border: 1px solid color-mix(in srgb, var(--interactive-accent) 25%, transparent);
+.bangumi-status-sync-scope-card {
+        border: 1px solid var(--background-modifier-border);
+        border-radius: 16px;
+        background: var(--background-secondary);
+        overflow: hidden;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-tools,
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
+.bangumi-status-sync-scope-card.is-default {
+        border-color: var(--interactive-accent);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 24%, transparent);
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-desc,
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-hint {
-	margin: 10px 0 0;
-	color: var(--text-muted);
-	font-size: var(--font-ui-small);
+.bangumi-status-sync-scope-head {
+        padding: 14px 16px 12px;
+        border-bottom: 1px solid var(--background-modifier-border);
+        background: color-mix(in srgb, var(--background-secondary-alt) 55%, transparent);
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-items {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 10px;
-	padding: 12px;
+.bangumi-status-sync-scope-topline {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-item {
-	display: flex;
-	align-items: flex-start;
-	gap: 10px;
-	padding: 12px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 12px;
-	background: color-mix(in srgb, var(--background-primary) 75%, transparent);
+.bangumi-status-sync-scope-title-wrap,
+.bangumi-status-sync-scope-master {
+        display: flex;
+        align-items: center;
+        gap: 10px;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-item.is-checked {
-	border-color: color-mix(in srgb, var(--interactive-accent) 55%, var(--background-modifier-border));
-	background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-primary));
+.bangumi-status-sync-scope-title {
+        font-weight: var(--font-semibold);
+        font-size: var(--font-ui-medium);
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-item-content {
-	min-width: 0;
+.bangumi-status-sync-scope-master input,
+.bangumi-status-sync-scope-item input {
+        margin: 2px 0 0;
+        flex: 0 0 auto;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-item-name {
-	font-weight: var(--font-medium);
+.bangumi-status-sync-scope-badge {
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: var(--font-ui-smaller);
+        color: var(--interactive-accent);
+        background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--interactive-accent) 25%, transparent);
+        white-space: nowrap;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-item-meta {
-	margin-top: 4px;
-	color: var(--text-muted);
-	font-size: var(--font-ui-small);
+.bangumi-status-sync-scope-tools,
+.bangumi-status-sync-scope-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
 }
 
-.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-footer {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	margin-top: 18px;
+.bangumi-status-sync-scope-tools button,
+.bangumi-status-sync-scope-actions button {
+        min-height: 34px;
+}
+
+.bangumi-status-sync-scope-desc,
+.bangumi-status-sync-scope-hint {
+        margin: 10px 0 0;
+        color: var(--text-muted);
+        font-size: var(--font-ui-small);
+        line-height: 1.5;
+}
+
+.bangumi-status-sync-scope-items {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        padding: 12px;
+}
+
+.bangumi-status-sync-scope-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid var(--background-modifier-border);
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--background-primary) 75%, transparent);
+}
+
+.bangumi-status-sync-scope-item.is-checked {
+        border-color: color-mix(in srgb, var(--interactive-accent) 55%, var(--background-modifier-border));
+        background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-primary));
+}
+
+.bangumi-status-sync-scope-item-content {
+        min-width: 0;
+}
+
+.bangumi-status-sync-scope-item-name {
+        font-weight: var(--font-medium);
+}
+
+.bangumi-status-sync-scope-item-meta {
+        margin-top: 4px;
+        color: var(--text-muted);
+        font-size: var(--font-ui-small);
+        line-height: 1.45;
+}
+
+.bangumi-status-sync-scope-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 24px 22px;
+        border-top: 1px solid var(--background-modifier-border);
+        background: color-mix(in srgb, var(--background-secondary-alt) 40%, transparent);
 }
 
 @media (max-width: 720px) {
-	.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-grid,
-	.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-items {
-		grid-template-columns: 1fr;
-	}
+        .bangumi-status-sync-scope-window {
+                width: calc(100vw - 16px) !important;
+                max-width: calc(100vw - 16px) !important;
+                max-height: calc(100vh - 16px) !important;
+        }
 
-	.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-footer {
-		flex-direction: column;
-		align-items: stretch;
-	}
+        .bangumi-status-sync-scope-window .modal-content {
+                max-height: calc(100vh - 16px) !important;
+        }
 
-	.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-actions {
-		width: 100%;
-	}
+        .bangumi-status-sync-scope-header,
+        .bangumi-status-sync-scope-body,
+        .bangumi-status-sync-scope-footer {
+                padding-left: 16px;
+                padding-right: 16px;
+        }
 
-	.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-actions > button {
-		flex: 1 1 0;
-	}
+        .bangumi-status-sync-scope-grid,
+        .bangumi-status-sync-scope-items {
+                grid-template-columns: 1fr;
+        }
+
+        .bangumi-status-sync-scope-topline {
+                flex-direction: column;
+                align-items: stretch;
+        }
+
+        .bangumi-status-sync-scope-footer {
+                flex-direction: column;
+                align-items: stretch;
+        }
+
+        .bangumi-status-sync-scope-actions {
+                width: 100%;
+        }
+
+        .bangumi-status-sync-scope-actions > button {
+                flex: 1 1 0;
+        }
 }
 
 .bangumi-decision-active {

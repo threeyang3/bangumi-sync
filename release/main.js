@@ -12038,15 +12038,28 @@ var StatusSyncScopeModal = class extends import_obsidian20.Modal {
     this.onConfirm = onConfirm;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-status-sync-scope-window");
+    this.render();
+  }
+  onClose() {
+    this.modalEl.removeClass("bangumi-status-sync-scope-window");
+    this.contentEl.empty();
+  }
+  render() {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("bangumi-status-sync-scope-modal");
-    contentEl.createEl("h2", { text: tn("statusSyncModal", "scopeTitle") });
-    contentEl.createEl("p", {
-      text: tn("statusSyncModal", "scopeDescription"),
-      cls: "bangumi-sync-description"
+    const header = contentEl.createDiv({ cls: "bangumi-status-sync-scope-header" });
+    header.createEl("h2", {
+      text: tn("statusSyncModal", "scopeTitle"),
+      cls: "bangumi-status-sync-scope-heading"
     });
-    const grid = contentEl.createDiv({ cls: "bangumi-status-sync-scope-grid" });
+    header.createEl("p", {
+      text: tn("statusSyncModal", "scopeDescription"),
+      cls: "bangumi-status-sync-scope-subtitle"
+    });
+    const body = contentEl.createDiv({ cls: "bangumi-status-sync-scope-body" });
+    const grid = body.createDiv({ cls: "bangumi-status-sync-scope-grid" });
     this.renderSection(grid, "user");
     this.renderSection(grid, "platform");
     const footer = contentEl.createDiv({ cls: "bangumi-status-sync-scope-footer" });
@@ -12055,13 +12068,18 @@ var StatusSyncScopeModal = class extends import_obsidian20.Modal {
       cls: "bangumi-status-sync-scope-hint"
     });
     const actions = footer.createDiv({ cls: "bangumi-status-sync-scope-actions" });
-    actions.createEl("button", { text: tn("syncOptions", "cancel") }, (button) => {
+    actions.createEl("button", {
+      text: tn("syncOptions", "cancel"),
+      cls: "bangumi-status-sync-scope-cancel"
+    }, (button) => {
+      button.type = "button";
       button.addEventListener("click", () => this.close());
     });
     actions.createEl("button", {
       text: tn("statusSyncModal", "startCompare"),
-      cls: "mod-cta"
+      cls: "mod-cta bangumi-status-sync-scope-submit"
     }, (button) => {
+      button.type = "button";
       button.addEventListener("click", () => {
         if (!hasSelectedUserFields(this.selection) && !hasSelectedPlatformFields(this.selection)) {
           new import_obsidian20.Notice(tn("statusSyncModal", "selectAtLeastOne"));
@@ -12071,9 +12089,6 @@ var StatusSyncScopeModal = class extends import_obsidian20.Modal {
         this.close();
       });
     });
-  }
-  onClose() {
-    this.contentEl.empty();
   }
   renderSection(container, section) {
     const card = container.createDiv({
@@ -12095,15 +12110,17 @@ var StatusSyncScopeModal = class extends import_obsidian20.Modal {
     });
     const tools = topLine.createDiv({ cls: "bangumi-status-sync-scope-tools" });
     tools.createEl("button", { text: tn("statusSyncModal", "selectAll") }, (button) => {
+      button.type = "button";
       button.addEventListener("click", () => {
         this.setSectionSelection(section, true);
-        this.onOpen();
+        this.render();
       });
     });
     tools.createEl("button", { text: tn("statusSyncModal", "deselectAll") }, (button) => {
+      button.type = "button";
       button.addEventListener("click", () => {
         this.setSectionSelection(section, false);
-        this.onOpen();
+        this.render();
       });
     });
     header.createEl("p", {
@@ -12111,47 +12128,36 @@ var StatusSyncScopeModal = class extends import_obsidian20.Modal {
       cls: "bangumi-status-sync-scope-desc"
     });
     const items = card.createDiv({ cls: "bangumi-status-sync-scope-items" });
-    if (section === "user") {
-      const fields = this.getUserFieldDescriptors();
-      for (const field of fields) {
-        const isChecked = this.selection.user[field.key];
-        const item = items.createEl("label", {
-          cls: `bangumi-status-sync-scope-item ${isChecked ? "is-checked" : ""}`
-        });
-        const checkbox = item.createEl("input", { type: "checkbox" });
-        checkbox.checked = isChecked;
-        checkbox.addEventListener("change", () => {
+    for (const field of fieldDescriptors) {
+      const isChecked = section === "user" ? this.selection.user[field.key] : this.selection.platform[field.key];
+      const item = items.createEl("label", {
+        cls: `bangumi-status-sync-scope-item ${isChecked ? "is-checked" : ""}`
+      });
+      const checkbox = item.createEl("input", { type: "checkbox" });
+      checkbox.checked = isChecked;
+      checkbox.addEventListener("change", () => {
+        if (section === "user") {
           this.selection.user[field.key] = checkbox.checked;
-          this.onOpen();
-        });
-        const content = item.createDiv({ cls: "bangumi-status-sync-scope-item-content" });
-        content.createDiv({ text: field.label, cls: "bangumi-status-sync-scope-item-name" });
-        content.createDiv({ text: field.description, cls: "bangumi-status-sync-scope-item-meta" });
-      }
-    } else {
-      const fields = this.getPlatformFieldDescriptors();
-      for (const field of fields) {
-        const isChecked = this.selection.platform[field.key];
-        const item = items.createEl("label", {
-          cls: `bangumi-status-sync-scope-item ${isChecked ? "is-checked" : ""}`
-        });
-        const checkbox = item.createEl("input", { type: "checkbox" });
-        checkbox.checked = isChecked;
-        checkbox.addEventListener("change", () => {
+        } else {
           this.selection.platform[field.key] = checkbox.checked;
-          this.onOpen();
-        });
-        const content = item.createDiv({ cls: "bangumi-status-sync-scope-item-content" });
-        content.createDiv({ text: field.label, cls: "bangumi-status-sync-scope-item-name" });
-        content.createDiv({ text: field.description, cls: "bangumi-status-sync-scope-item-meta" });
-      }
+        }
+        this.render();
+      });
+      const content = item.createDiv({ cls: "bangumi-status-sync-scope-item-content" });
+      content.createDiv({ text: field.label, cls: "bangumi-status-sync-scope-item-name" });
+      content.createDiv({ text: field.description, cls: "bangumi-status-sync-scope-item-meta" });
     }
-    const selectedCount = section === "user" ? this.getUserFieldDescriptors().filter((field) => this.selection.user[field.key]).length : this.getPlatformFieldDescriptors().filter((field) => this.selection.platform[field.key]).length;
+    const selectedCount = fieldDescriptors.filter((field) => {
+      if (section === "user") {
+        return this.selection.user[field.key];
+      }
+      return this.selection.platform[field.key];
+    }).length;
     masterCheckbox.checked = selectedCount === fieldDescriptors.length && fieldDescriptors.length > 0;
     masterCheckbox.indeterminate = selectedCount > 0 && selectedCount < fieldDescriptors.length;
     masterCheckbox.addEventListener("change", () => {
       this.setSectionSelection(section, masterCheckbox.checked);
-      this.onOpen();
+      this.render();
     });
   }
   setSectionSelection(section, checked) {
