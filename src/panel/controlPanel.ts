@@ -20,8 +20,8 @@ import { EpisodeStatusManager } from '../episode/episodeStatusManager';
 import { SubjectNoteManager } from '../note/subjectNoteManager';
 import { loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult, hasLocalPropertyFieldsForCollections } from '../ui/localPropertyModal';
 import { isMobile } from '../utils/mobile';
+import { LocalSubjectSnapshotSession } from '../document/localSubjectSnapshotSession';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
-import { LocalSubjectSnapshot } from '../document/types';
 import { StatusSyncService } from '../sync/statusSyncService';
 import {
         StatusSyncFieldSelection,
@@ -120,6 +120,7 @@ export class ControlPanel extends Modal {
 	private episodeStatusManager: EpisodeStatusManager | null;
 	private subjectNoteManager: SubjectNoteManager | null;
         private documentService: SubjectDocumentService;
+        private subjectSnapshotSession: LocalSubjectSnapshotSession;
         private statusSyncService: StatusSyncService;
         private onOpenSyncOptions: () => void;
         private onBatchDownloadCovers: () => void;
@@ -161,10 +162,6 @@ export class ControlPanel extends Modal {
 	private touchStartHandler: ((e: TouchEvent) => void) | null = null;
 	private touchMoveHandler: ((e: TouchEvent) => void) | null = null;
 	private touchEndHandler: (() => void) | null = null;
-	private prefetchedUserDataById: Map<number, LocalSubjectSnapshot> = new Map();
-	private userDataPrefetchGeneration = 0;
-	private userDataPrefetchPromise: Promise<void> | null = null;
-
 	private readonly mobileShortLabels = getLocale() === 'zh-CN'
 		? {
 			refresh: '刷新',
@@ -227,6 +224,7 @@ export class ControlPanel extends Modal {
 		this.client = new BangumiClient(settings.accessToken);
 		this.incrementalSync = new IncrementalSync(app);
 		this.documentService = new SubjectDocumentService(app, this.episodeStatusManager);
+		this.subjectSnapshotSession = new LocalSubjectSnapshotSession(app, this.documentService);
 		this.statusSyncService = new StatusSyncService(app, this.client, this.documentService, this.episodeStatusManager);
 		this.frontmatterEditor = new FrontmatterEditor(app);
 		this.conflictDetector = new ConflictDetector(app);
@@ -289,8 +287,7 @@ export class ControlPanel extends Modal {
 	}
 
 	onClose(): void {
-		this.userDataPrefetchGeneration++;
-		this.userDataPrefetchPromise = null;
+		this.subjectSnapshotSession.cancelWarmup();
 		// 清理触摸事件监听器
 		if (this.touchStartHandler) {
 			this.contentEl.removeEventListener('touchstart', this.touchStartHandler);
@@ -1304,9 +1301,10 @@ export class ControlPanel extends Modal {
 				return {
 					filePath: localInfo.path,
 					displayName: collection.subject.name_cn || collection.subject.name || localInfo.name_cn || String(collection.subject_id),
+					subjectId: collection.subject_id,
 				};
 			})
-			.filter((item): item is { filePath: string; displayName: string } => item !== null);
+			.filter((item): item is NonNullable<typeof item> => item !== null);
 
 		const modal = new BatchEditorModal(
 			this.app,
@@ -1319,8 +1317,13 @@ export class ControlPanel extends Modal {
 					)
 					: await this.frontmatterEditor.batchApplyPerItemUpdates(submission.perItemUpdates ?? []);
 				new Notice(`${tn('controlPanel', 'batchEdit')}: ${result.success}, ${result.failed}`);
+				for (const item of targetItems) {
+					this.subjectSnapshotSession.invalidatePath(item.filePath);
+				}
 				this.renderActionBar(); // 更新撤销按钮状态
-			}
+			},
+			this.documentService,
+			(filePath) => this.subjectSnapshotSession.getByPath(filePath),
 		);
 		modal.open();
 	}
@@ -1377,7 +1380,7 @@ export class ControlPanel extends Modal {
         }
 
         private async syncStatusAfterPrefetchWarmup(selection: StatusSyncFieldSelection): Promise<void> {
-		const prefetchPromise = this.userDataPrefetchPromise;
+		const prefetchPromise = this.subjectSnapshotSession.currentWarmup;
 		if (prefetchPromise) {
 			try {
 				await Promise.race([
@@ -1442,10 +1445,10 @@ export class ControlPanel extends Modal {
 		try {
                         const snapshotStart = Date.now();
                         const { snapshots, diffs } = await this.statusSyncService.buildDiffSession({
-                                selection,
-                                collections: syncedCollections,
-                                localSubjects: this.state.localSubjects,
-				getCachedSnapshot: (subjectId, path, mtime) => this.getPrefetchedUserData(subjectId, path, mtime),
+				selection,
+				collections: syncedCollections,
+				localSubjects: this.state.localSubjects,
+				getCachedSnapshot: (subjectId, path, mtime) => this.subjectSnapshotSession.get(subjectId, path, mtime),
 				onProgress: (current, total) => {
 					this.renderStatus(`${this.getSyncStatusLabel(scope)} (1/2 ${current}/${total})`);
 				},
@@ -1551,99 +1554,25 @@ export class ControlPanel extends Modal {
 
 	private startUserDataPrefetch(): void {
 		const syncedCollections = this.getSyncedCollections();
-		const generation = ++this.userDataPrefetchGeneration;
 
 		if (syncedCollections.length === 0) {
-			this.prefetchedUserDataById.clear();
-			this.userDataPrefetchPromise = null;
+			this.subjectSnapshotSession.clear();
 			return;
 		}
 
-		this.prefetchedUserDataById.clear();
-		this.userDataPrefetchPromise = this.mapWithConcurrency(syncedCollections, 4, async (collection) => {
-			if (generation !== this.userDataPrefetchGeneration) {
-				return;
-			}
-
-			const localInfo = this.state.localSubjects.get(collection.subject_id);
-			if (!localInfo) {
-				return;
-			}
-
-			const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-			if (!(file instanceof TFile)) {
-				return;
-			}
-
-			const prefetched = await this.extractPrefetchedUserData(collection, localInfo, file);
-			if (!prefetched || generation !== this.userDataPrefetchGeneration) {
-				return;
-			}
-
-			this.prefetchedUserDataById.set(collection.subject_id, prefetched);
-		}).then(() => {
-			if (generation === this.userDataPrefetchGeneration) {
-				console.debug(`[Bangumi Sync] 用户数据预热完成: ${this.prefetchedUserDataById.size}`);
-			}
-		}).catch(error => {
-			if (generation === this.userDataPrefetchGeneration) {
+		void this.subjectSnapshotSession.warm(syncedCollections, this.state.localSubjects, {
+			concurrency: 4,
+			onComplete: (count) => {
+				console.debug(`[Bangumi Sync] 用户数据预热完成: ${count}`);
+			},
+			onError: (error) => {
 				console.warn('[Bangumi Sync] 用户数据预热失败:', error);
-			}
+			},
 		});
 	}
 
 	private getSyncedCollections(): UserCollection[] {
 		return this.state.collections.filter(collection => this.state.localSubjects.has(collection.subject_id));
-	}
-
-	private getPrefetchedUserData(
-		subjectId: number,
-		path: string,
-		mtime: number,
-	): LocalSubjectSnapshot | null {
-		const prefetched = this.prefetchedUserDataById.get(subjectId);
-		if (!prefetched) {
-			return null;
-		}
-
-		if (prefetched.path !== path || prefetched.mtime !== mtime) {
-			this.prefetchedUserDataById.delete(subjectId);
-			return null;
-		}
-
-		return prefetched;
-	}
-
-	private async extractPrefetchedUserData(
-		collection: UserCollection,
-		localInfo: LocalSubjectInfo,
-		file: TFile,
-	): Promise<LocalSubjectSnapshot | null> {
-		const snapshot = await this.documentService.readSnapshot(file, collection.subject_type);
-		return {
-			...snapshot,
-			file,
-			path: localInfo.path,
-			mtime: file.stat.mtime,
-		};
-	}
-
-	private async mapWithConcurrency<T, R>(
-		items: T[],
-		concurrency: number,
-		task: (item: T, index: number) => Promise<R>,
-	): Promise<R[]> {
-		const results = new Array<R>(items.length);
-		let nextIndex = 0;
-		const workerCount = Math.max(1, Math.min(concurrency, items.length));
-		const workers = Array.from({ length: workerCount }, async () => {
-			while (nextIndex < items.length) {
-				const currentIndex = nextIndex++;
-				results[currentIndex] = await task(items[currentIndex], currentIndex);
-			}
-		});
-		await Promise.all(workers);
-		return results;
 	}
 
 	/**

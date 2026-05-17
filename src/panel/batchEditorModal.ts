@@ -3,7 +3,13 @@
  * 支持统一属性操作与按条目逐项编辑
  */
 
-import { App, Modal, Notice, TFile, parseYaml } from 'obsidian';
+import { App, Modal, Notice, TFile } from 'obsidian';
+import {
+	coerceFrontmatterDraftValue,
+	formatFrontmatterDisplayValue,
+} from '../document/frontmatterAccess';
+import { SubjectDocumentService } from '../document/subjectDocumentService';
+import { LocalSubjectSnapshot } from '../document/types';
 import { tn, tnFormat } from '../i18n';
 
 type BatchEditMode = 'uniform' | 'per_item';
@@ -20,6 +26,7 @@ export interface BatchEditOperation {
 export interface BatchEditTargetItem {
 	filePath: string;
 	displayName: string;
+	subjectId?: number;
 }
 
 export interface BatchPerItemUpdate {
@@ -52,6 +59,8 @@ interface BatchEditHistory {
 export class BatchEditorModal extends Modal {
 	private items: BatchEditTargetItem[];
 	private onConfirm: (submission: BatchEditSubmission) => Promise<void>;
+	private documentService: SubjectDocumentService;
+	private getCachedSnapshot: ((filePath: string) => LocalSubjectSnapshot | null) | null;
 
 	private mode: BatchEditMode = 'per_item';
 	private operations: BatchEditOperation[] = [];
@@ -71,11 +80,15 @@ export class BatchEditorModal extends Modal {
 	constructor(
 		app: App,
 		items: BatchEditTargetItem[],
-		onConfirm: (submission: BatchEditSubmission) => Promise<void>
+		onConfirm: (submission: BatchEditSubmission) => Promise<void>,
+		documentService?: SubjectDocumentService,
+		getCachedSnapshot?: (filePath: string) => LocalSubjectSnapshot | null,
 	) {
 		super(app);
 		this.items = items;
 		this.onConfirm = onConfirm;
+		this.documentService = documentService ?? new SubjectDocumentService(app);
+		this.getCachedSnapshot = getCachedSnapshot ?? null;
 	}
 
 	onOpen(): void {
@@ -637,25 +650,18 @@ export class BatchEditorModal extends Modal {
 	}
 
 	private async readFrontmatter(filePath: string): Promise<Record<string, unknown> | null> {
+		const cachedSnapshot = this.getCachedSnapshot?.(filePath);
+		if (cachedSnapshot) {
+			return this.documentService.extractFrontmatterRecord(cachedSnapshot.content);
+		}
+
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 		if (!(file instanceof TFile)) {
 			return null;
 		}
 
 		const content = await this.app.vault.read(file);
-		const match = content.match(/^---\n([\s\S]*?)\n---/);
-		if (!match) {
-			return {};
-		}
-
-		const parsed: unknown = parseYaml(match[1]);
-		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-			return {};
-		}
-
-		const frontmatter = parsed as Record<string, unknown>;
-		delete frontmatter.position;
-		return frontmatter;
+		return this.documentService.extractFrontmatterRecord(content);
 	}
 }
 
@@ -828,63 +834,9 @@ export class FrontmatterEditor {
 }
 
 function formatFrontmatterValue(value: unknown): string {
-	if (value === null || value === undefined) {
-		return '';
-	}
-
-	if (Array.isArray(value)) {
-		return value.map(item => String(item ?? '')).join(', ');
-	}
-
-	if (typeof value === 'object') {
-		try {
-			return JSON.stringify(value);
-		} catch {
-			return '[object]';
-		}
-	}
-	if (typeof value === 'bigint') {
-		return value.toString();
-	}
-	if (typeof value === 'symbol') {
-		return value.description ?? 'symbol';
-	}
-	if (typeof value === 'function') {
-		return '[function]';
-	}
-
-	return '';
+	return formatFrontmatterDisplayValue(value);
 }
 
 function coerceDraftValue(value: string, originalValue: unknown): unknown {
-	if (Array.isArray(originalValue)) {
-		return splitListValue(value);
-	}
-
-	if (typeof originalValue === 'number') {
-		const parsed = Number(value);
-		return Number.isNaN(parsed) ? value : parsed;
-	}
-
-	if (typeof originalValue === 'boolean') {
-		if (value === 'true') {
-			return true;
-		}
-		if (value === 'false') {
-			return false;
-		}
-	}
-
-	if (value.includes('\n')) {
-		return value;
-	}
-
-	return value;
-}
-
-function splitListValue(value: string): string[] {
-	return value
-		.split(/[\n,，]/)
-		.map(item => item.trim())
-		.filter(Boolean);
+	return coerceFrontmatterDraftValue(value, originalValue);
 }

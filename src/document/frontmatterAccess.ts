@@ -1,3 +1,5 @@
+import { parseYaml } from 'obsidian';
+
 function escapeRegExp(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -46,7 +48,7 @@ function formatFrontmatterValue(value: unknown): string {
 		return JSON.stringify(value);
 	}
 
-	return String(value);
+	return '';
 }
 
 function serializeFrontmatterField(field: string, value: unknown): string[] {
@@ -109,6 +111,91 @@ function upsertFrontmatterBody(frontmatter: string, field: string, value: unknow
 export function extractFrontmatter(content: string): string | null {
 	const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
 	return frontmatterMatch ? frontmatterMatch[1] : null;
+}
+
+export function extractFrontmatterRecord(content: string): Record<string, unknown> {
+	const frontmatter = extractFrontmatter(content);
+	if (!frontmatter) {
+		return {};
+	}
+
+	const parsed: unknown = parseYaml(frontmatter);
+	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+		return {};
+	}
+
+	const record = { ...(parsed as Record<string, unknown>) };
+	delete record.position;
+	return record;
+}
+
+export function formatFrontmatterDisplayValue(value: unknown): string {
+	if (value === null || value === undefined) {
+		return '';
+	}
+
+	if (typeof value === 'string') {
+		return value;
+	}
+
+	if (typeof value === 'number' || typeof value === 'boolean') {
+		return String(value);
+	}
+
+	if (Array.isArray(value)) {
+		return value.map(item => String(item ?? '')).join(', ');
+	}
+
+	if (typeof value === 'bigint') {
+		return value.toString();
+	}
+
+	if (typeof value === 'symbol') {
+		return value.description ?? 'symbol';
+	}
+
+	if (typeof value === 'function') {
+		return '[function]';
+	}
+
+	if (typeof value === 'object') {
+		try {
+			return JSON.stringify(value);
+		} catch {
+			return '[object]';
+		}
+	}
+
+	return '';
+}
+
+export function coerceFrontmatterDraftValue(value: string, originalValue: unknown): unknown {
+	if (Array.isArray(originalValue)) {
+		return splitFrontmatterListValue(value);
+	}
+
+	if (typeof originalValue === 'number') {
+		const parsed = Number(value);
+		return Number.isNaN(parsed) ? value : parsed;
+	}
+
+	if (typeof originalValue === 'boolean') {
+		if (value === 'true') {
+			return true;
+		}
+		if (value === 'false') {
+			return false;
+		}
+	}
+
+	return value;
+}
+
+export function splitFrontmatterListValue(value: string): string[] {
+	return value
+		.split(/[\n,，]/)
+		.map(item => item.trim())
+		.filter(Boolean);
 }
 
 export function hasFrontmatterField(content: string, field: string): boolean {

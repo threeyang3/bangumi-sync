@@ -11,6 +11,9 @@ import {
 import { isCompletedSerialState, supportsPlatformDataSync } from '../sync/statusSyncLogic';
 import {
 	addFrontmatterField,
+	coerceFrontmatterDraftValue,
+	extractFrontmatterRecord,
+	formatFrontmatterDisplayValue,
 	getFrontmatterValue,
 	hasFrontmatterField,
 	readNumberField,
@@ -146,6 +149,18 @@ export class SubjectDocumentService {
 
 	addFrontmatterField(content: string, field: string, value: unknown): string {
 		return addFrontmatterField(content, field, value);
+	}
+
+	extractFrontmatterRecord(content: string): Record<string, unknown> {
+		return extractFrontmatterRecord(content);
+	}
+
+	formatFrontmatterDisplayValue(value: unknown): string {
+		return formatFrontmatterDisplayValue(value);
+	}
+
+	coerceFrontmatterDraftValue(value: string, originalValue: unknown): unknown {
+		return coerceFrontmatterDraftValue(value, originalValue);
 	}
 
 	extractTextField(content: string, fieldNames: string | string[]): string | null {

@@ -28,7 +28,7 @@ __export(main_exports, {
   default: () => BangumiPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian25 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 
 // common/api/types.ts
 var SubjectType = /* @__PURE__ */ ((SubjectType3) => {
@@ -3296,7 +3296,7 @@ var TemplateEditorModal = class extends import_obsidian2.Modal {
 };
 
 // src/sync/syncManager.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
 // src/api/client.ts
 var import_obsidian3 = require("obsidian");
@@ -4137,7 +4137,7 @@ var ImageHandler = class {
 };
 
 // src/sync/incrementalSync.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 
 // src/comment/shortComment.ts
 var SHORT_COMMENT_HEADER = /^> \[!abstract\]\+\s*\*\*短评\*\*\s*$/;
@@ -4296,6 +4296,7 @@ function normalizeTag(tag) {
 }
 
 // src/document/frontmatterAccess.ts
+var import_obsidian6 = require("obsidian");
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -4332,7 +4333,7 @@ ${value.map((item) => `  - ${formatFrontmatterValue(item)}`).join("\n")}`;
   if (typeof value === "object" && value !== null) {
     return JSON.stringify(value);
   }
-  return String(value);
+  return "";
 }
 function serializeFrontmatterField(field, value) {
   const formattedValue = formatFrontmatterValue(value);
@@ -4382,6 +4383,72 @@ ${fieldLines.join("\n")}`;
 function extractFrontmatter(content) {
   const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
   return frontmatterMatch ? frontmatterMatch[1] : null;
+}
+function extractFrontmatterRecord(content) {
+  const frontmatter = extractFrontmatter(content);
+  if (!frontmatter) {
+    return {};
+  }
+  const parsed = (0, import_obsidian6.parseYaml)(frontmatter);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {};
+  }
+  const record = { ...parsed };
+  delete record.position;
+  return record;
+}
+function formatFrontmatterDisplayValue(value) {
+  var _a;
+  if (value === null || value === void 0) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item != null ? item : "")).join(", ");
+  }
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (typeof value === "symbol") {
+    return (_a = value.description) != null ? _a : "symbol";
+  }
+  if (typeof value === "function") {
+    return "[function]";
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch (e) {
+      return "[object]";
+    }
+  }
+  return "";
+}
+function coerceFrontmatterDraftValue(value, originalValue) {
+  if (Array.isArray(originalValue)) {
+    return splitFrontmatterListValue(value);
+  }
+  if (typeof originalValue === "number") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? value : parsed;
+  }
+  if (typeof originalValue === "boolean") {
+    if (value === "true") {
+      return true;
+    }
+    if (value === "false") {
+      return false;
+    }
+  }
+  return value;
+}
+function splitFrontmatterListValue(value) {
+  return value.split(/[\n,，]/).map((item) => item.trim()).filter(Boolean);
 }
 function hasFrontmatterField(content, field) {
   const frontmatter = extractFrontmatter(content);
@@ -4708,6 +4775,15 @@ var SubjectDocumentService = class {
   addFrontmatterField(content, field, value) {
     return addFrontmatterField(content, field, value);
   }
+  extractFrontmatterRecord(content) {
+    return extractFrontmatterRecord(content);
+  }
+  formatFrontmatterDisplayValue(value) {
+    return formatFrontmatterDisplayValue(value);
+  }
+  coerceFrontmatterDraftValue(value, originalValue) {
+    return coerceFrontmatterDraftValue(value, originalValue);
+  }
   extractTextField(content, fieldNames) {
     return readTextField(content, fieldNames);
   }
@@ -4884,9 +4960,9 @@ var IncrementalSync = class {
     console.debug(`[Bangumi Sync] \u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939: ${folderPath}`);
     this.localSubjects.clear();
     this.lastScanPath = folderPath;
-    const normalizedPath = (0, import_obsidian6.normalizePath)(folderPath);
+    const normalizedPath = (0, import_obsidian7.normalizePath)(folderPath);
     const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (!(folder instanceof import_obsidian6.TFolder)) {
+    if (!(folder instanceof import_obsidian7.TFolder)) {
       console.debug(`[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return 0;
     }
@@ -5130,7 +5206,7 @@ var IncrementalSync = class {
         continue;
       try {
         const file = this.app.vault.getAbstractFileByPath(info.path);
-        if (file instanceof import_obsidian6.TFile) {
+        if (file instanceof import_obsidian7.TFile) {
           await this.app.fileManager.trashFile(file);
           this.localSubjects.delete(subjectId);
           result.deleted++;
@@ -5171,13 +5247,13 @@ var IncrementalSync = class {
   resolvePathByMetadataCache(subjectId, scanRoot) {
     const indexedPath = this.metadataIdIndex.get(subjectId);
     if (indexedPath) {
-      const normalizedRoot2 = scanRoot ? (0, import_obsidian6.normalizePath)(scanRoot) : "";
+      const normalizedRoot2 = scanRoot ? (0, import_obsidian7.normalizePath)(scanRoot) : "";
       if (!normalizedRoot2 || indexedPath.startsWith(normalizedRoot2)) {
         this.addBatchSyncedItem(subjectId, indexedPath, "", false);
         return indexedPath;
       }
     }
-    const normalizedRoot = scanRoot ? (0, import_obsidian6.normalizePath)(scanRoot) : "";
+    const normalizedRoot = scanRoot ? (0, import_obsidian7.normalizePath)(scanRoot) : "";
     const allFiles = this.app.vault.getMarkdownFiles();
     for (const file of allFiles) {
       if (normalizedRoot && !file.path.startsWith(normalizedRoot)) {
@@ -6170,7 +6246,7 @@ ${value.map((item) => `  - ${item}`).join("\n")}`;
 }
 
 // src/userData/userDataExtractor.ts
-var import_obsidian7 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 
 // common/utils/frontmatter.ts
 function getFrontmatterRecord(frontmatter) {
@@ -6278,9 +6354,9 @@ var UserDataExtractor = class {
   }
   async extractFromFolder(folderPath, onProgress) {
     const result = /* @__PURE__ */ new Map();
-    const normalizedPath = (0, import_obsidian7.normalizePath)(folderPath);
+    const normalizedPath = (0, import_obsidian8.normalizePath)(folderPath);
     const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (!(folder instanceof import_obsidian7.TFolder)) {
+    if (!(folder instanceof import_obsidian8.TFolder)) {
       console.debug(`[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return result;
     }
@@ -6303,9 +6379,9 @@ var UserDataExtractor = class {
   }
   async extractForExportFromFolder(folderPath, dataTypes = ["all" /* ALL */], onProgress) {
     const result = /* @__PURE__ */ new Map();
-    const normalizedPath = (0, import_obsidian7.normalizePath)(folderPath);
+    const normalizedPath = (0, import_obsidian8.normalizePath)(folderPath);
     const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (!(folder instanceof import_obsidian7.TFolder)) {
+    if (!(folder instanceof import_obsidian8.TFolder)) {
       console.debug(`[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return result;
     }
@@ -6467,7 +6543,7 @@ var UserDataMerger = class {
 };
 
 // src/userData/userDataExporter.ts
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 var UserDataExporter = class {
   constructor(app) {
     this.app = app;
@@ -6490,7 +6566,7 @@ var UserDataExporter = class {
         totalCount: userDataMap.size,
         categories: groupedData
       };
-      const filePath = (0, import_obsidian8.normalizePath)(`${outputDir}/bangumi-user-data.json`);
+      const filePath = (0, import_obsidian9.normalizePath)(`${outputDir}/bangumi-user-data.json`);
       await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
       return { success: true, files: [filePath] };
     } catch (error) {
@@ -6550,7 +6626,7 @@ var UserDataExporter = class {
    * 确保目录存在
    */
   async ensureDirectory(path) {
-    const normalizedPath = (0, import_obsidian8.normalizePath)(path);
+    const normalizedPath = (0, import_obsidian9.normalizePath)(path);
     const exists = await this.app.vault.adapter.exists(normalizedPath);
     if (!exists) {
       await this.app.vault.createFolder(normalizedPath);
@@ -6560,9 +6636,9 @@ var UserDataExporter = class {
    * 保存文件
    */
   async saveFile(path, content) {
-    const normalizedPath = (0, import_obsidian8.normalizePath)(path);
+    const normalizedPath = (0, import_obsidian9.normalizePath)(path);
     const existing = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (existing instanceof import_obsidian8.TFile) {
+    if (existing instanceof import_obsidian9.TFile) {
       await this.app.vault.process(existing, () => content);
     } else {
       await this.app.vault.create(normalizedPath, content);
@@ -6571,7 +6647,7 @@ var UserDataExporter = class {
 };
 
 // src/userData/userDataImporter.ts
-var import_obsidian9 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 
 // src/userData/importLogic.ts
 var LIST_LIKE_FIELDS = /* @__PURE__ */ new Set([
@@ -6822,7 +6898,7 @@ var UserDataImporter = class {
   async importFromFile(filePath, options, onProgress) {
     try {
       const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (!(file instanceof import_obsidian9.TFile)) {
+      if (!(file instanceof import_obsidian10.TFile)) {
         throw new Error("Import file not found");
       }
       const content = await this.app.vault.read(file);
@@ -6838,7 +6914,7 @@ var UserDataImporter = class {
     const files = [];
     for (const filePath of filePaths) {
       const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (!(file instanceof import_obsidian9.TFile)) {
+      if (!(file instanceof import_obsidian10.TFile)) {
         throw new Error(`Import file not found: ${filePath}`);
       }
       files.push({
@@ -7561,13 +7637,13 @@ function sortObjectKeysDeep(value) {
 }
 
 // src/userData/userDataModal.ts
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 var DEFAULT_EXPORT_DATA_TYPES = [
   "userProperties" /* USER_PROPERTIES */,
   "customProperties" /* CUSTOM_PROPERTIES */,
   "bodySections" /* BODY_CONTENT */
 ];
-var UserDataExportModal = class extends import_obsidian10.Modal {
+var UserDataExportModal = class extends import_obsidian11.Modal {
   constructor(app, scanFolderPath, onExport) {
     super(app);
     this.exportDataTypes = [...DEFAULT_EXPORT_DATA_TYPES];
@@ -7584,12 +7660,12 @@ var UserDataExportModal = class extends import_obsidian10.Modal {
       text: tn("userData", "exportDesc"),
       cls: "bangumi-modal-desc"
     });
-    new import_obsidian10.Setting(contentEl).setName(tn("userData", "scanFolder")).setDesc(tn("userData", "scanFolderDesc")).addText((text) => {
+    new import_obsidian11.Setting(contentEl).setName(tn("userData", "scanFolder")).setDesc(tn("userData", "scanFolderDesc")).addText((text) => {
       text.setValue(this.scanFolderPath).onChange((value) => {
         this.scanFolderPath = value;
       });
     });
-    new import_obsidian10.Setting(contentEl).setName(tn("userData", "outputDir")).setDesc(tn("userData", "outputDirDesc")).addText((text) => {
+    new import_obsidian11.Setting(contentEl).setName(tn("userData", "outputDir")).setDesc(tn("userData", "outputDirDesc")).addText((text) => {
       text.setValue(this.outputDir).onChange((value) => {
         this.outputDir = value;
       });
@@ -7615,7 +7691,7 @@ var UserDataExportModal = class extends import_obsidian10.Modal {
   }
   async doExport() {
     if (this.exportDataTypes.length === 0) {
-      new import_obsidian10.Notice(tn("userData", "selectAtLeastOneDataType"));
+      new import_obsidian11.Notice(tn("userData", "selectAtLeastOneDataType"));
       return;
     }
     const result = await this.exporter.exportByCategory(
@@ -7624,11 +7700,11 @@ var UserDataExportModal = class extends import_obsidian10.Modal {
       this.exportDataTypes
     );
     if (result.success && result.files.length > 0) {
-      new import_obsidian10.Notice(tnFormat("userData", "exportSuccess", { count: result.files.length }));
+      new import_obsidian11.Notice(tnFormat("userData", "exportSuccess", { count: result.files.length }));
       this.onExport(result.files);
       this.close();
     } else {
-      new import_obsidian10.Notice(tnFormat("userData", "exportFailed", { error: result.error || "Unknown error" }));
+      new import_obsidian11.Notice(tnFormat("userData", "exportFailed", { error: result.error || "Unknown error" }));
     }
   }
   onClose() {
@@ -7636,14 +7712,14 @@ var UserDataExportModal = class extends import_obsidian10.Modal {
     contentEl.empty();
   }
   addDataTypeToggle(container, dataType, nameKey, descKey) {
-    new import_obsidian10.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
+    new import_obsidian11.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
       toggle.setValue(this.exportDataTypes.includes(dataType)).onChange((value) => {
         this.exportDataTypes = updateDataTypeSelection(this.exportDataTypes, dataType, value);
       });
     });
   }
 };
-var UserDataImportModal = class extends import_obsidian10.Modal {
+var UserDataImportModal = class extends import_obsidian11.Modal {
   constructor(app, importFiles, onImport) {
     super(app);
     this.mergeStrategy = "smart";
@@ -7665,12 +7741,12 @@ var UserDataImportModal = class extends import_obsidian10.Modal {
     for (const file of this.importFiles) {
       fileListEl.createEl("div", { text: file.name, cls: "bangumi-import-file-item" });
     }
-    new import_obsidian10.Setting(contentEl).setName(tn("userData", "mergeStrategy")).setDesc(tn("userData", "mergeStrategyDesc")).addDropdown((dropdown) => {
+    new import_obsidian11.Setting(contentEl).setName(tn("userData", "mergeStrategy")).setDesc(tn("userData", "mergeStrategyDesc")).addDropdown((dropdown) => {
       dropdown.addOption("prefer_local", tn("userData", "preferLocal")).addOption("prefer_import", tn("userData", "preferImport")).addOption("smart", tn("userData", "smartMerge")).setValue(this.mergeStrategy).onChange((value) => {
         this.mergeStrategy = value;
       });
     });
-    new import_obsidian10.Setting(contentEl).setName(tn("userData", "importMode")).setDesc(tn("userData", "importModeDesc")).addDropdown((dropdown) => {
+    new import_obsidian11.Setting(contentEl).setName(tn("userData", "importMode")).setDesc(tn("userData", "importModeDesc")).addDropdown((dropdown) => {
       dropdown.addOption("item", tn("userData", "itemImportMode")).addOption("property", tn("userData", "propertyImportMode")).setValue(this.importMode).onChange((value) => {
         this.importMode = value;
       });
@@ -7696,7 +7772,7 @@ var UserDataImportModal = class extends import_obsidian10.Modal {
   }
   async doImport() {
     if (this.importDataTypes.length === 0) {
-      new import_obsidian10.Notice(tn("userData", "selectAtLeastOneDataType"));
+      new import_obsidian11.Notice(tn("userData", "selectAtLeastOneDataType"));
       return;
     }
     const dataTypeOptions = { dataTypes: this.importDataTypes };
@@ -7796,14 +7872,14 @@ var UserDataImportModal = class extends import_obsidian10.Modal {
     contentEl.empty();
   }
   addDataTypeToggle(container, dataType, nameKey, descKey) {
-    new import_obsidian10.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
+    new import_obsidian11.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
       toggle.setValue(this.importDataTypes.includes(dataType)).onChange((value) => {
         this.importDataTypes = updateDataTypeSelection(this.importDataTypes, dataType, value);
       });
     });
   }
 };
-var MissingFieldModal = class extends import_obsidian10.Modal {
+var MissingFieldModal = class extends import_obsidian11.Modal {
   constructor(app, missingFields, onResolve) {
     super(app);
     this.decisions = /* @__PURE__ */ new Map();
@@ -7907,7 +7983,7 @@ var MissingFieldModal = class extends import_obsidian10.Modal {
     contentEl.empty();
   }
 };
-var PropertyManageModal = class extends import_obsidian10.Modal {
+var PropertyManageModal = class extends import_obsidian11.Modal {
   constructor(app, propertyNames, suggestedAliases, onConfirm) {
     super(app);
     this.decisions = {};
@@ -7981,7 +8057,7 @@ var PropertyManageModal = class extends import_obsidian10.Modal {
     this.contentEl.empty();
   }
 };
-var ImportCompareModal = class extends import_obsidian10.Modal {
+var ImportCompareModal = class extends import_obsidian11.Modal {
   constructor(app, diffs, onConfirm) {
     super(app);
     this.diffs = diffs;
@@ -8096,7 +8172,7 @@ var ImportCompareModal = class extends import_obsidian10.Modal {
     this.contentEl.empty();
   }
 };
-var PropertyImportReviewModal = class extends import_obsidian10.Modal {
+var PropertyImportReviewModal = class extends import_obsidian11.Modal {
   constructor(app, propertyGroups, onConfirm) {
     super(app);
     this.currentIndex = 0;
@@ -8250,7 +8326,7 @@ var PropertyImportReviewModal = class extends import_obsidian10.Modal {
     this.contentEl.empty();
   }
 };
-var ImportResultModal = class extends import_obsidian10.Modal {
+var ImportResultModal = class extends import_obsidian11.Modal {
   constructor(app, result) {
     super(app);
     this.result = result;
@@ -8306,7 +8382,7 @@ var ImportResultModal = class extends import_obsidian10.Modal {
   }
   async applyDecisions(decisions) {
     await this.importer.applyMissingFieldDecisions(decisions);
-    new import_obsidian10.Notice(tnFormat("userData", "missingFieldsApplied", { count: decisions.filter((d) => d.decision === "add").length }));
+    new import_obsidian11.Notice(tnFormat("userData", "missingFieldsApplied", { count: decisions.filter((d) => d.decision === "add").length }));
   }
   onClose() {
     const { contentEl } = this;
@@ -8788,7 +8864,7 @@ var SyncManager = class {
     } catch (error) {
       console.error("[Bangumi Sync] \u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: error instanceof Error ? error.message : String(error) });
-      new import_obsidian11.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian12.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
     result.duration = Date.now() - startTime;
     return this.createSyncResultWithRollback(result, wasCancelled);
@@ -9205,7 +9281,7 @@ var SyncManager = class {
     } catch (error) {
       console.error("[Bangumi Sync] \u6267\u884C\u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: error instanceof Error ? error.message : String(error) });
-      new import_obsidian11.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian12.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
     result.duration = Date.now() - startTime;
     return this.createSyncResultWithRollback(result, wasCancelled);
@@ -9291,7 +9367,7 @@ var SyncManager = class {
     for (const [path, links] of updatesByFile) {
       try {
         const file = this.app.vault.getAbstractFileByPath(path);
-        if (file instanceof import_obsidian11.TFile) {
+        if (file instanceof import_obsidian12.TFile) {
           const content = await this.app.vault.read(file);
           const updatedContent = this.incrementalSync.updateRelated(content, links);
           if (updatedContent !== content) {
@@ -9340,7 +9416,7 @@ var SyncManager = class {
     for (const [path, links] of updatesByFile) {
       try {
         const file = this.app.vault.getAbstractFileByPath(path);
-        if (!(file instanceof import_obsidian11.TFile))
+        if (!(file instanceof import_obsidian12.TFile))
           continue;
         const content = await this.app.vault.read(file);
         const updatedContent = this.incrementalSync.updateRelated(content, links);
@@ -9456,7 +9532,7 @@ var SyncManager = class {
       });
       try {
         const file = this.app.vault.getAbstractFileByPath(info.path);
-        if (!(file instanceof import_obsidian11.TFile)) {
+        if (!(file instanceof import_obsidian12.TFile)) {
           result.skipped++;
           continue;
         }
@@ -9617,7 +9693,7 @@ var SyncManager = class {
     for (const [path, links] of updatesByFile) {
       try {
         const file = this.app.vault.getAbstractFileByPath(path);
-        if (!(file instanceof import_obsidian11.TFile)) {
+        if (!(file instanceof import_obsidian12.TFile)) {
           console.warn(`[Bangumi Sync] \u6587\u4EF6\u4E0D\u5B58\u5728\u6216\u975E TFile: ${path}`);
           result.failed++;
           continue;
@@ -9681,8 +9757,8 @@ var SyncManager = class {
 };
 
 // src/ui/syncModal.ts
-var import_obsidian12 = require("obsidian");
-var SyncModal = class extends import_obsidian12.Modal {
+var import_obsidian13 = require("obsidian");
+var SyncModal = class extends import_obsidian13.Modal {
   constructor(app, cancellationSignal) {
     super(app);
     this.progressBar = null;
@@ -9702,7 +9778,7 @@ var SyncModal = class extends import_obsidian12.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    new import_obsidian12.Setting(contentEl).setName(tn("syncModal", "title")).setHeading();
+    new import_obsidian13.Setting(contentEl).setName(tn("syncModal", "title")).setHeading();
     this.progressBar = contentEl.createDiv({ cls: "bangumi-progress-bar" });
     this.progressBar.createEl("div", { cls: "bangumi-progress-fill" });
     this.statusText = contentEl.createDiv({ cls: "bangumi-sync-status" });
@@ -9904,8 +9980,8 @@ var SyncModal = class extends import_obsidian12.Modal {
 };
 
 // src/ui/syncOptionsModal.ts
-var import_obsidian13 = require("obsidian");
-var SyncOptionsModal = class extends import_obsidian13.Modal {
+var import_obsidian14 = require("obsidian");
+var SyncOptionsModal = class extends import_obsidian14.Modal {
   constructor(app, defaultOptions, onSave) {
     super(app);
     this.options = defaultOptions;
@@ -9917,8 +9993,8 @@ var SyncOptionsModal = class extends import_obsidian13.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "title")).setHeading();
-    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "subjectTypes")).setHeading();
+    new import_obsidian14.Setting(contentEl).setName(tn("syncOptions", "title")).setHeading();
+    new import_obsidian14.Setting(contentEl).setName(tn("syncOptions", "subjectTypes")).setHeading();
     const subjectTypesDiv = contentEl.createDiv({ cls: "bangumi-checkbox-group" });
     const subjectTypes = [
       2 /* Anime */,
@@ -9953,7 +10029,7 @@ var SyncOptionsModal = class extends import_obsidian13.Modal {
         this.redraw();
       });
     });
-    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "collectionTypes")).setHeading();
+    new import_obsidian14.Setting(contentEl).setName(tn("syncOptions", "collectionTypes")).setHeading();
     const collectionTypesDiv = contentEl.createDiv({ cls: "bangumi-checkbox-group" });
     const collectionTypes = [
       1 /* Wish */,
@@ -9988,8 +10064,8 @@ var SyncOptionsModal = class extends import_obsidian13.Modal {
         this.redraw();
       });
     });
-    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setHeading();
-    const limitSetting = new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setDesc(tn("syncOptions", "syncLimitDesc")).addText((text) => {
+    new import_obsidian14.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setHeading();
+    const limitSetting = new import_obsidian14.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setDesc(tn("syncOptions", "syncLimitDesc")).addText((text) => {
       text.setPlaceholder("50").setValue(this.limitValue === 0 ? "" : String(this.limitValue)).onChange((value) => {
         const num = parseInt(value, 10);
         if (!isNaN(num) && num >= 0) {
@@ -10003,7 +10079,7 @@ var SyncOptionsModal = class extends import_obsidian13.Modal {
         input.value = "";
       }
     }));
-    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "forceSync")).setDesc(tn("syncOptions", "forceSyncDesc")).addToggle((toggle) => toggle.setValue(this.forceValue).onChange((value) => {
+    new import_obsidian14.Setting(contentEl).setName(tn("syncOptions", "forceSync")).setDesc(tn("syncOptions", "forceSyncDesc")).addToggle((toggle) => toggle.setValue(this.forceValue).onChange((value) => {
       this.forceValue = value;
     }));
     const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
@@ -10037,8 +10113,8 @@ var SyncOptionsModal = class extends import_obsidian13.Modal {
 };
 
 // src/ui/syncPreviewModal.ts
-var import_obsidian14 = require("obsidian");
-var SyncPreviewModal = class extends import_obsidian14.Modal {
+var import_obsidian15 = require("obsidian");
+var SyncPreviewModal = class extends import_obsidian15.Modal {
   constructor(app, items, onConfirm) {
     super(app);
     this.itemElements = /* @__PURE__ */ new Map();
@@ -10047,7 +10123,7 @@ var SyncPreviewModal = class extends import_obsidian14.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    new import_obsidian14.Setting(contentEl).setName(tn("syncPreview", "title")).setHeading();
+    new import_obsidian15.Setting(contentEl).setName(tn("syncPreview", "title")).setHeading();
     contentEl.createEl("p", {
       text: `${this.items.length} ${tn("syncPreview", "itemsToSync")}`,
       cls: "bangumi-preview-info"
@@ -10143,10 +10219,10 @@ var SyncPreviewModal = class extends import_obsidian14.Modal {
 };
 
 // src/ui/searchModal.ts
-var import_obsidian16 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 
 // src/ui/addToCollectionModal.ts
-var import_obsidian15 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 var COLLECTION_TYPE_OPTIONS = [
   { value: 1, labelKey: "wish" },
   { value: 2, labelKey: "done" },
@@ -10154,7 +10230,7 @@ var COLLECTION_TYPE_OPTIONS = [
   { value: 4, labelKey: "onHold" },
   { value: 5, labelKey: "dropped" }
 ];
-var AddToCollectionModal = class extends import_obsidian15.Modal {
+var AddToCollectionModal = class extends import_obsidian16.Modal {
   constructor(app, client, settings, syncManager, subject, onComplete, existingCollection) {
     super(app);
     // 输入状态
@@ -10188,7 +10264,7 @@ var AddToCollectionModal = class extends import_obsidian15.Modal {
     const { contentEl } = this;
     contentEl.addClass("bangumi-add-collection-modal");
     const title = `${tn("addToCollection", "title")} - ${this.subject.name_cn || this.subject.name}`;
-    new import_obsidian15.Setting(contentEl).setName(title).setHeading();
+    new import_obsidian16.Setting(contentEl).setName(title).setHeading();
     contentEl.createEl("h3", { text: tn("addToCollection", "bangumiProperties"), cls: "bangumi-add-collection-section" });
     const typeDiv = contentEl.createDiv({ cls: "bangumi-add-collection-type" });
     typeDiv.createSpan({ text: `${tn("addToCollection", "collectionType")}: ` });
@@ -10206,14 +10282,14 @@ var AddToCollectionModal = class extends import_obsidian15.Modal {
         btn.addClass("bangumi-add-collection-type-btn-active");
       });
     });
-    const rateSetting = new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "rating")).addSlider((slider) => {
+    const rateSetting = new import_obsidian16.Setting(contentEl).setName(tn("addToCollection", "rating")).addSlider((slider) => {
       slider.setLimits(0, 10, 1).setValue(this.rate).onChange((value) => {
         this.rate = value;
         rateValueEl.setText(String(value));
       });
     });
     const rateValueEl = rateSetting.controlEl.createSpan({ cls: "bangumi-add-collection-rate-value", text: "0" });
-    const tagsSetting = new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "tags")).addText((text) => {
+    const tagsSetting = new import_obsidian16.Setting(contentEl).setName(tn("addToCollection", "tags")).addText((text) => {
       text.setPlaceholder(tn("addToCollection", "tagsPlaceholder"));
       this.tagInputEl = text.inputEl;
       text.inputEl.addEventListener("keydown", (e) => {
@@ -10231,7 +10307,7 @@ var AddToCollectionModal = class extends import_obsidian15.Modal {
     if (this.tags.length > 0) {
       this.renderTags();
     }
-    new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "comment")).addTextArea((text) => {
+    new import_obsidian16.Setting(contentEl).setName(tn("addToCollection", "comment")).addTextArea((text) => {
       text.setPlaceholder(tn("addToCollection", "commentPlaceholder"));
       text.setValue(this.comment);
       text.onChange((value) => {
@@ -10247,12 +10323,12 @@ var AddToCollectionModal = class extends import_obsidian15.Modal {
       });
     }
     contentEl.createEl("h3", { text: tn("addToCollection", "syncOptions"), cls: "bangumi-add-collection-section" });
-    new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "syncToCloud")).addToggle((toggle) => {
+    new import_obsidian16.Setting(contentEl).setName(tn("addToCollection", "syncToCloud")).addToggle((toggle) => {
       toggle.setValue(this.syncToCloud).onChange((value) => {
         this.syncToCloud = value;
       });
     });
-    new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "createLocal")).addToggle((toggle) => {
+    new import_obsidian16.Setting(contentEl).setName(tn("addToCollection", "createLocal")).addToggle((toggle) => {
       toggle.setValue(this.createLocal).onChange((value) => {
         this.createLocal = value;
       });
@@ -10316,11 +10392,11 @@ var AddToCollectionModal = class extends import_obsidian15.Modal {
         this.onComplete(input);
         this.close();
       } else {
-        new import_obsidian15.Notice(`${tn("addToCollection", "addError")}: ${result.error}`);
+        new import_obsidian16.Notice(`${tn("addToCollection", "addError")}: ${result.error}`);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian15.Notice(`${tn("addToCollection", "addError")}: ${errorMsg}`);
+      new import_obsidian16.Notice(`${tn("addToCollection", "addError")}: ${errorMsg}`);
     }
   }
   onClose() {
@@ -10411,7 +10487,7 @@ var SEARCH_SHORT_LABELS = getLocale() === "zh-CN" ? {
   add: "Add",
   edit: "Edit"
 };
-var SearchModal = class extends import_obsidian16.Modal {
+var SearchModal = class extends import_obsidian17.Modal {
   constructor(app, client, settings, syncManager, onComplete) {
     super(app);
     // 搜索状态
@@ -10433,7 +10509,7 @@ var SearchModal = class extends import_obsidian16.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.addClass("bangumi-search-modal");
-    new import_obsidian16.Setting(contentEl).setName(tn("searchModal", "title")).setHeading();
+    new import_obsidian17.Setting(contentEl).setName(tn("searchModal", "title")).setHeading();
     const searchDiv = contentEl.createDiv({ cls: "bangumi-search-input-container" });
     const inputEl = searchDiv.createEl("input", {
       type: "text",
@@ -10587,7 +10663,7 @@ var SearchModal = class extends import_obsidian16.Modal {
         subject
       );
       const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (file instanceof import_obsidian16.TFile) {
+      if (file instanceof import_obsidian17.TFile) {
         return filePath;
       }
     } catch (e) {
@@ -10674,7 +10750,7 @@ var SearchModal = class extends import_obsidian16.Modal {
    * 处理添加完成
    */
   handleAddComplete(input) {
-    new import_obsidian16.Notice(tnFormat("searchModal", "addedSuccess", { name: input.subjectName }));
+    new import_obsidian17.Notice(tnFormat("searchModal", "addedSuccess", { name: input.subjectName }));
     this.onComplete();
   }
   onClose() {
@@ -10689,8 +10765,8 @@ var SearchModal = class extends import_obsidian16.Modal {
 };
 
 // src/ui/localPropertyModal.ts
-var import_obsidian17 = require("obsidian");
-var LocalPropertyModal = class extends import_obsidian17.Modal {
+var import_obsidian18 = require("obsidian");
+var LocalPropertyModal = class extends import_obsidian18.Modal {
   constructor(app, collections, subjectsById, customTemplates, onSubmit) {
     super(app);
     this.propertyValuesBySubjectId = /* @__PURE__ */ new Map();
@@ -10708,7 +10784,7 @@ var LocalPropertyModal = class extends import_obsidian17.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.addClass("bangumi-local-property-modal");
-    new import_obsidian17.Setting(contentEl).setName(tn("controlPanel", "localPropertyTitle")).setHeading();
+    new import_obsidian18.Setting(contentEl).setName(tn("controlPanel", "localPropertyTitle")).setHeading();
     contentEl.createEl("p", {
       text: tn("controlPanel", "localPropertyDesc"),
       cls: "bangumi-setting-desc"
@@ -10897,12 +10973,12 @@ function createFallbackSubject(collection) {
 }
 
 // src/panel/controlPanel.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 
 // src/panel/batchEditorModal.ts
-var import_obsidian18 = require("obsidian");
-var BatchEditorModal = class extends import_obsidian18.Modal {
-  constructor(app, items, onConfirm) {
+var import_obsidian19 = require("obsidian");
+var BatchEditorModal = class extends import_obsidian19.Modal {
+  constructor(app, items, onConfirm, documentService, getCachedSnapshot) {
     super(app);
     this.mode = "per_item";
     this.operations = [];
@@ -10913,6 +10989,8 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
     this.loadingProperties = true;
     this.items = items;
     this.onConfirm = onConfirm;
+    this.documentService = documentService != null ? documentService : new SubjectDocumentService(app);
+    this.getCachedSnapshot = getCachedSnapshot != null ? getCachedSnapshot : null;
   }
   onOpen() {
     const { contentEl } = this;
@@ -11041,11 +11119,11 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
         const property = propertyInput.value.trim();
         const value = valueInput.value.trim();
         if (!property) {
-          new import_obsidian18.Notice(tn("batchEditor", "noticeProperty"));
+          new import_obsidian19.Notice(tn("batchEditor", "noticeProperty"));
           return;
         }
         if ((type === "add" || type === "modify") && !value) {
-          new import_obsidian18.Notice(tn("batchEditor", "noticeValue"));
+          new import_obsidian19.Notice(tn("batchEditor", "noticeValue"));
           return;
         }
         this.operations.push({ type, property, value });
@@ -11087,7 +11165,7 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
       btn.addEventListener("click", () => {
         const property = customPropertyInput.value.trim();
         if (!property) {
-          new import_obsidian18.Notice(tn("batchEditor", "noticeProperty"));
+          new import_obsidian19.Notice(tn("batchEditor", "noticeProperty"));
           return;
         }
         this.ensurePropertyExists(property);
@@ -11150,7 +11228,7 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
       }
     } catch (error) {
       console.error("[Bangumi Sync] Failed to load batch editor properties", error);
-      new import_obsidian18.Notice(tn("batchEditor", "noticeLoadFailed"));
+      new import_obsidian19.Notice(tn("batchEditor", "noticeLoadFailed"));
     } finally {
       this.loadingProperties = false;
       this.renderPropertySelection();
@@ -11296,7 +11374,7 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
   async handleSubmit() {
     if (this.mode === "uniform") {
       if (this.operations.length === 0) {
-        new import_obsidian18.Notice(tn("batchEditor", "noticeNoOp"));
+        new import_obsidian19.Notice(tn("batchEditor", "noticeNoOp"));
         return;
       }
       await this.onConfirm({
@@ -11307,12 +11385,12 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
       return;
     }
     if (this.selectedProperties.length === 0) {
-      new import_obsidian18.Notice(tn("batchEditor", "noticeSelectProperty"));
+      new import_obsidian19.Notice(tn("batchEditor", "noticeSelectProperty"));
       return;
     }
     const perItemUpdates = this.buildPerItemUpdates();
     if (perItemUpdates.length === 0) {
-      new import_obsidian18.Notice(tn("batchEditor", "noticeNothingChanged"));
+      new import_obsidian19.Notice(tn("batchEditor", "noticeNothingChanged"));
       return;
     }
     await this.onConfirm({
@@ -11391,22 +11469,17 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
     return record;
   }
   async readFrontmatter(filePath) {
+    var _a;
+    const cachedSnapshot = (_a = this.getCachedSnapshot) == null ? void 0 : _a.call(this, filePath);
+    if (cachedSnapshot) {
+      return this.documentService.extractFrontmatterRecord(cachedSnapshot.content);
+    }
     const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof import_obsidian18.TFile)) {
+    if (!(file instanceof import_obsidian19.TFile)) {
       return null;
     }
     const content = await this.app.vault.read(file);
-    const match = content.match(/^---\n([\s\S]*?)\n---/);
-    if (!match) {
-      return {};
-    }
-    const parsed = (0, import_obsidian18.parseYaml)(match[1]);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
-    }
-    const frontmatter = parsed;
-    delete frontmatter.position;
-    return frontmatter;
+    return this.documentService.extractFrontmatterRecord(content);
   }
 };
 var FrontmatterEditor = class {
@@ -11461,7 +11534,7 @@ var FrontmatterEditor = class {
     let restored = 0;
     for (const [path, content] of lastOperation.originalContent) {
       const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian18.TFile && lastOperation.affectedFiles.includes(path)) {
+      if (file instanceof import_obsidian19.TFile && lastOperation.affectedFiles.includes(path)) {
         await this.app.vault.process(file, () => content);
         restored++;
       }
@@ -11473,7 +11546,7 @@ var FrontmatterEditor = class {
   }
   async applyUniformOperations(filePath, operations) {
     const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof import_obsidian18.TFile)) {
+    if (!(file instanceof import_obsidian19.TFile)) {
       return false;
     }
     try {
@@ -11496,7 +11569,7 @@ var FrontmatterEditor = class {
   }
   async applyPerItemUpdate(update) {
     const file = this.app.vault.getAbstractFileByPath(update.filePath);
-    if (!(file instanceof import_obsidian18.TFile)) {
+    if (!(file instanceof import_obsidian19.TFile)) {
       return false;
     }
     try {
@@ -11516,7 +11589,7 @@ var FrontmatterEditor = class {
     const originalContents = /* @__PURE__ */ new Map();
     for (const path of filePaths) {
       const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian18.TFile) {
+      if (file instanceof import_obsidian19.TFile) {
         const content = await this.app.vault.read(file);
         originalContents.set(path, content);
       }
@@ -11538,58 +11611,14 @@ var FrontmatterEditor = class {
   }
 };
 function formatFrontmatterValue2(value) {
-  var _a;
-  if (value === null || value === void 0) {
-    return "";
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item != null ? item : "")).join(", ");
-  }
-  if (typeof value === "object") {
-    try {
-      return JSON.stringify(value);
-    } catch (e) {
-      return "[object]";
-    }
-  }
-  if (typeof value === "bigint") {
-    return value.toString();
-  }
-  if (typeof value === "symbol") {
-    return (_a = value.description) != null ? _a : "symbol";
-  }
-  if (typeof value === "function") {
-    return "[function]";
-  }
-  return "";
+  return formatFrontmatterDisplayValue(value);
 }
 function coerceDraftValue(value, originalValue) {
-  if (Array.isArray(originalValue)) {
-    return splitListValue(value);
-  }
-  if (typeof originalValue === "number") {
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? value : parsed;
-  }
-  if (typeof originalValue === "boolean") {
-    if (value === "true") {
-      return true;
-    }
-    if (value === "false") {
-      return false;
-    }
-  }
-  if (value.includes("\n")) {
-    return value;
-  }
-  return value;
-}
-function splitListValue(value) {
-  return value.split(/[\n,，]/).map((item) => item.trim()).filter(Boolean);
+  return coerceFrontmatterDraftValue(value, originalValue);
 }
 
 // src/panel/statusSyncModal.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 
 // src/sync/statusSyncTypes.ts
 var USER_STATUS_SYNC_FIELD_KEYS = [
@@ -11662,7 +11691,7 @@ function getStatusSyncScope(selection) {
 }
 
 // src/panel/statusSyncModal.ts
-var StatusSyncModal = class extends import_obsidian19.Modal {
+var StatusSyncModal = class extends import_obsidian20.Modal {
   constructor(app, statusSyncService, selection, diffs, onComplete) {
     super(app);
     this.renderTimer = null;
@@ -12053,12 +12082,12 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     const message = tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount));
     this.statusEl.setText(message);
     if (successCount > 0) {
-      new import_obsidian19.Notice(message);
+      new import_obsidian20.Notice(message);
       this.onComplete();
       this.close();
       return;
     }
-    new import_obsidian19.Notice(tn("statusSyncModal", "syncFailed"));
+    new import_obsidian20.Notice(tn("statusSyncModal", "syncFailed"));
   }
   scheduleRender() {
     if (this.renderTimer !== null || this.isDisposedFlag) {
@@ -12183,8 +12212,8 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
 };
 
 // src/panel/statusSyncScopeModal.ts
-var import_obsidian20 = require("obsidian");
-var StatusSyncScopeModal = class extends import_obsidian20.Modal {
+var import_obsidian21 = require("obsidian");
+var StatusSyncScopeModal = class extends import_obsidian21.Modal {
   constructor(app, initialSelection, onConfirm) {
     super(app);
     this.selection = normalizeStatusSyncFieldSelection(initialSelection);
@@ -12236,7 +12265,7 @@ var StatusSyncScopeModal = class extends import_obsidian20.Modal {
       button.type = "button";
       button.addEventListener("click", () => {
         if (!hasSelectedUserFields(this.selection) && !hasSelectedPlatformFields(this.selection)) {
-          new import_obsidian20.Notice(tn("statusSyncModal", "selectAtLeastOne"));
+          new import_obsidian21.Notice(tn("statusSyncModal", "selectAtLeastOne"));
           return;
         }
         this.onConfirm(cloneStatusSyncFieldSelection(this.selection));
@@ -12477,8 +12506,132 @@ function isMobile() {
   return activeWindow.matchMedia("(max-width: 767px)").matches;
 }
 
-// src/sync/statusSyncService.ts
-var import_obsidian21 = require("obsidian");
+// src/document/localSubjectSnapshotSession.ts
+var import_obsidian22 = require("obsidian");
+var LocalSubjectSnapshotSession = class {
+  constructor(app, documentService) {
+    this.snapshotsById = /* @__PURE__ */ new Map();
+    this.subjectIdByPath = /* @__PURE__ */ new Map();
+    this.warmupGeneration = 0;
+    this.warmupPromise = null;
+    this.app = app;
+    this.documentService = documentService;
+  }
+  get currentWarmup() {
+    return this.warmupPromise;
+  }
+  cancelWarmup() {
+    this.warmupGeneration++;
+    this.warmupPromise = null;
+  }
+  clear() {
+    this.snapshotsById.clear();
+    this.subjectIdByPath.clear();
+  }
+  warm(collections, localSubjects, options = {}) {
+    var _a;
+    const generation = ++this.warmupGeneration;
+    this.clear();
+    if (collections.length === 0) {
+      this.warmupPromise = null;
+      return null;
+    }
+    this.warmupPromise = this.mapWithConcurrency(collections, (_a = options.concurrency) != null ? _a : 4, async (collection) => {
+      if (generation !== this.warmupGeneration) {
+        return;
+      }
+      const localInfo = localSubjects.get(collection.subject_id);
+      if (!localInfo) {
+        return;
+      }
+      const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+      if (!(file instanceof import_obsidian22.TFile)) {
+        return;
+      }
+      const snapshot = await this.documentService.readSnapshot(file, collection.subject_type);
+      if (generation !== this.warmupGeneration) {
+        return;
+      }
+      this.set(collection.subject_id, {
+        ...snapshot,
+        file,
+        path: localInfo.path,
+        mtime: file.stat.mtime
+      });
+    }).then(() => {
+      var _a2;
+      if (generation === this.warmupGeneration) {
+        (_a2 = options.onComplete) == null ? void 0 : _a2.call(options, this.snapshotsById.size);
+      }
+    }).catch((error) => {
+      var _a2;
+      if (generation === this.warmupGeneration) {
+        (_a2 = options.onError) == null ? void 0 : _a2.call(options, error);
+      }
+    });
+    return this.warmupPromise;
+  }
+  get(subjectId, path, mtime) {
+    const snapshot = this.snapshotsById.get(subjectId);
+    if (!snapshot) {
+      return null;
+    }
+    if (snapshot.path !== path || snapshot.mtime !== mtime) {
+      this.delete(subjectId);
+      return null;
+    }
+    return snapshot;
+  }
+  getByPath(path) {
+    const subjectId = this.subjectIdByPath.get(path);
+    if (subjectId === void 0) {
+      return null;
+    }
+    const snapshot = this.snapshotsById.get(subjectId);
+    if (!snapshot || snapshot.path !== path) {
+      this.delete(subjectId);
+      return null;
+    }
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof import_obsidian22.TFile) || snapshot.mtime !== file.stat.mtime) {
+      this.delete(subjectId);
+      return null;
+    }
+    return snapshot;
+  }
+  invalidatePath(path) {
+    const subjectId = this.subjectIdByPath.get(path);
+    if (subjectId !== void 0) {
+      this.delete(subjectId);
+    }
+  }
+  set(subjectId, snapshot) {
+    this.snapshotsById.set(subjectId, snapshot);
+    if (snapshot.path) {
+      this.subjectIdByPath.set(snapshot.path, subjectId);
+    }
+  }
+  delete(subjectId) {
+    const snapshot = this.snapshotsById.get(subjectId);
+    if (snapshot == null ? void 0 : snapshot.path) {
+      this.subjectIdByPath.delete(snapshot.path);
+    }
+    this.snapshotsById.delete(subjectId);
+  }
+  async mapWithConcurrency(items, concurrency, task) {
+    const results = new Array(items.length);
+    let nextIndex = 0;
+    const workerCount = Math.max(1, Math.min(concurrency, items.length));
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex++;
+        results[currentIndex] = await task(items[currentIndex], currentIndex);
+      }
+    });
+    await Promise.all(workers);
+    return results;
+  }
+};
 
 // src/sync/platformSyncLogic.ts
 function createCloudPlatformFieldDiff(key, label, localValue, cloudValue) {
@@ -12492,27 +12645,11 @@ function createCloudPlatformFieldDiff(key, label, localValue, cloudValue) {
   };
 }
 
-// src/sync/statusSyncService.ts
-var StatusSyncService = class {
-  constructor(app, client, documentService, episodeStatusManager) {
-    this.app = app;
+// src/sync/statusSyncBackgroundLoader.ts
+var StatusSyncBackgroundLoader = class {
+  constructor(client, episodeStatusManager) {
     this.client = client;
-    this.documentService = documentService;
     this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
-  }
-  async buildDiffSession(options) {
-    var _a;
-    const snapshots = (await this.mapWithConcurrency(
-      options.collections,
-      (_a = options.concurrency) != null ? _a : 6,
-      async (collection, index) => {
-        var _a2;
-        (_a2 = options.onProgress) == null ? void 0 : _a2.call(options, index + 1, options.collections.length);
-        return this.buildSnapshot(collection, options.localSubjects, options.getCachedSnapshot, options.onPrefetchHit, options.onPrefetchMiss);
-      }
-    )).filter((snapshot) => snapshot !== null);
-    const diffs = snapshots.map((snapshot) => this.buildStatusSyncDiff(snapshot, options.selection)).filter((diff) => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
-    return { snapshots, diffs };
   }
   async loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency = 4) {
     const context = {
@@ -12572,137 +12709,6 @@ var StatusSyncService = class {
         onProgress == null ? void 0 : onProgress(completed, candidates.length);
       }
     });
-  }
-  applyDecisionPreset(diffs, decision) {
-    if (decision === "smart") {
-      this.applySmartMerge(diffs);
-      return;
-    }
-    diffs.forEach((diff) => {
-      diff.rate.decision = decision;
-      diff.comment.decision = decision;
-      diff.tags.decision = decision;
-      diff.status.decision = decision;
-      diff.episodeStatus.decision = decision === "merge" ? "skip" : decision;
-      diff.platformFields.forEach((field) => {
-        field.decision = decision === "cloud" || decision === "merge" ? "cloud" : "skip";
-      });
-    });
-  }
-  async executeSync(diffs) {
-    let successCount = 0;
-    let failCount = 0;
-    const actionableDiffs = diffs.filter((diff) => diff.hasAnyDiff);
-    for (const diff of actionableDiffs) {
-      try {
-        await this.syncItem(diff);
-        successCount++;
-      } catch (error) {
-        failCount++;
-        console.error(`[Bangumi Sync] \u540C\u6B65\u5931\u8D25: ${diff.name_cn}`, error);
-      }
-    }
-    return { successCount, failCount };
-  }
-  async buildSnapshot(collection, localSubjects, getCachedSnapshot, onPrefetchHit, onPrefetchMiss) {
-    var _a;
-    const localInfo = localSubjects.get(collection.subject_id);
-    if (!localInfo) {
-      return null;
-    }
-    const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-    if (!(file instanceof import_obsidian21.TFile)) {
-      return null;
-    }
-    const cachedSnapshot = (_a = getCachedSnapshot == null ? void 0 : getCachedSnapshot(collection.subject_id, localInfo.path, file.stat.mtime)) != null ? _a : null;
-    if (cachedSnapshot) {
-      onPrefetchHit == null ? void 0 : onPrefetchHit();
-      return {
-        subjectId: collection.subject_id,
-        collection,
-        localInfo,
-        file,
-        localSnapshot: {
-          ...cachedSnapshot,
-          file,
-          path: localInfo.path,
-          mtime: file.stat.mtime,
-          episodeStatusMap: new Map(cachedSnapshot.episodeStatusMap)
-        }
-      };
-    }
-    onPrefetchMiss == null ? void 0 : onPrefetchMiss();
-    const localSnapshot = await this.documentService.readSnapshot(file, collection.subject_type);
-    return {
-      subjectId: collection.subject_id,
-      collection,
-      localInfo,
-      file,
-      localSnapshot
-    };
-  }
-  buildStatusSyncDiff(snapshot, selection) {
-    const { collection, localInfo } = snapshot;
-    const userDiffs = buildUserStatusSyncDiff({
-      localRate: snapshot.localSnapshot.user.rate,
-      cloudRate: collection.rate || null,
-      localComment: snapshot.localSnapshot.user.comment,
-      cloudComment: collection.comment || null,
-      localTags: snapshot.localSnapshot.user.tags,
-      cloudTags: collection.tags && collection.tags.length > 0 ? this.documentService.normalizeTags(collection.tags) : null,
-      localStatus: snapshot.localSnapshot.user.status,
-      cloudStatus: collection.type || null
-    });
-    const scope = getStatusSyncScope(selection);
-    const episodeStatus = {
-      localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) : null,
-      cloudValue: null,
-      hasDiff: false,
-      decision: "skip"
-    };
-    const rateDiff = {
-      ...userDiffs.rate,
-      hasDiff: selection.user.rate ? userDiffs.rate.hasDiff : false,
-      decision: "skip"
-    };
-    const commentDiff = {
-      ...userDiffs.comment,
-      hasDiff: selection.user.comment ? userDiffs.comment.hasDiff : false,
-      decision: "skip"
-    };
-    const tagsDiff = {
-      ...userDiffs.tags,
-      hasDiff: selection.user.tags ? userDiffs.tags.hasDiff : false,
-      decision: "skip"
-    };
-    const statusDiff = {
-      ...userDiffs.status,
-      hasDiff: selection.user.status ? userDiffs.status.hasDiff : false,
-      decision: "skip"
-    };
-    const hasUserDiff = hasSelectedUserFields(selection) && (rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff);
-    return {
-      scope,
-      subjectId: collection.subject_id,
-      name_cn: collection.subject.name_cn || "",
-      name: collection.subject.name || "",
-      localPath: localInfo.path,
-      collection,
-      statusFieldName: snapshot.localSnapshot.user.statusFieldName,
-      rate: rateDiff,
-      comment: commentDiff,
-      tags: tagsDiff,
-      status: statusDiff,
-      episodeStatus,
-      platformFields: [],
-      hasUserDiff,
-      hasPlatformDiff: false,
-      hasAnyDiff: hasUserDiff,
-      expanded: false,
-      episodeStatusLoadState: selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? "pending" : "ready",
-      platformLoadState: hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? "pending" : "ready",
-      backgroundError: null
-    };
   }
   async buildPlatformFieldDiffs(snapshot, context, selection) {
     return this.getOrCreateCachedPromise(
@@ -12831,43 +12837,76 @@ var StatusSyncService = class {
       decision: "skip"
     };
   }
-  hasPendingBackgroundLoad(diff) {
-    return diff.episodeStatusLoadState !== "ready" || diff.platformLoadState !== "ready";
+  appendTextPlatformFieldDiff(fields, enabled, key, label, localValue, cloudValue) {
+    if (!enabled) {
+      return;
+    }
+    const normalizedCloudValue = cloudValue != null ? cloudValue : null;
+    if ((localValue != null ? localValue : null) === normalizedCloudValue) {
+      return;
+    }
+    fields.push(createCloudPlatformFieldDiff(
+      key,
+      label,
+      localValue,
+      normalizedCloudValue
+    ));
   }
-  applySmartMerge(diffs) {
-    diffs.forEach((diff) => {
-      if (diff.rate.hasDiff) {
-        diff.rate.decision = diff.rate.localValue && !diff.rate.cloudValue ? "local" : !diff.rate.localValue && diff.rate.cloudValue ? "cloud" : "local";
+  async mapWithConcurrency(items, concurrency, task) {
+    const results = new Array(items.length);
+    let nextIndex = 0;
+    const workerCount = Math.max(1, Math.min(concurrency, items.length));
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex++;
+        results[currentIndex] = await task(items[currentIndex], currentIndex);
       }
-      if (diff.comment.hasDiff) {
-        if (diff.comment.localValue && !diff.comment.cloudValue) {
-          diff.comment.decision = "local";
-        } else if (!diff.comment.localValue && diff.comment.cloudValue) {
-          diff.comment.decision = "cloud";
-        } else if (diff.comment.localValue && diff.comment.cloudValue) {
-          diff.comment.decision = diff.comment.localValue.length >= diff.comment.cloudValue.length ? "local" : "cloud";
-        }
-      }
-      if (diff.tags.hasDiff) {
-        diff.tags.decision = "merge";
-      }
-      if (diff.status.hasDiff) {
-        diff.status.decision = diff.status.localValue && !diff.status.cloudValue ? "local" : !diff.status.localValue && diff.status.cloudValue ? "cloud" : "local";
-      }
-      if (diff.episodeStatus.hasDiff) {
-        diff.episodeStatus.decision = diff.episodeStatus.localValue && !diff.episodeStatus.cloudValue ? "local" : !diff.episodeStatus.localValue && diff.episodeStatus.cloudValue ? "cloud" : "local";
-      }
-      diff.platformFields.forEach((field) => {
-        if (field.hasDiff) {
-          field.decision = "cloud";
-        }
-      });
     });
+    await Promise.all(workers);
+    return results;
+  }
+  getOrCreateCachedPromise(cache, key, factory) {
+    const existing = cache.get(key);
+    if (existing) {
+      return existing;
+    }
+    const promise = factory().catch((error) => {
+      cache.delete(key);
+      throw error;
+    });
+    cache.set(key, promise);
+    return promise;
+  }
+};
+
+// src/sync/statusSyncExecutor.ts
+var import_obsidian23 = require("obsidian");
+var StatusSyncExecutor = class {
+  constructor(app, client, documentService, episodeStatusManager) {
+    this.app = app;
+    this.client = client;
+    this.documentService = documentService;
+    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
+  }
+  async executeSync(diffs) {
+    let successCount = 0;
+    let failCount = 0;
+    const actionableDiffs = diffs.filter((diff) => diff.hasAnyDiff);
+    for (const diff of actionableDiffs) {
+      try {
+        await this.syncItem(diff);
+        successCount++;
+      } catch (error) {
+        failCount++;
+        console.error(`[Bangumi Sync] \u540C\u6B65\u5931\u8D25: ${diff.name_cn}`, error);
+      }
+    }
+    return { successCount, failCount };
   }
   async syncItem(diff) {
     var _a, _b, _c, _d;
     const file = this.app.vault.getAbstractFileByPath(diff.localPath);
-    if (!(file instanceof import_obsidian21.TFile)) {
+    if (!(file instanceof import_obsidian23.TFile)) {
       throw new Error("File not found");
     }
     const originalContent = await this.app.vault.read(file);
@@ -12978,21 +13017,6 @@ var StatusSyncService = class {
     }
     return this.documentService.updateEpisodeSection(nextContent, renderedEpisodes);
   }
-  appendTextPlatformFieldDiff(fields, enabled, key, label, localValue, cloudValue) {
-    if (!enabled) {
-      return;
-    }
-    const normalizedCloudValue = cloudValue != null ? cloudValue : null;
-    if ((localValue != null ? localValue : null) === normalizedCloudValue) {
-      return;
-    }
-    fields.push(createCloudPlatformFieldDiff(
-      key,
-      label,
-      localValue,
-      normalizedCloudValue
-    ));
-  }
   buildSelectedPlatformSyncPayload(diff) {
     var _a, _b, _c, _d, _e, _f;
     const payload = {};
@@ -13045,6 +13069,133 @@ var StatusSyncService = class {
       throw new Error("\u4E91\u7AEF\u7528\u6237\u6570\u636E\u66F4\u65B0\u5931\u8D25");
     }
   }
+};
+
+// src/sync/statusSyncSnapshotBuilder.ts
+var import_obsidian24 = require("obsidian");
+var StatusSyncSnapshotBuilder = class {
+  constructor(app, documentService, episodeStatusManager) {
+    this.app = app;
+    this.documentService = documentService;
+    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
+  }
+  async buildDiffSession(options) {
+    var _a;
+    const snapshots = (await this.mapWithConcurrency(
+      options.collections,
+      (_a = options.concurrency) != null ? _a : 6,
+      async (collection, index) => {
+        var _a2;
+        (_a2 = options.onProgress) == null ? void 0 : _a2.call(options, index + 1, options.collections.length);
+        return this.buildSnapshot(collection, options.localSubjects, options.getCachedSnapshot, options.onPrefetchHit, options.onPrefetchMiss);
+      }
+    )).filter((snapshot) => snapshot !== null);
+    const diffs = snapshots.map((snapshot) => this.buildStatusSyncDiff(snapshot, options.selection)).filter((diff) => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
+    return { snapshots, diffs };
+  }
+  async buildSnapshot(collection, localSubjects, getCachedSnapshot, onPrefetchHit, onPrefetchMiss) {
+    var _a;
+    const localInfo = localSubjects.get(collection.subject_id);
+    if (!localInfo) {
+      return null;
+    }
+    const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+    if (!(file instanceof import_obsidian24.TFile)) {
+      return null;
+    }
+    const cachedSnapshot = (_a = getCachedSnapshot == null ? void 0 : getCachedSnapshot(collection.subject_id, localInfo.path, file.stat.mtime)) != null ? _a : null;
+    if (cachedSnapshot) {
+      onPrefetchHit == null ? void 0 : onPrefetchHit();
+      return {
+        subjectId: collection.subject_id,
+        collection,
+        localInfo,
+        file,
+        localSnapshot: {
+          ...cachedSnapshot,
+          file,
+          path: localInfo.path,
+          mtime: file.stat.mtime,
+          episodeStatusMap: new Map(cachedSnapshot.episodeStatusMap)
+        }
+      };
+    }
+    onPrefetchMiss == null ? void 0 : onPrefetchMiss();
+    const localSnapshot = await this.documentService.readSnapshot(file, collection.subject_type);
+    return {
+      subjectId: collection.subject_id,
+      collection,
+      localInfo,
+      file,
+      localSnapshot
+    };
+  }
+  buildStatusSyncDiff(snapshot, selection) {
+    const { collection, localInfo } = snapshot;
+    const userDiffs = buildUserStatusSyncDiff({
+      localRate: snapshot.localSnapshot.user.rate,
+      cloudRate: collection.rate || null,
+      localComment: snapshot.localSnapshot.user.comment,
+      cloudComment: collection.comment || null,
+      localTags: snapshot.localSnapshot.user.tags,
+      cloudTags: collection.tags && collection.tags.length > 0 ? this.documentService.normalizeTags(collection.tags) : null,
+      localStatus: snapshot.localSnapshot.user.status,
+      cloudStatus: collection.type || null
+    });
+    const scope = getStatusSyncScope(selection);
+    const episodeStatus = {
+      localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) : null,
+      cloudValue: null,
+      hasDiff: false,
+      decision: "skip"
+    };
+    const rateDiff = {
+      ...userDiffs.rate,
+      hasDiff: selection.user.rate ? userDiffs.rate.hasDiff : false,
+      decision: "skip"
+    };
+    const commentDiff = {
+      ...userDiffs.comment,
+      hasDiff: selection.user.comment ? userDiffs.comment.hasDiff : false,
+      decision: "skip"
+    };
+    const tagsDiff = {
+      ...userDiffs.tags,
+      hasDiff: selection.user.tags ? userDiffs.tags.hasDiff : false,
+      decision: "skip"
+    };
+    const statusDiff = {
+      ...userDiffs.status,
+      hasDiff: selection.user.status ? userDiffs.status.hasDiff : false,
+      decision: "skip"
+    };
+    const hasUserDiff = hasSelectedUserFields(selection) && (rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff);
+    return {
+      scope,
+      subjectId: collection.subject_id,
+      name_cn: collection.subject.name_cn || "",
+      name: collection.subject.name || "",
+      localPath: localInfo.path,
+      collection,
+      statusFieldName: snapshot.localSnapshot.user.statusFieldName,
+      rate: rateDiff,
+      comment: commentDiff,
+      tags: tagsDiff,
+      status: statusDiff,
+      episodeStatus,
+      platformFields: [],
+      hasUserDiff,
+      hasPlatformDiff: false,
+      hasAnyDiff: hasUserDiff,
+      expanded: false,
+      episodeStatusLoadState: selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? "pending" : "ready",
+      platformLoadState: hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? "pending" : "ready",
+      backgroundError: null
+    };
+  }
+  hasPendingBackgroundLoad(diff) {
+    return diff.episodeStatusLoadState !== "ready" || diff.platformLoadState !== "ready";
+  }
   async mapWithConcurrency(items, concurrency, task) {
     const results = new Array(items.length);
     let nextIndex = 0;
@@ -13058,22 +13209,74 @@ var StatusSyncService = class {
     await Promise.all(workers);
     return results;
   }
-  getOrCreateCachedPromise(cache, key, factory) {
-    const existing = cache.get(key);
-    if (existing) {
-      return existing;
+};
+
+// src/sync/statusSyncService.ts
+var StatusSyncService = class {
+  constructor(app, client, documentService, episodeStatusManager) {
+    this.snapshotBuilder = new StatusSyncSnapshotBuilder(app, documentService, episodeStatusManager);
+    this.backgroundLoader = new StatusSyncBackgroundLoader(client, episodeStatusManager);
+    this.executor = new StatusSyncExecutor(app, client, documentService, episodeStatusManager);
+  }
+  async buildDiffSession(options) {
+    return await this.snapshotBuilder.buildDiffSession(options);
+  }
+  async loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency = 4) {
+    await this.backgroundLoader.loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency);
+  }
+  applyDecisionPreset(diffs, decision) {
+    if (decision === "smart") {
+      this.applySmartMerge(diffs);
+      return;
     }
-    const promise = factory().catch((error) => {
-      cache.delete(key);
-      throw error;
+    diffs.forEach((diff) => {
+      diff.rate.decision = decision;
+      diff.comment.decision = decision;
+      diff.tags.decision = decision;
+      diff.status.decision = decision;
+      diff.episodeStatus.decision = decision === "merge" ? "skip" : decision;
+      diff.platformFields.forEach((field) => {
+        field.decision = decision === "cloud" || decision === "merge" ? "cloud" : "skip";
+      });
     });
-    cache.set(key, promise);
-    return promise;
+  }
+  async executeSync(diffs) {
+    return await this.executor.executeSync(diffs);
+  }
+  applySmartMerge(diffs) {
+    diffs.forEach((diff) => {
+      if (diff.rate.hasDiff) {
+        diff.rate.decision = diff.rate.localValue && !diff.rate.cloudValue ? "local" : !diff.rate.localValue && diff.rate.cloudValue ? "cloud" : "local";
+      }
+      if (diff.comment.hasDiff) {
+        if (diff.comment.localValue && !diff.comment.cloudValue) {
+          diff.comment.decision = "local";
+        } else if (!diff.comment.localValue && diff.comment.cloudValue) {
+          diff.comment.decision = "cloud";
+        } else if (diff.comment.localValue && diff.comment.cloudValue) {
+          diff.comment.decision = diff.comment.localValue.length >= diff.comment.cloudValue.length ? "local" : "cloud";
+        }
+      }
+      if (diff.tags.hasDiff) {
+        diff.tags.decision = "merge";
+      }
+      if (diff.status.hasDiff) {
+        diff.status.decision = diff.status.localValue && !diff.status.cloudValue ? "local" : !diff.status.localValue && diff.status.cloudValue ? "cloud" : "local";
+      }
+      if (diff.episodeStatus.hasDiff) {
+        diff.episodeStatus.decision = diff.episodeStatus.localValue && !diff.episodeStatus.cloudValue ? "local" : !diff.episodeStatus.localValue && diff.episodeStatus.cloudValue ? "cloud" : "local";
+      }
+      diff.platformFields.forEach((field) => {
+        if (field.hasDiff) {
+          field.decision = "cloud";
+        }
+      });
+    });
   }
 };
 
 // src/panel/controlPanel.ts
-var ControlPanel = class extends import_obsidian22.Modal {
+var ControlPanel = class extends import_obsidian25.Modal {
   constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, onOpenSyncOptions, onBatchDownloadCovers, onScanAndLinkRelated, subjectNoteManager, episodeStatusManager, autoSyncSelection) {
     super(app);
     // 分页
@@ -13089,9 +13292,6 @@ var ControlPanel = class extends import_obsidian22.Modal {
     this.touchStartHandler = null;
     this.touchMoveHandler = null;
     this.touchEndHandler = null;
-    this.prefetchedUserDataById = /* @__PURE__ */ new Map();
-    this.userDataPrefetchGeneration = 0;
-    this.userDataPrefetchPromise = null;
     this.mobileShortLabels = getLocale() === "zh-CN" ? {
       refresh: "\u5237\u65B0",
       syncSelected: "\u540C\u6B65",
@@ -13134,6 +13334,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
     this.client = new BangumiClient(settings.accessToken);
     this.incrementalSync = new IncrementalSync(app);
     this.documentService = new SubjectDocumentService(app, this.episodeStatusManager);
+    this.subjectSnapshotSession = new LocalSubjectSnapshotSession(app, this.documentService);
     this.statusSyncService = new StatusSyncService(app, this.client, this.documentService, this.episodeStatusManager);
     this.frontmatterEditor = new FrontmatterEditor(app);
     this.conflictDetector = new ConflictDetector(app);
@@ -13172,8 +13373,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
     this.setupSwipeToClose();
   }
   onClose() {
-    this.userDataPrefetchGeneration++;
-    this.userDataPrefetchPromise = null;
+    this.subjectSnapshotSession.cancelWarmup();
     if (this.touchStartHandler) {
       this.contentEl.removeEventListener("touchstart", this.touchStartHandler);
     }
@@ -13462,7 +13662,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
       return;
     }
     const hasSelection = this.state.selectedIds.size > 0;
-    const menu = new import_obsidian22.Menu();
+    const menu = new import_obsidian25.Menu();
     const actions = this.getMoreMenuActions(hasSelection);
     const orderedSections = ["sync", "selection", "tools"];
     let hasRenderedAnyItem = false;
@@ -13774,12 +13974,12 @@ var ControlPanel = class extends import_obsidian22.Modal {
   }
   async openOrCreateNote(path) {
     if (!this.subjectNoteManager) {
-      new import_obsidian22.Notice(tn("notices", "noteManagerNotInit"));
+      new import_obsidian25.Notice(tn("notices", "noteManagerNotInit"));
       return;
     }
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian22.TFile)) {
-      new import_obsidian22.Notice(tn("controlPanel", "fileNotFound"));
+    if (!(file instanceof import_obsidian25.TFile)) {
+      new import_obsidian25.Notice(tn("controlPanel", "fileNotFound"));
       return;
     }
     await this.subjectNoteManager.createOrAppendForLocalFile(file);
@@ -13824,11 +14024,11 @@ var ControlPanel = class extends import_obsidian22.Modal {
    */
   openFile(path) {
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (file instanceof import_obsidian22.TFile) {
+    if (file instanceof import_obsidian25.TFile) {
       this.close();
       void this.app.workspace.openLinkText(file.path, "", true);
     } else {
-      new import_obsidian22.Notice(tn("controlPanel", "fileNotFound"));
+      new import_obsidian25.Notice(tn("controlPanel", "fileNotFound"));
     }
   }
   /**
@@ -13837,7 +14037,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
    */
   async syncSelected(overwrite = false) {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian22.Notice(tn("controlPanel", "selectToSync"));
+      new import_obsidian25.Notice(tn("controlPanel", "selectToSync"));
       return;
     }
     let selectedCollections;
@@ -13851,7 +14051,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
       );
     }
     if (selectedCollections.length === 0) {
-      new import_obsidian22.Notice(overwrite ? tn("controlPanel", "selectToSync") : tn("controlPanel", "alreadySynced"));
+      new import_obsidian25.Notice(overwrite ? tn("controlPanel", "selectToSync") : tn("controlPanel", "alreadySynced"));
       return;
     }
     const localPropertyResult = await this.collectLocalPropertyValues(selectedCollections);
@@ -13874,7 +14074,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
       );
       this.state.loading = false;
       if (result.success) {
-        new import_obsidian22.Notice(`${tn("controlPanel", "syncComplete")}! ${result.added}, ${result.errors}`);
+        new import_obsidian25.Notice(`${tn("controlPanel", "syncComplete")}! ${result.added}, ${result.errors}`);
         const scanPath = this.settings.scanFolderPath || "ACGN";
         await this.incrementalSync.scanLocalFolder(scanPath);
         this.state.localSubjects = /* @__PURE__ */ new Map();
@@ -13891,13 +14091,13 @@ var ControlPanel = class extends import_obsidian22.Modal {
         this.renderActionBar();
         this.renderPagination();
       } else {
-        new import_obsidian22.Notice(tn("controlPanel", "syncFailed"));
+        new import_obsidian25.Notice(tn("controlPanel", "syncFailed"));
         this.renderStatus(tn("controlPanel", "syncFailed"));
       }
     } catch (error) {
       this.state.loading = false;
       const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian22.Notice(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
+      new import_obsidian25.Notice(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
       this.renderStatus(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
     }
   }
@@ -13913,7 +14113,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
       (message) => {
         if (!warned) {
           warned = true;
-          new import_obsidian22.Notice(message);
+          new import_obsidian25.Notice(message);
         }
       }
     );
@@ -13950,14 +14150,14 @@ var ControlPanel = class extends import_obsidian22.Modal {
    */
   deleteSelected() {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian22.Notice(tn("controlPanel", "selectToDelete"));
+      new import_obsidian25.Notice(tn("controlPanel", "selectToDelete"));
       return;
     }
     const syncedCollections = this.state.collections.filter(
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (syncedCollections.length === 0) {
-      new import_obsidian22.Notice(tn("controlPanel", "selectSyncedToDelete"));
+      new import_obsidian25.Notice(tn("controlPanel", "selectSyncedToDelete"));
       return;
     }
     const modal = new ConfirmModal(
@@ -13972,7 +14172,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
             if (localInfo) {
               try {
                 const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-                if (file instanceof import_obsidian22.TFile) {
+                if (file instanceof import_obsidian25.TFile) {
                   await this.app.fileManager.trashFile(file);
                   this.state.localSubjects.delete(collection.subject_id);
                   deleted++;
@@ -13983,7 +14183,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
               }
             }
           }
-          new import_obsidian22.Notice(`${tn("controlPanel", "deleteComplete")}: ${deleted}, ${failed}`);
+          new import_obsidian25.Notice(`${tn("controlPanel", "deleteComplete")}: ${deleted}, ${failed}`);
           this.state.selectedIds.clear();
           this.renderStatus(`${tn("controlPanel", "totalItems")} ${this.state.collections.length}, ${tn("controlPanel", "synced")} ${this.state.localSubjects.size}`);
           this.renderTable();
@@ -14001,7 +14201,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (selectedCollections.length === 0) {
-      new import_obsidian22.Notice(tn("controlPanel", "selectSyncedToEdit"));
+      new import_obsidian25.Notice(tn("controlPanel", "selectSyncedToEdit"));
       return;
     }
     const targetItems = selectedCollections.map((collection) => {
@@ -14011,7 +14211,8 @@ var ControlPanel = class extends import_obsidian22.Modal {
       }
       return {
         filePath: localInfo.path,
-        displayName: collection.subject.name_cn || collection.subject.name || localInfo.name_cn || String(collection.subject_id)
+        displayName: collection.subject.name_cn || collection.subject.name || localInfo.name_cn || String(collection.subject_id),
+        subjectId: collection.subject_id
       };
     }).filter((item) => item !== null);
     const modal = new BatchEditorModal(
@@ -14023,9 +14224,14 @@ var ControlPanel = class extends import_obsidian22.Modal {
           targetItems.map((item) => item.filePath),
           (_a = submission.operations) != null ? _a : []
         ) : await this.frontmatterEditor.batchApplyPerItemUpdates((_b = submission.perItemUpdates) != null ? _b : []);
-        new import_obsidian22.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
+        new import_obsidian25.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
+        for (const item of targetItems) {
+          this.subjectSnapshotSession.invalidatePath(item.filePath);
+        }
         this.renderActionBar();
-      }
+      },
+      this.documentService,
+      (filePath) => this.subjectSnapshotSession.getByPath(filePath)
     );
     modal.open();
   }
@@ -14049,15 +14255,15 @@ var ControlPanel = class extends import_obsidian22.Modal {
    */
   async undoLastEdit() {
     if (!this.frontmatterEditor.canUndo()) {
-      new import_obsidian22.Notice(tn("controlPanel", "noUndo"));
+      new import_obsidian25.Notice(tn("controlPanel", "noUndo"));
       return;
     }
     const success = await this.frontmatterEditor.undo();
     if (success) {
-      new import_obsidian22.Notice(tn("controlPanel", "undoSuccess"));
+      new import_obsidian25.Notice(tn("controlPanel", "undoSuccess"));
       this.renderActionBar();
     } else {
-      new import_obsidian22.Notice(tn("controlPanel", "undoFailed"));
+      new import_obsidian25.Notice(tn("controlPanel", "undoFailed"));
     }
   }
   /**
@@ -14076,7 +14282,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
     void this.syncStatusAfterPrefetchWarmup(autoSyncSelection);
   }
   async syncStatusAfterPrefetchWarmup(selection) {
-    const prefetchPromise = this.userDataPrefetchPromise;
+    const prefetchPromise = this.subjectSnapshotSession.currentWarmup;
     if (prefetchPromise) {
       try {
         await Promise.race([
@@ -14107,7 +14313,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
   async syncStatus(selection) {
     selection = normalizeStatusSyncFieldSelection(selection);
     if (!hasSelectedUserFields(selection) && !hasSelectedPlatformFields(selection)) {
-      new import_obsidian22.Notice(tn("statusSyncModal", "selectAtLeastOne"));
+      new import_obsidian25.Notice(tn("statusSyncModal", "selectAtLeastOne"));
       return;
     }
     const scope = getStatusSyncScope(selection);
@@ -14124,7 +14330,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
     );
     this.lastStatusSyncPerf.syncedCollections = syncedCollections.length;
     if (syncedCollections.length === 0) {
-      new import_obsidian22.Notice(tn("controlPanel", "noSyncedItemsStatus"));
+      new import_obsidian25.Notice(tn("controlPanel", "noSyncedItemsStatus"));
       return;
     }
     this.state.loading = true;
@@ -14136,7 +14342,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
         selection,
         collections: syncedCollections,
         localSubjects: this.state.localSubjects,
-        getCachedSnapshot: (subjectId, path, mtime) => this.getPrefetchedUserData(subjectId, path, mtime),
+        getCachedSnapshot: (subjectId, path, mtime) => this.subjectSnapshotSession.get(subjectId, path, mtime),
         onProgress: (current, total) => {
           this.renderStatus(`${this.getSyncStatusLabel(scope)} (1/2 ${current}/${total})`);
         },
@@ -14168,7 +14374,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
       this.state.loading = false;
       if (diffs.length === 0) {
         const message = this.getNoDiffMessage(selection);
-        new import_obsidian22.Notice(message);
+        new import_obsidian25.Notice(message);
         this.renderStatus(message);
         return;
       }
@@ -14210,7 +14416,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
       if (this.lastStatusSyncPerf) {
         this.lastStatusSyncPerf.lastError = errorMsg;
       }
-      new import_obsidian22.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
+      new import_obsidian25.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
       this.renderStatus(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
     }
   }
@@ -14230,75 +14436,22 @@ var ControlPanel = class extends import_obsidian22.Modal {
   }
   startUserDataPrefetch() {
     const syncedCollections = this.getSyncedCollections();
-    const generation = ++this.userDataPrefetchGeneration;
     if (syncedCollections.length === 0) {
-      this.prefetchedUserDataById.clear();
-      this.userDataPrefetchPromise = null;
+      this.subjectSnapshotSession.clear();
       return;
     }
-    this.prefetchedUserDataById.clear();
-    this.userDataPrefetchPromise = this.mapWithConcurrency(syncedCollections, 4, async (collection) => {
-      if (generation !== this.userDataPrefetchGeneration) {
-        return;
-      }
-      const localInfo = this.state.localSubjects.get(collection.subject_id);
-      if (!localInfo) {
-        return;
-      }
-      const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-      if (!(file instanceof import_obsidian22.TFile)) {
-        return;
-      }
-      const prefetched = await this.extractPrefetchedUserData(collection, localInfo, file);
-      if (!prefetched || generation !== this.userDataPrefetchGeneration) {
-        return;
-      }
-      this.prefetchedUserDataById.set(collection.subject_id, prefetched);
-    }).then(() => {
-      if (generation === this.userDataPrefetchGeneration) {
-        console.debug(`[Bangumi Sync] \u7528\u6237\u6570\u636E\u9884\u70ED\u5B8C\u6210: ${this.prefetchedUserDataById.size}`);
-      }
-    }).catch((error) => {
-      if (generation === this.userDataPrefetchGeneration) {
+    void this.subjectSnapshotSession.warm(syncedCollections, this.state.localSubjects, {
+      concurrency: 4,
+      onComplete: (count) => {
+        console.debug(`[Bangumi Sync] \u7528\u6237\u6570\u636E\u9884\u70ED\u5B8C\u6210: ${count}`);
+      },
+      onError: (error) => {
         console.warn("[Bangumi Sync] \u7528\u6237\u6570\u636E\u9884\u70ED\u5931\u8D25:", error);
       }
     });
   }
   getSyncedCollections() {
     return this.state.collections.filter((collection) => this.state.localSubjects.has(collection.subject_id));
-  }
-  getPrefetchedUserData(subjectId, path, mtime) {
-    const prefetched = this.prefetchedUserDataById.get(subjectId);
-    if (!prefetched) {
-      return null;
-    }
-    if (prefetched.path !== path || prefetched.mtime !== mtime) {
-      this.prefetchedUserDataById.delete(subjectId);
-      return null;
-    }
-    return prefetched;
-  }
-  async extractPrefetchedUserData(collection, localInfo, file) {
-    const snapshot = await this.documentService.readSnapshot(file, collection.subject_type);
-    return {
-      ...snapshot,
-      file,
-      path: localInfo.path,
-      mtime: file.stat.mtime
-    };
-  }
-  async mapWithConcurrency(items, concurrency, task) {
-    const results = new Array(items.length);
-    let nextIndex = 0;
-    const workerCount = Math.max(1, Math.min(concurrency, items.length));
-    const workers = Array.from({ length: workerCount }, async () => {
-      while (nextIndex < items.length) {
-        const currentIndex = nextIndex++;
-        results[currentIndex] = await task(items[currentIndex], currentIndex);
-      }
-    });
-    await Promise.all(workers);
-    return results;
   }
   /**
    * 处理键盘导航
@@ -14427,7 +14580,7 @@ function parseDateTime(value) {
   const time = Date.parse(value);
   return Number.isFinite(time) ? time : 0;
 }
-var ConfirmModal = class extends import_obsidian22.Modal {
+var ConfirmModal = class extends import_obsidian25.Modal {
   constructor(app, message, onConfirm) {
     super(app);
     this.message = message;
@@ -14471,7 +14624,7 @@ function createCancellationSignal() {
 }
 
 // src/episode/episodeContextMenu.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 
 // src/episode/types.ts
 var EPISODE_STATUS_TEXT = {
@@ -14520,9 +14673,9 @@ var EpisodeContextMenu = class {
     if (!episodeId || !epNumber) {
       return;
     }
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian23.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian26.MarkdownView);
     if (!view) {
-      new import_obsidian23.Notice(tn("episodeContextMenu", "openAnimeFileFirst"));
+      new import_obsidian26.Notice(tn("episodeContextMenu", "openAnimeFileFirst"));
       return;
     }
     const file = view.file;
@@ -14531,11 +14684,11 @@ var EpisodeContextMenu = class {
     }
     const subjectId = await this.getSubjectIdFromFile(file);
     if (!subjectId) {
-      new import_obsidian23.Notice(tn("episodeContextMenu", "cannotIdentifyId"));
+      new import_obsidian26.Notice(tn("episodeContextMenu", "cannotIdentifyId"));
       return;
     }
     const currentStatus = await this.statusManager.getEpisodeStatus(file, episodeId);
-    const menu = new import_obsidian23.Menu();
+    const menu = new import_obsidian26.Menu();
     menu.addItem((item) => {
       item.setTitle(tnFormat("episodeContextMenu", "watchedUpTo", { ep: epNumber })).onClick(() => void this.setWatchedUpTo(file, epNumber));
     });
@@ -14565,10 +14718,10 @@ var EpisodeContextMenu = class {
     try {
       await this.statusManager.updateLocalStatus(file, episodeId, epNumber, status);
       this.updateEpBoxStyle(epBox, status);
-      new import_obsidian23.Notice(tnFormat("episodeContextMenu", "episodeStatusSet", { ep: epNumber, status: getEpisodeStatusText(status) }));
+      new import_obsidian26.Notice(tnFormat("episodeContextMenu", "episodeStatusSet", { ep: epNumber, status: getEpisodeStatusText(status) }));
     } catch (error) {
       console.error("[Bangumi Sync] \u8BBE\u7F6E\u5355\u96C6\u72B6\u6001\u5931\u8D25:", error);
-      new import_obsidian23.Notice(tn("episodeContextMenu", "markFailed"));
+      new import_obsidian26.Notice(tn("episodeContextMenu", "markFailed"));
     }
   }
   /**
@@ -14576,7 +14729,7 @@ var EpisodeContextMenu = class {
    */
   async setWatchedUpTo(file, targetEpNumber) {
     try {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian23.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian26.MarkdownView);
       if (!view)
         return;
       const contentEl = view.contentEl;
@@ -14598,10 +14751,10 @@ var EpisodeContextMenu = class {
       episodesToUpdate.forEach(({ epBox }) => {
         this.updateEpBoxStyle(epBox, 2);
       });
-      new import_obsidian23.Notice(tnFormat("episodeContextMenu", "markedEpisodes", { ep: targetEpNumber }));
+      new import_obsidian26.Notice(tnFormat("episodeContextMenu", "markedEpisodes", { ep: targetEpNumber }));
     } catch (error) {
       console.error('[Bangumi Sync] \u8BBE\u7F6E"\u770B\u5230"\u72B6\u6001\u5931\u8D25:', error);
-      new import_obsidian23.Notice(tn("episodeContextMenu", "markFailed"));
+      new import_obsidian26.Notice(tn("episodeContextMenu", "markFailed"));
     }
   }
   /**
@@ -14612,11 +14765,11 @@ var EpisodeContextMenu = class {
       const result = await this.commentManager.insertEpisodeComment(file, epNumber);
       if (result.success) {
         await this.switchToEditModeAndFocus(result.insertLine, result.insertColumn);
-        new import_obsidian23.Notice(tnFormat("episodeContextMenu", "episodeCommentAdded", { ep: epNumber }));
+        new import_obsidian26.Notice(tnFormat("episodeContextMenu", "episodeCommentAdded", { ep: epNumber }));
       }
     } catch (error) {
       console.error("[Bangumi Sync] \u6DFB\u52A0\u5355\u96C6\u5410\u69FD\u5931\u8D25:", error);
-      new import_obsidian23.Notice(tn("episodeContextMenu", "addCommentFailed"));
+      new import_obsidian26.Notice(tn("episodeContextMenu", "addCommentFailed"));
     }
   }
   /**
@@ -14641,7 +14794,7 @@ var EpisodeContextMenu = class {
    * 切换到编辑模式并定位光标
    */
   async switchToEditModeAndFocus(line, column) {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian23.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian26.MarkdownView);
     if (!view)
       return;
     const ownerWindow = view.contentEl.ownerDocument.defaultView;
@@ -15111,7 +15264,7 @@ ${callout}
 };
 
 // src/note/subjectNoteManager.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 var SubjectNoteManager = class {
   constructor(app, client, settings) {
     this.app = app;
@@ -15120,20 +15273,20 @@ var SubjectNoteManager = class {
   }
   async createOrAppendForCurrentFile() {
     const file = this.app.workspace.getActiveFile();
-    if (!(file instanceof import_obsidian24.TFile)) {
-      new import_obsidian24.Notice(tn("subjectNote", "notSyncedFile"));
+    if (!(file instanceof import_obsidian27.TFile)) {
+      new import_obsidian27.Notice(tn("subjectNote", "notSyncedFile"));
       return;
     }
     await this.createOrAppendForLocalFile(file);
   }
   async createOrAppendForLocalFile(localFile) {
     if (!this.settings.notePathTemplate.trim()) {
-      new import_obsidian24.Notice(tn("subjectNote", "configureNotePath"));
+      new import_obsidian27.Notice(tn("subjectNote", "configureNotePath"));
       return;
     }
     const context = await this.resolveContext(localFile);
     if (!context) {
-      new import_obsidian24.Notice(tn("subjectNote", "missingSubjectId"));
+      new import_obsidian27.Notice(tn("subjectNote", "missingSubjectId"));
       return;
     }
     const candidateIds = await this.buildCandidateIds(context.subject, localFile);
@@ -15145,7 +15298,7 @@ var SubjectNoteManager = class {
       localFile.path,
       true
     );
-    new import_obsidian24.Notice(tn("subjectNote", match ? "appendedToNote" : "createdNote"));
+    new import_obsidian27.Notice(tn("subjectNote", match ? "appendedToNote" : "createdNote"));
   }
   async resolveContext(localFile) {
     const cache = this.app.metadataCache.getFileCache(localFile);
@@ -15168,7 +15321,7 @@ var SubjectNoteManager = class {
     const queue = [localFile];
     while (queue.length > 0 && visited.size < 100) {
       const file = queue.shift();
-      if (!(file instanceof import_obsidian24.TFile) || visited.has(file.path)) {
+      if (!(file instanceof import_obsidian27.TFile) || visited.has(file.path)) {
         continue;
       }
       visited.add(file.path);
@@ -15208,7 +15361,7 @@ var SubjectNoteManager = class {
   }
   findLocalSubjectFile(subjectId) {
     var _a;
-    const scanRoot = (0, import_obsidian24.normalizePath)(this.settings.scanFolderPath || "");
+    const scanRoot = (0, import_obsidian27.normalizePath)(this.settings.scanFolderPath || "");
     for (const file of this.app.vault.getMarkdownFiles()) {
       if (scanRoot && !file.path.startsWith(scanRoot)) {
         continue;
@@ -15238,7 +15391,7 @@ var SubjectNoteManager = class {
         continue;
       }
       const target = this.app.metadataCache.getFirstLinkpathDest(linkPath, sourceFile.path);
-      if (target instanceof import_obsidian24.TFile) {
+      if (target instanceof import_obsidian27.TFile) {
         files.push(target);
       }
     }
@@ -15271,9 +15424,9 @@ var SubjectNoteManager = class {
     return match[1].split("#")[0].trim();
   }
   async createNewNote(context, candidateIds) {
-    const notePath = (0, import_obsidian24.normalizePath)(generateFilePath(this.settings.notePathTemplate, context.subject));
+    const notePath = (0, import_obsidian27.normalizePath)(generateFilePath(this.settings.notePathTemplate, context.subject));
     const existing = this.app.vault.getAbstractFileByPath(notePath);
-    if (existing instanceof import_obsidian24.TFile) {
+    if (existing instanceof import_obsidian27.TFile) {
       const ids = await this.readNoteIds(existing);
       return this.updateExistingNote({ file: existing, ids }, candidateIds, context.heading);
     }
@@ -15452,7 +15605,7 @@ ${nextBody}
 };
 
 // main.ts
-var BangumiPlugin = class extends import_obsidian25.Plugin {
+var BangumiPlugin = class extends import_obsidian28.Plugin {
   constructor() {
     super(...arguments);
     this.syncManager = null;
@@ -15736,12 +15889,12 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
         if (config.filePath) {
           try {
             const file = this.app.vault.getAbstractFileByPath(config.filePath);
-            if (file instanceof import_obsidian25.TFile) {
+            if (file instanceof import_obsidian28.TFile) {
               return await this.app.vault.read(file);
             }
           } catch (error) {
             console.error(`[Bangumi Sync] \u8BFB\u53D6\u6A21\u677F\u6587\u4EF6\u5931\u8D25: ${config.filePath}`, error);
-            new import_obsidian25.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
+            new import_obsidian28.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
           }
         }
         return getBuiltInTemplateByKey(defaultTemplateKey, true);
@@ -15759,7 +15912,7 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
       this.app,
       this.settings.scanFolderPath,
       (files) => {
-        new import_obsidian25.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
+        new import_obsidian28.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
       }
     );
     modal.open();
@@ -15784,7 +15937,7 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
             content: await file.text()
           });
         } catch (error) {
-          new import_obsidian25.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
+          new import_obsidian28.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
           return;
         }
       }
@@ -15805,11 +15958,11 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
    */
   openSearchModal() {
     if (!this.settings.accessToken) {
-      new import_obsidian25.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian28.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian25.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian28.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     const modal = new SearchModal(
@@ -15829,7 +15982,7 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
   openControlPanel(options) {
     var _a;
     if (!this.settings.accessToken) {
-      new import_obsidian25.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian28.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (this.controlPanel) {
@@ -15874,7 +16027,7 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
    */
   openSyncOptions() {
     if (!this.settings.accessToken) {
-      new import_obsidian25.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian28.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     const modal = new SyncOptionsModal(
@@ -15907,11 +16060,11 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
    */
   async batchDownloadCovers() {
     if (!this.settings.downloadImages) {
-      new import_obsidian25.Notice(tn("notices", "coverDownloadDisabled"));
+      new import_obsidian28.Notice(tn("notices", "coverDownloadDisabled"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian25.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian28.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -15935,9 +16088,9 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar();
       if (result.downloaded === 0 && result.skipped === 0) {
-        new import_obsidian25.Notice(tn("notices", "coverDownloadNoItems"));
+        new import_obsidian28.Notice(tn("notices", "coverDownloadNoItems"));
       } else {
-        new import_obsidian25.Notice(tnFormat("notices", "coverDownloadComplete", {
+        new import_obsidian28.Notice(tnFormat("notices", "coverDownloadComplete", {
           downloaded: result.downloaded,
           skipped: result.skipped,
           failed: result.failed
@@ -15952,7 +16105,7 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u5931\u8D25:", error);
-      new import_obsidian25.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian28.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
@@ -15960,7 +16113,7 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
    */
   async scanAndLinkRelated() {
     if (!this.syncManager) {
-      new import_obsidian25.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian28.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -15991,7 +16144,7 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u626B\u63CF\u5173\u8054\u5931\u8D25:", error);
-      new import_obsidian25.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian28.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
@@ -15999,19 +16152,19 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
    */
   async syncCollectionsWithOptions(options, showPreview = true) {
     if (!this.settings.accessToken) {
-      new import_obsidian25.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian28.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (options.subjectTypes.length === 0) {
-      new import_obsidian25.Notice(tn("notices", "selectSubjectType"));
+      new import_obsidian28.Notice(tn("notices", "selectSubjectType"));
       return;
     }
     if (options.collectionTypes.length === 0) {
-      new import_obsidian25.Notice(tn("notices", "selectCollectionType"));
+      new import_obsidian28.Notice(tn("notices", "selectCollectionType"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian25.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian28.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -16034,12 +16187,12 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
           force: options.force
         });
         if (!prepareResult.success) {
-          new import_obsidian25.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
+          new import_obsidian28.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
           this.cleanupSyncState(0);
           return;
         }
         if (!prepareResult.previewItems || prepareResult.previewItems.length === 0) {
-          new import_obsidian25.Notice(tn("notices", "noItemsToSync"));
+          new import_obsidian28.Notice(tn("notices", "noItemsToSync"));
           this.cleanupSyncState(0);
           return;
         }
@@ -16052,7 +16205,7 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
         );
         if (localPropertyResult === null) {
           console.debug("[Bangumi Sync] User cancelled custom properties");
-          new import_obsidian25.Notice(tn("notices", "syncCancelled"));
+          new import_obsidian28.Notice(tn("notices", "syncCancelled"));
           this.cleanupSyncState(0);
           return;
         }
@@ -16065,7 +16218,7 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
           (result) => {
             void (async () => {
               if (result.action === "cancel") {
-                new import_obsidian25.Notice(tn("notices", "syncCancelled"));
+                new import_obsidian28.Notice(tn("notices", "syncCancelled"));
                 return;
               }
               this.cancellationSignal = createCancellationSignal();
@@ -16100,7 +16253,7 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
         previewModal.open();
       } catch (error) {
         console.error("[Bangumi Sync] Preview flow error:", error);
-        new import_obsidian25.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+        new import_obsidian28.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
         this.cleanupSyncState(0);
       }
     } else {
@@ -16146,7 +16299,7 @@ var BangumiPlugin = class extends import_obsidian25.Plugin {
       (message) => {
         if (!warned) {
           warned = true;
-          new import_obsidian25.Notice(message);
+          new import_obsidian28.Notice(message);
         }
       }
     );
