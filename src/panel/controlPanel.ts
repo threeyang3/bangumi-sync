@@ -31,6 +31,7 @@ import {
         getStatusSyncScope,
         hasSelectedPlatformFields,
         hasSelectedUserFields,
+        normalizeStatusSyncFieldSelection,
 } from '../sync/statusSyncTypes';
 
 /**
@@ -1399,7 +1400,7 @@ export class ControlPanel extends Modal {
         private openStatusSyncScopeSelector(initialSelection?: StatusSyncFieldSelection): void {
                 const modal = new StatusSyncScopeModal(
                         this.app,
-                        initialSelection ?? createDefaultStatusSyncFieldSelection(),
+                        normalizeStatusSyncFieldSelection(initialSelection ?? createDefaultStatusSyncFieldSelection()),
                         (selection) => {
                                 void this.syncStatusAfterPrefetchWarmup(selection);
                         },
@@ -1408,6 +1409,7 @@ export class ControlPanel extends Modal {
         }
 
         private async syncStatus(selection: StatusSyncFieldSelection): Promise<void> {
+                selection = normalizeStatusSyncFieldSelection(selection);
                 if (!hasSelectedUserFields(selection) && !hasSelectedPlatformFields(selection)) {
                         new Notice(tn('statusSyncModal', 'selectAtLeastOne'));
                         return;

@@ -13,6 +13,11 @@ export interface StatusSyncFieldSelection {
         platform: Record<PlatformFieldKey, boolean>;
 }
 
+export interface PartialStatusSyncFieldSelection {
+        user?: Partial<Record<UserStatusSyncFieldKey, boolean>>;
+        platform?: Partial<Record<PlatformFieldKey, boolean>>;
+}
+
 export const USER_STATUS_SYNC_FIELD_KEYS: readonly UserStatusSyncFieldKey[] = [
         'rate',
         'comment',
@@ -50,11 +55,24 @@ export function createDefaultStatusSyncFieldSelection(): StatusSyncFieldSelectio
         };
 }
 
-export function cloneStatusSyncFieldSelection(selection: StatusSyncFieldSelection): StatusSyncFieldSelection {
+export function normalizeStatusSyncFieldSelection(
+        selection?: PartialStatusSyncFieldSelection | null,
+): StatusSyncFieldSelection {
+        const defaults = createDefaultStatusSyncFieldSelection();
         return {
-                user: { ...selection.user },
-                platform: { ...selection.platform },
+                user: {
+                        ...defaults.user,
+                        ...(selection?.user ?? {}),
+                },
+                platform: {
+                        ...defaults.platform,
+                        ...(selection?.platform ?? {}),
+                },
         };
+}
+
+export function cloneStatusSyncFieldSelection(selection: StatusSyncFieldSelection): StatusSyncFieldSelection {
+        return normalizeStatusSyncFieldSelection(selection);
 }
 
 export function hasSelectedUserFields(selection: StatusSyncFieldSelection): boolean {

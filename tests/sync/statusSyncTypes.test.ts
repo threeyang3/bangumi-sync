@@ -5,6 +5,7 @@ import {
         getStatusSyncScope,
         hasSelectedPlatformFields,
         hasSelectedUserFields,
+        normalizeStatusSyncFieldSelection,
 } from '../../src/sync/statusSyncTypes';
 
 describe('statusSyncTypes', () => {
@@ -52,5 +53,26 @@ describe('statusSyncTypes', () => {
 
                 expect(original.user.rate).toBe(true);
                 expect(original.platform.end).toBe(false);
+        });
+
+        it('normalizes missing user/platform branches safely', () => {
+                const empty = normalizeStatusSyncFieldSelection(undefined);
+                expect(empty.user.rate).toBe(true);
+                expect(empty.platform.episodeCount).toBe(false);
+
+                const userOnly = normalizeStatusSyncFieldSelection({
+                        user: { rate: false },
+                });
+                expect(userOnly.user.rate).toBe(false);
+                expect(userOnly.user.comment).toBe(true);
+                expect(userOnly.platform.volumeCount).toBe(false);
+
+                const platformOnly = normalizeStatusSyncFieldSelection({
+                        platform: { episodeCount: true, progress: true },
+                });
+                expect(platformOnly.user.rate).toBe(true);
+                expect(platformOnly.platform.episodeCount).toBe(true);
+                expect(platformOnly.platform.progress).toBe(true);
+                expect(platformOnly.platform.start).toBe(false);
         });
 });

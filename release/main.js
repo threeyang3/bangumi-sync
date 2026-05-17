@@ -11553,11 +11553,22 @@ function createDefaultStatusSyncFieldSelection() {
     }
   };
 }
-function cloneStatusSyncFieldSelection(selection) {
+function normalizeStatusSyncFieldSelection(selection) {
+  var _a, _b;
+  const defaults = createDefaultStatusSyncFieldSelection();
   return {
-    user: { ...selection.user },
-    platform: { ...selection.platform }
+    user: {
+      ...defaults.user,
+      ...(_a = selection == null ? void 0 : selection.user) != null ? _a : {}
+    },
+    platform: {
+      ...defaults.platform,
+      ...(_b = selection == null ? void 0 : selection.platform) != null ? _b : {}
+    }
   };
+}
+function cloneStatusSyncFieldSelection(selection) {
+  return normalizeStatusSyncFieldSelection(selection);
 }
 function hasSelectedUserFields(selection) {
   return USER_STATUS_SYNC_FIELD_KEYS.some((key) => selection.user[key]);
@@ -12034,7 +12045,7 @@ var import_obsidian20 = require("obsidian");
 var StatusSyncScopeModal = class extends import_obsidian20.Modal {
   constructor(app, initialSelection, onConfirm) {
     super(app);
-    this.selection = cloneStatusSyncFieldSelection(initialSelection);
+    this.selection = normalizeStatusSyncFieldSelection(initialSelection);
     this.onConfirm = onConfirm;
   }
   onOpen() {
@@ -12049,6 +12060,7 @@ var StatusSyncScopeModal = class extends import_obsidian20.Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("bangumi-status-sync-scope-modal");
+    this.selection = normalizeStatusSyncFieldSelection(this.selection);
     const header = contentEl.createDiv({ cls: "bangumi-status-sync-scope-header" });
     header.createEl("h2", {
       text: tn("statusSyncModal", "scopeTitle"),
@@ -12060,8 +12072,8 @@ var StatusSyncScopeModal = class extends import_obsidian20.Modal {
     });
     const body = contentEl.createDiv({ cls: "bangumi-status-sync-scope-body" });
     const grid = body.createDiv({ cls: "bangumi-status-sync-scope-grid" });
-    this.renderSection(grid, "user");
-    this.renderSection(grid, "platform");
+    this.renderSectionSafely(grid, "user");
+    this.renderSectionSafely(grid, "platform");
     const footer = contentEl.createDiv({ cls: "bangumi-status-sync-scope-footer" });
     footer.createDiv({
       text: tn("statusSyncModal", "scopeFooterHint"),
@@ -12089,6 +12101,14 @@ var StatusSyncScopeModal = class extends import_obsidian20.Modal {
         this.close();
       });
     });
+  }
+  renderSectionSafely(container, section) {
+    try {
+      this.renderSection(container, section);
+    } catch (error) {
+      console.error("[Bangumi Sync] \u72B6\u6001\u540C\u6B65\u8303\u56F4\u9009\u62E9\u5F39\u7A97\u6E32\u67D3\u5931\u8D25:", section, error);
+      this.renderSectionFallback(container, section);
+    }
   }
   renderSection(container, section) {
     const card = container.createDiv({
@@ -12129,36 +12149,52 @@ var StatusSyncScopeModal = class extends import_obsidian20.Modal {
     });
     const items = card.createDiv({ cls: "bangumi-status-sync-scope-items" });
     for (const field of fieldDescriptors) {
-      const isChecked = section === "user" ? this.selection.user[field.key] : this.selection.platform[field.key];
+      const isChecked = this.getFieldChecked(section, field.key);
       const item = items.createEl("label", {
         cls: `bangumi-status-sync-scope-item ${isChecked ? "is-checked" : ""}`
       });
       const checkbox = item.createEl("input", { type: "checkbox" });
       checkbox.checked = isChecked;
       checkbox.addEventListener("change", () => {
-        if (section === "user") {
-          this.selection.user[field.key] = checkbox.checked;
-        } else {
-          this.selection.platform[field.key] = checkbox.checked;
-        }
+        this.setFieldChecked(section, field.key, checkbox.checked);
         this.render();
       });
       const content = item.createDiv({ cls: "bangumi-status-sync-scope-item-content" });
       content.createDiv({ text: field.label, cls: "bangumi-status-sync-scope-item-name" });
       content.createDiv({ text: field.description, cls: "bangumi-status-sync-scope-item-meta" });
     }
-    const selectedCount = fieldDescriptors.filter((field) => {
-      if (section === "user") {
-        return this.selection.user[field.key];
-      }
-      return this.selection.platform[field.key];
-    }).length;
+    const selectedCount = fieldDescriptors.filter((field) => this.getFieldChecked(section, field.key)).length;
     masterCheckbox.checked = selectedCount === fieldDescriptors.length && fieldDescriptors.length > 0;
     masterCheckbox.indeterminate = selectedCount > 0 && selectedCount < fieldDescriptors.length;
     masterCheckbox.addEventListener("change", () => {
       this.setSectionSelection(section, masterCheckbox.checked);
       this.render();
     });
+  }
+  renderSectionFallback(container, section) {
+    const card = container.createDiv({ cls: "bangumi-status-sync-scope-card" });
+    const header = card.createDiv({ cls: "bangumi-status-sync-scope-head" });
+    header.createEl("div", {
+      text: section === "user" ? tn("statusSyncModal", "userDataGroup") : tn("statusSyncModal", "platformDataGroup"),
+      cls: "bangumi-status-sync-scope-title"
+    });
+    card.createDiv({
+      text: tn("statusSyncModal", "backgroundLoadFailed"),
+      cls: "bangumi-status-sync-scope-desc"
+    });
+  }
+  getFieldChecked(section, key) {
+    if (section === "user") {
+      return Boolean(this.selection.user[key]);
+    }
+    return Boolean(this.selection.platform[key]);
+  }
+  setFieldChecked(section, key, checked) {
+    if (section === "user") {
+      this.selection.user[key] = checked;
+      return;
+    }
+    this.selection.platform[key] = checked;
   }
   setSectionSelection(section, checked) {
     if (section === "user") {
@@ -13919,7 +13955,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
   openStatusSyncScopeSelector(initialSelection) {
     const modal = new StatusSyncScopeModal(
       this.app,
-      initialSelection != null ? initialSelection : createDefaultStatusSyncFieldSelection(),
+      normalizeStatusSyncFieldSelection(initialSelection != null ? initialSelection : createDefaultStatusSyncFieldSelection()),
       (selection) => {
         void this.syncStatusAfterPrefetchWarmup(selection);
       }
@@ -13927,6 +13963,7 @@ var ControlPanel = class extends import_obsidian22.Modal {
     modal.open();
   }
   async syncStatus(selection) {
+    selection = normalizeStatusSyncFieldSelection(selection);
     if (!hasSelectedUserFields(selection) && !hasSelectedPlatformFields(selection)) {
       new import_obsidian22.Notice(tn("statusSyncModal", "selectAtLeastOne"));
       return;
