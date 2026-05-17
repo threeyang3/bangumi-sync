@@ -296,6 +296,18 @@
 	height: 86vh !important;
 }
 
+.modal:has(.bangumi-batch-editor) {
+	width: min(1180px, 94vw) !important;
+	max-width: min(1180px, 94vw) !important;
+	height: 88vh !important;
+}
+
+.modal:has(.bangumi-batch-editor) .modal-content,
+.modal:has(.bangumi-batch-editor) .bangumi-batch-editor {
+	height: 100% !important;
+	min-height: 0 !important;
+}
+
 .modal:has(.bangumi-import-compare-modal) .modal-content,
 .modal:has(.bangumi-property-import-review) .modal-content,
 .modal:has(.bangumi-import-compare-modal) .bangumi-import-compare-modal,
@@ -701,6 +713,411 @@
 .bangumi-sync-status-bar {
 	font-size: 12px;
 	color: var(--text-muted);
+}
+
+/* ==================== Batch Editor ==================== */
+
+.bangumi-batch-editor {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	gap: 0;
+}
+
+.bangumi-batch-editor-header {
+	padding: 22px 24px 14px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.bangumi-batch-editor-header h2 {
+	margin: 0;
+}
+
+.bangumi-batch-editor-info {
+	margin: 12px 0 0;
+	padding: 10px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: color-mix(in srgb, var(--background-secondary) 70%, transparent);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+}
+
+.bangumi-batch-editor-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 18px 24px 18px;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+
+.bangumi-batch-editor-footer {
+	padding: 16px 24px 20px;
+	border-top: 1px solid var(--background-modifier-border);
+	background: color-mix(in srgb, var(--background-secondary-alt) 38%, transparent);
+	margin-top: 0;
+}
+
+.bangumi-batch-editor-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 16px;
+	background: var(--background-secondary);
+	padding: 16px;
+}
+
+.bangumi-batch-editor-card + .bangumi-batch-editor-card {
+	margin-top: 0;
+}
+
+.bangumi-batch-editor-card-header {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-bottom: 14px;
+}
+
+.bangumi-batch-editor-card-title {
+	margin: 0;
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+}
+
+.bangumi-batch-editor-card-desc,
+.bangumi-batch-editor-section-desc {
+	margin: 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+}
+
+.bangumi-batch-editor-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	min-height: 0;
+}
+
+.bangumi-batch-editor-mode-card {
+	padding: 14px 16px;
+}
+
+.bangumi-batch-editor-mode-switch {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.bangumi-batch-editor-mode-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	flex: 0 0 auto;
+}
+
+.bangumi-batch-editor-mode-group {
+	display: inline-flex;
+	gap: 6px;
+	padding: 4px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--background-primary) 75%, transparent);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.bangumi-batch-editor-mode-btn {
+	min-height: 36px;
+	padding: 8px 14px;
+	border-radius: 999px;
+	background: transparent;
+	border: none;
+	color: var(--text-muted);
+	font-weight: var(--font-medium);
+}
+
+.bangumi-batch-editor-mode-btn:hover {
+	background: color-mix(in srgb, var(--background-modifier-hover) 70%, transparent);
+}
+
+.bangumi-batch-editor-mode-btn.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 65%, transparent);
+}
+
+.bangumi-batch-editor-mode-btn:focus-visible,
+.bangumi-operation-remove:focus-visible,
+.bangumi-batch-property-chip-remove:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.bangumi-batch-editor-empty-state {
+	padding: 18px 16px;
+	border: 1px dashed var(--background-modifier-border);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--background-primary) 78%, transparent);
+	color: var(--text-muted);
+	line-height: 1.5;
+}
+
+.bangumi-operation-list {
+	max-height: 240px;
+	overflow-y: auto;
+	padding-right: 2px;
+}
+
+.bangumi-operation-items {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.bangumi-operation-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 12px 14px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--background-primary) 78%, transparent);
+}
+
+.bangumi-operation-type {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 52px;
+	padding: 3px 10px;
+	border-radius: 999px;
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	background: color-mix(in srgb, var(--background-secondary-alt) 70%, transparent);
+	color: var(--text-normal);
+}
+
+.bangumi-operation-type-add {
+	color: var(--color-green);
+	background: color-mix(in srgb, var(--color-green) 14%, transparent);
+}
+
+.bangumi-operation-type-modify {
+	color: var(--interactive-accent);
+	background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+}
+
+.bangumi-operation-type-delete {
+	color: var(--text-error);
+	background: color-mix(in srgb, var(--text-error) 12%, transparent);
+}
+
+.bangumi-operation-property {
+	font-weight: var(--font-medium);
+}
+
+.bangumi-operation-arrow {
+	color: var(--text-faint);
+}
+
+.bangumi-operation-value {
+	color: var(--text-muted);
+	min-width: 0;
+	flex: 1 1 auto;
+	word-break: break-word;
+}
+
+.bangumi-operation-remove {
+	margin-left: auto;
+	width: 32px;
+	height: 32px;
+	min-width: 32px;
+	padding: 0;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--background-secondary-alt) 72%, transparent);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+.bangumi-operation-remove:hover,
+.bangumi-batch-property-chip-remove:hover {
+	color: var(--text-normal);
+	background: color-mix(in srgb, var(--background-modifier-hover) 80%, transparent);
+}
+
+.bangumi-add-operation {
+	display: grid;
+	grid-template-columns: minmax(120px, 0.9fr) minmax(180px, 1.2fr) minmax(180px, 1.2fr) auto;
+	gap: 10px;
+	align-items: end;
+}
+
+.bangumi-add-operation-field,
+.bangumi-add-operation-action {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.bangumi-add-operation-field > select,
+.bangumi-add-operation-field > input {
+	width: 100%;
+	min-height: 38px;
+}
+
+.bangumi-add-operation-action > button {
+	min-height: 38px;
+	white-space: nowrap;
+}
+
+.bangumi-add-operation-value-wrap.is-disabled {
+	opacity: 0.55;
+}
+
+.bangumi-batch-property-selection {
+	margin-top: 6px;
+}
+
+.bangumi-batch-property-list {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px 14px;
+}
+
+.bangumi-batch-property-option {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--background-primary) 78%, transparent);
+}
+
+.bangumi-batch-property-option:hover {
+	background: color-mix(in srgb, var(--background-modifier-hover) 75%, transparent);
+}
+
+.bangumi-batch-property-option input {
+	margin: 0;
+}
+
+.bangumi-batch-custom-property-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 10px;
+	margin-top: 14px;
+}
+
+.bangumi-batch-custom-property-row > button {
+	min-height: 38px;
+}
+
+.bangumi-batch-selected-properties {
+	margin-top: 0;
+}
+
+.bangumi-batch-property-chip-wrap {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.bangumi-batch-property-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-secondary));
+	border: 1px solid color-mix(in srgb, var(--interactive-accent) 22%, var(--background-modifier-border));
+}
+
+.bangumi-batch-property-chip-remove {
+	width: 24px;
+	height: 24px;
+	min-width: 24px;
+	padding: 0;
+	border-radius: 999px;
+	border: none;
+	background: transparent;
+	color: var(--text-muted);
+}
+
+.bangumi-batch-edit-table-wrap {
+	min-height: 0;
+}
+
+.bangumi-batch-edit-table-scroll {
+	overflow: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--background-primary) 82%, transparent);
+}
+
+.bangumi-batch-edit-table {
+	width: 100%;
+	min-width: 720px;
+	border-collapse: separate;
+	border-spacing: 0;
+	table-layout: fixed;
+}
+
+.bangumi-batch-edit-table th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	padding: 10px 12px;
+	background: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+	text-align: left;
+	font-weight: var(--font-medium);
+}
+
+.bangumi-batch-edit-table td {
+	padding: 10px 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	vertical-align: top;
+}
+
+.bangumi-batch-edit-table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+.bangumi-batch-edit-name-cell,
+.bangumi-batch-edit-table th:first-child {
+	width: 240px;
+	min-width: 240px;
+	max-width: 240px;
+}
+
+.bangumi-batch-edit-name-cell {
+	font-weight: var(--font-medium);
+	line-height: 1.4;
+	word-break: break-word;
+}
+
+.bangumi-batch-edit-input {
+	width: 100%;
+	min-height: 38px;
+	padding: 8px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-primary);
+}
+
+.bangumi-batch-edit-input:hover {
+	border-color: var(--background-modifier-border-hover);
+}
+
+.bangumi-batch-edit-input:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+	border-color: var(--interactive-accent);
 }
 
 /* ==================== Search Modal ==================== */
@@ -2972,13 +3389,34 @@
 	}
 
 	/* Batch Editor */
+	.modal:has(.bangumi-batch-editor) {
+		width: 95vw !important;
+		height: 90vh !important;
+		max-width: none !important;
+	}
+
 	.bangumi-batch-editor {
 		width: 100%;
+	}
+
+	.bangumi-batch-editor-header,
+	.bangumi-batch-editor-body,
+	.bangumi-batch-editor-footer {
+		padding-left: 16px;
+		padding-right: 16px;
 	}
 
 	.bangumi-batch-editor-info {
 		font-size: 12px;
 		padding: 8px;
+	}
+
+	.bangumi-batch-editor-mode-group {
+		width: 100%;
+	}
+
+	.bangumi-batch-editor-mode-btn {
+		flex: 1 1 0;
 	}
 
 	.bangumi-operation-list {
@@ -2993,14 +3431,31 @@
 	}
 
 	.bangumi-add-operation {
-		flex-wrap: wrap;
-		gap: 6px;
-		padding: 8px;
+		grid-template-columns: 1fr;
+		gap: 8px;
+	}
+
+	.bangumi-batch-editor-card {
+		padding: 14px;
 	}
 
 	.bangumi-property-input,
 	.bangumi-value-input {
 		width: 100%;
 		min-width: 0;
+	}
+
+	.bangumi-batch-property-list {
+		grid-template-columns: 1fr;
+	}
+
+	.bangumi-batch-custom-property-row {
+		grid-template-columns: 1fr;
+	}
+
+	.bangumi-batch-edit-name-cell,
+	.bangumi-batch-edit-table th:first-child {
+		width: 100% !important;
+		max-width: none !important;
 	}
 }

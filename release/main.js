@@ -10917,18 +10917,25 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.addClass("bangumi-batch-editor");
-    contentEl.createEl("h2", { text: tn("batchEditor", "title") });
-    contentEl.createEl("p", {
+    const headerEl = contentEl.createDiv({ cls: "bangumi-batch-editor-header" });
+    headerEl.createEl("h2", { text: tn("batchEditor", "title") });
+    headerEl.createEl("p", {
       text: tnFormat("batchEditor", "info", { count: this.items.length }),
       cls: "bangumi-batch-editor-info"
     });
-    this.renderModeSwitch(contentEl);
-    this.uniformPanelEl = contentEl.createDiv({ cls: "bangumi-batch-editor-panel" });
+    const bodyEl = contentEl.createDiv({ cls: "bangumi-batch-editor-body" });
+    const modeCardEl = bodyEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-editor-mode-card"
+    });
+    this.renderModeSwitch(modeCardEl);
+    this.uniformPanelEl = bodyEl.createDiv({ cls: "bangumi-batch-editor-panel" });
     this.renderUniformPanel();
-    this.perItemPanelEl = contentEl.createDiv({ cls: "bangumi-batch-editor-panel" });
+    this.perItemPanelEl = bodyEl.createDiv({ cls: "bangumi-batch-editor-panel" });
     this.renderPerItemPanel();
     this.updateModeVisibility();
-    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    const buttonDiv = contentEl.createDiv({
+      cls: "bangumi-modal-buttons bangumi-batch-editor-footer"
+    });
     buttonDiv.createEl("button", { text: tn("batchEditor", "cancel") }, (btn) => {
       btn.addEventListener("click", () => this.close());
     });
@@ -10946,17 +10953,18 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
       text: tn("batchEditor", "modeLabel"),
       cls: "bangumi-batch-editor-mode-label"
     });
+    const buttonGroup = switchEl.createDiv({ cls: "bangumi-batch-editor-mode-group" });
     [
       ["per_item", tn("batchEditor", "modePerItem")],
       ["uniform", tn("batchEditor", "modeUniform")]
     ].forEach(([mode, label]) => {
-      const button = switchEl.createEl("button", {
+      const button = buttonGroup.createEl("button", {
         text: label,
         cls: `bangumi-batch-editor-mode-btn${this.mode === mode ? " is-active" : ""}`
       });
       button.addEventListener("click", () => {
         this.mode = mode;
-        for (const sibling of Array.from(switchEl.querySelectorAll(".bangumi-batch-editor-mode-btn"))) {
+        for (const sibling of Array.from(buttonGroup.querySelectorAll(".bangumi-batch-editor-mode-btn"))) {
           sibling.classList.remove("is-active");
         }
         button.classList.add("is-active");
@@ -10966,28 +10974,68 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
   }
   renderUniformPanel() {
     this.uniformPanelEl.empty();
-    this.uniformPanelEl.createEl("p", {
+    const introCard = this.uniformPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-editor-intro-card"
+    });
+    introCard.createEl("p", {
       text: tn("batchEditor", "uniformDesc"),
       cls: "bangumi-batch-editor-section-desc"
     });
-    this.operationListEl = this.uniformPanelEl.createDiv({ cls: "bangumi-operation-list" });
+    const listCard = this.uniformPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-editor-list-card"
+    });
+    const listHeader = listCard.createDiv({ cls: "bangumi-batch-editor-card-header" });
+    listHeader.createEl("h3", {
+      text: tn("batchEditor", "modeUniform"),
+      cls: "bangumi-batch-editor-card-title"
+    });
+    listHeader.createEl("p", {
+      text: tn("batchEditor", "uniformDesc"),
+      cls: "bangumi-batch-editor-card-desc"
+    });
+    this.operationListEl = listCard.createDiv({ cls: "bangumi-operation-list" });
     this.renderOperationList();
-    const addOperationDiv = this.uniformPanelEl.createDiv({ cls: "bangumi-add-operation" });
-    const typeSelect = addOperationDiv.createEl("select");
+    const addCard = this.uniformPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-editor-composer-card"
+    });
+    const addHeader = addCard.createDiv({ cls: "bangumi-batch-editor-card-header" });
+    addHeader.createEl("h3", {
+      text: tn("batchEditor", "addOperation"),
+      cls: "bangumi-batch-editor-card-title"
+    });
+    const addOperationDiv = addCard.createDiv({ cls: "bangumi-add-operation" });
+    const typeWrap = addOperationDiv.createDiv({ cls: "bangumi-add-operation-field" });
+    const typeSelect = typeWrap.createEl("select");
     typeSelect.createEl("option", { value: "add", text: tn("batchEditor", "typeAdd") });
     typeSelect.createEl("option", { value: "modify", text: tn("batchEditor", "typeModify") });
     typeSelect.createEl("option", { value: "delete", text: tn("batchEditor", "typeDelete") });
-    const propertyInput = addOperationDiv.createEl("input", {
+    const propertyWrap = addOperationDiv.createDiv({ cls: "bangumi-add-operation-field" });
+    const propertyInput = propertyWrap.createEl("input", {
       type: "text",
       placeholder: tn("batchEditor", "propertyName"),
       cls: "bangumi-property-input"
     });
-    const valueInput = addOperationDiv.createEl("input", {
+    const valueWrap = addOperationDiv.createDiv({
+      cls: "bangumi-add-operation-field bangumi-add-operation-value-wrap"
+    });
+    const valueInput = valueWrap.createEl("input", {
       type: "text",
       placeholder: tn("batchEditor", "propertyValue"),
       cls: "bangumi-value-input"
     });
-    addOperationDiv.createEl("button", { text: tn("batchEditor", "addOperation") }, (btn) => {
+    const updateValueInputState = () => {
+      const hidesValue = typeSelect.value === "delete";
+      valueWrap.classList.toggle("is-disabled", hidesValue);
+      valueInput.disabled = hidesValue;
+      valueInput.placeholder = hidesValue ? tn("batchEditor", "typeDelete") : tn("batchEditor", "propertyValue");
+      if (hidesValue) {
+        valueInput.value = "";
+      }
+    };
+    typeSelect.addEventListener("change", updateValueInputState);
+    updateValueInputState();
+    const addButtonWrap = addOperationDiv.createDiv({ cls: "bangumi-add-operation-action" });
+    addButtonWrap.createEl("button", { text: tn("batchEditor", "addOperation") }, (btn) => {
       btn.addEventListener("click", () => {
         const type = typeSelect.value;
         const property = propertyInput.value.trim();
@@ -11009,19 +11057,26 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
   }
   renderPerItemPanel() {
     this.perItemPanelEl.empty();
-    this.perItemPanelEl.createEl("p", {
+    const introCard = this.perItemPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-editor-intro-card"
+    });
+    introCard.createEl("p", {
       text: tn("batchEditor", "perItemDesc"),
       cls: "bangumi-batch-editor-section-desc"
     });
-    const propertyPanel = this.perItemPanelEl.createDiv({ cls: "bangumi-batch-property-panel" });
+    const propertyPanel = this.perItemPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-property-panel"
+    });
     const propertyHeader = propertyPanel.createDiv({ cls: "bangumi-batch-property-header" });
-    propertyHeader.createEl("h3", { text: tn("batchEditor", "propertySelectionTitle") });
+    propertyHeader.createEl("h3", {
+      text: tn("batchEditor", "propertySelectionTitle"),
+      cls: "bangumi-batch-editor-card-title"
+    });
     propertyHeader.createEl("p", {
       text: tn("batchEditor", "propertySelectionDesc"),
-      cls: "bangumi-batch-editor-section-desc"
+      cls: "bangumi-batch-editor-card-desc"
     });
     this.propertySelectionEl = propertyPanel.createDiv({ cls: "bangumi-batch-property-selection" });
-    this.selectedPropertyEl = propertyPanel.createDiv({ cls: "bangumi-batch-selected-properties" });
     const customPropertyRow = propertyPanel.createDiv({ cls: "bangumi-batch-custom-property-row" });
     const customPropertyInput = customPropertyRow.createEl("input", {
       type: "text",
@@ -11040,7 +11095,28 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
         customPropertyInput.value = "";
       });
     });
-    this.editTableEl = this.perItemPanelEl.createDiv({ cls: "bangumi-batch-edit-table-wrap" });
+    const selectedCard = this.perItemPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-selected-card"
+    });
+    const selectedHeader = selectedCard.createDiv({ cls: "bangumi-batch-editor-card-header" });
+    selectedHeader.createEl("h3", {
+      text: tn("batchEditor", "selectedPropertyCount").replace("{count}", "0"),
+      cls: "bangumi-batch-editor-card-title bangumi-batch-selected-title"
+    });
+    this.selectedPropertyEl = selectedCard.createDiv({ cls: "bangumi-batch-selected-properties" });
+    const tableCard = this.perItemPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-edit-card"
+    });
+    const tableHeader = tableCard.createDiv({ cls: "bangumi-batch-editor-card-header" });
+    tableHeader.createEl("h3", {
+      text: tn("batchEditor", "itemName"),
+      cls: "bangumi-batch-editor-card-title"
+    });
+    tableHeader.createEl("p", {
+      text: tn("batchEditor", "editTableDesc"),
+      cls: "bangumi-batch-editor-card-desc"
+    });
+    this.editTableEl = tableCard.createDiv({ cls: "bangumi-batch-edit-table-wrap" });
     this.renderPropertySelection();
     this.renderSelectedProperties();
     this.renderPerItemTable();
@@ -11086,7 +11162,7 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
     this.operationListEl.empty();
     if (this.operations.length === 0) {
       this.operationListEl.createDiv({
-        cls: "bangumi-operation-empty",
+        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
         text: tn("batchEditor", "emptyOperations")
       });
       return;
@@ -11117,14 +11193,14 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
     this.propertySelectionEl.empty();
     if (this.loadingProperties) {
       this.propertySelectionEl.createDiv({
-        cls: "bangumi-operation-empty",
+        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
         text: tn("batchEditor", "loadingProperties")
       });
       return;
     }
     if (this.availableProperties.length === 0) {
       this.propertySelectionEl.createDiv({
-        cls: "bangumi-operation-empty",
+        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
         text: tn("batchEditor", "emptyEditableProperties")
       });
       return;
@@ -11142,17 +11218,19 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
   }
   renderSelectedProperties() {
     this.selectedPropertyEl.empty();
+    const selectedTitle = this.contentEl.querySelector(".bangumi-batch-selected-title");
+    if (selectedTitle instanceof HTMLElement) {
+      selectedTitle.setText(tnFormat("batchEditor", "selectedPropertyCount", {
+        count: this.selectedProperties.length
+      }));
+    }
     if (this.selectedProperties.length === 0) {
       this.selectedPropertyEl.createDiv({
-        cls: "bangumi-operation-empty",
+        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
         text: tn("batchEditor", "emptySelectedProperties")
       });
       return;
     }
-    this.selectedPropertyEl.createDiv({
-      cls: "bangumi-batch-selected-properties-desc",
-      text: tnFormat("batchEditor", "selectedPropertyCount", { count: this.selectedProperties.length })
-    });
     const chipWrap = this.selectedPropertyEl.createDiv({ cls: "bangumi-batch-property-chip-wrap" });
     for (const property of this.selectedProperties) {
       const chip = chipWrap.createDiv({ cls: "bangumi-batch-property-chip" });
@@ -11173,23 +11251,18 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
     this.editTableEl.empty();
     if (this.loadingProperties) {
       this.editTableEl.createDiv({
-        cls: "bangumi-operation-empty",
+        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
         text: tn("batchEditor", "loadingProperties")
       });
       return;
     }
     if (this.selectedProperties.length === 0) {
       this.editTableEl.createDiv({
-        cls: "bangumi-operation-empty",
+        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
         text: tn("batchEditor", "emptyEditTable")
       });
       return;
     }
-    const desc = this.editTableEl.createDiv({
-      cls: "bangumi-batch-edit-table-desc",
-      text: tn("batchEditor", "editTableDesc")
-    });
-    desc.setAttribute("role", "note");
     const scroll = this.editTableEl.createDiv({ cls: "bangumi-batch-edit-table-scroll" });
     const table = scroll.createEl("table", { cls: "bangumi-batch-edit-table" });
     const thead = table.createEl("thead");
