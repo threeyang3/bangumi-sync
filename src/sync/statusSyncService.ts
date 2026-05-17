@@ -10,24 +10,27 @@ import { tn } from '../i18n';
 import { createCloudPlatformFieldDiff } from './platformSyncLogic';
 import { buildUserStatusSyncDiff } from './statusSyncLogic';
 import {
-	CloudCollectionUpdates,
-	FieldDecision,
-	FieldDiff,
-	PlatformFieldDiff,
-	PlatformSyncPayload,
-	StatusSyncBuildContext,
-	StatusSyncDiff,
-	StatusSyncExecutionSummary,
-	StatusSyncLocalSubjectInfo,
-	StatusSyncScope,
-	StatusSyncSnapshot,
+        CloudCollectionUpdates,
+        FieldDecision,
+        FieldDiff,
+        PlatformFieldDiff,
+        PlatformSyncPayload,
+        StatusSyncBuildContext,
+        StatusSyncDiff,
+        StatusSyncExecutionSummary,
+        StatusSyncFieldSelection,
+        StatusSyncLocalSubjectInfo,
+        StatusSyncSnapshot,
+        getStatusSyncScope,
+        hasSelectedPlatformFields,
+        hasSelectedUserFields,
 } from './statusSyncTypes';
 
 interface BuildDiffSessionOptions {
-	scope: StatusSyncScope;
-	collections: UserCollection[];
-	localSubjects: Map<number, StatusSyncLocalSubjectInfo>;
-	getCachedSnapshot?: (subjectId: number, path: string, mtime: number) => LocalSubjectSnapshot | null;
+        selection: StatusSyncFieldSelection;
+        collections: UserCollection[];
+        localSubjects: Map<number, StatusSyncLocalSubjectInfo>;
+        getCachedSnapshot?: (subjectId: number, path: string, mtime: number) => LocalSubjectSnapshot | null;
 	onProgress?: (current: number, total: number) => void;
 	concurrency?: number;
 	onPrefetchHit?: () => void;
@@ -58,10 +61,10 @@ export class StatusSyncService {
 		this.episodeStatusManager = episodeStatusManager ?? null;
 	}
 
-	async buildDiffSession(options: BuildDiffSessionOptions): Promise<{
-		snapshots: StatusSyncSnapshot[];
-		diffs: StatusSyncDiff[];
-	}> {
+        async buildDiffSession(options: BuildDiffSessionOptions): Promise<{
+                snapshots: StatusSyncSnapshot[];
+                diffs: StatusSyncDiff[];
+        }> {
 		const snapshots = (await this.mapWithConcurrency(
 			options.collections,
 			options.concurrency ?? 6,
@@ -71,55 +74,55 @@ export class StatusSyncService {
 			},
 		)).filter((snapshot): snapshot is StatusSyncSnapshot => snapshot !== null);
 
-		const diffs = snapshots
-			.map(snapshot => this.buildStatusSyncDiff(snapshot, options.scope))
-			.filter(diff => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
+                const diffs = snapshots
+                        .map(snapshot => this.buildStatusSyncDiff(snapshot, options.selection))
+                        .filter(diff => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
 
 		return { snapshots, diffs };
 	}
 
-	async loadBackgroundDiffs(
-		scope: StatusSyncScope,
-		snapshots: StatusSyncSnapshot[],
-		callbacks: BackgroundUpdateCallbacks,
-		onProgress?: (completed: number, total: number) => void,
+        async loadBackgroundDiffs(
+                selection: StatusSyncFieldSelection,
+                snapshots: StatusSyncSnapshot[],
+                callbacks: BackgroundUpdateCallbacks,
+                onProgress?: (completed: number, total: number) => void,
 		concurrency = 4,
 	): Promise<void> {
 		const context: StatusSyncBuildContext = {
 			subjectCache: new Map(),
 			cloudEpisodeStatusCache: new Map(),
 			platformDiffCache: new Map(),
-		};
-		const candidates = snapshots.filter(snapshot =>
-			(scope === 'user' && snapshot.localSnapshot.shouldLoadEpisodeStatus) ||
-			(scope === 'platform' && snapshot.localSnapshot.shouldLoadPlatformData)
-		);
-		let completed = 0;
-		callbacks.updateBackgroundProgress(completed, candidates.length);
+                };
+                const candidates = snapshots.filter(snapshot =>
+                        (selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus) ||
+                        (hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData)
+                );
+                let completed = 0;
+                callbacks.updateBackgroundProgress(completed, candidates.length);
 
 		await this.mapWithConcurrency(candidates, concurrency, async (snapshot) => {
 			if (callbacks.isDisposed()) {
 				return;
 			}
 
-			const loadingPatch: Partial<StatusSyncDiff> = {};
-			if (scope === 'user' && snapshot.localSnapshot.shouldLoadEpisodeStatus) {
-				loadingPatch.episodeStatusLoadState = 'loading';
-			}
-			if (scope === 'platform' && snapshot.localSnapshot.shouldLoadPlatformData) {
-				loadingPatch.platformLoadState = 'loading';
-			}
-			callbacks.updateDiff(snapshot.subjectId, loadingPatch);
+                        const loadingPatch: Partial<StatusSyncDiff> = {};
+                        if (selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus) {
+                                loadingPatch.episodeStatusLoadState = 'loading';
+                        }
+                        if (hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData) {
+                                loadingPatch.platformLoadState = 'loading';
+                        }
+                        callbacks.updateDiff(snapshot.subjectId, loadingPatch);
 
-			try {
-				const [episodeStatus, platformResult] = await Promise.all([
-					scope === 'user' && snapshot.localSnapshot.shouldLoadEpisodeStatus
-						? this.buildEpisodeStatusDiff(snapshot, context)
-						: Promise.resolve(null),
-					scope === 'platform' && snapshot.localSnapshot.shouldLoadPlatformData
-						? this.buildPlatformFieldDiffs(snapshot, context)
-						: Promise.resolve(null),
-				]);
+                        try {
+                                const [episodeStatus, platformResult] = await Promise.all([
+                                        selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus
+                                                ? this.buildEpisodeStatusDiff(snapshot, context)
+                                                : Promise.resolve(null),
+                                        hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData
+                                                ? this.buildPlatformFieldDiffs(snapshot, context, selection)
+                                                : Promise.resolve(null),
+                                ]);
 
 				if (callbacks.isDisposed()) {
 					return;
@@ -141,12 +144,12 @@ export class StatusSyncService {
 					return;
 				}
 
-				const errorMessage = error instanceof Error ? error.message : String(error);
-				callbacks.updateDiff(snapshot.subjectId, {
-					episodeStatusLoadState: scope === 'user' && snapshot.localSnapshot.shouldLoadEpisodeStatus ? 'failed' : 'ready',
-					platformLoadState: scope === 'platform' && snapshot.localSnapshot.shouldLoadPlatformData ? 'failed' : 'ready',
-					backgroundError: errorMessage,
-				});
+                                const errorMessage = error instanceof Error ? error.message : String(error);
+                                callbacks.updateDiff(snapshot.subjectId, {
+                                        episodeStatusLoadState: selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? 'failed' : 'ready',
+                                        platformLoadState: hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? 'failed' : 'ready',
+                                        backgroundError: errorMessage,
+                                });
 			} finally {
 				completed++;
 				callbacks.updateBackgroundProgress(completed, candidates.length);
@@ -237,9 +240,9 @@ export class StatusSyncService {
 		};
 	}
 
-	private buildStatusSyncDiff(snapshot: StatusSyncSnapshot, scope: StatusSyncScope): StatusSyncDiff {
-		const { collection, localInfo } = snapshot;
-		const userDiffs = buildUserStatusSyncDiff({
+        private buildStatusSyncDiff(snapshot: StatusSyncSnapshot, selection: StatusSyncFieldSelection): StatusSyncDiff {
+                const { collection, localInfo } = snapshot;
+                const userDiffs = buildUserStatusSyncDiff({
 			localRate: snapshot.localSnapshot.user.rate,
 			cloudRate: collection.rate || null,
 			localComment: snapshot.localSnapshot.user.comment,
@@ -248,49 +251,78 @@ export class StatusSyncService {
 			cloudTags: collection.tags && collection.tags.length > 0
 				? this.documentService.normalizeTags(collection.tags)
 				: null,
-			localStatus: snapshot.localSnapshot.user.status,
-			cloudStatus: collection.type || null,
-		});
+                        localStatus: snapshot.localSnapshot.user.status,
+                        cloudStatus: collection.type || null,
+                });
+                const scope = getStatusSyncScope(selection);
 
-		const episodeStatus: FieldDiff<string> = {
-			localValue: this.episodeStatusManager
-				? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap)
-				: null,
-			cloudValue: null,
-			hasDiff: false,
-			decision: 'skip',
-		};
+                const episodeStatus: FieldDiff<string> = {
+                        localValue: this.episodeStatusManager
+                                ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap)
+                                : null,
+                        cloudValue: null,
+                        hasDiff: false,
+                        decision: 'skip',
+                };
 
-		return {
-			scope,
+                const rateDiff = {
+                        ...userDiffs.rate,
+                        hasDiff: selection.user.rate ? userDiffs.rate.hasDiff : false,
+                        decision: 'skip' as const,
+                };
+                const commentDiff = {
+                        ...userDiffs.comment,
+                        hasDiff: selection.user.comment ? userDiffs.comment.hasDiff : false,
+                        decision: 'skip' as const,
+                };
+                const tagsDiff = {
+                        ...userDiffs.tags,
+                        hasDiff: selection.user.tags ? userDiffs.tags.hasDiff : false,
+                        decision: 'skip' as const,
+                };
+                const statusDiff = {
+                        ...userDiffs.status,
+                        hasDiff: selection.user.status ? userDiffs.status.hasDiff : false,
+                        decision: 'skip' as const,
+                };
+                const hasUserDiff = hasSelectedUserFields(selection) && (
+                        rateDiff.hasDiff ||
+                        commentDiff.hasDiff ||
+                        tagsDiff.hasDiff ||
+                        statusDiff.hasDiff
+                );
+
+                return {
+                        scope,
 			subjectId: collection.subject_id,
 			name_cn: collection.subject.name_cn || '',
 			name: collection.subject.name || '',
 			localPath: localInfo.path,
-			collection,
-			statusFieldName: snapshot.localSnapshot.user.statusFieldName,
-			rate: { ...userDiffs.rate, decision: 'skip' },
-			comment: { ...userDiffs.comment, decision: 'skip' },
-			tags: { ...userDiffs.tags, decision: 'skip' },
-			status: { ...userDiffs.status, decision: 'skip' },
-			episodeStatus,
-			platformFields: [],
-			hasUserDiff: scope === 'user' ? userDiffs.hasUserDiff : false,
-			hasPlatformDiff: false,
-			hasAnyDiff: scope === 'user' ? userDiffs.hasUserDiff : false,
-			expanded: false,
-			episodeStatusLoadState: scope === 'user' && snapshot.localSnapshot.shouldLoadEpisodeStatus ? 'pending' : 'ready',
-			platformLoadState: scope === 'platform' && snapshot.localSnapshot.shouldLoadPlatformData ? 'pending' : 'ready',
-			backgroundError: null,
-		};
-	}
+                        collection,
+                        statusFieldName: snapshot.localSnapshot.user.statusFieldName,
+                        rate: rateDiff,
+                        comment: commentDiff,
+                        tags: tagsDiff,
+                        status: statusDiff,
+                        episodeStatus,
+                        platformFields: [],
+                        hasUserDiff,
+                        hasPlatformDiff: false,
+                        hasAnyDiff: hasUserDiff,
+                        expanded: false,
+                        episodeStatusLoadState: selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? 'pending' : 'ready',
+                        platformLoadState: hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? 'pending' : 'ready',
+                        backgroundError: null,
+                };
+        }
 
-	private async buildPlatformFieldDiffs(
-		snapshot: StatusSyncSnapshot,
-		context: StatusSyncBuildContext,
-	): Promise<{ fields: PlatformFieldDiff[]; payload?: PlatformSyncPayload }> {
-		return this.getOrCreateCachedPromise(
-			context.platformDiffCache,
+        private async buildPlatformFieldDiffs(
+                snapshot: StatusSyncSnapshot,
+                context: StatusSyncBuildContext,
+                selection: StatusSyncFieldSelection,
+        ): Promise<{ fields: PlatformFieldDiff[]; payload?: PlatformSyncPayload }> {
+                return this.getOrCreateCachedPromise(
+                        context.platformDiffCache,
 			snapshot.subjectId,
 			async () => {
 				const collection = snapshot.collection;
@@ -312,53 +344,98 @@ export class StatusSyncService {
 					() => this.client.getSubject(snapshot.subjectId),
 				);
 				const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
-				const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
-				const fields: PlatformFieldDiff[] = [];
-				const localContext = snapshot.localSnapshot.platform;
+                                const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
+                                const fields: PlatformFieldDiff[] = [];
+                                const localContext = snapshot.localSnapshot.platform;
 
-				if (collection.subject_type === SubjectType.Anime || collection.subject_type === SubjectType.Real) {
-					const cloudValue = cloudPayload.episodeCount;
-					if (cloudValue !== undefined && cloudValue !== null && localContext.episodeCount !== cloudValue) {
-						fields.push(createCloudPlatformFieldDiff(
-							'episodeCount',
-							tn('statusSyncModal', 'fieldEpisodeCount'),
+                                if (collection.subject_type === SubjectType.Anime || collection.subject_type === SubjectType.Real) {
+                                        const cloudValue = cloudPayload.episodeCount;
+                                        if (
+                                                selection.platform.episodeCount &&
+                                                cloudValue !== undefined &&
+                                                cloudValue !== null &&
+                                                localContext.episodeCount !== cloudValue
+                                        ) {
+                                                fields.push(createCloudPlatformFieldDiff(
+                                                        'episodeCount',
+                                                        tn('statusSyncModal', 'fieldEpisodeCount'),
 							localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
 							String(cloudValue),
 						));
 					}
 				}
 
-				if (collection.subject_type === SubjectType.Book) {
-					const isComic = (parsedInfo.category || '').includes('漫画') || localContext.chapterCount !== null;
-					if (isComic) {
-						if (cloudPayload.chapterCount !== undefined && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
-							fields.push(createCloudPlatformFieldDiff(
-								'chapterCount',
-								tn('statusSyncModal', 'fieldChapterCount'),
+                                if (collection.subject_type === SubjectType.Book) {
+                                        const isComic = (parsedInfo.category || '').includes('漫画') || localContext.chapterCount !== null;
+                                        if (isComic) {
+                                                if (
+                                                        selection.platform.chapterCount &&
+                                                        cloudPayload.chapterCount !== undefined &&
+                                                        cloudPayload.chapterCount !== null &&
+                                                        localContext.chapterCount !== cloudPayload.chapterCount
+                                                ) {
+                                                        fields.push(createCloudPlatformFieldDiff(
+                                                                'chapterCount',
+                                                                tn('statusSyncModal', 'fieldChapterCount'),
 								localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
 								String(cloudPayload.chapterCount),
 							));
 						}
-						if (cloudPayload.volumeCount !== undefined && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-							fields.push(createCloudPlatformFieldDiff(
-								'volumeCount',
-								tn('statusSyncModal', 'fieldVolumeCount'),
+                                                if (
+                                                        selection.platform.volumeCount &&
+                                                        cloudPayload.volumeCount !== undefined &&
+                                                        cloudPayload.volumeCount !== null &&
+                                                        localContext.volumeCount !== cloudPayload.volumeCount
+                                                ) {
+                                                        fields.push(createCloudPlatformFieldDiff(
+                                                                'volumeCount',
+                                                                tn('statusSyncModal', 'fieldVolumeCount'),
 								localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
 								String(cloudPayload.volumeCount),
 							));
 						}
-					} else if (cloudPayload.volumeCount !== undefined && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-						fields.push(createCloudPlatformFieldDiff(
-							'volumeCount',
-							tn('statusSyncModal', 'fieldVolumeCount'),
+                                        } else if (
+                                                selection.platform.volumeCount &&
+                                                cloudPayload.volumeCount !== undefined &&
+                                                cloudPayload.volumeCount !== null &&
+                                                localContext.volumeCount !== cloudPayload.volumeCount
+                                        ) {
+                                                fields.push(createCloudPlatformFieldDiff(
+                                                        'volumeCount',
+                                                        tn('statusSyncModal', 'fieldVolumeCount'),
 							localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
 							String(cloudPayload.volumeCount),
 						));
-					}
-				}
+                                        }
+                                }
 
-				return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
-			},
+                                this.appendTextPlatformFieldDiff(
+                                        fields,
+                                        selection.platform.start,
+                                        'start',
+                                        tn('statusSyncModal', 'fieldStart'),
+                                        localContext.start,
+                                        cloudPayload.start,
+                                );
+                                this.appendTextPlatformFieldDiff(
+                                        fields,
+                                        selection.platform.end,
+                                        'end',
+                                        tn('statusSyncModal', 'fieldEnd'),
+                                        localContext.end,
+                                        cloudPayload.end,
+                                );
+                                this.appendTextPlatformFieldDiff(
+                                        fields,
+                                        selection.platform.progress,
+                                        'progress',
+                                        tn('statusSyncModal', 'fieldProgress'),
+                                        localContext.progress,
+                                        cloudPayload.progress,
+                                );
+
+                                return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
+                        },
 		);
 	}
 
@@ -553,15 +630,16 @@ export class StatusSyncService {
 		}
 	}
 
-	private async applyPlatformSync(diff: StatusSyncDiff, file: TFile, content: string): Promise<string> {
-		if (!diff.platformSyncPayload) {
-			return content;
-		}
+        private async applyPlatformSync(diff: StatusSyncDiff, file: TFile, content: string): Promise<string> {
+                if (!diff.platformSyncPayload) {
+                        return content;
+                }
 
-		const nextContent = this.documentService.updatePlatformMetadata(content, diff.platformSyncPayload);
-		if (diff.collection.subject_type !== SubjectType.Anime && diff.collection.subject_type !== SubjectType.Real) {
-			return nextContent;
-		}
+                const selectedPayload = this.buildSelectedPlatformSyncPayload(diff);
+                const nextContent = this.documentService.updatePlatformMetadata(content, selectedPayload);
+                if (diff.collection.subject_type !== SubjectType.Anime && diff.collection.subject_type !== SubjectType.Real) {
+                        return nextContent;
+                }
 
 		const shouldRefreshEpisodeSection = diff.platformFields.some(field =>
 			field.decision === 'cloud' && field.key === 'episodeCount',
@@ -589,8 +667,64 @@ export class StatusSyncService {
 			return nextContent;
 		}
 
-		return this.documentService.updateEpisodeSection(nextContent, renderedEpisodes);
-	}
+                return this.documentService.updateEpisodeSection(nextContent, renderedEpisodes);
+        }
+
+        private appendTextPlatformFieldDiff(
+                fields: PlatformFieldDiff[],
+                enabled: boolean,
+                key: 'start' | 'end' | 'progress',
+                label: string,
+                localValue: string | null,
+                cloudValue: string | null | undefined,
+        ): void {
+                if (!enabled) {
+                        return;
+                }
+
+                const normalizedCloudValue = cloudValue ?? null;
+                if ((localValue ?? null) === normalizedCloudValue) {
+                        return;
+                }
+
+                fields.push(createCloudPlatformFieldDiff(
+                        key,
+                        label,
+                        localValue,
+                        normalizedCloudValue,
+                ));
+        }
+
+        private buildSelectedPlatformSyncPayload(diff: StatusSyncDiff): PlatformSyncPayload {
+                const payload: PlatformSyncPayload = {};
+                for (const field of diff.platformFields) {
+                        if (!field.hasDiff || field.decision !== 'cloud' || !diff.platformSyncPayload) {
+                                continue;
+                        }
+
+                        switch (field.key) {
+                                case 'episodeCount':
+                                        payload.episodeCount = diff.platformSyncPayload.episodeCount ?? null;
+                                        break;
+                                case 'chapterCount':
+                                        payload.chapterCount = diff.platformSyncPayload.chapterCount ?? null;
+                                        break;
+                                case 'volumeCount':
+                                        payload.volumeCount = diff.platformSyncPayload.volumeCount ?? null;
+                                        break;
+                                case 'start':
+                                        payload.start = diff.platformSyncPayload.start ?? null;
+                                        break;
+                                case 'end':
+                                        payload.end = diff.platformSyncPayload.end ?? null;
+                                        break;
+                                case 'progress':
+                                        payload.progress = diff.platformSyncPayload.progress ?? null;
+                                        break;
+                        }
+                }
+                return payload;
+        }
 
 	private toValidCollectionType(value: number | null | undefined): CollectionType | null {
 		if (value === CollectionType.Wish ||

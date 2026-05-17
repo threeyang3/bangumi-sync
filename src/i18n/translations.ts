@@ -12,19 +12,18 @@ export type Locale = 'en' | 'zh-CN';
  */
 export interface TranslationStrings {
 	// 命令
-	commands: {
-		openControlPanel: string;
-		syncCollections: string;
-		quickSync: string;
-		exportUserData: string;
-		importUserData: string;
-		searchSubjects: string;
-		checkAndSyncUserData: string;
-		checkAndSyncPlatformData: string;
-		createSubjectNote: string;
-		batchDownloadCovers: string;
-		scanAndLinkRelated: string;
-	};
+        commands: {
+                openControlPanel: string;
+                syncCollections: string;
+                quickSync: string;
+                exportUserData: string;
+                importUserData: string;
+                searchSubjects: string;
+                checkAndSyncStatus: string;
+                createSubjectNote: string;
+                batchDownloadCovers: string;
+                scanAndLinkRelated: string;
+        };
 
 	// Ribbon
 	ribbon: {
@@ -250,14 +249,12 @@ export interface TranslationStrings {
 		title: string;
 		refresh: string;
 		syncSelected: string;
-		forceSync: string;
-		deleteSelected: string;
-		batchEdit: string;
-		syncComments: string;
-		syncTags: string;
-		syncUserData: string;
-		syncPlatformData: string;
-		sortBy: string;
+                forceSync: string;
+                deleteSelected: string;
+                batchEdit: string;
+                more: string;
+                syncStatus: string;
+                sortBy: string;
 		sortDefault: string;
 		sortTime: string;
 		sortTitle: string;
@@ -309,19 +306,13 @@ export interface TranslationStrings {
 		fetchingCollections: string;
 		scanningLocal: string;
 		scanningFiles: string;
-		loadComplete: string;
-		loadFailed: string;
-		syncingItems: string;
-		syncComplete: string;
-		syncFailed: string;
-		syncError: string;
-		comparingComments: string;
-		comparingTags: string;
-		noCommentDiff: string;
-		noTagDiff: string;
-		compareCommentFailed: string;
-		compareTagFailed: string;
-		deleteComplete: string;
+                loadComplete: string;
+                loadFailed: string;
+                syncingItems: string;
+                syncComplete: string;
+                syncFailed: string;
+                syncError: string;
+                deleteComplete: string;
 		selectedCount: string;
 		// 分页
 		totalItems: string;
@@ -456,14 +447,17 @@ export interface TranslationStrings {
 		fieldRate: string;
 		fieldComment: string;
 		fieldTags: string;
-		fieldStatus: string;
-		fieldEpisodeStatus: string;
-		fieldEpisodeCount: string;
-		fieldChapterCount: string;
-		fieldVolumeCount: string;
-		empty: string;
-		keepLocal: string;
-		keepCloud: string;
+                fieldStatus: string;
+                fieldEpisodeStatus: string;
+                fieldEpisodeCount: string;
+                fieldChapterCount: string;
+                fieldVolumeCount: string;
+                fieldStart: string;
+                fieldEnd: string;
+                fieldProgress: string;
+                empty: string;
+                keepLocal: string;
+                keepCloud: string;
 		keepCloudOnly: string;
 		merge: string;
 		skip: string;
@@ -480,13 +474,35 @@ export interface TranslationStrings {
 		syncComplete: string;
 		syncFailed: string;
 		backgroundLoading: string;
-		backgroundLoadFailed: string;
-		loadPending: string;
-		loadInProgress: string;
-		progressSummaryLoading: string;
-		progressSummaryDone: string;
-		progressSummaryVisible: string;
-	};
+                backgroundLoadFailed: string;
+                loadPending: string;
+                loadInProgress: string;
+                progressSummaryLoading: string;
+                progressSummaryDone: string;
+                progressSummaryVisible: string;
+                scopeTitle: string;
+                scopeDescription: string;
+                scopeFooterHint: string;
+                scopeDefaultUser: string;
+                scopeDefaultPlatform: string;
+                scopeUserDescription: string;
+                scopePlatformDescription: string;
+                scopeFieldRate: string;
+                scopeFieldComment: string;
+                scopeFieldTags: string;
+                scopeFieldStatus: string;
+                scopeFieldEpisodeStatus: string;
+                scopeFieldEpisodeCount: string;
+                scopeFieldChapterCount: string;
+                scopeFieldVolumeCount: string;
+                scopeFieldStart: string;
+                scopeFieldEnd: string;
+                scopeFieldProgress: string;
+                selectAll: string;
+                deselectAll: string;
+                startCompare: string;
+                selectAtLeastOne: string;
+        };
 
 	// 搜索弹窗
 	searchModal: {
@@ -570,56 +586,8 @@ export interface TranslationStrings {
 		removeOperation: string;
 	};
 
-	// 短评同步
-	commentSync: {
-		title: string;
-		description: string;
-		allLocal: string;
-		allCloud: string;
-		allSkip: string;
-		name: string;
-		localComment: string;
-		cloudComment: string;
-		decision: string;
-		skipLabel: string;
-		keepLocal: string;
-		keepCloud: string;
-		empty: string;
-		execute: string;
-		cancel: string;
-		progress: string;
-		complete: string;
-		noSelection: string;
-		failed: string;
-	};
-
-	// 标签同步
-	tagSync: {
-		title: string;
-		description: string;
-		allLocal: string;
-		allCloud: string;
-		allMerge: string;
-		allSkip: string;
-		name: string;
-		localTags: string;
-		cloudTags: string;
-		decision: string;
-		skipLabel: string;
-		keepLocal: string;
-		keepCloud: string;
-		merge: string;
-		empty: string;
-		execute: string;
-		cancel: string;
-		progress: string;
-		complete: string;
-		noSelection: string;
-		failed: string;
-	};
-
-	// 条目类型
-	subjectTypes: {
+        // 条目类型
+        subjectTypes: {
 		all: string;
 		anime: string;
 		game: string;
@@ -669,18 +637,17 @@ export interface TranslationStrings {
  * 英文翻译（默认）
  */
 const en: TranslationStrings = {
-	commands: {
-		openControlPanel: 'Open collection manager',
-		syncCollections: 'Sync Bangumi collections',
-		quickSync: 'Quick sync (use default settings)',
-		exportUserData: 'Export user data',
-		importUserData: 'Import user data',
-		searchSubjects: 'Search and add subjects',
-		checkAndSyncUserData: 'Check and sync user data',
-		checkAndSyncPlatformData: 'Check and sync platform data',
-		createSubjectNote: 'Create or append subject note',
-		batchDownloadCovers: 'Batch download cover images',
-		scanAndLinkRelated: 'Scan and link related subjects',
+        commands: {
+                openControlPanel: 'Open collection manager',
+                syncCollections: 'Sync Bangumi collections',
+                quickSync: 'Quick sync (use default settings)',
+                exportUserData: 'Export user data',
+                importUserData: 'Import user data',
+                searchSubjects: 'Search and add subjects',
+                checkAndSyncStatus: 'Check and sync status',
+                createSubjectNote: 'Create or append subject note',
+                batchDownloadCovers: 'Batch download cover images',
+                scanAndLinkRelated: 'Scan and link related subjects',
 	},
 
 	ribbon: {
@@ -895,15 +862,13 @@ const en: TranslationStrings = {
 	controlPanel: {
 		title: 'Bangumi collection manager',
 		refresh: 'Refresh',
-		syncSelected: 'Sync selected',
-		forceSync: 'Force sync',
-		deleteSelected: 'Delete selected',
-		batchEdit: 'Batch edit',
-		syncComments: 'Sync comments',
-		syncTags: 'Sync tags',
-		syncUserData: 'Sync user data',
-		syncPlatformData: 'Sync platform data',
-		sortBy: 'Sort by',
+                syncSelected: 'Sync selected',
+                forceSync: 'Force sync',
+                deleteSelected: 'Delete selected',
+                batchEdit: 'Batch edit',
+                more: 'More',
+                syncStatus: 'Sync status',
+                sortBy: 'Sort by',
 		sortDefault: 'Original order',
 		sortTime: 'Collection time',
 		sortTitle: 'Title',
@@ -952,19 +917,13 @@ const en: TranslationStrings = {
 		fetchingCollections: 'Fetching collections...',
 		scanningLocal: 'Scanning local folder...',
 		scanningFiles: 'Scanning local files...',
-		loadComplete: 'Load complete',
-		loadFailed: 'Load failed',
-		syncingItems: 'Syncing items...',
-		syncComplete: 'Sync complete',
-		syncFailed: 'Sync failed',
-		syncError: 'Sync error',
-		comparingComments: 'Comparing comments...',
-		comparingTags: 'Comparing tags...',
-		noCommentDiff: 'No comment differences',
-		noTagDiff: 'No tag differences',
-		compareCommentFailed: 'Compare comments failed',
-		compareTagFailed: 'Compare tags failed',
-		deleteComplete: 'Delete complete',
+                loadComplete: 'Load complete',
+                loadFailed: 'Load failed',
+                syncingItems: 'Syncing items...',
+                syncComplete: 'Sync complete',
+                syncFailed: 'Sync failed',
+                syncError: 'Sync error',
+                deleteComplete: 'Delete complete',
 		selectedCount: 'Selected',
 		totalItems: 'Total',
 		prevPage: 'Previous',
@@ -1099,6 +1058,9 @@ const en: TranslationStrings = {
 			fieldEpisodeCount: 'Episodes',
 			fieldChapterCount: 'Chapters',
 			fieldVolumeCount: 'Volumes',
+			fieldStart: 'Start',
+			fieldEnd: 'End',
+			fieldProgress: 'Progress',
 			empty: '(empty)',
 			keepLocal: 'Keep local',
 			keepCloud: 'Keep cloud',
@@ -1124,6 +1086,28 @@ const en: TranslationStrings = {
 			progressSummaryLoading: 'Loaded {completed}/{total}, showing {visible} items',
 			progressSummaryDone: 'Completed {completed}/{total}, showing {visible} items',
 			progressSummaryVisible: 'Showing {visible} items',
+			scopeTitle: 'Sync status',
+			scopeDescription: 'Choose which fields to fetch and compare in this run. User data is selected by default, platform data is off by default.',
+			scopeFooterHint: 'The comparison dialog will only load and display the fields you select here.',
+			scopeDefaultUser: 'Default on',
+			scopeDefaultPlatform: 'Default off',
+			scopeUserDescription: 'User data compares collection behavior and is not limited by item completion state.',
+			scopePlatformDescription: 'Platform data compares Bangumi subject metadata and only writes cloud values back to local notes.',
+			scopeFieldRate: 'Compare local rating with cloud rating.',
+			scopeFieldComment: 'Compare full short comment from callout with cloud comment.',
+			scopeFieldTags: 'Compare frontmatter tags with Bangumi tags.',
+			scopeFieldStatus: 'Compare collection status such as wish, doing, and done.',
+			scopeFieldEpisodeStatus: 'Compare per-episode status for anime and live action subjects.',
+			scopeFieldEpisodeCount: 'Compare episode counts for anime and live action subjects.',
+			scopeFieldChapterCount: 'Compare chapter counts for comics.',
+			scopeFieldVolumeCount: 'Compare volume counts for comics and novels.',
+			scopeFieldStart: 'Compare start date style platform metadata.',
+			scopeFieldEnd: 'Compare end date style platform metadata.',
+			scopeFieldProgress: 'Compare platform progress text.',
+			selectAll: 'Select all',
+			deselectAll: 'Select none',
+			startCompare: 'Start compare',
+			selectAtLeastOne: 'Select at least one field to compare.',
 		},
 
 	searchModal: {
@@ -1205,53 +1189,7 @@ const en: TranslationStrings = {
 		removeOperation: 'Remove operation',
 	},
 
-	commentSync: {
-		title: 'Sync comments',
-		description: 'Found {count} items with comment differences',
-		allLocal: 'All local',
-		allCloud: 'All cloud',
-		allSkip: 'All skip',
-		name: 'Subject',
-		localComment: 'Local comment',
-		cloudComment: 'Cloud comment',
-		decision: 'Decision',
-		skipLabel: 'Skip',
-		keepLocal: 'Keep local',
-		keepCloud: 'Keep cloud',
-		empty: '(empty)',
-		execute: 'Execute sync',
-		cancel: 'Cancel',
-		progress: 'Syncing...',
-		complete: 'Sync complete: {success} succeeded, {failed} failed',
-		noSelection: 'No items selected for sync',
-		failed: 'Sync failed, please check network connection',
-	},
-
-	tagSync: {
-		title: 'Sync tags',
-		description: 'Found {count} items with tag differences',
-		allLocal: 'All local',
-		allCloud: 'All cloud',
-		allMerge: 'All merge',
-		allSkip: 'All skip',
-		name: 'Subject',
-		localTags: 'Local tags',
-		cloudTags: 'Cloud tags',
-		decision: 'Decision',
-		skipLabel: 'Skip',
-		keepLocal: 'Keep local',
-		keepCloud: 'Keep cloud',
-		merge: 'Merge',
-		empty: '(empty)',
-		execute: 'Execute sync',
-		cancel: 'Cancel',
-		progress: 'Syncing...',
-		complete: 'Sync complete: {success} succeeded, {failed} failed',
-		noSelection: 'No items selected for sync',
-		failed: 'Sync failed, please check network connection',
-	},
-
-	subjectTypes: {
+        subjectTypes: {
 		all: 'All',
 		anime: 'Anime',
 		game: 'Game',
@@ -1297,19 +1235,18 @@ const en: TranslationStrings = {
  * 中文翻译
  */
 const zhCN: TranslationStrings = {
-	commands: {
-		openControlPanel: '打开收藏管理面板',
-		syncCollections: '同步 Bangumi 收藏',
-		quickSync: '快速同步（使用默认设置）',
-		exportUserData: '导出用户数据',
-		importUserData: '导入用户数据',
-		searchSubjects: '搜索并添加条目',
-		checkAndSyncUserData: '检查并同步用户数据',
-		checkAndSyncPlatformData: '检查并同步平台数据',
-		createSubjectNote: '创建或追加条目笔记',
-		batchDownloadCovers: '批量下载封面图片',
-		scanAndLinkRelated: '扫描并关联相关条目',
-	},
+        commands: {
+                openControlPanel: '打开收藏管理面板',
+                syncCollections: '同步 Bangumi 收藏',
+                quickSync: '快速同步（使用默认设置）',
+                exportUserData: '导出用户数据',
+                importUserData: '导入用户数据',
+                searchSubjects: '搜索并添加条目',
+                checkAndSyncStatus: '检查并同步状态',
+                createSubjectNote: '创建或追加条目笔记',
+                batchDownloadCovers: '批量下载封面图片',
+                scanAndLinkRelated: '扫描并关联相关条目',
+        },
 
 	ribbon: {
 		collectionManager: 'Bangumi 收藏管理',
@@ -1527,10 +1464,8 @@ const zhCN: TranslationStrings = {
 		forceSync: '强制同步',
 		deleteSelected: '删除选中',
 		batchEdit: '批量编辑',
-		syncComments: '同步短评',
-		syncTags: '同步标签',
-		syncUserData: '同步用户数据',
-		syncPlatformData: '同步平台数据',
+		more: '更多',
+		syncStatus: '同步状态',
 		sortBy: '排序依据',
 		sortDefault: '默认顺序',
 		sortTime: '收藏时间',
@@ -1580,20 +1515,14 @@ const zhCN: TranslationStrings = {
 		fetchingCollections: '正在获取收藏列表...',
 		scanningLocal: '正在扫描本地文件夹...',
 		scanningFiles: '正在扫描本地文件...',
-		loadComplete: '加载完成',
-		loadFailed: '加载失败',
-		syncingItems: '正在同步条目...',
-		syncComplete: '同步完成',
-		syncFailed: '同步失败',
-		syncError: '同步出错',
-		comparingComments: '正在对比短评差异...',
-		comparingTags: '正在对比标签差异...',
-		noCommentDiff: '没有短评差异',
-		noTagDiff: '没有标签差异',
-		compareCommentFailed: '对比短评失败',
-		compareTagFailed: '对比标签失败',
-		deleteComplete: '删除完成',
-		selectedCount: '已选',
+                loadComplete: '加载完成',
+                loadFailed: '加载失败',
+                syncingItems: '正在同步条目...',
+                syncComplete: '同步完成',
+                syncFailed: '同步失败',
+                syncError: '同步出错',
+                deleteComplete: '删除完成',
+                selectedCount: '已选',
 		totalItems: '共',
 		prevPage: '上一页',
 		nextPage: '下一页',
@@ -1727,6 +1656,9 @@ const zhCN: TranslationStrings = {
 			fieldEpisodeCount: '集数',
 			fieldChapterCount: '话数',
 			fieldVolumeCount: '卷数/册数',
+			fieldStart: '开始',
+			fieldEnd: '结束',
+			fieldProgress: '进度',
 			empty: '(空)',
 			keepLocal: '保留本地',
 			keepCloud: '保留云端',
@@ -1752,6 +1684,28 @@ const zhCN: TranslationStrings = {
 			progressSummaryLoading: '已加载 {completed}/{total}，当前显示 {visible} 项',
 			progressSummaryDone: '已完成 {completed}/{total}，当前显示 {visible} 项',
 			progressSummaryVisible: '当前显示 {visible} 项',
+			scopeTitle: '同步状态',
+			scopeDescription: '请选择本轮要先检索、再对比的属性范围。默认勾选用户数据，平台数据默认不参与本轮对比。',
+			scopeFooterHint: '后续差异弹窗只会加载并展示你在这里勾选的字段。',
+			scopeDefaultUser: '默认全选',
+			scopeDefaultPlatform: '默认不选',
+			scopeUserDescription: '用户数据面向收藏行为本身，不限制条目完结状态。',
+			scopePlatformDescription: '平台数据面向 Bangumi 条目元数据，只会把云端值回写到本地。',
+			scopeFieldRate: '对比本地评分与云端评分。',
+			scopeFieldComment: '对比正文 callout 中的完整短评与云端短评。',
+			scopeFieldTags: '对比 frontmatter 标签与 Bangumi 标签。',
+			scopeFieldStatus: '对比想看、在看、看过等收藏状态。',
+			scopeFieldEpisodeStatus: '对比动画与三次元条目的单集状态。',
+			scopeFieldEpisodeCount: '对比动画与三次元的集数。',
+			scopeFieldChapterCount: '对比漫画的话数。',
+			scopeFieldVolumeCount: '对比漫画卷数与小说册数。',
+			scopeFieldStart: '对比开始日期等平台字段。',
+			scopeFieldEnd: '对比结束日期等平台字段。',
+			scopeFieldProgress: '对比平台进度文本。',
+			selectAll: '全选',
+			deselectAll: '全不选',
+			startCompare: '开始检索与对比',
+			selectAtLeastOne: '请至少选择一个要对比的字段。',
 		},
 
 	searchModal: {
@@ -1833,57 +1787,11 @@ const zhCN: TranslationStrings = {
 		removeOperation: '移除操作',
 	},
 
-	commentSync: {
-		title: '短评同步',
-		description: '发现 {count} 个条目的短评存在差异',
-		allLocal: '全部保留本地',
-		allCloud: '全部保留云端',
-		allSkip: '全部跳过',
-		name: '条目',
-		localComment: '本地短评',
-		cloudComment: '云端短评',
-		decision: '选择',
-		skipLabel: '跳过',
-		keepLocal: '保留本地',
-		keepCloud: '保留云端',
-		empty: '(空)',
-		execute: '执行同步',
-		cancel: '取消',
-		progress: '正在同步...',
-		complete: '同步完成：成功 {success} 个，失败 {failed} 个',
-		noSelection: '没有选择要同步的条目',
-		failed: '同步失败，请检查网络连接',
-	},
-
-	tagSync: {
-		title: '标签同步',
-		description: '发现 {count} 个条目的标签存在差异',
-		allLocal: '全部保留本地',
-		allCloud: '全部保留云端',
-		allMerge: '全部合并',
-		allSkip: '全部跳过',
-		name: '条目',
-		localTags: '本地标签',
-		cloudTags: '云端标签',
-		decision: '选择',
-		skipLabel: '跳过',
-		keepLocal: '保留本地',
-		keepCloud: '保留云端',
-		merge: '合并',
-		empty: '(空)',
-		execute: '执行同步',
-		cancel: '取消',
-		progress: '正在同步...',
-		complete: '同步完成：成功 {success} 个，失败 {failed} 个',
-		noSelection: '没有选择要同步的条目',
-		failed: '同步失败，请检查网络连接',
-	},
-
-	subjectTypes: {
-		all: '全部',
-		anime: '动画',
-		game: '游戏',
-		book: '书籍',
+        subjectTypes: {
+                all: '全部',
+                anime: '动画',
+                game: '游戏',
+                book: '书籍',
 		music: '音乐',
 		real: '三次元',
 	},

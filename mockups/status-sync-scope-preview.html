@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>同步状态范围选择示意</title>
+	<style>
+		:root {
+			color-scheme: light dark;
+			--background-primary: #15171c;
+			--background-secondary: #1d2129;
+			--background-secondary-alt: #252a34;
+			--background-modifier-border: #39404d;
+			--text-normal: #f3f5f8;
+			--text-muted: #bcc5d1;
+			--text-faint: #8f98a7;
+			--interactive-accent: #68a8ff;
+			--interactive-accent-hover: #89bbff;
+			--text-on-accent: #08111f;
+			--background-modifier-hover: rgba(255, 255, 255, 0.06);
+			--tag-bg: rgba(104, 168, 255, 0.12);
+			--tag-border: rgba(104, 168, 255, 0.28);
+			--success-bg: rgba(92, 201, 126, 0.12);
+			--success-border: rgba(92, 201, 126, 0.3);
+			--shadow: 0 22px 56px rgba(0, 0, 0, 0.35);
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			min-height: 100vh;
+			padding: 28px;
+			background:
+				radial-gradient(circle at top left, rgba(104, 168, 255, 0.14), transparent 30%),
+				radial-gradient(circle at right bottom, rgba(92, 201, 126, 0.08), transparent 24%),
+				linear-gradient(180deg, #111318 0%, #0d0f13 100%);
+			color: var(--text-normal);
+			font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+		}
+
+		.preview-shell {
+			width: min(1100px, 100%);
+			margin: 0 auto;
+			display: grid;
+			grid-template-columns: 220px minmax(0, 1fr);
+			gap: 18px;
+			align-items: start;
+		}
+
+		.preview-note {
+			position: sticky;
+			top: 24px;
+			padding: 16px;
+			border: 1px solid var(--background-modifier-border);
+			border-radius: 16px;
+			background: rgba(255, 255, 255, 0.04);
+			box-shadow: var(--shadow);
+		}
+
+		.preview-note h2 {
+			margin: 0 0 8px;
+			font-size: 15px;
+		}
+
+		.preview-note p {
+			margin: 0;
+			color: var(--text-muted);
+			font-size: 13px;
+		}
+
+		.mock-modal {
+			border: 1px solid var(--background-modifier-border);
+			border-radius: 18px;
+			background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+			backdrop-filter: blur(10px);
+			box-shadow: var(--shadow);
+			overflow: hidden;
+		}
+
+		.mock-header {
+			padding: 22px 24px 14px;
+			border-bottom: 1px solid var(--background-modifier-border);
+		}
+
+		.mock-title-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 16px;
+		}
+
+		.mock-title {
+			margin: 0;
+			font-size: 24px;
+			font-weight: 700;
+			letter-spacing: 0.01em;
+		}
+
+		.mock-subtitle {
+			margin: 9px 0 0;
+			color: var(--text-muted);
+			font-size: 13px;
+		}
+
+		.header-badge {
+			padding: 6px 10px;
+			border-radius: 999px;
+			border: 1px solid var(--tag-border);
+			background: var(--tag-bg);
+			color: var(--interactive-accent);
+			font-size: 12px;
+			font-weight: 600;
+			white-space: nowrap;
+		}
+
+		.mock-body {
+			padding: 18px 24px 20px;
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 16px;
+		}
+
+		.scope-card {
+			border: 1px solid var(--background-modifier-border);
+			border-radius: 16px;
+			background: var(--background-secondary);
+			overflow: hidden;
+		}
+
+		.scope-card.is-default {
+			border-color: rgba(104, 168, 255, 0.45);
+			box-shadow: inset 0 0 0 1px rgba(104, 168, 255, 0.18);
+		}
+
+		.scope-head {
+			padding: 14px 16px 12px;
+			border-bottom: 1px solid var(--background-modifier-border);
+			background: rgba(255, 255, 255, 0.03);
+		}
+
+		.scope-topline {
+			display: flex;
+			align-items: flex-start;
+			justify-content: space-between;
+			gap: 12px;
+		}
+
+		.scope-title-wrap {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			min-width: 0;
+		}
+
+		.scope-master {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			font-weight: 700;
+			font-size: 16px;
+		}
+
+		.scope-master input,
+		.field-item input {
+			accent-color: var(--interactive-accent);
+			width: 16px;
+			height: 16px;
+			flex: 0 0 auto;
+		}
+
+		.scope-badge {
+			padding: 2px 8px;
+			border-radius: 999px;
+			font-size: 11px;
+			color: var(--text-normal);
+			background: rgba(255, 255, 255, 0.06);
+			border: 1px solid var(--background-modifier-border);
+			white-space: nowrap;
+		}
+
+		.scope-tools {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+
+		.tool-btn {
+			border: 1px solid var(--background-modifier-border);
+			background: var(--background-secondary-alt);
+			color: var(--text-muted);
+			border-radius: 9px;
+			padding: 5px 10px;
+			font-size: 12px;
+			font-weight: 600;
+		}
+
+		.scope-desc {
+			margin: 10px 0 0;
+			color: var(--text-faint);
+			font-size: 12px;
+		}
+
+		.scope-items {
+			padding: 12px;
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 10px;
+		}
+
+		.field-item {
+			display: flex;
+			align-items: flex-start;
+			gap: 10px;
+			padding: 12px;
+			border: 1px solid var(--background-modifier-border);
+			border-radius: 13px;
+			background: rgba(255, 255, 255, 0.02);
+		}
+
+		.field-item.is-checked {
+			border-color: rgba(104, 168, 255, 0.42);
+			background: rgba(104, 168, 255, 0.1);
+		}
+
+		.field-content {
+			min-width: 0;
+		}
+
+		.field-name {
+			font-size: 13px;
+			font-weight: 700;
+		}
+
+		.field-meta {
+			margin-top: 4px;
+			color: var(--text-faint);
+			font-size: 12px;
+		}
+
+		.mock-footer {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+			padding: 16px 24px 22px;
+			border-top: 1px solid var(--background-modifier-border);
+			background: rgba(255, 255, 255, 0.02);
+		}
+
+		.footer-note {
+			display: inline-flex;
+			align-items: center;
+			gap: 8px;
+			padding: 8px 10px;
+			border-radius: 10px;
+			background: var(--success-bg);
+			border: 1px solid var(--success-border);
+			color: var(--text-muted);
+			font-size: 13px;
+		}
+
+		.footer-actions {
+			display: flex;
+			gap: 10px;
+		}
+
+		.btn {
+			border: 1px solid var(--background-modifier-border);
+			background: var(--background-secondary-alt);
+			color: var(--text-normal);
+			border-radius: 11px;
+			padding: 10px 16px;
+			font-size: 13px;
+			font-weight: 700;
+		}
+
+		.btn-primary {
+			border-color: transparent;
+			background: var(--interactive-accent);
+			color: var(--text-on-accent);
+		}
+
+		.legend {
+			margin-top: 12px;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+
+		.legend-chip {
+			padding: 5px 9px;
+			border-radius: 999px;
+			border: 1px solid var(--background-modifier-border);
+			background: rgba(255, 255, 255, 0.04);
+			color: var(--text-faint);
+			font-size: 12px;
+		}
+
+		@media (max-width: 820px) {
+			body {
+				padding: 12px;
+			}
+
+			.preview-shell {
+				grid-template-columns: 1fr;
+			}
+
+			.preview-note {
+				position: static;
+			}
+
+			.mock-body {
+				grid-template-columns: 1fr;
+				padding: 16px;
+			}
+
+			.scope-items {
+				grid-template-columns: 1fr;
+			}
+
+			.mock-footer {
+				flex-direction: column;
+				align-items: stretch;
+				padding: 16px;
+			}
+
+			.footer-actions {
+				width: 100%;
+			}
+
+			.footer-actions .btn {
+				flex: 1 1 0;
+			}
+		}
+	</style>
+</head>
+<body>
+	<div class="preview-shell">
+		<aside class="preview-note">
+			<h2>示意说明</h2>
+			<p>这是“点击同步状态后，先选本轮要检索与对比的属性”的弹窗示例。默认仅勾选用户数据，平台数据默认不参与本轮对比。</p>
+			<div class="legend">
+				<span class="legend-chip">桌面端双栏</span>
+				<span class="legend-chip">移动端单栏</span>
+				<span class="legend-chip">支持大栏全选</span>
+			</div>
+		</aside>
+
+		<div class="mock-modal">
+			<div class="mock-header">
+				<div class="mock-title-row">
+					<h1 class="mock-title">同步状态</h1>
+					<span class="header-badge">范围选择</span>
+				</div>
+				<p class="mock-subtitle">请选择本次要先检索、再对比的属性范围。默认仅勾选用户数据，平台数据默认不参与本轮对比。</p>
+			</div>
+
+			<div class="mock-body">
+				<section class="scope-card is-default">
+					<div class="scope-head">
+						<div class="scope-topline">
+							<div class="scope-title-wrap">
+								<label class="scope-master">
+									<input type="checkbox" checked />
+									<span>用户数据</span>
+								</label>
+								<span class="scope-badge">默认全选</span>
+							</div>
+							<div class="scope-tools">
+								<button class="tool-btn">全选</button>
+								<button class="tool-btn">全不选</button>
+							</div>
+						</div>
+						<p class="scope-desc">面向收藏行为本身，不限制条目完结状态，适合作为默认同步范围。</p>
+					</div>
+
+					<div class="scope-items">
+						<label class="field-item is-checked">
+							<input type="checkbox" checked />
+							<div class="field-content">
+								<div class="field-name">评分</div>
+								<div class="field-meta">本地评分 vs 云端评分</div>
+							</div>
+						</label>
+
+						<label class="field-item is-checked">
+							<input type="checkbox" checked />
+							<div class="field-content">
+								<div class="field-name">短评</div>
+								<div class="field-meta">正文 callout 与云端短评对比</div>
+							</div>
+						</label>
+
+						<label class="field-item is-checked">
+							<input type="checkbox" checked />
+							<div class="field-content">
+								<div class="field-name">标签</div>
+								<div class="field-meta">frontmatter tags 与云端 tags</div>
+							</div>
+						</label>
+
+						<label class="field-item is-checked">
+							<input type="checkbox" checked />
+							<div class="field-content">
+								<div class="field-name">收藏状态</div>
+								<div class="field-meta">想看 / 在看 / 看过 等</div>
+							</div>
+						</label>
+
+						<label class="field-item is-checked">
+							<input type="checkbox" checked />
+							<div class="field-content">
+								<div class="field-name">单集状态</div>
+								<div class="field-meta">仅动画 / 三次元条目</div>
+							</div>
+						</label>
+					</div>
+				</section>
+
+				<section class="scope-card">
+					<div class="scope-head">
+						<div class="scope-topline">
+							<div class="scope-title-wrap">
+								<label class="scope-master">
+									<input type="checkbox" />
+									<span>平台数据</span>
+								</label>
+								<span class="scope-badge">默认不选</span>
+							</div>
+							<div class="scope-tools">
+								<button class="tool-btn">全选</button>
+								<button class="tool-btn">全不选</button>
+							</div>
+						</div>
+						<p class="scope-desc">面向 Bangumi 条目元数据，仅回写本地，不影响云端收藏本身。</p>
+					</div>
+
+					<div class="scope-items">
+						<label class="field-item">
+							<input type="checkbox" />
+							<div class="field-content">
+								<div class="field-name">集数</div>
+								<div class="field-meta">动画 / 三次元</div>
+							</div>
+						</label>
+
+						<label class="field-item">
+							<input type="checkbox" />
+							<div class="field-content">
+								<div class="field-name">话数</div>
+								<div class="field-meta">漫画章节数</div>
+							</div>
+						</label>
+
+						<label class="field-item">
+							<input type="checkbox" />
+							<div class="field-content">
+								<div class="field-name">卷数 / 册数</div>
+								<div class="field-meta">漫画卷数、小说册数</div>
+							</div>
+						</label>
+
+						<label class="field-item">
+							<input type="checkbox" />
+							<div class="field-content">
+								<div class="field-name">开始</div>
+								<div class="field-meta">开始日期类字段</div>
+							</div>
+						</label>
+
+						<label class="field-item">
+							<input type="checkbox" />
+							<div class="field-content">
+								<div class="field-name">结束</div>
+								<div class="field-meta">结束日期类字段</div>
+							</div>
+						</label>
+
+						<label class="field-item">
+							<input type="checkbox" />
+							<div class="field-content">
+								<div class="field-name">进度</div>
+								<div class="field-meta">平台进度文本</div>
+							</div>
+						</label>
+					</div>
+				</section>
+			</div>
+
+			<div class="mock-footer">
+				<div class="footer-note">本次默认策略：只检索并对比用户数据；平台数据需手动勾选后再参与。</div>
+				<div class="footer-actions">
+					<button class="btn">取消</button>
+					<button class="btn btn-primary">开始检索与对比</button>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+</html>

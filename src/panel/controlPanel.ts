@@ -3,7 +3,7 @@
  * 展示所有收藏条目，标记同步状态，支持批量操作
  */
 
-import { App, Modal, Notice, TFile } from 'obsidian';
+import { App, Menu, Modal, Notice, TFile } from 'obsidian';
 import { UserCollection, SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName, getCollectionStatusLabel } from '../../common/api/types';
 import { BangumiPluginSettings, PanelFilters, DEFAULT_PANEL_FILTERS } from '../settings/settings';
 import { SyncManager } from '../sync/syncManager';
@@ -12,6 +12,7 @@ import { BangumiClient } from '../api/client';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { BatchEditorModal, FrontmatterEditor } from './batchEditorModal';
 import { StatusSyncModal } from './statusSyncModal';
+import { StatusSyncScopeModal } from './statusSyncScopeModal';
 import { ConflictDetector } from './conflictResolver';
 import { SearchModal } from '../ui/searchModal';
 import { getLocale, tn } from '../i18n';
@@ -22,7 +23,15 @@ import { isMobile } from '../utils/mobile';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 import { LocalSubjectSnapshot } from '../document/types';
 import { StatusSyncService } from '../sync/statusSyncService';
-import { StatusSyncScope } from '../sync/statusSyncTypes';
+import {
+        StatusSyncFieldSelection,
+        StatusSyncScope,
+        createDefaultStatusSyncFieldSelection,
+        cloneStatusSyncFieldSelection,
+        getStatusSyncScope,
+        hasSelectedPlatformFields,
+        hasSelectedUserFields,
+} from '../sync/statusSyncTypes';
 
 /**
  * 本地条目信息
@@ -48,6 +57,33 @@ interface StatusSyncPerfMetrics {
 	backgroundElapsedMs?: number;
 	backgroundDoneMs?: number;
 	lastError?: string | null;
+}
+
+type ControlPanelActionKey =
+        | 'search'
+        | 'refresh'
+        | 'syncStatus'
+        | 'syncCollections'
+        | 'scanAndLinkRelated'
+        | 'batchDownloadCovers'
+	| 'undo'
+	| 'more'
+	| 'syncSelected'
+	| 'forceSync'
+	| 'batchEdit'
+	| 'deleteSelected';
+
+interface ControlPanelActionDescriptor {
+        key: ControlPanelActionKey;
+        label: string;
+        mobileLabel: string;
+        className: string;
+        showInDefaultToolbar: boolean;
+        showInSelectionToolbar: boolean;
+        showInMoreMenu: boolean;
+        menuSection: 'sync' | 'selection' | 'tools';
+        requiresSelection?: boolean;
+        run: (evt?: MouseEvent) => void;
 }
 
 /**
@@ -82,8 +118,11 @@ export class ControlPanel extends Modal {
 	private conflictDetector: ConflictDetector;
 	private episodeStatusManager: EpisodeStatusManager | null;
 	private subjectNoteManager: SubjectNoteManager | null;
-	private documentService: SubjectDocumentService;
-	private statusSyncService: StatusSyncService;
+        private documentService: SubjectDocumentService;
+        private statusSyncService: StatusSyncService;
+        private onOpenSyncOptions: () => void;
+        private onBatchDownloadCovers: () => void;
+        private onScanAndLinkRelated: () => void;
 	private onFiltersChange: (filters: PanelFilters) => void;
 
 	// 缓存相关
@@ -112,7 +151,7 @@ export class ControlPanel extends Modal {
 	private tableRows: HTMLTableRowElement[] = [];
 
 	// 自动触发状态同步
-	private autoSyncScope: StatusSyncScope | null;
+        private autoSyncSelection: StatusSyncFieldSelection | 'prompt' | null;
 
 	// 滑动关闭（移动端）
 	private touchStartY: number = 0;
@@ -128,24 +167,30 @@ export class ControlPanel extends Modal {
 	private readonly mobileShortLabels = getLocale() === 'zh-CN'
 		? {
 			refresh: '刷新',
-			syncSelected: '同步',
-			forceSync: '强同',
-			deleteSelected: '删除',
-			batchEdit: '批编',
-			syncUserData: '用户',
-			syncPlatformData: '平台',
-			undo: '撤销',
+                        syncSelected: '同步',
+                        forceSync: '强同',
+                        deleteSelected: '删除',
+                        batchEdit: '批编',
+                        syncStatus: '状态',
+                        syncCollections: '收藏',
+                        scanAndLinkRelated: '关联',
+                        batchDownloadCovers: '封面',
+                        undo: '撤销',
+			more: '更多',
 			search: '搜索',
 		}
 		: {
 			refresh: 'Refresh',
-			syncSelected: 'Sync',
-			forceSync: 'Force',
-			deleteSelected: 'Delete',
-			batchEdit: 'Batch',
-			syncUserData: 'User',
-			syncPlatformData: 'Platform',
-			undo: 'Undo',
+                        syncSelected: 'Sync',
+                        forceSync: 'Force',
+                        deleteSelected: 'Delete',
+                        batchEdit: 'Batch',
+                        syncStatus: 'Status',
+                        syncCollections: 'Library',
+                        scanAndLinkRelated: 'Links',
+                        batchDownloadCovers: 'Cover',
+                        undo: 'Undo',
+			more: 'More',
 			search: 'Search',
 		};
 
@@ -155,22 +200,28 @@ export class ControlPanel extends Modal {
 		app: App,
 		settings: BangumiPluginSettings,
 		syncManager: SyncManager,
-		onFiltersChange: (filters: PanelFilters) => void,
-		cachedData: CachedPanelData | null,
-		onCacheUpdate: (data: CachedPanelData) => void,
-		subjectNoteManager?: SubjectNoteManager | null,
-		episodeStatusManager?: EpisodeStatusManager | null,
-		autoSyncScope?: StatusSyncScope | null
-	) {
+                onFiltersChange: (filters: PanelFilters) => void,
+                cachedData: CachedPanelData | null,
+                onCacheUpdate: (data: CachedPanelData) => void,
+                onOpenSyncOptions: () => void,
+                onBatchDownloadCovers: () => void,
+                onScanAndLinkRelated: () => void,
+                subjectNoteManager?: SubjectNoteManager | null,
+                episodeStatusManager?: EpisodeStatusManager | null,
+                autoSyncSelection?: StatusSyncFieldSelection | 'prompt' | null
+        ) {
 		super(app);
 		this.settings = settings;
 		this.syncManager = syncManager;
 		this.subjectNoteManager = subjectNoteManager ?? null;
 		this.episodeStatusManager = episodeStatusManager ?? null;
-		this.onFiltersChange = onFiltersChange;
-		this.cachedData = cachedData;
-		this.onCacheUpdate = onCacheUpdate;
-		this.autoSyncScope = autoSyncScope ?? null;
+                this.onFiltersChange = onFiltersChange;
+                this.cachedData = cachedData;
+                this.onCacheUpdate = onCacheUpdate;
+                this.onOpenSyncOptions = onOpenSyncOptions;
+                this.onBatchDownloadCovers = onBatchDownloadCovers;
+                this.onScanAndLinkRelated = onScanAndLinkRelated;
+                this.autoSyncSelection = autoSyncSelection ?? null;
 
 		this.client = new BangumiClient(settings.accessToken);
 		this.incrementalSync = new IncrementalSync(app);
@@ -363,64 +414,221 @@ export class ControlPanel extends Modal {
 	 */
 	private renderActionBar(): void {
 		this.actionBarEl.empty();
+		const hasSelection = this.state.selectedIds.size > 0;
+		const toolbarActions = this.getToolbarActions(hasSelection);
 
-		// 刷新按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'refresh'), cls: 'bangumi-action-btn bangumi-action-btn-refresh' }, btn => {
-			this.decorateMobileButton(btn, this.mobileShortLabels.refresh, tn('controlPanel', 'refresh'));
-			btn.addEventListener('click', () => { void this.loadData(); });
-		});
-
-		// 同步选中按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncSelected'), cls: 'bangumi-action-btn bangumi-action-btn-sync' }, btn => {
-			this.decorateMobileButton(btn, this.mobileShortLabels.syncSelected, tn('controlPanel', 'syncSelected'));
-			btn.addEventListener('click', () => { void this.syncSelected(false); });
-		});
-
-		// 强制同步按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'forceSync'), cls: 'bangumi-action-btn bangumi-action-btn-force' }, btn => {
-			this.decorateMobileButton(btn, this.mobileShortLabels.forceSync, tn('controlPanel', 'forceSync'));
-			btn.addEventListener('click', () => { void this.syncSelected(true); });
-		});
-
-		// 删除选中按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'deleteSelected'), cls: 'bangumi-action-btn bangumi-action-btn-delete' }, btn => {
-			this.decorateMobileButton(btn, this.mobileShortLabels.deleteSelected, tn('controlPanel', 'deleteSelected'));
-			btn.addEventListener('click', () => this.deleteSelected());
-		});
-
-		// 批量编辑按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'batchEdit'), cls: 'bangumi-action-btn bangumi-action-btn-batch' }, btn => {
-			this.decorateMobileButton(btn, this.mobileShortLabels.batchEdit, tn('controlPanel', 'batchEdit'));
-			btn.addEventListener('click', () => this.openBatchEditor());
-		});
-
-		// 同步用户数据按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncUserData'), cls: 'bangumi-action-btn bangumi-action-btn-status' }, btn => {
-			this.decorateMobileButton(btn, this.mobileShortLabels.syncUserData, tn('controlPanel', 'syncUserData'));
-			btn.addEventListener('click', () => { void this.syncStatus('user'); });
-		});
-
-		// 同步平台数据按钮
-		this.actionBarEl.createEl('button', { text: tn('controlPanel', 'syncPlatformData'), cls: 'bangumi-action-btn bangumi-action-btn-status' }, btn => {
-			this.decorateMobileButton(btn, this.mobileShortLabels.syncPlatformData, tn('controlPanel', 'syncPlatformData'));
-			btn.addEventListener('click', () => { void this.syncStatus('platform'); });
-		});
-
-		// 撤销按钮
-		const undoBtn = this.actionBarEl.createEl('button', { text: tn('controlPanel', 'undo'), cls: 'bangumi-action-btn bangumi-action-btn-undo' }, btn => {
-			this.decorateMobileButton(btn, this.mobileShortLabels.undo, tn('controlPanel', 'undo'));
-			btn.addEventListener('click', () => { void this.undoLastEdit(); });
-		});
-		undoBtn.disabled = !this.frontmatterEditor.canUndo();
-
-		// 搜索按钮
-		this.actionBarEl.createEl('button', { text: tn('searchModal', 'title'), cls: 'bangumi-action-btn bangumi-action-btn-search' }, btn => {
-			this.decorateMobileButton(btn, this.mobileShortLabels.search, tn('searchModal', 'title'));
-			btn.addEventListener('click', () => this.openSearchModal());
-		});
+		for (const action of toolbarActions) {
+			const button = this.actionBarEl.createEl('button', {
+				text: action.label,
+				cls: `bangumi-action-btn ${action.className}`,
+			});
+			this.decorateMobileButton(button, action.mobileLabel, action.label);
+			button.addEventListener('click', (evt) => {
+				action.run(evt);
+			});
+			if (action.key === 'undo') {
+				button.disabled = !this.frontmatterEditor.canUndo();
+			}
+		}
 
 		this.updateSelectedCount();
 	}
+
+        private getToolbarActions(hasSelection: boolean): ControlPanelActionDescriptor[] {
+                const actionMap = new Map(this.getActionDescriptors().map(action => [action.key, action]));
+                const keys: ControlPanelActionKey[] = hasSelection
+                        ? ['search', 'refresh', 'syncSelected', 'forceSync', 'batchEdit', 'deleteSelected', 'undo', 'more']
+                        : ['search', 'refresh', 'syncStatus', 'syncCollections', 'scanAndLinkRelated', 'batchDownloadCovers', 'undo', 'more'];
+
+		return keys
+			.map(key => actionMap.get(key))
+			.filter((action): action is ControlPanelActionDescriptor => action !== undefined);
+	}
+
+	private getMoreMenuActions(hasSelection: boolean): ControlPanelActionDescriptor[] {
+		const toolbarKeys = new Set(this.getToolbarActions(hasSelection).map(action => action.key));
+		return this.getActionDescriptors().filter(action =>
+			action.showInMoreMenu && !toolbarKeys.has(action.key)
+		);
+	}
+
+	private getActionDescriptors(): ControlPanelActionDescriptor[] {
+		return [
+                        {
+                                key: 'search',
+                                label: tn('searchModal', 'title'),
+                                mobileLabel: this.mobileShortLabels.search,
+                                className: 'bangumi-action-btn-search',
+                                showInDefaultToolbar: true,
+                                showInSelectionToolbar: true,
+                                showInMoreMenu: false,
+                                menuSection: 'tools',
+                                run: () => this.openSearchModal(),
+                        },
+			{
+				key: 'refresh',
+				label: tn('controlPanel', 'refresh'),
+				mobileLabel: this.mobileShortLabels.refresh,
+                                className: 'bangumi-action-btn-refresh',
+                                showInDefaultToolbar: true,
+                                showInSelectionToolbar: true,
+                                showInMoreMenu: false,
+                                menuSection: 'tools',
+                                run: () => { void this.loadData(); },
+                        },
+                        {
+                                key: 'syncStatus',
+                                label: tn('controlPanel', 'syncStatus'),
+                                mobileLabel: this.mobileShortLabels.syncStatus,
+                                className: 'bangumi-action-btn-status',
+                                showInDefaultToolbar: true,
+                                showInSelectionToolbar: false,
+                                showInMoreMenu: true,
+                                menuSection: 'sync',
+                                run: () => this.openStatusSyncScopeSelector(),
+                        },
+                        {
+                                key: 'syncCollections',
+                                label: tn('commands', 'syncCollections'),
+                                mobileLabel: this.mobileShortLabels.syncCollections,
+                                className: 'bangumi-action-btn-sync',
+                                showInDefaultToolbar: true,
+                                showInSelectionToolbar: false,
+                                showInMoreMenu: true,
+                                menuSection: 'sync',
+                                run: () => this.onOpenSyncOptions(),
+                        },
+                        {
+                                key: 'scanAndLinkRelated',
+				label: tn('commands', 'scanAndLinkRelated'),
+				mobileLabel: this.mobileShortLabels.scanAndLinkRelated,
+                                className: 'bangumi-action-btn-tools',
+                                showInDefaultToolbar: true,
+                                showInSelectionToolbar: false,
+                                showInMoreMenu: true,
+                                menuSection: 'tools',
+                                run: () => this.onScanAndLinkRelated(),
+                        },
+			{
+				key: 'batchDownloadCovers',
+				label: tn('commands', 'batchDownloadCovers'),
+				mobileLabel: this.mobileShortLabels.batchDownloadCovers,
+                                className: 'bangumi-action-btn-tools',
+                                showInDefaultToolbar: true,
+                                showInSelectionToolbar: false,
+                                showInMoreMenu: true,
+                                menuSection: 'tools',
+                                run: () => this.onBatchDownloadCovers(),
+                        },
+			{
+				key: 'undo',
+				label: tn('controlPanel', 'undo'),
+				mobileLabel: this.mobileShortLabels.undo,
+                                className: 'bangumi-action-btn-undo',
+                                showInDefaultToolbar: true,
+                                showInSelectionToolbar: true,
+                                showInMoreMenu: false,
+                                menuSection: 'selection',
+                                run: () => { void this.undoLastEdit(); },
+                        },
+			{
+				key: 'syncSelected',
+				label: tn('controlPanel', 'syncSelected'),
+				mobileLabel: this.mobileShortLabels.syncSelected,
+                                className: 'bangumi-action-btn-sync',
+                                showInDefaultToolbar: false,
+                                showInSelectionToolbar: true,
+                                showInMoreMenu: true,
+                                menuSection: 'selection',
+                                requiresSelection: true,
+                                run: () => { void this.syncSelected(false); },
+                        },
+			{
+				key: 'forceSync',
+				label: tn('controlPanel', 'forceSync'),
+				mobileLabel: this.mobileShortLabels.forceSync,
+                                className: 'bangumi-action-btn-force',
+                                showInDefaultToolbar: false,
+                                showInSelectionToolbar: true,
+                                showInMoreMenu: true,
+                                menuSection: 'selection',
+                                requiresSelection: true,
+                                run: () => { void this.syncSelected(true); },
+                        },
+			{
+				key: 'batchEdit',
+				label: tn('controlPanel', 'batchEdit'),
+				mobileLabel: this.mobileShortLabels.batchEdit,
+                                className: 'bangumi-action-btn-batch',
+                                showInDefaultToolbar: false,
+                                showInSelectionToolbar: true,
+                                showInMoreMenu: true,
+                                menuSection: 'selection',
+                                requiresSelection: true,
+                                run: () => this.openBatchEditor(),
+                        },
+			{
+				key: 'deleteSelected',
+				label: tn('controlPanel', 'deleteSelected'),
+				mobileLabel: this.mobileShortLabels.deleteSelected,
+                                className: 'bangumi-action-btn-delete',
+                                showInDefaultToolbar: false,
+                                showInSelectionToolbar: true,
+                                showInMoreMenu: true,
+                                menuSection: 'selection',
+                                requiresSelection: true,
+                                run: () => this.deleteSelected(),
+                        },
+			{
+				key: 'more',
+				label: tn('controlPanel', 'more'),
+				mobileLabel: this.mobileShortLabels.more,
+                                className: 'bangumi-action-btn-more',
+                                showInDefaultToolbar: true,
+                                showInSelectionToolbar: true,
+                                showInMoreMenu: false,
+                                menuSection: 'tools',
+                                run: (evt?: MouseEvent) => this.openMoreMenu(evt),
+                        },
+		];
+	}
+
+        private openMoreMenu(evt?: MouseEvent): void {
+                if (!evt) {
+                        return;
+                }
+
+                const hasSelection = this.state.selectedIds.size > 0;
+                const menu = new Menu();
+                const actions = this.getMoreMenuActions(hasSelection);
+                const orderedSections: Array<ControlPanelActionDescriptor['menuSection']> = ['sync', 'selection', 'tools'];
+                let hasRenderedAnyItem = false;
+
+                for (const section of orderedSections) {
+                        const sectionActions = actions.filter(action => action.menuSection === section);
+                        if (sectionActions.length === 0) {
+                                continue;
+                        }
+
+                        if (hasRenderedAnyItem) {
+                                menu.addSeparator();
+                        }
+
+                        for (const action of sectionActions) {
+                                const disabled = !!action.requiresSelection && !hasSelection;
+                                menu.addItem((item) => {
+                                        item
+                                                .setTitle(disabled ? `${action.label} (${tn('controlPanel', 'selectFirst')})` : action.label)
+                                                .setDisabled(disabled)
+                                                .onClick(() => action.run());
+                                });
+                        }
+
+                        hasRenderedAnyItem = true;
+                }
+
+                menu.showAtMouseEvent(evt);
+        }
 
 	private decorateMobileButton(button: HTMLButtonElement, shortLabel: string, fullLabel: string): void {
 		button.dataset.mobileLabel = shortLabel;
@@ -1153,17 +1361,21 @@ export class ControlPanel extends Modal {
 	/**
 	 * 自动触发指定范围的状态同步
 	 */
-	private triggerAutoSyncStatus(): void {
-		if (!this.autoSyncScope) {
-			return;
-		}
+        private triggerAutoSyncStatus(): void {
+                if (!this.autoSyncSelection) {
+                        return;
+                }
 
-		const scope = this.autoSyncScope;
-		this.autoSyncScope = null;
-		void this.syncStatusAfterPrefetchWarmup(scope);
-	}
+                const autoSyncSelection = this.autoSyncSelection;
+                this.autoSyncSelection = null;
+                if (autoSyncSelection === 'prompt') {
+                        this.openStatusSyncScopeSelector();
+                        return;
+                }
+                void this.syncStatusAfterPrefetchWarmup(autoSyncSelection);
+        }
 
-	private async syncStatusAfterPrefetchWarmup(scope: StatusSyncScope): Promise<void> {
+        private async syncStatusAfterPrefetchWarmup(selection: StatusSyncFieldSelection): Promise<void> {
 		const prefetchPromise = this.userDataPrefetchPromise;
 		if (prefetchPromise) {
 			try {
@@ -1176,17 +1388,34 @@ export class ControlPanel extends Modal {
 			}
 		}
 
-		await this.syncStatus(scope);
-	}
+                await this.syncStatus(selection);
+        }
 
 	private delay(ms: number): Promise<void> {
 		const ownerWindow = this.contentEl.ownerDocument.defaultView ?? activeWindow;
 		return new Promise(resolve => ownerWindow.setTimeout(resolve, ms));
 	}
 
-	private async syncStatus(scope: StatusSyncScope): Promise<void> {
-		const perfStart = Date.now();
-		this.lastStatusSyncPerf = {
+        private openStatusSyncScopeSelector(initialSelection?: StatusSyncFieldSelection): void {
+                const modal = new StatusSyncScopeModal(
+                        this.app,
+                        initialSelection ?? createDefaultStatusSyncFieldSelection(),
+                        (selection) => {
+                                void this.syncStatusAfterPrefetchWarmup(selection);
+                        },
+                );
+                modal.open();
+        }
+
+        private async syncStatus(selection: StatusSyncFieldSelection): Promise<void> {
+                if (!hasSelectedUserFields(selection) && !hasSelectedPlatformFields(selection)) {
+                        new Notice(tn('statusSyncModal', 'selectAtLeastOne'));
+                        return;
+                }
+
+                const scope = getStatusSyncScope(selection);
+                const perfStart = Date.now();
+                this.lastStatusSyncPerf = {
 			startAt: perfStart,
 			syncedCollections: 0,
 			prefetchHits: 0,
@@ -1209,11 +1438,11 @@ export class ControlPanel extends Modal {
 		console.debug(`[Bangumi Sync][Perf] syncStatus:start synced=${syncedCollections.length}`);
 
 		try {
-			const snapshotStart = Date.now();
-			const { snapshots, diffs } = await this.statusSyncService.buildDiffSession({
-				scope,
-				collections: syncedCollections,
-				localSubjects: this.state.localSubjects,
+                        const snapshotStart = Date.now();
+                        const { snapshots, diffs } = await this.statusSyncService.buildDiffSession({
+                                selection,
+                                collections: syncedCollections,
+                                localSubjects: this.state.localSubjects,
 				getCachedSnapshot: (subjectId, path, mtime) => this.getPrefetchedUserData(subjectId, path, mtime),
 				onProgress: (current, total) => {
 					this.renderStatus(`${this.getSyncStatusLabel(scope)} (1/2 ${current}/${total})`);
@@ -1246,21 +1475,19 @@ export class ControlPanel extends Modal {
 			this.state.loading = false;
 
 			if (diffs.length === 0) {
-				const message = scope === 'user'
-					? tn('controlPanel', 'noUserDataDiff')
-					: tn('controlPanel', 'noPlatformDataDiff');
-				new Notice(message);
-				this.renderStatus(message);
-				return;
+                                const message = this.getNoDiffMessage(selection);
+                                new Notice(message);
+                                this.renderStatus(message);
+                                return;
 			}
 
 			// 打开状态同步弹窗
-			const modal = new StatusSyncModal(
-				this.app,
-				this.statusSyncService,
-				scope,
-				diffs,
-				() => {
+                        const modal = new StatusSyncModal(
+                                this.app,
+                                this.statusSyncService,
+                                cloneStatusSyncFieldSelection(selection),
+                                diffs,
+                                () => {
 					// 同步完成后刷新
 					void this.loadData();
 				}
@@ -1271,11 +1498,11 @@ export class ControlPanel extends Modal {
 			console.debug(
 				`[Bangumi Sync][Perf] syncStatus:modalOpened total=${modalOpenDuration}ms visible=${diffs.length}`
 			);
-			this.renderStatus(`${this.getSyncStatusLabel(scope)} (2/2)`);
-			void this.statusSyncService.loadBackgroundDiffs(
-				scope,
-				snapshots,
-				{
+                        this.renderStatus(`${this.getSyncStatusLabel(scope)} (2/2)`);
+                        void this.statusSyncService.loadBackgroundDiffs(
+                                selection,
+                                snapshots,
+                                {
 					isDisposed: () => modal.isDisposed(),
 					updateDiff: (subjectId, patch) => modal.updateDiff(subjectId, patch),
 					updateBackgroundProgress: (completed, total) => modal.updateBackgroundProgress(completed, total),
@@ -1300,11 +1527,25 @@ export class ControlPanel extends Modal {
 		}
 	}
 
-	private getSyncStatusLabel(scope: StatusSyncScope): string {
-		return scope === 'user'
-			? tn('controlPanel', 'comparingUserData')
-			: tn('controlPanel', 'comparingPlatformData');
-	}
+        private getSyncStatusLabel(scope: StatusSyncScope): string {
+                if (scope === 'mixed') {
+                        return tn('controlPanel', 'comparingStatus');
+                }
+                return scope === 'user'
+                        ? tn('controlPanel', 'comparingUserData')
+                        : tn('controlPanel', 'comparingPlatformData');
+        }
+
+        private getNoDiffMessage(selection: StatusSyncFieldSelection): string {
+                const hasUser = hasSelectedUserFields(selection);
+                const hasPlatform = hasSelectedPlatformFields(selection);
+                if (hasUser && hasPlatform) {
+                        return tn('controlPanel', 'noStatusDiff');
+                }
+                return hasUser
+                        ? tn('controlPanel', 'noUserDataDiff')
+                        : tn('controlPanel', 'noPlatformDataDiff');
+        }
 
 	private startUserDataPrefetch(): void {
 		const syncedCollections = this.getSyncedCollections();

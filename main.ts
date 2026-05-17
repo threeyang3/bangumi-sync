@@ -35,7 +35,7 @@ import { EpisodeContextMenu } from './src/episode/episodeContextMenu';
 import { EpisodeStatusManager } from './src/episode/episodeStatusManager';
 import { EpisodeCommentManager } from './src/episode/episodeCommentManager';
 import { SubjectNoteManager } from './src/note/subjectNoteManager';
-import { StatusSyncScope } from './src/sync/statusSyncTypes';
+import { StatusSyncFieldSelection } from './src/sync/statusSyncTypes';
 
 /**
  * 缓存数据结构
@@ -126,21 +126,15 @@ export default class BangumiPlugin extends Plugin {
 		});
 
 		// 添加命令：检查并同步状态
-		this.addCommand({
-			id: 'check-and-sync-status',
-			name: tn('commands', 'checkAndSyncUserData'),
-			callback: () => this.openControlPanel({ autoSyncScope: 'user' }),
-		});
+                this.addCommand({
+                        id: 'check-and-sync-status',
+                        name: tn('commands', 'checkAndSyncStatus'),
+                        callback: () => this.openControlPanel({ autoSyncSelection: 'prompt' }),
+                });
 
-		this.addCommand({
-			id: 'check-and-sync-platform-data',
-			name: tn('commands', 'checkAndSyncPlatformData'),
-			callback: () => this.openControlPanel({ autoSyncScope: 'platform' }),
-		});
-
-		this.addCommand({
-			id: 'create-subject-note',
-			name: tn('commands', 'createSubjectNote'),
+                this.addCommand({
+                        id: 'create-subject-note',
+                        name: tn('commands', 'createSubjectNote'),
 			callback: () => {
 				void this.subjectNoteManager?.createOrAppendForCurrentFile();
 			},
@@ -507,7 +501,7 @@ export default class BangumiPlugin extends Plugin {
 	/**
 	 * 打开控制面板
 	 */
-	openControlPanel(options?: { autoSyncScope?: StatusSyncScope | null }) {
+        openControlPanel(options?: { autoSyncSelection?: StatusSyncFieldSelection | 'prompt' | null }) {
 		if (!this.settings.accessToken) {
 			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
@@ -524,28 +518,31 @@ export default class BangumiPlugin extends Plugin {
 			localSubjects: cachedData.localSubjects,
 		} : null;
 
-		this.controlPanel = new ControlPanel(
-			this.app,
-			this.settings,
-			this.syncManager!,
+                this.controlPanel = new ControlPanel(
+                        this.app,
+                        this.settings,
+                        this.syncManager!,
 			(filters: PanelFilters) => {
 				// 保存筛选条件
 				this.settings.panelFilters = filters;
 				void this.saveSettings();
 			},
 			cachedPanelData,
-			(data) => {
-				// 更新缓存
-				this.setCachedData({
-					collections: data.collections,
-					localSubjects: data.localSubjects,
-					timestamp: Date.now(),
-				});
-			},
-			this.subjectNoteManager,
-			this.episodeStatusManager,
-			options?.autoSyncScope ?? null
-		);
+                        (data) => {
+                                // 更新缓存
+                                this.setCachedData({
+                                        collections: data.collections,
+                                        localSubjects: data.localSubjects,
+                                        timestamp: Date.now(),
+                                });
+                        },
+                        () => this.openSyncOptions(),
+                        () => { void this.batchDownloadCovers(); },
+                        () => { void this.scanAndLinkRelated(); },
+                        this.subjectNoteManager,
+                        this.episodeStatusManager,
+                        options?.autoSyncSelection ?? null
+                );
 		this.controlPanel.open();
 	}
 

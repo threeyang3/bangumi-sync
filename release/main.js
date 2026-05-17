@@ -28,7 +28,7 @@ __export(main_exports, {
   default: () => BangumiPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian24 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 
 // common/api/types.ts
 var SubjectType = /* @__PURE__ */ ((SubjectType3) => {
@@ -320,8 +320,7 @@ var en = {
     exportUserData: "Export user data",
     importUserData: "Import user data",
     searchSubjects: "Search and add subjects",
-    checkAndSyncUserData: "Check and sync user data",
-    checkAndSyncPlatformData: "Check and sync platform data",
+    checkAndSyncStatus: "Check and sync status",
     createSubjectNote: "Create or append subject note",
     batchDownloadCovers: "Batch download cover images",
     scanAndLinkRelated: "Scan and link related subjects"
@@ -535,10 +534,8 @@ var en = {
     forceSync: "Force sync",
     deleteSelected: "Delete selected",
     batchEdit: "Batch edit",
-    syncComments: "Sync comments",
-    syncTags: "Sync tags",
-    syncUserData: "Sync user data",
-    syncPlatformData: "Sync platform data",
+    more: "More",
+    syncStatus: "Sync status",
     sortBy: "Sort by",
     sortDefault: "Original order",
     sortTime: "Collection time",
@@ -594,12 +591,6 @@ var en = {
     syncComplete: "Sync complete",
     syncFailed: "Sync failed",
     syncError: "Sync error",
-    comparingComments: "Comparing comments...",
-    comparingTags: "Comparing tags...",
-    noCommentDiff: "No comment differences",
-    noTagDiff: "No tag differences",
-    compareCommentFailed: "Compare comments failed",
-    compareTagFailed: "Compare tags failed",
     deleteComplete: "Delete complete",
     selectedCount: "Selected",
     totalItems: "Total",
@@ -732,6 +723,9 @@ var en = {
     fieldEpisodeCount: "Episodes",
     fieldChapterCount: "Chapters",
     fieldVolumeCount: "Volumes",
+    fieldStart: "Start",
+    fieldEnd: "End",
+    fieldProgress: "Progress",
     empty: "(empty)",
     keepLocal: "Keep local",
     keepCloud: "Keep cloud",
@@ -756,7 +750,29 @@ var en = {
     loadInProgress: "Loading",
     progressSummaryLoading: "Loaded {completed}/{total}, showing {visible} items",
     progressSummaryDone: "Completed {completed}/{total}, showing {visible} items",
-    progressSummaryVisible: "Showing {visible} items"
+    progressSummaryVisible: "Showing {visible} items",
+    scopeTitle: "Sync status",
+    scopeDescription: "Choose which fields to fetch and compare in this run. User data is selected by default, platform data is off by default.",
+    scopeFooterHint: "The comparison dialog will only load and display the fields you select here.",
+    scopeDefaultUser: "Default on",
+    scopeDefaultPlatform: "Default off",
+    scopeUserDescription: "User data compares collection behavior and is not limited by item completion state.",
+    scopePlatformDescription: "Platform data compares Bangumi subject metadata and only writes cloud values back to local notes.",
+    scopeFieldRate: "Compare local rating with cloud rating.",
+    scopeFieldComment: "Compare full short comment from callout with cloud comment.",
+    scopeFieldTags: "Compare frontmatter tags with Bangumi tags.",
+    scopeFieldStatus: "Compare collection status such as wish, doing, and done.",
+    scopeFieldEpisodeStatus: "Compare per-episode status for anime and live action subjects.",
+    scopeFieldEpisodeCount: "Compare episode counts for anime and live action subjects.",
+    scopeFieldChapterCount: "Compare chapter counts for comics.",
+    scopeFieldVolumeCount: "Compare volume counts for comics and novels.",
+    scopeFieldStart: "Compare start date style platform metadata.",
+    scopeFieldEnd: "Compare end date style platform metadata.",
+    scopeFieldProgress: "Compare platform progress text.",
+    selectAll: "Select all",
+    deselectAll: "Select none",
+    startCompare: "Start compare",
+    selectAtLeastOne: "Select at least one field to compare."
   },
   searchModal: {
     title: "Search subjects",
@@ -834,50 +850,6 @@ var en = {
     noticeLoadFailed: "Failed to load local properties",
     removeOperation: "Remove operation"
   },
-  commentSync: {
-    title: "Sync comments",
-    description: "Found {count} items with comment differences",
-    allLocal: "All local",
-    allCloud: "All cloud",
-    allSkip: "All skip",
-    name: "Subject",
-    localComment: "Local comment",
-    cloudComment: "Cloud comment",
-    decision: "Decision",
-    skipLabel: "Skip",
-    keepLocal: "Keep local",
-    keepCloud: "Keep cloud",
-    empty: "(empty)",
-    execute: "Execute sync",
-    cancel: "Cancel",
-    progress: "Syncing...",
-    complete: "Sync complete: {success} succeeded, {failed} failed",
-    noSelection: "No items selected for sync",
-    failed: "Sync failed, please check network connection"
-  },
-  tagSync: {
-    title: "Sync tags",
-    description: "Found {count} items with tag differences",
-    allLocal: "All local",
-    allCloud: "All cloud",
-    allMerge: "All merge",
-    allSkip: "All skip",
-    name: "Subject",
-    localTags: "Local tags",
-    cloudTags: "Cloud tags",
-    decision: "Decision",
-    skipLabel: "Skip",
-    keepLocal: "Keep local",
-    keepCloud: "Keep cloud",
-    merge: "Merge",
-    empty: "(empty)",
-    execute: "Execute sync",
-    cancel: "Cancel",
-    progress: "Syncing...",
-    complete: "Sync complete: {success} succeeded, {failed} failed",
-    noSelection: "No items selected for sync",
-    failed: "Sync failed, please check network connection"
-  },
   subjectTypes: {
     all: "All",
     anime: "Anime",
@@ -924,8 +896,7 @@ var zhCN = {
     exportUserData: "\u5BFC\u51FA\u7528\u6237\u6570\u636E",
     importUserData: "\u5BFC\u5165\u7528\u6237\u6570\u636E",
     searchSubjects: "\u641C\u7D22\u5E76\u6DFB\u52A0\u6761\u76EE",
-    checkAndSyncUserData: "\u68C0\u67E5\u5E76\u540C\u6B65\u7528\u6237\u6570\u636E",
-    checkAndSyncPlatformData: "\u68C0\u67E5\u5E76\u540C\u6B65\u5E73\u53F0\u6570\u636E",
+    checkAndSyncStatus: "\u68C0\u67E5\u5E76\u540C\u6B65\u72B6\u6001",
     createSubjectNote: "\u521B\u5EFA\u6216\u8FFD\u52A0\u6761\u76EE\u7B14\u8BB0",
     batchDownloadCovers: "\u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u56FE\u7247",
     scanAndLinkRelated: "\u626B\u63CF\u5E76\u5173\u8054\u76F8\u5173\u6761\u76EE"
@@ -1139,10 +1110,8 @@ var zhCN = {
     forceSync: "\u5F3A\u5236\u540C\u6B65",
     deleteSelected: "\u5220\u9664\u9009\u4E2D",
     batchEdit: "\u6279\u91CF\u7F16\u8F91",
-    syncComments: "\u540C\u6B65\u77ED\u8BC4",
-    syncTags: "\u540C\u6B65\u6807\u7B7E",
-    syncUserData: "\u540C\u6B65\u7528\u6237\u6570\u636E",
-    syncPlatformData: "\u540C\u6B65\u5E73\u53F0\u6570\u636E",
+    more: "\u66F4\u591A",
+    syncStatus: "\u540C\u6B65\u72B6\u6001",
     sortBy: "\u6392\u5E8F\u4F9D\u636E",
     sortDefault: "\u9ED8\u8BA4\u987A\u5E8F",
     sortTime: "\u6536\u85CF\u65F6\u95F4",
@@ -1198,12 +1167,6 @@ var zhCN = {
     syncComplete: "\u540C\u6B65\u5B8C\u6210",
     syncFailed: "\u540C\u6B65\u5931\u8D25",
     syncError: "\u540C\u6B65\u51FA\u9519",
-    comparingComments: "\u6B63\u5728\u5BF9\u6BD4\u77ED\u8BC4\u5DEE\u5F02...",
-    comparingTags: "\u6B63\u5728\u5BF9\u6BD4\u6807\u7B7E\u5DEE\u5F02...",
-    noCommentDiff: "\u6CA1\u6709\u77ED\u8BC4\u5DEE\u5F02",
-    noTagDiff: "\u6CA1\u6709\u6807\u7B7E\u5DEE\u5F02",
-    compareCommentFailed: "\u5BF9\u6BD4\u77ED\u8BC4\u5931\u8D25",
-    compareTagFailed: "\u5BF9\u6BD4\u6807\u7B7E\u5931\u8D25",
     deleteComplete: "\u5220\u9664\u5B8C\u6210",
     selectedCount: "\u5DF2\u9009",
     totalItems: "\u5171",
@@ -1336,6 +1299,9 @@ var zhCN = {
     fieldEpisodeCount: "\u96C6\u6570",
     fieldChapterCount: "\u8BDD\u6570",
     fieldVolumeCount: "\u5377\u6570/\u518C\u6570",
+    fieldStart: "\u5F00\u59CB",
+    fieldEnd: "\u7ED3\u675F",
+    fieldProgress: "\u8FDB\u5EA6",
     empty: "(\u7A7A)",
     keepLocal: "\u4FDD\u7559\u672C\u5730",
     keepCloud: "\u4FDD\u7559\u4E91\u7AEF",
@@ -1360,7 +1326,29 @@ var zhCN = {
     loadInProgress: "\u52A0\u8F7D\u4E2D",
     progressSummaryLoading: "\u5DF2\u52A0\u8F7D {completed}/{total}\uFF0C\u5F53\u524D\u663E\u793A {visible} \u9879",
     progressSummaryDone: "\u5DF2\u5B8C\u6210 {completed}/{total}\uFF0C\u5F53\u524D\u663E\u793A {visible} \u9879",
-    progressSummaryVisible: "\u5F53\u524D\u663E\u793A {visible} \u9879"
+    progressSummaryVisible: "\u5F53\u524D\u663E\u793A {visible} \u9879",
+    scopeTitle: "\u540C\u6B65\u72B6\u6001",
+    scopeDescription: "\u8BF7\u9009\u62E9\u672C\u8F6E\u8981\u5148\u68C0\u7D22\u3001\u518D\u5BF9\u6BD4\u7684\u5C5E\u6027\u8303\u56F4\u3002\u9ED8\u8BA4\u52FE\u9009\u7528\u6237\u6570\u636E\uFF0C\u5E73\u53F0\u6570\u636E\u9ED8\u8BA4\u4E0D\u53C2\u4E0E\u672C\u8F6E\u5BF9\u6BD4\u3002",
+    scopeFooterHint: "\u540E\u7EED\u5DEE\u5F02\u5F39\u7A97\u53EA\u4F1A\u52A0\u8F7D\u5E76\u5C55\u793A\u4F60\u5728\u8FD9\u91CC\u52FE\u9009\u7684\u5B57\u6BB5\u3002",
+    scopeDefaultUser: "\u9ED8\u8BA4\u5168\u9009",
+    scopeDefaultPlatform: "\u9ED8\u8BA4\u4E0D\u9009",
+    scopeUserDescription: "\u7528\u6237\u6570\u636E\u9762\u5411\u6536\u85CF\u884C\u4E3A\u672C\u8EAB\uFF0C\u4E0D\u9650\u5236\u6761\u76EE\u5B8C\u7ED3\u72B6\u6001\u3002",
+    scopePlatformDescription: "\u5E73\u53F0\u6570\u636E\u9762\u5411 Bangumi \u6761\u76EE\u5143\u6570\u636E\uFF0C\u53EA\u4F1A\u628A\u4E91\u7AEF\u503C\u56DE\u5199\u5230\u672C\u5730\u3002",
+    scopeFieldRate: "\u5BF9\u6BD4\u672C\u5730\u8BC4\u5206\u4E0E\u4E91\u7AEF\u8BC4\u5206\u3002",
+    scopeFieldComment: "\u5BF9\u6BD4\u6B63\u6587 callout \u4E2D\u7684\u5B8C\u6574\u77ED\u8BC4\u4E0E\u4E91\u7AEF\u77ED\u8BC4\u3002",
+    scopeFieldTags: "\u5BF9\u6BD4 frontmatter \u6807\u7B7E\u4E0E Bangumi \u6807\u7B7E\u3002",
+    scopeFieldStatus: "\u5BF9\u6BD4\u60F3\u770B\u3001\u5728\u770B\u3001\u770B\u8FC7\u7B49\u6536\u85CF\u72B6\u6001\u3002",
+    scopeFieldEpisodeStatus: "\u5BF9\u6BD4\u52A8\u753B\u4E0E\u4E09\u6B21\u5143\u6761\u76EE\u7684\u5355\u96C6\u72B6\u6001\u3002",
+    scopeFieldEpisodeCount: "\u5BF9\u6BD4\u52A8\u753B\u4E0E\u4E09\u6B21\u5143\u7684\u96C6\u6570\u3002",
+    scopeFieldChapterCount: "\u5BF9\u6BD4\u6F2B\u753B\u7684\u8BDD\u6570\u3002",
+    scopeFieldVolumeCount: "\u5BF9\u6BD4\u6F2B\u753B\u5377\u6570\u4E0E\u5C0F\u8BF4\u518C\u6570\u3002",
+    scopeFieldStart: "\u5BF9\u6BD4\u5F00\u59CB\u65E5\u671F\u7B49\u5E73\u53F0\u5B57\u6BB5\u3002",
+    scopeFieldEnd: "\u5BF9\u6BD4\u7ED3\u675F\u65E5\u671F\u7B49\u5E73\u53F0\u5B57\u6BB5\u3002",
+    scopeFieldProgress: "\u5BF9\u6BD4\u5E73\u53F0\u8FDB\u5EA6\u6587\u672C\u3002",
+    selectAll: "\u5168\u9009",
+    deselectAll: "\u5168\u4E0D\u9009",
+    startCompare: "\u5F00\u59CB\u68C0\u7D22\u4E0E\u5BF9\u6BD4",
+    selectAtLeastOne: "\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u4E2A\u8981\u5BF9\u6BD4\u7684\u5B57\u6BB5\u3002"
   },
   searchModal: {
     title: "\u641C\u7D22\u6761\u76EE",
@@ -1437,50 +1425,6 @@ var zhCN = {
     noticeNothingChanged: "\u672A\u68C0\u6D4B\u5230\u5B9E\u9645\u4FEE\u6539",
     noticeLoadFailed: "\u52A0\u8F7D\u672C\u5730\u5C5E\u6027\u5931\u8D25",
     removeOperation: "\u79FB\u9664\u64CD\u4F5C"
-  },
-  commentSync: {
-    title: "\u77ED\u8BC4\u540C\u6B65",
-    description: "\u53D1\u73B0 {count} \u4E2A\u6761\u76EE\u7684\u77ED\u8BC4\u5B58\u5728\u5DEE\u5F02",
-    allLocal: "\u5168\u90E8\u4FDD\u7559\u672C\u5730",
-    allCloud: "\u5168\u90E8\u4FDD\u7559\u4E91\u7AEF",
-    allSkip: "\u5168\u90E8\u8DF3\u8FC7",
-    name: "\u6761\u76EE",
-    localComment: "\u672C\u5730\u77ED\u8BC4",
-    cloudComment: "\u4E91\u7AEF\u77ED\u8BC4",
-    decision: "\u9009\u62E9",
-    skipLabel: "\u8DF3\u8FC7",
-    keepLocal: "\u4FDD\u7559\u672C\u5730",
-    keepCloud: "\u4FDD\u7559\u4E91\u7AEF",
-    empty: "(\u7A7A)",
-    execute: "\u6267\u884C\u540C\u6B65",
-    cancel: "\u53D6\u6D88",
-    progress: "\u6B63\u5728\u540C\u6B65...",
-    complete: "\u540C\u6B65\u5B8C\u6210\uFF1A\u6210\u529F {success} \u4E2A\uFF0C\u5931\u8D25 {failed} \u4E2A",
-    noSelection: "\u6CA1\u6709\u9009\u62E9\u8981\u540C\u6B65\u7684\u6761\u76EE",
-    failed: "\u540C\u6B65\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u8FDE\u63A5"
-  },
-  tagSync: {
-    title: "\u6807\u7B7E\u540C\u6B65",
-    description: "\u53D1\u73B0 {count} \u4E2A\u6761\u76EE\u7684\u6807\u7B7E\u5B58\u5728\u5DEE\u5F02",
-    allLocal: "\u5168\u90E8\u4FDD\u7559\u672C\u5730",
-    allCloud: "\u5168\u90E8\u4FDD\u7559\u4E91\u7AEF",
-    allMerge: "\u5168\u90E8\u5408\u5E76",
-    allSkip: "\u5168\u90E8\u8DF3\u8FC7",
-    name: "\u6761\u76EE",
-    localTags: "\u672C\u5730\u6807\u7B7E",
-    cloudTags: "\u4E91\u7AEF\u6807\u7B7E",
-    decision: "\u9009\u62E9",
-    skipLabel: "\u8DF3\u8FC7",
-    keepLocal: "\u4FDD\u7559\u672C\u5730",
-    keepCloud: "\u4FDD\u7559\u4E91\u7AEF",
-    merge: "\u5408\u5E76",
-    empty: "(\u7A7A)",
-    execute: "\u6267\u884C\u540C\u6B65",
-    cancel: "\u53D6\u6D88",
-    progress: "\u6B63\u5728\u540C\u6B65...",
-    complete: "\u540C\u6B65\u5B8C\u6210\uFF1A\u6210\u529F {success} \u4E2A\uFF0C\u5931\u8D25 {failed} \u4E2A",
-    noSelection: "\u6CA1\u6709\u9009\u62E9\u8981\u540C\u6B65\u7684\u6761\u76EE",
-    failed: "\u540C\u6B65\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u8FDE\u63A5"
   },
   subjectTypes: {
     all: "\u5168\u90E8",
@@ -10953,7 +10897,7 @@ function createFallbackSubject(collection) {
 }
 
 // src/panel/controlPanel.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 
 // src/panel/batchEditorModal.ts
 var import_obsidian18 = require("obsidian");
@@ -11573,15 +11517,76 @@ function splitListValue(value) {
 
 // src/panel/statusSyncModal.ts
 var import_obsidian19 = require("obsidian");
+
+// src/sync/statusSyncTypes.ts
+var USER_STATUS_SYNC_FIELD_KEYS = [
+  "rate",
+  "comment",
+  "tags",
+  "status",
+  "episodeStatus"
+];
+var PLATFORM_STATUS_SYNC_FIELD_KEYS = [
+  "episodeCount",
+  "chapterCount",
+  "volumeCount",
+  "start",
+  "end",
+  "progress"
+];
+function createDefaultStatusSyncFieldSelection() {
+  return {
+    user: {
+      rate: true,
+      comment: true,
+      tags: true,
+      status: true,
+      episodeStatus: true
+    },
+    platform: {
+      episodeCount: false,
+      chapterCount: false,
+      volumeCount: false,
+      start: false,
+      end: false,
+      progress: false
+    }
+  };
+}
+function cloneStatusSyncFieldSelection(selection) {
+  return {
+    user: { ...selection.user },
+    platform: { ...selection.platform }
+  };
+}
+function hasSelectedUserFields(selection) {
+  return USER_STATUS_SYNC_FIELD_KEYS.some((key) => selection.user[key]);
+}
+function hasSelectedPlatformFields(selection) {
+  return PLATFORM_STATUS_SYNC_FIELD_KEYS.some((key) => selection.platform[key]);
+}
+function getStatusSyncScope(selection) {
+  const hasUser = hasSelectedUserFields(selection);
+  const hasPlatform = hasSelectedPlatformFields(selection);
+  if (hasUser && hasPlatform) {
+    return "mixed";
+  }
+  if (hasPlatform) {
+    return "platform";
+  }
+  return "user";
+}
+
+// src/panel/statusSyncModal.ts
 var StatusSyncModal = class extends import_obsidian19.Modal {
-  constructor(app, statusSyncService, scope, diffs, onComplete) {
+  constructor(app, statusSyncService, selection, diffs, onComplete) {
     super(app);
     this.renderTimer = null;
     this.isDisposedFlag = false;
     this.backgroundCompleted = 0;
     this.backgroundTotal = 0;
     this.statusSyncService = statusSyncService;
-    this.syncScope = scope;
+    this.selection = selection;
     this.diffs = diffs;
     this.diffIndexBySubjectId = new Map(diffs.map((diff, index) => [diff.subjectId, index]));
     this.onComplete = onComplete;
@@ -11589,41 +11594,40 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
   onOpen() {
     const { contentEl } = this;
     this.isDisposedFlag = false;
+    contentEl.empty();
     contentEl.addClass("bangumi-status-sync-modal");
-    contentEl.createEl("h2", {
-      text: this.syncScope === "user" ? tn("statusSyncModal", "userTitle") : tn("statusSyncModal", "platformTitle")
-    });
+    contentEl.createEl("h2", { text: this.getTitle() });
     contentEl.createEl("p", {
-      text: (this.syncScope === "user" ? tn("statusSyncModal", "userDescription") : tn("statusSyncModal", "platformDescription")).replace("{count}", String(this.diffs.length)),
+      text: this.getDescription().replace("{count}", String(this.diffs.length)),
       cls: "bangumi-sync-description"
     });
     const actionBar = contentEl.createDiv({ cls: "bangumi-status-sync-actions" });
-    actionBar.createEl("button", { text: tn("statusSyncModal", "allCloud") }, (btn) => {
-      btn.addEventListener("click", () => this.selectAll("cloud"));
+    actionBar.createEl("button", { text: tn("statusSyncModal", "allCloud") }, (button) => {
+      button.addEventListener("click", () => this.selectAll("cloud"));
     });
-    if (this.syncScope === "user") {
-      actionBar.createEl("button", { text: tn("statusSyncModal", "allLocal") }, (btn) => {
-        btn.addEventListener("click", () => this.selectAll("local"));
+    if (hasSelectedUserFields(this.selection)) {
+      actionBar.createEl("button", { text: tn("statusSyncModal", "allLocal") }, (button) => {
+        button.addEventListener("click", () => this.selectAll("local"));
       });
-      actionBar.createEl("button", { text: tn("statusSyncModal", "smartMerge") }, (btn) => {
-        btn.addEventListener("click", () => this.smartMerge());
+      actionBar.createEl("button", { text: tn("statusSyncModal", "smartMerge") }, (button) => {
+        button.addEventListener("click", () => this.smartMerge());
       });
     }
-    actionBar.createEl("button", { text: tn("statusSyncModal", "allSkip") }, (btn) => {
-      btn.addEventListener("click", () => this.selectAll("skip"));
+    actionBar.createEl("button", { text: tn("statusSyncModal", "allSkip") }, (button) => {
+      button.addEventListener("click", () => this.selectAll("skip"));
     });
     this.statusEl = contentEl.createDiv({ cls: "bangumi-status-sync-status" });
     this.updateStatusSummary();
     this.tableEl = contentEl.createDiv({ cls: "bangumi-status-sync-table" });
     this.renderTable();
     const footer = contentEl.createDiv({ cls: "bangumi-status-sync-footer" });
-    footer.createEl("button", { text: tn("statusSyncModal", "execute"), cls: "mod-cta" }, (btn) => {
-      btn.addEventListener("click", () => {
+    footer.createEl("button", { text: tn("statusSyncModal", "execute"), cls: "mod-cta" }, (button) => {
+      button.addEventListener("click", () => {
         void this.executeSync();
       });
     });
-    footer.createEl("button", { text: tn("statusSyncModal", "cancel") }, (btn) => {
-      btn.addEventListener("click", () => this.close());
+    footer.createEl("button", { text: tn("statusSyncModal", "cancel") }, (button) => {
+      button.addEventListener("click", () => this.close());
     });
   }
   onClose() {
@@ -11632,8 +11636,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       this.getOwnerWindow().clearTimeout(this.renderTimer);
       this.renderTimer = null;
     }
-    const { contentEl } = this;
-    contentEl.empty();
+    this.contentEl.empty();
   }
   isDisposed() {
     return this.isDisposedFlag;
@@ -11660,9 +11663,6 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     this.updateStatusSummary();
     this.scheduleRender();
   }
-  /**
-   * 渲染表格（紧凑模式）
-   */
   renderTable() {
     this.tableEl.empty();
     const visibleDiffs = this.getVisibleDiffs();
@@ -11693,8 +11693,8 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       actionCell.createEl("button", {
         text: diff.expanded ? tn("statusSyncModal", "collapse") : tn("statusSyncModal", "expand"),
         cls: "bangumi-expand-btn"
-      }, (btn) => {
-        btn.addEventListener("click", () => {
+      }, (button) => {
+        button.addEventListener("click", () => {
           this.diffs[index].expanded = !this.diffs[index].expanded;
           this.renderTable();
         });
@@ -11706,41 +11706,35 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       }
     });
   }
-  /**
-   * 添加差异图标
-   */
   appendDiffIcons(el, diff) {
     const icons = [];
-    if (diff.rate.hasDiff)
+    if (this.selection.user.rate && diff.rate.hasDiff)
       icons.push("\u2B50");
-    if (diff.comment.hasDiff)
+    if (this.selection.user.comment && diff.comment.hasDiff)
       icons.push("\u{1F4DD}");
-    if (diff.tags.hasDiff)
+    if (this.selection.user.tags && diff.tags.hasDiff)
       icons.push("\u{1F3F7}\uFE0F");
-    if (diff.status.hasDiff)
+    if (this.selection.user.status && diff.status.hasDiff)
       icons.push("\u{1F4CA}");
-    if (diff.episodeStatus.hasDiff)
+    if (this.selection.user.episodeStatus && diff.episodeStatus.hasDiff)
       icons.push("\u{1F39E}\uFE0F");
     if (diff.hasPlatformDiff)
       icons.push("\u{1F4DA}");
     if (icons.length > 0) {
-      el.createSpan({ text: " " + icons.join(""), cls: "bangumi-diff-icons" });
+      el.createSpan({ text: ` ${icons.join("")}`, cls: "bangumi-diff-icons" });
     }
   }
-  /**
-   * 获取有差异的字段名称列表
-   */
   getDiffFields(diff) {
     const fields = [];
-    if (diff.rate.hasDiff)
+    if (this.selection.user.rate && diff.rate.hasDiff)
       fields.push(tn("statusSyncModal", "fieldRate"));
-    if (diff.comment.hasDiff)
+    if (this.selection.user.comment && diff.comment.hasDiff)
       fields.push(tn("statusSyncModal", "fieldComment"));
-    if (diff.tags.hasDiff)
+    if (this.selection.user.tags && diff.tags.hasDiff)
       fields.push(tn("statusSyncModal", "fieldTags"));
-    if (diff.status.hasDiff)
+    if (this.selection.user.status && diff.status.hasDiff)
       fields.push(tn("statusSyncModal", "fieldStatus"));
-    if (diff.episodeStatus.hasDiff)
+    if (this.selection.user.episodeStatus && diff.episodeStatus.hasDiff)
       fields.push(tn("statusSyncModal", "fieldEpisodeStatus"));
     for (const platformField of diff.platformFields) {
       if (platformField.hasDiff) {
@@ -11767,9 +11761,6 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     }
     return tn("statusSyncModal", "noDiff");
   }
-  /**
-   * 渲染详情表格
-   */
   renderDetailTable(el, diff, index) {
     const detailTable = el.createEl("table", { cls: "bangumi-detail-table" });
     const thead = detailTable.createEl("thead");
@@ -11782,7 +11773,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     if (diff.hasUserDiff) {
       this.renderSectionHeader(tbody, tn("statusSyncModal", "userDataGroup"));
     }
-    if (diff.rate.hasDiff) {
+    if (this.selection.user.rate && diff.rate.hasDiff) {
       this.renderFieldRow(
         tbody,
         tn("statusSyncModal", "fieldRate"),
@@ -11793,7 +11784,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         false
       );
     }
-    if (diff.comment.hasDiff) {
+    if (this.selection.user.comment && diff.comment.hasDiff) {
       this.renderFieldRow(
         tbody,
         tn("statusSyncModal", "fieldComment"),
@@ -11804,7 +11795,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         false
       );
     }
-    if (diff.tags.hasDiff) {
+    if (this.selection.user.tags && diff.tags.hasDiff) {
       this.renderFieldRow(
         tbody,
         tn("statusSyncModal", "fieldTags"),
@@ -11815,7 +11806,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         true
       );
     }
-    if (diff.status.hasDiff) {
+    if (this.selection.user.status && diff.status.hasDiff) {
       this.renderFieldRow(
         tbody,
         tn("statusSyncModal", "fieldStatus"),
@@ -11826,7 +11817,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         false
       );
     }
-    if (diff.episodeStatus.hasDiff) {
+    if (this.selection.user.episodeStatus && diff.episodeStatus.hasDiff) {
       this.renderFieldRow(
         tbody,
         tn("statusSyncModal", "fieldEpisodeStatus"),
@@ -11836,13 +11827,13 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         index,
         false
       );
-    } else if (diff.episodeStatusLoadState !== "ready") {
+    } else if (this.selection.user.episodeStatus && diff.episodeStatusLoadState !== "ready") {
       this.renderLoadingRow(tbody, tn("statusSyncModal", "fieldEpisodeStatus"), diff.episodeStatusLoadState);
     }
     if (diff.hasPlatformDiff) {
       this.renderSectionHeader(tbody, tn("statusSyncModal", "platformDataGroup"));
       diff.platformFields.filter((field) => field.hasDiff).forEach((field) => this.renderPlatformFieldRow(tbody, field, index));
-    } else if (diff.platformLoadState !== "ready") {
+    } else if (hasSelectedPlatformFields(this.selection) && diff.platformLoadState !== "ready") {
       this.renderSectionHeader(tbody, tn("statusSyncModal", "platformDataGroup"));
       this.renderLoadingRow(tbody, tn("statusSyncModal", "platformDataGroup"), diff.platformLoadState);
     }
@@ -11856,9 +11847,6 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     const row = tbody.createEl("tr", { cls: "bangumi-detail-section-row" });
     row.createEl("td", { text, attr: { colspan: "4" }, cls: "bangumi-field-name" });
   }
-  /**
-   * 渲染单个字段行
-   */
   renderFieldRow(tbody, fieldName, localValue, cloudValue, fieldKey, diffIndex, supportMerge) {
     const fieldDiff = this.getUserDecisionField(this.diffs[diffIndex], fieldKey);
     const row = tbody.createEl("tr");
@@ -11900,9 +11888,6 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     row.createEl("td", { text: fieldName, cls: "bangumi-field-name" });
     row.createEl("td", { text: this.getLoadStateText(state), attr: { colspan: "3" } });
   }
-  /**
-   * 获取状态文本
-   */
   getStatusText(status, subjectType) {
     if (status === null)
       return tn("statusSyncModal", "empty");
@@ -11942,11 +11927,8 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         return null;
     }
   }
-  /**
-   * 全部选择
-   */
   selectAll(decision) {
-    if (this.syncScope === "platform") {
+    if (!hasSelectedUserFields(this.selection) && hasSelectedPlatformFields(this.selection)) {
       this.diffs.forEach((diff) => {
         diff.platformFields.forEach((field) => {
           field.decision = decision === "cloud" ? "cloud" : "skip";
@@ -11958,31 +11940,26 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     this.updateStatusSummary();
     this.renderTable();
   }
-  /**
-   * 智能合并：非空值优先，标签合并所有
-   */
   smartMerge() {
-    if (this.syncScope !== "user") {
+    if (!hasSelectedUserFields(this.selection)) {
       return;
     }
     this.statusSyncService.applyDecisionPreset(this.diffs, "smart");
     this.updateStatusSummary();
     this.renderTable();
   }
-  /**
-   * 执行同步
-   */
   async executeSync() {
     this.statusEl.setText(tn("statusSyncModal", "syncProgress"));
     const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
-    this.statusEl.setText(tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount)));
+    const message = tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount));
+    this.statusEl.setText(message);
     if (successCount > 0) {
-      new import_obsidian19.Notice(tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount)));
+      new import_obsidian19.Notice(message);
       this.onComplete();
       this.close();
-    } else {
-      new import_obsidian19.Notice(tn("statusSyncModal", "syncFailed"));
+      return;
     }
+    new import_obsidian19.Notice(tn("statusSyncModal", "syncFailed"));
   }
   scheduleRender() {
     if (this.renderTimer !== null || this.isDisposedFlag) {
@@ -11997,10 +11974,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
   }
   getOwnerWindow() {
     const ownerWindow = this.containerEl.ownerDocument.defaultView;
-    if (ownerWindow) {
-      return ownerWindow;
-    }
-    return activeWindow;
+    return ownerWindow != null ? ownerWindow : activeWindow;
   }
   updateStatusSummary() {
     if (!this.statusEl) {
@@ -12024,9 +11998,9 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     );
   }
   recalculateDiffState(diff) {
-    diff.hasUserDiff = diff.scope === "user" && (diff.rate.hasDiff || diff.comment.hasDiff || diff.tags.hasDiff || diff.status.hasDiff || diff.episodeStatus.hasDiff);
+    diff.hasUserDiff = hasSelectedUserFields(this.selection) && (this.selection.user.rate && diff.rate.hasDiff || this.selection.user.comment && diff.comment.hasDiff || this.selection.user.tags && diff.tags.hasDiff || this.selection.user.status && diff.status.hasDiff || this.selection.user.episodeStatus && diff.episodeStatus.hasDiff);
     diff.hasPlatformDiff = diff.platformFields.some((field) => field.hasDiff);
-    diff.hasAnyDiff = diff.scope === "platform" ? diff.hasPlatformDiff : diff.hasUserDiff || diff.hasPlatformDiff;
+    diff.hasAnyDiff = diff.hasUserDiff || diff.hasPlatformDiff;
   }
   getLoadStateText(state) {
     switch (state) {
@@ -12041,9 +12015,175 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
         return tn("statusSyncModal", "noDiff");
     }
   }
-  /**
-   * 同步单个条目
-   */
+  getTitle() {
+    if (hasSelectedUserFields(this.selection) && hasSelectedPlatformFields(this.selection)) {
+      return tn("statusSyncModal", "title");
+    }
+    return hasSelectedUserFields(this.selection) ? tn("statusSyncModal", "userTitle") : tn("statusSyncModal", "platformTitle");
+  }
+  getDescription() {
+    if (hasSelectedUserFields(this.selection) && hasSelectedPlatformFields(this.selection)) {
+      return tn("statusSyncModal", "description");
+    }
+    return hasSelectedUserFields(this.selection) ? tn("statusSyncModal", "userDescription") : tn("statusSyncModal", "platformDescription");
+  }
+};
+
+// src/panel/statusSyncScopeModal.ts
+var import_obsidian20 = require("obsidian");
+var StatusSyncScopeModal = class extends import_obsidian20.Modal {
+  constructor(app, initialSelection, onConfirm) {
+    super(app);
+    this.selection = cloneStatusSyncFieldSelection(initialSelection);
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("bangumi-status-sync-scope-modal");
+    contentEl.createEl("h2", { text: tn("statusSyncModal", "scopeTitle") });
+    contentEl.createEl("p", {
+      text: tn("statusSyncModal", "scopeDescription"),
+      cls: "bangumi-sync-description"
+    });
+    const grid = contentEl.createDiv({ cls: "bangumi-status-sync-scope-grid" });
+    this.renderSection(grid, "user");
+    this.renderSection(grid, "platform");
+    const footer = contentEl.createDiv({ cls: "bangumi-status-sync-scope-footer" });
+    footer.createDiv({
+      text: tn("statusSyncModal", "scopeFooterHint"),
+      cls: "bangumi-status-sync-scope-hint"
+    });
+    const actions = footer.createDiv({ cls: "bangumi-status-sync-scope-actions" });
+    actions.createEl("button", { text: tn("syncOptions", "cancel") }, (button) => {
+      button.addEventListener("click", () => this.close());
+    });
+    actions.createEl("button", {
+      text: tn("statusSyncModal", "startCompare"),
+      cls: "mod-cta"
+    }, (button) => {
+      button.addEventListener("click", () => {
+        if (!hasSelectedUserFields(this.selection) && !hasSelectedPlatformFields(this.selection)) {
+          new import_obsidian20.Notice(tn("statusSyncModal", "selectAtLeastOne"));
+          return;
+        }
+        this.onConfirm(cloneStatusSyncFieldSelection(this.selection));
+        this.close();
+      });
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+  renderSection(container, section) {
+    const card = container.createDiv({
+      cls: `bangumi-status-sync-scope-card ${section === "user" ? "is-default" : ""}`
+    });
+    const fieldDescriptors = section === "user" ? this.getUserFieldDescriptors() : this.getPlatformFieldDescriptors();
+    const header = card.createDiv({ cls: "bangumi-status-sync-scope-head" });
+    const topLine = header.createDiv({ cls: "bangumi-status-sync-scope-topline" });
+    const titleWrap = topLine.createDiv({ cls: "bangumi-status-sync-scope-title-wrap" });
+    const masterLabel = titleWrap.createEl("label", { cls: "bangumi-status-sync-scope-master" });
+    const masterCheckbox = masterLabel.createEl("input", { type: "checkbox" });
+    masterLabel.createSpan({
+      text: section === "user" ? tn("statusSyncModal", "userDataGroup") : tn("statusSyncModal", "platformDataGroup"),
+      cls: "bangumi-status-sync-scope-title"
+    });
+    titleWrap.createSpan({
+      text: section === "user" ? tn("statusSyncModal", "scopeDefaultUser") : tn("statusSyncModal", "scopeDefaultPlatform"),
+      cls: "bangumi-status-sync-scope-badge"
+    });
+    const tools = topLine.createDiv({ cls: "bangumi-status-sync-scope-tools" });
+    tools.createEl("button", { text: tn("statusSyncModal", "selectAll") }, (button) => {
+      button.addEventListener("click", () => {
+        this.setSectionSelection(section, true);
+        this.onOpen();
+      });
+    });
+    tools.createEl("button", { text: tn("statusSyncModal", "deselectAll") }, (button) => {
+      button.addEventListener("click", () => {
+        this.setSectionSelection(section, false);
+        this.onOpen();
+      });
+    });
+    header.createEl("p", {
+      text: section === "user" ? tn("statusSyncModal", "scopeUserDescription") : tn("statusSyncModal", "scopePlatformDescription"),
+      cls: "bangumi-status-sync-scope-desc"
+    });
+    const items = card.createDiv({ cls: "bangumi-status-sync-scope-items" });
+    if (section === "user") {
+      const fields = this.getUserFieldDescriptors();
+      for (const field of fields) {
+        const isChecked = this.selection.user[field.key];
+        const item = items.createEl("label", {
+          cls: `bangumi-status-sync-scope-item ${isChecked ? "is-checked" : ""}`
+        });
+        const checkbox = item.createEl("input", { type: "checkbox" });
+        checkbox.checked = isChecked;
+        checkbox.addEventListener("change", () => {
+          this.selection.user[field.key] = checkbox.checked;
+          this.onOpen();
+        });
+        const content = item.createDiv({ cls: "bangumi-status-sync-scope-item-content" });
+        content.createDiv({ text: field.label, cls: "bangumi-status-sync-scope-item-name" });
+        content.createDiv({ text: field.description, cls: "bangumi-status-sync-scope-item-meta" });
+      }
+    } else {
+      const fields = this.getPlatformFieldDescriptors();
+      for (const field of fields) {
+        const isChecked = this.selection.platform[field.key];
+        const item = items.createEl("label", {
+          cls: `bangumi-status-sync-scope-item ${isChecked ? "is-checked" : ""}`
+        });
+        const checkbox = item.createEl("input", { type: "checkbox" });
+        checkbox.checked = isChecked;
+        checkbox.addEventListener("change", () => {
+          this.selection.platform[field.key] = checkbox.checked;
+          this.onOpen();
+        });
+        const content = item.createDiv({ cls: "bangumi-status-sync-scope-item-content" });
+        content.createDiv({ text: field.label, cls: "bangumi-status-sync-scope-item-name" });
+        content.createDiv({ text: field.description, cls: "bangumi-status-sync-scope-item-meta" });
+      }
+    }
+    const selectedCount = section === "user" ? this.getUserFieldDescriptors().filter((field) => this.selection.user[field.key]).length : this.getPlatformFieldDescriptors().filter((field) => this.selection.platform[field.key]).length;
+    masterCheckbox.checked = selectedCount === fieldDescriptors.length && fieldDescriptors.length > 0;
+    masterCheckbox.indeterminate = selectedCount > 0 && selectedCount < fieldDescriptors.length;
+    masterCheckbox.addEventListener("change", () => {
+      this.setSectionSelection(section, masterCheckbox.checked);
+      this.onOpen();
+    });
+  }
+  setSectionSelection(section, checked) {
+    if (section === "user") {
+      for (const key of USER_STATUS_SYNC_FIELD_KEYS) {
+        this.selection.user[key] = checked;
+      }
+      return;
+    }
+    for (const key of PLATFORM_STATUS_SYNC_FIELD_KEYS) {
+      this.selection.platform[key] = checked;
+    }
+  }
+  getUserFieldDescriptors() {
+    return [
+      { key: "rate", label: tn("statusSyncModal", "fieldRate"), description: tn("statusSyncModal", "scopeFieldRate") },
+      { key: "comment", label: tn("statusSyncModal", "fieldComment"), description: tn("statusSyncModal", "scopeFieldComment") },
+      { key: "tags", label: tn("statusSyncModal", "fieldTags"), description: tn("statusSyncModal", "scopeFieldTags") },
+      { key: "status", label: tn("statusSyncModal", "fieldStatus"), description: tn("statusSyncModal", "scopeFieldStatus") },
+      { key: "episodeStatus", label: tn("statusSyncModal", "fieldEpisodeStatus"), description: tn("statusSyncModal", "scopeFieldEpisodeStatus") }
+    ];
+  }
+  getPlatformFieldDescriptors() {
+    return [
+      { key: "episodeCount", label: tn("statusSyncModal", "fieldEpisodeCount"), description: tn("statusSyncModal", "scopeFieldEpisodeCount") },
+      { key: "chapterCount", label: tn("statusSyncModal", "fieldChapterCount"), description: tn("statusSyncModal", "scopeFieldChapterCount") },
+      { key: "volumeCount", label: tn("statusSyncModal", "fieldVolumeCount"), description: tn("statusSyncModal", "scopeFieldVolumeCount") },
+      { key: "start", label: tn("statusSyncModal", "fieldStart"), description: tn("statusSyncModal", "scopeFieldStart") },
+      { key: "end", label: tn("statusSyncModal", "fieldEnd"), description: tn("statusSyncModal", "scopeFieldEnd") },
+      { key: "progress", label: tn("statusSyncModal", "fieldProgress"), description: tn("statusSyncModal", "scopeFieldProgress") }
+    ];
+  }
 };
 
 // src/panel/conflictResolver.ts
@@ -12154,7 +12294,7 @@ function isMobile() {
 }
 
 // src/sync/statusSyncService.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 
 // src/sync/platformSyncLogic.ts
 function createCloudPlatformFieldDiff(key, label, localValue, cloudValue) {
@@ -12187,17 +12327,17 @@ var StatusSyncService = class {
         return this.buildSnapshot(collection, options.localSubjects, options.getCachedSnapshot, options.onPrefetchHit, options.onPrefetchMiss);
       }
     )).filter((snapshot) => snapshot !== null);
-    const diffs = snapshots.map((snapshot) => this.buildStatusSyncDiff(snapshot, options.scope)).filter((diff) => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
+    const diffs = snapshots.map((snapshot) => this.buildStatusSyncDiff(snapshot, options.selection)).filter((diff) => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
     return { snapshots, diffs };
   }
-  async loadBackgroundDiffs(scope, snapshots, callbacks, onProgress, concurrency = 4) {
+  async loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency = 4) {
     const context = {
       subjectCache: /* @__PURE__ */ new Map(),
       cloudEpisodeStatusCache: /* @__PURE__ */ new Map(),
       platformDiffCache: /* @__PURE__ */ new Map()
     };
     const candidates = snapshots.filter(
-      (snapshot) => scope === "user" && snapshot.localSnapshot.shouldLoadEpisodeStatus || scope === "platform" && snapshot.localSnapshot.shouldLoadPlatformData
+      (snapshot) => selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus || hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData
     );
     let completed = 0;
     callbacks.updateBackgroundProgress(completed, candidates.length);
@@ -12206,17 +12346,17 @@ var StatusSyncService = class {
         return;
       }
       const loadingPatch = {};
-      if (scope === "user" && snapshot.localSnapshot.shouldLoadEpisodeStatus) {
+      if (selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus) {
         loadingPatch.episodeStatusLoadState = "loading";
       }
-      if (scope === "platform" && snapshot.localSnapshot.shouldLoadPlatformData) {
+      if (hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData) {
         loadingPatch.platformLoadState = "loading";
       }
       callbacks.updateDiff(snapshot.subjectId, loadingPatch);
       try {
         const [episodeStatus, platformResult] = await Promise.all([
-          scope === "user" && snapshot.localSnapshot.shouldLoadEpisodeStatus ? this.buildEpisodeStatusDiff(snapshot, context) : Promise.resolve(null),
-          scope === "platform" && snapshot.localSnapshot.shouldLoadPlatformData ? this.buildPlatformFieldDiffs(snapshot, context) : Promise.resolve(null)
+          selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? this.buildEpisodeStatusDiff(snapshot, context) : Promise.resolve(null),
+          hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? this.buildPlatformFieldDiffs(snapshot, context, selection) : Promise.resolve(null)
         ]);
         if (callbacks.isDisposed()) {
           return;
@@ -12238,8 +12378,8 @@ var StatusSyncService = class {
         }
         const errorMessage = error instanceof Error ? error.message : String(error);
         callbacks.updateDiff(snapshot.subjectId, {
-          episodeStatusLoadState: scope === "user" && snapshot.localSnapshot.shouldLoadEpisodeStatus ? "failed" : "ready",
-          platformLoadState: scope === "platform" && snapshot.localSnapshot.shouldLoadPlatformData ? "failed" : "ready",
+          episodeStatusLoadState: selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? "failed" : "ready",
+          platformLoadState: hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? "failed" : "ready",
           backgroundError: errorMessage
         });
       } finally {
@@ -12287,7 +12427,7 @@ var StatusSyncService = class {
       return null;
     }
     const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-    if (!(file instanceof import_obsidian20.TFile)) {
+    if (!(file instanceof import_obsidian21.TFile)) {
       return null;
     }
     const cachedSnapshot = (_a = getCachedSnapshot == null ? void 0 : getCachedSnapshot(collection.subject_id, localInfo.path, file.stat.mtime)) != null ? _a : null;
@@ -12317,7 +12457,7 @@ var StatusSyncService = class {
       localSnapshot
     };
   }
-  buildStatusSyncDiff(snapshot, scope) {
+  buildStatusSyncDiff(snapshot, selection) {
     const { collection, localInfo } = snapshot;
     const userDiffs = buildUserStatusSyncDiff({
       localRate: snapshot.localSnapshot.user.rate,
@@ -12329,12 +12469,34 @@ var StatusSyncService = class {
       localStatus: snapshot.localSnapshot.user.status,
       cloudStatus: collection.type || null
     });
+    const scope = getStatusSyncScope(selection);
     const episodeStatus = {
       localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) : null,
       cloudValue: null,
       hasDiff: false,
       decision: "skip"
     };
+    const rateDiff = {
+      ...userDiffs.rate,
+      hasDiff: selection.user.rate ? userDiffs.rate.hasDiff : false,
+      decision: "skip"
+    };
+    const commentDiff = {
+      ...userDiffs.comment,
+      hasDiff: selection.user.comment ? userDiffs.comment.hasDiff : false,
+      decision: "skip"
+    };
+    const tagsDiff = {
+      ...userDiffs.tags,
+      hasDiff: selection.user.tags ? userDiffs.tags.hasDiff : false,
+      decision: "skip"
+    };
+    const statusDiff = {
+      ...userDiffs.status,
+      hasDiff: selection.user.status ? userDiffs.status.hasDiff : false,
+      decision: "skip"
+    };
+    const hasUserDiff = hasSelectedUserFields(selection) && (rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff);
     return {
       scope,
       subjectId: collection.subject_id,
@@ -12343,22 +12505,22 @@ var StatusSyncService = class {
       localPath: localInfo.path,
       collection,
       statusFieldName: snapshot.localSnapshot.user.statusFieldName,
-      rate: { ...userDiffs.rate, decision: "skip" },
-      comment: { ...userDiffs.comment, decision: "skip" },
-      tags: { ...userDiffs.tags, decision: "skip" },
-      status: { ...userDiffs.status, decision: "skip" },
+      rate: rateDiff,
+      comment: commentDiff,
+      tags: tagsDiff,
+      status: statusDiff,
       episodeStatus,
       platformFields: [],
-      hasUserDiff: scope === "user" ? userDiffs.hasUserDiff : false,
+      hasUserDiff,
       hasPlatformDiff: false,
-      hasAnyDiff: scope === "user" ? userDiffs.hasUserDiff : false,
+      hasAnyDiff: hasUserDiff,
       expanded: false,
-      episodeStatusLoadState: scope === "user" && snapshot.localSnapshot.shouldLoadEpisodeStatus ? "pending" : "ready",
-      platformLoadState: scope === "platform" && snapshot.localSnapshot.shouldLoadPlatformData ? "pending" : "ready",
+      episodeStatusLoadState: selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? "pending" : "ready",
+      platformLoadState: hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? "pending" : "ready",
       backgroundError: null
     };
   }
-  async buildPlatformFieldDiffs(snapshot, context) {
+  async buildPlatformFieldDiffs(snapshot, context, selection) {
     return this.getOrCreateCachedPromise(
       context.platformDiffCache,
       snapshot.subjectId,
@@ -12381,7 +12543,7 @@ var StatusSyncService = class {
         const localContext = snapshot.localSnapshot.platform;
         if (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */) {
           const cloudValue = cloudPayload.episodeCount;
-          if (cloudValue !== void 0 && cloudValue !== null && localContext.episodeCount !== cloudValue) {
+          if (selection.platform.episodeCount && cloudValue !== void 0 && cloudValue !== null && localContext.episodeCount !== cloudValue) {
             fields.push(createCloudPlatformFieldDiff(
               "episodeCount",
               tn("statusSyncModal", "fieldEpisodeCount"),
@@ -12393,7 +12555,7 @@ var StatusSyncService = class {
         if (collection.subject_type === 1 /* Book */) {
           const isComic = (parsedInfo.category || "").includes("\u6F2B\u753B") || localContext.chapterCount !== null;
           if (isComic) {
-            if (cloudPayload.chapterCount !== void 0 && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
+            if (selection.platform.chapterCount && cloudPayload.chapterCount !== void 0 && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
               fields.push(createCloudPlatformFieldDiff(
                 "chapterCount",
                 tn("statusSyncModal", "fieldChapterCount"),
@@ -12401,7 +12563,7 @@ var StatusSyncService = class {
                 String(cloudPayload.chapterCount)
               ));
             }
-            if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+            if (selection.platform.volumeCount && cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
               fields.push(createCloudPlatformFieldDiff(
                 "volumeCount",
                 tn("statusSyncModal", "fieldVolumeCount"),
@@ -12409,7 +12571,7 @@ var StatusSyncService = class {
                 String(cloudPayload.volumeCount)
               ));
             }
-          } else if (cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+          } else if (selection.platform.volumeCount && cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
             fields.push(createCloudPlatformFieldDiff(
               "volumeCount",
               tn("statusSyncModal", "fieldVolumeCount"),
@@ -12418,6 +12580,30 @@ var StatusSyncService = class {
             ));
           }
         }
+        this.appendTextPlatformFieldDiff(
+          fields,
+          selection.platform.start,
+          "start",
+          tn("statusSyncModal", "fieldStart"),
+          localContext.start,
+          cloudPayload.start
+        );
+        this.appendTextPlatformFieldDiff(
+          fields,
+          selection.platform.end,
+          "end",
+          tn("statusSyncModal", "fieldEnd"),
+          localContext.end,
+          cloudPayload.end
+        );
+        this.appendTextPlatformFieldDiff(
+          fields,
+          selection.platform.progress,
+          "progress",
+          tn("statusSyncModal", "fieldProgress"),
+          localContext.progress,
+          cloudPayload.progress
+        );
         return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
       }
     );
@@ -12497,7 +12683,7 @@ var StatusSyncService = class {
   async syncItem(diff) {
     var _a, _b, _c, _d;
     const file = this.app.vault.getAbstractFileByPath(diff.localPath);
-    if (!(file instanceof import_obsidian20.TFile)) {
+    if (!(file instanceof import_obsidian21.TFile)) {
       throw new Error("File not found");
     }
     const originalContent = await this.app.vault.read(file);
@@ -12579,7 +12765,8 @@ var StatusSyncService = class {
     if (!diff.platformSyncPayload) {
       return content;
     }
-    const nextContent = this.documentService.updatePlatformMetadata(content, diff.platformSyncPayload);
+    const selectedPayload = this.buildSelectedPlatformSyncPayload(diff);
+    const nextContent = this.documentService.updatePlatformMetadata(content, selectedPayload);
     if (diff.collection.subject_type !== 2 /* Anime */ && diff.collection.subject_type !== 6 /* Real */) {
       return nextContent;
     }
@@ -12606,6 +12793,51 @@ var StatusSyncService = class {
       return nextContent;
     }
     return this.documentService.updateEpisodeSection(nextContent, renderedEpisodes);
+  }
+  appendTextPlatformFieldDiff(fields, enabled, key, label, localValue, cloudValue) {
+    if (!enabled) {
+      return;
+    }
+    const normalizedCloudValue = cloudValue != null ? cloudValue : null;
+    if ((localValue != null ? localValue : null) === normalizedCloudValue) {
+      return;
+    }
+    fields.push(createCloudPlatformFieldDiff(
+      key,
+      label,
+      localValue,
+      normalizedCloudValue
+    ));
+  }
+  buildSelectedPlatformSyncPayload(diff) {
+    var _a, _b, _c, _d, _e, _f;
+    const payload = {};
+    for (const field of diff.platformFields) {
+      if (!field.hasDiff || field.decision !== "cloud" || !diff.platformSyncPayload) {
+        continue;
+      }
+      switch (field.key) {
+        case "episodeCount":
+          payload.episodeCount = (_a = diff.platformSyncPayload.episodeCount) != null ? _a : null;
+          break;
+        case "chapterCount":
+          payload.chapterCount = (_b = diff.platformSyncPayload.chapterCount) != null ? _b : null;
+          break;
+        case "volumeCount":
+          payload.volumeCount = (_c = diff.platformSyncPayload.volumeCount) != null ? _c : null;
+          break;
+        case "start":
+          payload.start = (_d = diff.platformSyncPayload.start) != null ? _d : null;
+          break;
+        case "end":
+          payload.end = (_e = diff.platformSyncPayload.end) != null ? _e : null;
+          break;
+        case "progress":
+          payload.progress = (_f = diff.platformSyncPayload.progress) != null ? _f : null;
+          break;
+      }
+    }
+    return payload;
   }
   toValidCollectionType(value) {
     if (value === 1 /* Wish */ || value === 2 /* Done */ || value === 3 /* Doing */ || value === 4 /* OnHold */ || value === 5 /* Dropped */) {
@@ -12657,8 +12889,8 @@ var StatusSyncService = class {
 };
 
 // src/panel/controlPanel.ts
-var ControlPanel = class extends import_obsidian21.Modal {
-  constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, subjectNoteManager, episodeStatusManager, autoSyncScope) {
+var ControlPanel = class extends import_obsidian22.Modal {
+  constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, onOpenSyncOptions, onBatchDownloadCovers, onScanAndLinkRelated, subjectNoteManager, episodeStatusManager, autoSyncSelection) {
     super(app);
     // 分页
     this.currentPage = 1;
@@ -12682,9 +12914,12 @@ var ControlPanel = class extends import_obsidian21.Modal {
       forceSync: "\u5F3A\u540C",
       deleteSelected: "\u5220\u9664",
       batchEdit: "\u6279\u7F16",
-      syncUserData: "\u7528\u6237",
-      syncPlatformData: "\u5E73\u53F0",
+      syncStatus: "\u72B6\u6001",
+      syncCollections: "\u6536\u85CF",
+      scanAndLinkRelated: "\u5173\u8054",
+      batchDownloadCovers: "\u5C01\u9762",
       undo: "\u64A4\u9500",
+      more: "\u66F4\u591A",
       search: "\u641C\u7D22"
     } : {
       refresh: "Refresh",
@@ -12692,9 +12927,12 @@ var ControlPanel = class extends import_obsidian21.Modal {
       forceSync: "Force",
       deleteSelected: "Delete",
       batchEdit: "Batch",
-      syncUserData: "User",
-      syncPlatformData: "Platform",
+      syncStatus: "Status",
+      syncCollections: "Library",
+      scanAndLinkRelated: "Links",
+      batchDownloadCovers: "Cover",
       undo: "Undo",
+      more: "More",
       search: "Search"
     };
     this.lastStatusSyncPerf = null;
@@ -12705,7 +12943,10 @@ var ControlPanel = class extends import_obsidian21.Modal {
     this.onFiltersChange = onFiltersChange;
     this.cachedData = cachedData;
     this.onCacheUpdate = onCacheUpdate;
-    this.autoSyncScope = autoSyncScope != null ? autoSyncScope : null;
+    this.onOpenSyncOptions = onOpenSyncOptions;
+    this.onBatchDownloadCovers = onBatchDownloadCovers;
+    this.onScanAndLinkRelated = onScanAndLinkRelated;
+    this.autoSyncSelection = autoSyncSelection != null ? autoSyncSelection : null;
     this.client = new BangumiClient(settings.accessToken);
     this.incrementalSync = new IncrementalSync(app);
     this.documentService = new SubjectDocumentService(app, this.episodeStatusManager);
@@ -12856,56 +13097,208 @@ var ControlPanel = class extends import_obsidian21.Modal {
    */
   renderActionBar() {
     this.actionBarEl.empty();
-    this.actionBarEl.createEl("button", { text: tn("controlPanel", "refresh"), cls: "bangumi-action-btn bangumi-action-btn-refresh" }, (btn) => {
-      this.decorateMobileButton(btn, this.mobileShortLabels.refresh, tn("controlPanel", "refresh"));
-      btn.addEventListener("click", () => {
-        void this.loadData();
+    const hasSelection = this.state.selectedIds.size > 0;
+    const toolbarActions = this.getToolbarActions(hasSelection);
+    for (const action of toolbarActions) {
+      const button = this.actionBarEl.createEl("button", {
+        text: action.label,
+        cls: `bangumi-action-btn ${action.className}`
       });
-    });
-    this.actionBarEl.createEl("button", { text: tn("controlPanel", "syncSelected"), cls: "bangumi-action-btn bangumi-action-btn-sync" }, (btn) => {
-      this.decorateMobileButton(btn, this.mobileShortLabels.syncSelected, tn("controlPanel", "syncSelected"));
-      btn.addEventListener("click", () => {
-        void this.syncSelected(false);
+      this.decorateMobileButton(button, action.mobileLabel, action.label);
+      button.addEventListener("click", (evt) => {
+        action.run(evt);
       });
-    });
-    this.actionBarEl.createEl("button", { text: tn("controlPanel", "forceSync"), cls: "bangumi-action-btn bangumi-action-btn-force" }, (btn) => {
-      this.decorateMobileButton(btn, this.mobileShortLabels.forceSync, tn("controlPanel", "forceSync"));
-      btn.addEventListener("click", () => {
-        void this.syncSelected(true);
-      });
-    });
-    this.actionBarEl.createEl("button", { text: tn("controlPanel", "deleteSelected"), cls: "bangumi-action-btn bangumi-action-btn-delete" }, (btn) => {
-      this.decorateMobileButton(btn, this.mobileShortLabels.deleteSelected, tn("controlPanel", "deleteSelected"));
-      btn.addEventListener("click", () => this.deleteSelected());
-    });
-    this.actionBarEl.createEl("button", { text: tn("controlPanel", "batchEdit"), cls: "bangumi-action-btn bangumi-action-btn-batch" }, (btn) => {
-      this.decorateMobileButton(btn, this.mobileShortLabels.batchEdit, tn("controlPanel", "batchEdit"));
-      btn.addEventListener("click", () => this.openBatchEditor());
-    });
-    this.actionBarEl.createEl("button", { text: tn("controlPanel", "syncUserData"), cls: "bangumi-action-btn bangumi-action-btn-status" }, (btn) => {
-      this.decorateMobileButton(btn, this.mobileShortLabels.syncUserData, tn("controlPanel", "syncUserData"));
-      btn.addEventListener("click", () => {
-        void this.syncStatus("user");
-      });
-    });
-    this.actionBarEl.createEl("button", { text: tn("controlPanel", "syncPlatformData"), cls: "bangumi-action-btn bangumi-action-btn-status" }, (btn) => {
-      this.decorateMobileButton(btn, this.mobileShortLabels.syncPlatformData, tn("controlPanel", "syncPlatformData"));
-      btn.addEventListener("click", () => {
-        void this.syncStatus("platform");
-      });
-    });
-    const undoBtn = this.actionBarEl.createEl("button", { text: tn("controlPanel", "undo"), cls: "bangumi-action-btn bangumi-action-btn-undo" }, (btn) => {
-      this.decorateMobileButton(btn, this.mobileShortLabels.undo, tn("controlPanel", "undo"));
-      btn.addEventListener("click", () => {
-        void this.undoLastEdit();
-      });
-    });
-    undoBtn.disabled = !this.frontmatterEditor.canUndo();
-    this.actionBarEl.createEl("button", { text: tn("searchModal", "title"), cls: "bangumi-action-btn bangumi-action-btn-search" }, (btn) => {
-      this.decorateMobileButton(btn, this.mobileShortLabels.search, tn("searchModal", "title"));
-      btn.addEventListener("click", () => this.openSearchModal());
-    });
+      if (action.key === "undo") {
+        button.disabled = !this.frontmatterEditor.canUndo();
+      }
+    }
     this.updateSelectedCount();
+  }
+  getToolbarActions(hasSelection) {
+    const actionMap = new Map(this.getActionDescriptors().map((action) => [action.key, action]));
+    const keys = hasSelection ? ["search", "refresh", "syncSelected", "forceSync", "batchEdit", "deleteSelected", "undo", "more"] : ["search", "refresh", "syncStatus", "syncCollections", "scanAndLinkRelated", "batchDownloadCovers", "undo", "more"];
+    return keys.map((key) => actionMap.get(key)).filter((action) => action !== void 0);
+  }
+  getMoreMenuActions(hasSelection) {
+    const toolbarKeys = new Set(this.getToolbarActions(hasSelection).map((action) => action.key));
+    return this.getActionDescriptors().filter(
+      (action) => action.showInMoreMenu && !toolbarKeys.has(action.key)
+    );
+  }
+  getActionDescriptors() {
+    return [
+      {
+        key: "search",
+        label: tn("searchModal", "title"),
+        mobileLabel: this.mobileShortLabels.search,
+        className: "bangumi-action-btn-search",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: true,
+        showInMoreMenu: false,
+        menuSection: "tools",
+        run: () => this.openSearchModal()
+      },
+      {
+        key: "refresh",
+        label: tn("controlPanel", "refresh"),
+        mobileLabel: this.mobileShortLabels.refresh,
+        className: "bangumi-action-btn-refresh",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: true,
+        showInMoreMenu: false,
+        menuSection: "tools",
+        run: () => {
+          void this.loadData();
+        }
+      },
+      {
+        key: "syncStatus",
+        label: tn("controlPanel", "syncStatus"),
+        mobileLabel: this.mobileShortLabels.syncStatus,
+        className: "bangumi-action-btn-status",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: false,
+        showInMoreMenu: true,
+        menuSection: "sync",
+        run: () => this.openStatusSyncScopeSelector()
+      },
+      {
+        key: "syncCollections",
+        label: tn("commands", "syncCollections"),
+        mobileLabel: this.mobileShortLabels.syncCollections,
+        className: "bangumi-action-btn-sync",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: false,
+        showInMoreMenu: true,
+        menuSection: "sync",
+        run: () => this.onOpenSyncOptions()
+      },
+      {
+        key: "scanAndLinkRelated",
+        label: tn("commands", "scanAndLinkRelated"),
+        mobileLabel: this.mobileShortLabels.scanAndLinkRelated,
+        className: "bangumi-action-btn-tools",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: false,
+        showInMoreMenu: true,
+        menuSection: "tools",
+        run: () => this.onScanAndLinkRelated()
+      },
+      {
+        key: "batchDownloadCovers",
+        label: tn("commands", "batchDownloadCovers"),
+        mobileLabel: this.mobileShortLabels.batchDownloadCovers,
+        className: "bangumi-action-btn-tools",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: false,
+        showInMoreMenu: true,
+        menuSection: "tools",
+        run: () => this.onBatchDownloadCovers()
+      },
+      {
+        key: "undo",
+        label: tn("controlPanel", "undo"),
+        mobileLabel: this.mobileShortLabels.undo,
+        className: "bangumi-action-btn-undo",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: true,
+        showInMoreMenu: false,
+        menuSection: "selection",
+        run: () => {
+          void this.undoLastEdit();
+        }
+      },
+      {
+        key: "syncSelected",
+        label: tn("controlPanel", "syncSelected"),
+        mobileLabel: this.mobileShortLabels.syncSelected,
+        className: "bangumi-action-btn-sync",
+        showInDefaultToolbar: false,
+        showInSelectionToolbar: true,
+        showInMoreMenu: true,
+        menuSection: "selection",
+        requiresSelection: true,
+        run: () => {
+          void this.syncSelected(false);
+        }
+      },
+      {
+        key: "forceSync",
+        label: tn("controlPanel", "forceSync"),
+        mobileLabel: this.mobileShortLabels.forceSync,
+        className: "bangumi-action-btn-force",
+        showInDefaultToolbar: false,
+        showInSelectionToolbar: true,
+        showInMoreMenu: true,
+        menuSection: "selection",
+        requiresSelection: true,
+        run: () => {
+          void this.syncSelected(true);
+        }
+      },
+      {
+        key: "batchEdit",
+        label: tn("controlPanel", "batchEdit"),
+        mobileLabel: this.mobileShortLabels.batchEdit,
+        className: "bangumi-action-btn-batch",
+        showInDefaultToolbar: false,
+        showInSelectionToolbar: true,
+        showInMoreMenu: true,
+        menuSection: "selection",
+        requiresSelection: true,
+        run: () => this.openBatchEditor()
+      },
+      {
+        key: "deleteSelected",
+        label: tn("controlPanel", "deleteSelected"),
+        mobileLabel: this.mobileShortLabels.deleteSelected,
+        className: "bangumi-action-btn-delete",
+        showInDefaultToolbar: false,
+        showInSelectionToolbar: true,
+        showInMoreMenu: true,
+        menuSection: "selection",
+        requiresSelection: true,
+        run: () => this.deleteSelected()
+      },
+      {
+        key: "more",
+        label: tn("controlPanel", "more"),
+        mobileLabel: this.mobileShortLabels.more,
+        className: "bangumi-action-btn-more",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: true,
+        showInMoreMenu: false,
+        menuSection: "tools",
+        run: (evt) => this.openMoreMenu(evt)
+      }
+    ];
+  }
+  openMoreMenu(evt) {
+    if (!evt) {
+      return;
+    }
+    const hasSelection = this.state.selectedIds.size > 0;
+    const menu = new import_obsidian22.Menu();
+    const actions = this.getMoreMenuActions(hasSelection);
+    const orderedSections = ["sync", "selection", "tools"];
+    let hasRenderedAnyItem = false;
+    for (const section of orderedSections) {
+      const sectionActions = actions.filter((action) => action.menuSection === section);
+      if (sectionActions.length === 0) {
+        continue;
+      }
+      if (hasRenderedAnyItem) {
+        menu.addSeparator();
+      }
+      for (const action of sectionActions) {
+        const disabled = !!action.requiresSelection && !hasSelection;
+        menu.addItem((item) => {
+          item.setTitle(disabled ? `${action.label} (${tn("controlPanel", "selectFirst")})` : action.label).setDisabled(disabled).onClick(() => action.run());
+        });
+      }
+      hasRenderedAnyItem = true;
+    }
+    menu.showAtMouseEvent(evt);
   }
   decorateMobileButton(button, shortLabel, fullLabel) {
     button.dataset.mobileLabel = shortLabel;
@@ -13197,12 +13590,12 @@ var ControlPanel = class extends import_obsidian21.Modal {
   }
   async openOrCreateNote(path) {
     if (!this.subjectNoteManager) {
-      new import_obsidian21.Notice(tn("notices", "noteManagerNotInit"));
+      new import_obsidian22.Notice(tn("notices", "noteManagerNotInit"));
       return;
     }
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian21.TFile)) {
-      new import_obsidian21.Notice(tn("controlPanel", "fileNotFound"));
+    if (!(file instanceof import_obsidian22.TFile)) {
+      new import_obsidian22.Notice(tn("controlPanel", "fileNotFound"));
       return;
     }
     await this.subjectNoteManager.createOrAppendForLocalFile(file);
@@ -13247,11 +13640,11 @@ var ControlPanel = class extends import_obsidian21.Modal {
    */
   openFile(path) {
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (file instanceof import_obsidian21.TFile) {
+    if (file instanceof import_obsidian22.TFile) {
       this.close();
       void this.app.workspace.openLinkText(file.path, "", true);
     } else {
-      new import_obsidian21.Notice(tn("controlPanel", "fileNotFound"));
+      new import_obsidian22.Notice(tn("controlPanel", "fileNotFound"));
     }
   }
   /**
@@ -13260,7 +13653,7 @@ var ControlPanel = class extends import_obsidian21.Modal {
    */
   async syncSelected(overwrite = false) {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian21.Notice(tn("controlPanel", "selectToSync"));
+      new import_obsidian22.Notice(tn("controlPanel", "selectToSync"));
       return;
     }
     let selectedCollections;
@@ -13274,7 +13667,7 @@ var ControlPanel = class extends import_obsidian21.Modal {
       );
     }
     if (selectedCollections.length === 0) {
-      new import_obsidian21.Notice(overwrite ? tn("controlPanel", "selectToSync") : tn("controlPanel", "alreadySynced"));
+      new import_obsidian22.Notice(overwrite ? tn("controlPanel", "selectToSync") : tn("controlPanel", "alreadySynced"));
       return;
     }
     const localPropertyResult = await this.collectLocalPropertyValues(selectedCollections);
@@ -13297,7 +13690,7 @@ var ControlPanel = class extends import_obsidian21.Modal {
       );
       this.state.loading = false;
       if (result.success) {
-        new import_obsidian21.Notice(`${tn("controlPanel", "syncComplete")}! ${result.added}, ${result.errors}`);
+        new import_obsidian22.Notice(`${tn("controlPanel", "syncComplete")}! ${result.added}, ${result.errors}`);
         const scanPath = this.settings.scanFolderPath || "ACGN";
         await this.incrementalSync.scanLocalFolder(scanPath);
         this.state.localSubjects = /* @__PURE__ */ new Map();
@@ -13314,13 +13707,13 @@ var ControlPanel = class extends import_obsidian21.Modal {
         this.renderActionBar();
         this.renderPagination();
       } else {
-        new import_obsidian21.Notice(tn("controlPanel", "syncFailed"));
+        new import_obsidian22.Notice(tn("controlPanel", "syncFailed"));
         this.renderStatus(tn("controlPanel", "syncFailed"));
       }
     } catch (error) {
       this.state.loading = false;
       const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian21.Notice(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
+      new import_obsidian22.Notice(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
       this.renderStatus(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
     }
   }
@@ -13336,7 +13729,7 @@ var ControlPanel = class extends import_obsidian21.Modal {
       (message) => {
         if (!warned) {
           warned = true;
-          new import_obsidian21.Notice(message);
+          new import_obsidian22.Notice(message);
         }
       }
     );
@@ -13373,14 +13766,14 @@ var ControlPanel = class extends import_obsidian21.Modal {
    */
   deleteSelected() {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian21.Notice(tn("controlPanel", "selectToDelete"));
+      new import_obsidian22.Notice(tn("controlPanel", "selectToDelete"));
       return;
     }
     const syncedCollections = this.state.collections.filter(
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (syncedCollections.length === 0) {
-      new import_obsidian21.Notice(tn("controlPanel", "selectSyncedToDelete"));
+      new import_obsidian22.Notice(tn("controlPanel", "selectSyncedToDelete"));
       return;
     }
     const modal = new ConfirmModal(
@@ -13395,7 +13788,7 @@ var ControlPanel = class extends import_obsidian21.Modal {
             if (localInfo) {
               try {
                 const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-                if (file instanceof import_obsidian21.TFile) {
+                if (file instanceof import_obsidian22.TFile) {
                   await this.app.fileManager.trashFile(file);
                   this.state.localSubjects.delete(collection.subject_id);
                   deleted++;
@@ -13406,7 +13799,7 @@ var ControlPanel = class extends import_obsidian21.Modal {
               }
             }
           }
-          new import_obsidian21.Notice(`${tn("controlPanel", "deleteComplete")}: ${deleted}, ${failed}`);
+          new import_obsidian22.Notice(`${tn("controlPanel", "deleteComplete")}: ${deleted}, ${failed}`);
           this.state.selectedIds.clear();
           this.renderStatus(`${tn("controlPanel", "totalItems")} ${this.state.collections.length}, ${tn("controlPanel", "synced")} ${this.state.localSubjects.size}`);
           this.renderTable();
@@ -13424,7 +13817,7 @@ var ControlPanel = class extends import_obsidian21.Modal {
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (selectedCollections.length === 0) {
-      new import_obsidian21.Notice(tn("controlPanel", "selectSyncedToEdit"));
+      new import_obsidian22.Notice(tn("controlPanel", "selectSyncedToEdit"));
       return;
     }
     const targetItems = selectedCollections.map((collection) => {
@@ -13446,7 +13839,7 @@ var ControlPanel = class extends import_obsidian21.Modal {
           targetItems.map((item) => item.filePath),
           (_a = submission.operations) != null ? _a : []
         ) : await this.frontmatterEditor.batchApplyPerItemUpdates((_b = submission.perItemUpdates) != null ? _b : []);
-        new import_obsidian21.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
+        new import_obsidian22.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
         this.renderActionBar();
       }
     );
@@ -13472,29 +13865,33 @@ var ControlPanel = class extends import_obsidian21.Modal {
    */
   async undoLastEdit() {
     if (!this.frontmatterEditor.canUndo()) {
-      new import_obsidian21.Notice(tn("controlPanel", "noUndo"));
+      new import_obsidian22.Notice(tn("controlPanel", "noUndo"));
       return;
     }
     const success = await this.frontmatterEditor.undo();
     if (success) {
-      new import_obsidian21.Notice(tn("controlPanel", "undoSuccess"));
+      new import_obsidian22.Notice(tn("controlPanel", "undoSuccess"));
       this.renderActionBar();
     } else {
-      new import_obsidian21.Notice(tn("controlPanel", "undoFailed"));
+      new import_obsidian22.Notice(tn("controlPanel", "undoFailed"));
     }
   }
   /**
    * 自动触发指定范围的状态同步
    */
   triggerAutoSyncStatus() {
-    if (!this.autoSyncScope) {
+    if (!this.autoSyncSelection) {
       return;
     }
-    const scope = this.autoSyncScope;
-    this.autoSyncScope = null;
-    void this.syncStatusAfterPrefetchWarmup(scope);
+    const autoSyncSelection = this.autoSyncSelection;
+    this.autoSyncSelection = null;
+    if (autoSyncSelection === "prompt") {
+      this.openStatusSyncScopeSelector();
+      return;
+    }
+    void this.syncStatusAfterPrefetchWarmup(autoSyncSelection);
   }
-  async syncStatusAfterPrefetchWarmup(scope) {
+  async syncStatusAfterPrefetchWarmup(selection) {
     const prefetchPromise = this.userDataPrefetchPromise;
     if (prefetchPromise) {
       try {
@@ -13506,14 +13903,29 @@ var ControlPanel = class extends import_obsidian21.Modal {
         console.warn("\u72B6\u6001\u540C\u6B65\u9884\u70ED\u7F13\u5B58\u5931\u8D25\uFF0C\u7EE7\u7EED\u6267\u884C\u540C\u6B65:", error);
       }
     }
-    await this.syncStatus(scope);
+    await this.syncStatus(selection);
   }
   delay(ms) {
     var _a;
     const ownerWindow = (_a = this.contentEl.ownerDocument.defaultView) != null ? _a : activeWindow;
     return new Promise((resolve) => ownerWindow.setTimeout(resolve, ms));
   }
-  async syncStatus(scope) {
+  openStatusSyncScopeSelector(initialSelection) {
+    const modal = new StatusSyncScopeModal(
+      this.app,
+      initialSelection != null ? initialSelection : createDefaultStatusSyncFieldSelection(),
+      (selection) => {
+        void this.syncStatusAfterPrefetchWarmup(selection);
+      }
+    );
+    modal.open();
+  }
+  async syncStatus(selection) {
+    if (!hasSelectedUserFields(selection) && !hasSelectedPlatformFields(selection)) {
+      new import_obsidian22.Notice(tn("statusSyncModal", "selectAtLeastOne"));
+      return;
+    }
+    const scope = getStatusSyncScope(selection);
     const perfStart = Date.now();
     this.lastStatusSyncPerf = {
       startAt: perfStart,
@@ -13527,7 +13939,7 @@ var ControlPanel = class extends import_obsidian21.Modal {
     );
     this.lastStatusSyncPerf.syncedCollections = syncedCollections.length;
     if (syncedCollections.length === 0) {
-      new import_obsidian21.Notice(tn("controlPanel", "noSyncedItemsStatus"));
+      new import_obsidian22.Notice(tn("controlPanel", "noSyncedItemsStatus"));
       return;
     }
     this.state.loading = true;
@@ -13536,7 +13948,7 @@ var ControlPanel = class extends import_obsidian21.Modal {
     try {
       const snapshotStart = Date.now();
       const { snapshots, diffs } = await this.statusSyncService.buildDiffSession({
-        scope,
+        selection,
         collections: syncedCollections,
         localSubjects: this.state.localSubjects,
         getCachedSnapshot: (subjectId, path, mtime) => this.getPrefetchedUserData(subjectId, path, mtime),
@@ -13570,15 +13982,15 @@ var ControlPanel = class extends import_obsidian21.Modal {
       );
       this.state.loading = false;
       if (diffs.length === 0) {
-        const message = scope === "user" ? tn("controlPanel", "noUserDataDiff") : tn("controlPanel", "noPlatformDataDiff");
-        new import_obsidian21.Notice(message);
+        const message = this.getNoDiffMessage(selection);
+        new import_obsidian22.Notice(message);
         this.renderStatus(message);
         return;
       }
       const modal = new StatusSyncModal(
         this.app,
         this.statusSyncService,
-        scope,
+        cloneStatusSyncFieldSelection(selection),
         diffs,
         () => {
           void this.loadData();
@@ -13592,7 +14004,7 @@ var ControlPanel = class extends import_obsidian21.Modal {
       );
       this.renderStatus(`${this.getSyncStatusLabel(scope)} (2/2)`);
       void this.statusSyncService.loadBackgroundDiffs(
-        scope,
+        selection,
         snapshots,
         {
           isDisposed: () => modal.isDisposed(),
@@ -13613,12 +14025,23 @@ var ControlPanel = class extends import_obsidian21.Modal {
       if (this.lastStatusSyncPerf) {
         this.lastStatusSyncPerf.lastError = errorMsg;
       }
-      new import_obsidian21.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
+      new import_obsidian22.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
       this.renderStatus(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
     }
   }
   getSyncStatusLabel(scope) {
+    if (scope === "mixed") {
+      return tn("controlPanel", "comparingStatus");
+    }
     return scope === "user" ? tn("controlPanel", "comparingUserData") : tn("controlPanel", "comparingPlatformData");
+  }
+  getNoDiffMessage(selection) {
+    const hasUser = hasSelectedUserFields(selection);
+    const hasPlatform = hasSelectedPlatformFields(selection);
+    if (hasUser && hasPlatform) {
+      return tn("controlPanel", "noStatusDiff");
+    }
+    return hasUser ? tn("controlPanel", "noUserDataDiff") : tn("controlPanel", "noPlatformDataDiff");
   }
   startUserDataPrefetch() {
     const syncedCollections = this.getSyncedCollections();
@@ -13638,7 +14061,7 @@ var ControlPanel = class extends import_obsidian21.Modal {
         return;
       }
       const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-      if (!(file instanceof import_obsidian21.TFile)) {
+      if (!(file instanceof import_obsidian22.TFile)) {
         return;
       }
       const prefetched = await this.extractPrefetchedUserData(collection, localInfo, file);
@@ -13819,7 +14242,7 @@ function parseDateTime(value) {
   const time = Date.parse(value);
   return Number.isFinite(time) ? time : 0;
 }
-var ConfirmModal = class extends import_obsidian21.Modal {
+var ConfirmModal = class extends import_obsidian22.Modal {
   constructor(app, message, onConfirm) {
     super(app);
     this.message = message;
@@ -13863,7 +14286,7 @@ function createCancellationSignal() {
 }
 
 // src/episode/episodeContextMenu.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 
 // src/episode/types.ts
 var EPISODE_STATUS_TEXT = {
@@ -13912,9 +14335,9 @@ var EpisodeContextMenu = class {
     if (!episodeId || !epNumber) {
       return;
     }
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian22.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian23.MarkdownView);
     if (!view) {
-      new import_obsidian22.Notice(tn("episodeContextMenu", "openAnimeFileFirst"));
+      new import_obsidian23.Notice(tn("episodeContextMenu", "openAnimeFileFirst"));
       return;
     }
     const file = view.file;
@@ -13923,11 +14346,11 @@ var EpisodeContextMenu = class {
     }
     const subjectId = await this.getSubjectIdFromFile(file);
     if (!subjectId) {
-      new import_obsidian22.Notice(tn("episodeContextMenu", "cannotIdentifyId"));
+      new import_obsidian23.Notice(tn("episodeContextMenu", "cannotIdentifyId"));
       return;
     }
     const currentStatus = await this.statusManager.getEpisodeStatus(file, episodeId);
-    const menu = new import_obsidian22.Menu();
+    const menu = new import_obsidian23.Menu();
     menu.addItem((item) => {
       item.setTitle(tnFormat("episodeContextMenu", "watchedUpTo", { ep: epNumber })).onClick(() => void this.setWatchedUpTo(file, epNumber));
     });
@@ -13957,10 +14380,10 @@ var EpisodeContextMenu = class {
     try {
       await this.statusManager.updateLocalStatus(file, episodeId, epNumber, status);
       this.updateEpBoxStyle(epBox, status);
-      new import_obsidian22.Notice(tnFormat("episodeContextMenu", "episodeStatusSet", { ep: epNumber, status: getEpisodeStatusText(status) }));
+      new import_obsidian23.Notice(tnFormat("episodeContextMenu", "episodeStatusSet", { ep: epNumber, status: getEpisodeStatusText(status) }));
     } catch (error) {
       console.error("[Bangumi Sync] \u8BBE\u7F6E\u5355\u96C6\u72B6\u6001\u5931\u8D25:", error);
-      new import_obsidian22.Notice(tn("episodeContextMenu", "markFailed"));
+      new import_obsidian23.Notice(tn("episodeContextMenu", "markFailed"));
     }
   }
   /**
@@ -13968,7 +14391,7 @@ var EpisodeContextMenu = class {
    */
   async setWatchedUpTo(file, targetEpNumber) {
     try {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian22.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian23.MarkdownView);
       if (!view)
         return;
       const contentEl = view.contentEl;
@@ -13990,10 +14413,10 @@ var EpisodeContextMenu = class {
       episodesToUpdate.forEach(({ epBox }) => {
         this.updateEpBoxStyle(epBox, 2);
       });
-      new import_obsidian22.Notice(tnFormat("episodeContextMenu", "markedEpisodes", { ep: targetEpNumber }));
+      new import_obsidian23.Notice(tnFormat("episodeContextMenu", "markedEpisodes", { ep: targetEpNumber }));
     } catch (error) {
       console.error('[Bangumi Sync] \u8BBE\u7F6E"\u770B\u5230"\u72B6\u6001\u5931\u8D25:', error);
-      new import_obsidian22.Notice(tn("episodeContextMenu", "markFailed"));
+      new import_obsidian23.Notice(tn("episodeContextMenu", "markFailed"));
     }
   }
   /**
@@ -14004,11 +14427,11 @@ var EpisodeContextMenu = class {
       const result = await this.commentManager.insertEpisodeComment(file, epNumber);
       if (result.success) {
         await this.switchToEditModeAndFocus(result.insertLine, result.insertColumn);
-        new import_obsidian22.Notice(tnFormat("episodeContextMenu", "episodeCommentAdded", { ep: epNumber }));
+        new import_obsidian23.Notice(tnFormat("episodeContextMenu", "episodeCommentAdded", { ep: epNumber }));
       }
     } catch (error) {
       console.error("[Bangumi Sync] \u6DFB\u52A0\u5355\u96C6\u5410\u69FD\u5931\u8D25:", error);
-      new import_obsidian22.Notice(tn("episodeContextMenu", "addCommentFailed"));
+      new import_obsidian23.Notice(tn("episodeContextMenu", "addCommentFailed"));
     }
   }
   /**
@@ -14033,7 +14456,7 @@ var EpisodeContextMenu = class {
    * 切换到编辑模式并定位光标
    */
   async switchToEditModeAndFocus(line, column) {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian22.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian23.MarkdownView);
     if (!view)
       return;
     const ownerWindow = view.contentEl.ownerDocument.defaultView;
@@ -14503,7 +14926,7 @@ ${callout}
 };
 
 // src/note/subjectNoteManager.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 var SubjectNoteManager = class {
   constructor(app, client, settings) {
     this.app = app;
@@ -14512,20 +14935,20 @@ var SubjectNoteManager = class {
   }
   async createOrAppendForCurrentFile() {
     const file = this.app.workspace.getActiveFile();
-    if (!(file instanceof import_obsidian23.TFile)) {
-      new import_obsidian23.Notice(tn("subjectNote", "notSyncedFile"));
+    if (!(file instanceof import_obsidian24.TFile)) {
+      new import_obsidian24.Notice(tn("subjectNote", "notSyncedFile"));
       return;
     }
     await this.createOrAppendForLocalFile(file);
   }
   async createOrAppendForLocalFile(localFile) {
     if (!this.settings.notePathTemplate.trim()) {
-      new import_obsidian23.Notice(tn("subjectNote", "configureNotePath"));
+      new import_obsidian24.Notice(tn("subjectNote", "configureNotePath"));
       return;
     }
     const context = await this.resolveContext(localFile);
     if (!context) {
-      new import_obsidian23.Notice(tn("subjectNote", "missingSubjectId"));
+      new import_obsidian24.Notice(tn("subjectNote", "missingSubjectId"));
       return;
     }
     const candidateIds = await this.buildCandidateIds(context.subject, localFile);
@@ -14537,7 +14960,7 @@ var SubjectNoteManager = class {
       localFile.path,
       true
     );
-    new import_obsidian23.Notice(tn("subjectNote", match ? "appendedToNote" : "createdNote"));
+    new import_obsidian24.Notice(tn("subjectNote", match ? "appendedToNote" : "createdNote"));
   }
   async resolveContext(localFile) {
     const cache = this.app.metadataCache.getFileCache(localFile);
@@ -14560,7 +14983,7 @@ var SubjectNoteManager = class {
     const queue = [localFile];
     while (queue.length > 0 && visited.size < 100) {
       const file = queue.shift();
-      if (!(file instanceof import_obsidian23.TFile) || visited.has(file.path)) {
+      if (!(file instanceof import_obsidian24.TFile) || visited.has(file.path)) {
         continue;
       }
       visited.add(file.path);
@@ -14600,7 +15023,7 @@ var SubjectNoteManager = class {
   }
   findLocalSubjectFile(subjectId) {
     var _a;
-    const scanRoot = (0, import_obsidian23.normalizePath)(this.settings.scanFolderPath || "");
+    const scanRoot = (0, import_obsidian24.normalizePath)(this.settings.scanFolderPath || "");
     for (const file of this.app.vault.getMarkdownFiles()) {
       if (scanRoot && !file.path.startsWith(scanRoot)) {
         continue;
@@ -14630,7 +15053,7 @@ var SubjectNoteManager = class {
         continue;
       }
       const target = this.app.metadataCache.getFirstLinkpathDest(linkPath, sourceFile.path);
-      if (target instanceof import_obsidian23.TFile) {
+      if (target instanceof import_obsidian24.TFile) {
         files.push(target);
       }
     }
@@ -14663,9 +15086,9 @@ var SubjectNoteManager = class {
     return match[1].split("#")[0].trim();
   }
   async createNewNote(context, candidateIds) {
-    const notePath = (0, import_obsidian23.normalizePath)(generateFilePath(this.settings.notePathTemplate, context.subject));
+    const notePath = (0, import_obsidian24.normalizePath)(generateFilePath(this.settings.notePathTemplate, context.subject));
     const existing = this.app.vault.getAbstractFileByPath(notePath);
-    if (existing instanceof import_obsidian23.TFile) {
+    if (existing instanceof import_obsidian24.TFile) {
       const ids = await this.readNoteIds(existing);
       return this.updateExistingNote({ file: existing, ids }, candidateIds, context.heading);
     }
@@ -14844,7 +15267,7 @@ ${nextBody}
 };
 
 // main.ts
-var BangumiPlugin = class extends import_obsidian24.Plugin {
+var BangumiPlugin = class extends import_obsidian25.Plugin {
   constructor() {
     super(...arguments);
     this.syncManager = null;
@@ -14901,13 +15324,8 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
     });
     this.addCommand({
       id: "check-and-sync-status",
-      name: tn("commands", "checkAndSyncUserData"),
-      callback: () => this.openControlPanel({ autoSyncScope: "user" })
-    });
-    this.addCommand({
-      id: "check-and-sync-platform-data",
-      name: tn("commands", "checkAndSyncPlatformData"),
-      callback: () => this.openControlPanel({ autoSyncScope: "platform" })
+      name: tn("commands", "checkAndSyncStatus"),
+      callback: () => this.openControlPanel({ autoSyncSelection: "prompt" })
     });
     this.addCommand({
       id: "create-subject-note",
@@ -15133,12 +15551,12 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
         if (config.filePath) {
           try {
             const file = this.app.vault.getAbstractFileByPath(config.filePath);
-            if (file instanceof import_obsidian24.TFile) {
+            if (file instanceof import_obsidian25.TFile) {
               return await this.app.vault.read(file);
             }
           } catch (error) {
             console.error(`[Bangumi Sync] \u8BFB\u53D6\u6A21\u677F\u6587\u4EF6\u5931\u8D25: ${config.filePath}`, error);
-            new import_obsidian24.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
+            new import_obsidian25.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
           }
         }
         return getBuiltInTemplateByKey(defaultTemplateKey, true);
@@ -15156,7 +15574,7 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
       this.app,
       this.settings.scanFolderPath,
       (files) => {
-        new import_obsidian24.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
+        new import_obsidian25.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
       }
     );
     modal.open();
@@ -15181,7 +15599,7 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
             content: await file.text()
           });
         } catch (error) {
-          new import_obsidian24.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
+          new import_obsidian25.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
           return;
         }
       }
@@ -15202,11 +15620,11 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
    */
   openSearchModal() {
     if (!this.settings.accessToken) {
-      new import_obsidian24.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian25.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian24.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian25.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     const modal = new SearchModal(
@@ -15226,7 +15644,7 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
   openControlPanel(options) {
     var _a;
     if (!this.settings.accessToken) {
-      new import_obsidian24.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian25.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (this.controlPanel) {
@@ -15253,9 +15671,16 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
           timestamp: Date.now()
         });
       },
+      () => this.openSyncOptions(),
+      () => {
+        void this.batchDownloadCovers();
+      },
+      () => {
+        void this.scanAndLinkRelated();
+      },
       this.subjectNoteManager,
       this.episodeStatusManager,
-      (_a = options == null ? void 0 : options.autoSyncScope) != null ? _a : null
+      (_a = options == null ? void 0 : options.autoSyncSelection) != null ? _a : null
     );
     this.controlPanel.open();
   }
@@ -15264,7 +15689,7 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
    */
   openSyncOptions() {
     if (!this.settings.accessToken) {
-      new import_obsidian24.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian25.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     const modal = new SyncOptionsModal(
@@ -15297,11 +15722,11 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
    */
   async batchDownloadCovers() {
     if (!this.settings.downloadImages) {
-      new import_obsidian24.Notice(tn("notices", "coverDownloadDisabled"));
+      new import_obsidian25.Notice(tn("notices", "coverDownloadDisabled"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian24.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian25.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -15325,9 +15750,9 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar();
       if (result.downloaded === 0 && result.skipped === 0) {
-        new import_obsidian24.Notice(tn("notices", "coverDownloadNoItems"));
+        new import_obsidian25.Notice(tn("notices", "coverDownloadNoItems"));
       } else {
-        new import_obsidian24.Notice(tnFormat("notices", "coverDownloadComplete", {
+        new import_obsidian25.Notice(tnFormat("notices", "coverDownloadComplete", {
           downloaded: result.downloaded,
           skipped: result.skipped,
           failed: result.failed
@@ -15342,7 +15767,7 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u5931\u8D25:", error);
-      new import_obsidian24.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian25.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
@@ -15350,7 +15775,7 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
    */
   async scanAndLinkRelated() {
     if (!this.syncManager) {
-      new import_obsidian24.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian25.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -15381,7 +15806,7 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u626B\u63CF\u5173\u8054\u5931\u8D25:", error);
-      new import_obsidian24.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian25.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
@@ -15389,19 +15814,19 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
    */
   async syncCollectionsWithOptions(options, showPreview = true) {
     if (!this.settings.accessToken) {
-      new import_obsidian24.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian25.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (options.subjectTypes.length === 0) {
-      new import_obsidian24.Notice(tn("notices", "selectSubjectType"));
+      new import_obsidian25.Notice(tn("notices", "selectSubjectType"));
       return;
     }
     if (options.collectionTypes.length === 0) {
-      new import_obsidian24.Notice(tn("notices", "selectCollectionType"));
+      new import_obsidian25.Notice(tn("notices", "selectCollectionType"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian24.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian25.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -15424,12 +15849,12 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
           force: options.force
         });
         if (!prepareResult.success) {
-          new import_obsidian24.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
+          new import_obsidian25.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
           this.cleanupSyncState(0);
           return;
         }
         if (!prepareResult.previewItems || prepareResult.previewItems.length === 0) {
-          new import_obsidian24.Notice(tn("notices", "noItemsToSync"));
+          new import_obsidian25.Notice(tn("notices", "noItemsToSync"));
           this.cleanupSyncState(0);
           return;
         }
@@ -15442,7 +15867,7 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
         );
         if (localPropertyResult === null) {
           console.debug("[Bangumi Sync] User cancelled custom properties");
-          new import_obsidian24.Notice(tn("notices", "syncCancelled"));
+          new import_obsidian25.Notice(tn("notices", "syncCancelled"));
           this.cleanupSyncState(0);
           return;
         }
@@ -15455,7 +15880,7 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
           (result) => {
             void (async () => {
               if (result.action === "cancel") {
-                new import_obsidian24.Notice(tn("notices", "syncCancelled"));
+                new import_obsidian25.Notice(tn("notices", "syncCancelled"));
                 return;
               }
               this.cancellationSignal = createCancellationSignal();
@@ -15490,7 +15915,7 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
         previewModal.open();
       } catch (error) {
         console.error("[Bangumi Sync] Preview flow error:", error);
-        new import_obsidian24.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+        new import_obsidian25.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
         this.cleanupSyncState(0);
       }
     } else {
@@ -15536,7 +15961,7 @@ var BangumiPlugin = class extends import_obsidian24.Plugin {
       (message) => {
         if (!warned) {
           warned = true;
-          new import_obsidian24.Notice(message);
+          new import_obsidian25.Notice(message);
         }
       }
     );

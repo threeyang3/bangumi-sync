@@ -4,7 +4,78 @@ import { LocalEpisodeStatus } from '../episode/types';
 import { LocalSubjectSnapshot } from '../document/types';
 
 export type FieldDecision = 'local' | 'cloud' | 'merge' | 'skip';
-export type StatusSyncScope = 'user' | 'platform';
+export type StatusSyncScope = 'user' | 'platform' | 'mixed';
+export type UserStatusSyncFieldKey = 'rate' | 'comment' | 'tags' | 'status' | 'episodeStatus';
+export type PlatformFieldKey = 'episodeCount' | 'chapterCount' | 'volumeCount' | 'start' | 'end' | 'progress';
+
+export interface StatusSyncFieldSelection {
+        user: Record<UserStatusSyncFieldKey, boolean>;
+        platform: Record<PlatformFieldKey, boolean>;
+}
+
+export const USER_STATUS_SYNC_FIELD_KEYS: readonly UserStatusSyncFieldKey[] = [
+        'rate',
+        'comment',
+        'tags',
+        'status',
+        'episodeStatus',
+] as const;
+
+export const PLATFORM_STATUS_SYNC_FIELD_KEYS: readonly PlatformFieldKey[] = [
+        'episodeCount',
+        'chapterCount',
+        'volumeCount',
+        'start',
+        'end',
+        'progress',
+] as const;
+
+export function createDefaultStatusSyncFieldSelection(): StatusSyncFieldSelection {
+        return {
+                user: {
+                        rate: true,
+                        comment: true,
+                        tags: true,
+                        status: true,
+                        episodeStatus: true,
+                },
+                platform: {
+                        episodeCount: false,
+                        chapterCount: false,
+                        volumeCount: false,
+                        start: false,
+                        end: false,
+                        progress: false,
+                },
+        };
+}
+
+export function cloneStatusSyncFieldSelection(selection: StatusSyncFieldSelection): StatusSyncFieldSelection {
+        return {
+                user: { ...selection.user },
+                platform: { ...selection.platform },
+        };
+}
+
+export function hasSelectedUserFields(selection: StatusSyncFieldSelection): boolean {
+        return USER_STATUS_SYNC_FIELD_KEYS.some(key => selection.user[key]);
+}
+
+export function hasSelectedPlatformFields(selection: StatusSyncFieldSelection): boolean {
+        return PLATFORM_STATUS_SYNC_FIELD_KEYS.some(key => selection.platform[key]);
+}
+
+export function getStatusSyncScope(selection: StatusSyncFieldSelection): StatusSyncScope {
+        const hasUser = hasSelectedUserFields(selection);
+        const hasPlatform = hasSelectedPlatformFields(selection);
+        if (hasUser && hasPlatform) {
+                return 'mixed';
+        }
+        if (hasPlatform) {
+                return 'platform';
+        }
+        return 'user';
+}
 
 export interface FieldDiff<T> {
 	localValue: T | null;
@@ -13,7 +84,6 @@ export interface FieldDiff<T> {
 	decision: FieldDecision;
 }
 
-export type PlatformFieldKey = 'episodeCount' | 'chapterCount' | 'volumeCount';
 export type PlatformFieldDecision = 'cloud' | 'skip';
 
 export interface PlatformFieldDiff {

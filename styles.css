@@ -6,6 +6,146 @@
 	display: none !important;
 }
 
+.modal:has(.bangumi-status-sync-scope-modal) {
+	width: min(960px, calc(100vw - 32px));
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .modal-content,
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-modal {
+	max-width: 960px;
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 16px;
+	margin-top: 16px;
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 14px;
+	background: var(--background-secondary);
+	overflow: hidden;
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-card.is-default {
+	border-color: var(--interactive-accent);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 24%, transparent);
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-head {
+	padding: 14px 16px 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: color-mix(in srgb, var(--background-secondary-alt) 55%, transparent);
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-topline {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-title-wrap,
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-master {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-title {
+	font-weight: var(--font-semibold);
+	font-size: var(--font-ui-medium);
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-badge {
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: var(--font-ui-smaller);
+	color: var(--interactive-accent);
+	background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+	border: 1px solid color-mix(in srgb, var(--interactive-accent) 25%, transparent);
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-tools,
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-desc,
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-hint {
+	margin: 10px 0 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-items {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+	padding: 12px;
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-item {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--background-primary) 75%, transparent);
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-item.is-checked {
+	border-color: color-mix(in srgb, var(--interactive-accent) 55%, var(--background-modifier-border));
+	background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-primary));
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-item-content {
+	min-width: 0;
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-item-name {
+	font-weight: var(--font-medium);
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-item-meta {
+	margin-top: 4px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-top: 18px;
+}
+
+@media (max-width: 720px) {
+	.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-grid,
+	.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-items {
+		grid-template-columns: 1fr;
+	}
+
+	.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-footer {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-actions {
+		width: 100%;
+	}
+
+	.modal:has(.bangumi-status-sync-scope-modal) .bangumi-status-sync-scope-actions > button {
+		flex: 1 1 0;
+	}
+}
+
 .bangumi-decision-active {
 	box-shadow: inset 0 0 0 2px var(--interactive-accent);
 }
