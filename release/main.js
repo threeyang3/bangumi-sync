@@ -397,6 +397,7 @@ var en = {
     noteTemplateContentDesc: "Template used when creating a new shared note file. Supported variables: {{id_yaml}}, {{primary_id}}, {{name}}, {{name_cn}}, {{entry_heading}}",
     templateSettings: "Template settings",
     templateVarTip: "Template variable tip: {{tags}} uses your own tags, empty if none",
+    templateSyntax: "Template syntax",
     syncOptions: "Sync options",
     subjectTypesToSync: "Subject types to sync",
     subjectTypesToSyncDesc: "Select subject types to sync",
@@ -973,6 +974,7 @@ var zhCN = {
     notePathTemplateDesc: "\u5171\u4EAB\u7B14\u8BB0\u5B8C\u6574\u6587\u4EF6\u8DEF\u5F84\u6A21\u677F\uFF0C\u4F8B\u5982\uFF1A\u6536\u96C6\u7BB1/\u7B14\u8BB0/ACGN/{{name_cn}}.md",
     templateSettings: "\u6A21\u677F\u8BBE\u7F6E",
     templateVarTip: "\u6A21\u677F\u53D8\u91CF\u63D0\u793A\uFF1A{{tags}} \u4F7F\u7528\u7528\u6237\u81EA\u5DF1\u7684\u6807\u7B7E\uFF0C\u5982\u679C\u6CA1\u6709\u5219\u7559\u7A7A",
+    templateSyntax: "\u6A21\u677F\u8BED\u6CD5",
     syncOptions: "\u540C\u6B65\u9009\u9879",
     subjectTypesToSync: "\u540C\u6B65\u7684\u6761\u76EE\u7C7B\u578B",
     subjectTypesToSyncDesc: "\u9009\u62E9\u8981\u540C\u6B65\u7684\u6761\u76EE\u7C7B\u578B",
@@ -2820,7 +2822,7 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
       ["{{volumes_display}}", "\u5355\u884C\u672C\u663E\u793A\uFF08\u5C0F\u8BF4\uFF09", "`.ep-box` HTML"],
       ["{{progress}}", "\u8FDB\u5EA6\u4FE1\u606F", ""]
     ]);
-    new import_obsidian2.Setting(containerEl).setName("\u6A21\u677F\u8BED\u6CD5").setHeading();
+    new import_obsidian2.Setting(containerEl).setName(tn("settings", "templateSyntax")).setHeading();
     const syntaxTable = this.createFieldTable([
       ["{{\u53D8\u91CF\u540D}}", "\u666E\u901A\u53D8\u91CF\uFF0C\u503C\u4E3A\u7A7A\u65F6\u8F93\u51FA\u7A7A\u767D"],
       ["{{\u53D8\u91CF\u540D|\u9ED8\u8BA4\u503C}}", "\u5E26\u9ED8\u8BA4\u503C\u7684\u53D8\u91CF\uFF0C\u503C\u4E3A\u7A7A\u65F6\u8F93\u51FA\u9ED8\u8BA4\u503C", "{{rating|\u672A\u8BC4\u5206}}"],

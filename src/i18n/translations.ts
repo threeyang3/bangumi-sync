@@ -102,6 +102,7 @@ export interface TranslationStrings {
 		noteTemplateContentDesc: string;
 		templateSettings: string;
 		templateVarTip: string;
+		templateSyntax: string;
 		syncOptions: string;
 		subjectTypesToSync: string;
 		subjectTypesToSyncDesc: string;
@@ -724,6 +725,7 @@ const en: TranslationStrings = {
 		noteTemplateContentDesc: 'Template used when creating a new shared note file. Supported variables: {{id_yaml}}, {{primary_id}}, {{name}}, {{name_cn}}, {{entry_heading}}',
 		templateSettings: 'Template settings',
 		templateVarTip: 'Template variable tip: {{tags}} uses your own tags, empty if none',
+		templateSyntax: 'Template syntax',
 		syncOptions: 'Sync options',
 		subjectTypesToSync: 'Subject types to sync',
 		subjectTypesToSyncDesc: 'Select subject types to sync',
@@ -1322,6 +1324,7 @@ const zhCN: TranslationStrings = {
 		notePathTemplateDesc: '共享笔记完整文件路径模板，例如：收集箱/笔记/ACGN/{{name_cn}}.md',
 		templateSettings: '模板设置',
 		templateVarTip: '模板变量提示：{{tags}} 使用用户自己的标签，如果没有则留空',
+		templateSyntax: '模板语法',
 		syncOptions: '同步选项',
 		subjectTypesToSync: '同步的条目类型',
 		subjectTypesToSyncDesc: '选择要同步的条目类型',

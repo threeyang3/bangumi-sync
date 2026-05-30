@@ -638,7 +638,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 		]);
 
 		// 模板语法
-		new Setting(containerEl).setName('模板语法').setHeading();
+		new Setting(containerEl).setName(tn('settings', 'templateSyntax')).setHeading();
 		const syntaxTable = this.createFieldTable([
 			['{{变量名}}', '普通变量，值为空时输出空白'],
 			['{{变量名|默认值}}', '带默认值的变量，值为空时输出默认值', '{{rating|未评分}}'],
