@@ -5978,14 +5978,26 @@ function generateFilePath(template, subject, collection) {
 }
 
 // common/parser/episodeParser.ts
+var EPISODE_TYPE_LABEL = {
+  0: "",
+  1: "SP",
+  2: "OP",
+  3: "ED"
+};
+var EPISODE_TYPE_CLASS = {
+  0: "",
+  1: "ep-sp",
+  2: "ep-op",
+  3: "ep-ed"
+};
 function generateEpisodeBox(episode, status) {
-  if (episode.type !== 0) {
-    return "";
-  }
+  var _a, _b;
   const titleParts = [];
   const epNum = episode.ep || episode.sort;
-  const title = episode.name_cn || episode.name || `\u7B2C${epNum}\u8BDD`;
-  titleParts.push(`\u7B2C${epNum}\u8BDD\uFF1A${title}`);
+  const typeLabel = (_a = EPISODE_TYPE_LABEL[episode.type]) != null ? _a : "";
+  const title = episode.name_cn || episode.name || (typeLabel ? `${typeLabel} ${epNum}` : `\u7B2C${epNum}\u8BDD`);
+  const titleHead = typeLabel ? `${typeLabel} ${epNum}\uFF1A${title}` : `\u7B2C${epNum}\u8BDD\uFF1A${title}`;
+  titleParts.push(titleHead);
   if (episode.airdate) {
     titleParts.push(`\u653E\u9001\uFF1A${episode.airdate}`);
   }
@@ -5993,20 +6005,22 @@ function generateEpisodeBox(episode, status) {
     titleParts.push(`\u65F6\u957F\uFF1A${episode.duration}`);
   }
   const tooltip = titleParts.join("&#10;");
-  let cssClass = "ep-box";
+  const typeClass = (_b = EPISODE_TYPE_CLASS[episode.type]) != null ? _b : "";
+  const classNames = ["ep-box", typeClass].filter(Boolean);
+  let cssClass = classNames.join(" ");
   if (status === 2) {
     cssClass += " watched";
   }
-  return `<span class="${cssClass}" title="${tooltip}" data-ep="${epNum}" data-id="${episode.id}" data-status="${status || 0}">${epNum}</span>`;
+  const displayText = typeLabel ? `${typeLabel} ${epNum}` : `${epNum}`;
+  return `<span class="${cssClass}" title="${tooltip}" data-ep="${epNum}" data-id="${episode.id}" data-type="${episode.type}" data-status="${status || 0}">${displayText}</span>`;
 }
 function parseEpisodes(episodes, userStatusMap) {
-  const mainEpisodes = episodes.filter((ep) => ep.type === 0);
-  if (mainEpisodes.length === 0) {
+  if (episodes.length === 0) {
     return "";
   }
-  mainEpisodes.sort((a, b) => (a.sort || 0) - (b.sort || 0));
+  const sortedEpisodes = [...episodes].sort((a, b) => (a.sort || 0) - (b.sort || 0));
   const boxes = [];
-  for (const episode of mainEpisodes) {
+  for (const episode of sortedEpisodes) {
     const status = userStatusMap == null ? void 0 : userStatusMap.get(episode.id);
     const box = generateEpisodeBox(episode, status);
     if (box) {
@@ -14886,7 +14900,7 @@ var EpisodeStatusManager = class {
    */
   async updateLocalStatus(file, episodeId, epNumber, status) {
     await this.app.vault.process(file, (content) => {
-      return this.applyEpisodeStatusUpdates(content, [{ episodeId, epNumber, status }]);
+      return this.updateEpStatusInContent(content, episodeId, epNumber, status);
     });
   }
   /**
@@ -14943,10 +14957,30 @@ ep_statuses:
   }
   applyEpisodeStatusUpdates(content, episodes) {
     const withoutOldStatuses = this.clearEpisodeStatusArtifacts(content);
-    return episodes.reduce(
+    const withUpdatedBoxes = episodes.reduce(
       (updatedContent, ep) => this.updateEpisodeBoxStatusInContent(updatedContent, ep.episodeId, ep.epNumber, ep.status),
       withoutOldStatuses
     );
+    return this.writeEpisodeStatusesToFrontmatter(withUpdatedBoxes, episodes);
+  }
+  writeEpisodeStatusesToFrontmatter(content, episodes) {
+    const validEntries = episodes.filter((ep) => ep.status !== 0).sort((a, b) => a.episodeId - b.episodeId);
+    if (validEntries.length === 0) {
+      return content;
+    }
+    const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+    if (!frontmatterMatch) {
+      return content;
+    }
+    const prefix = frontmatterMatch[1];
+    const frontmatter = frontmatterMatch[2];
+    const suffix = frontmatterMatch[3];
+    const bodyContent = frontmatterMatch[4];
+    const statusLines = validEntries.map((ep) => `  - ${ep.episodeId}:${ep.epNumber}:${ep.status}`).join("\n");
+    const updatedFrontmatter = `${frontmatter}
+ep_statuses:
+${statusLines}`;
+    return prefix + updatedFrontmatter + suffix + bodyContent;
   }
   createLocalEpisodeStatus(episodeId, epNumber, status) {
     return {

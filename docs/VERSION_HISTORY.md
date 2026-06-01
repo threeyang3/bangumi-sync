@@ -1,5 +1,17 @@
 # 版本历史
 
+## v6.9.7
+
+### 修复
+- 修复有 SP/OP/ED 集数的条目在云端 → 本地同步时集数信息丢失的问题：`parseEpisodes` 此前会过滤掉 `type !== 0` 的章节，导致正文 `.ep-box` 中根本没有 SP 元素，云端状态无法落盘。
+- 修复“检查并同步状态”流程中 SP 状态被永久丢失的 bug：`applyEpisodeStatusUpdates` 在清空 frontmatter `ep_statuses` 后只覆盖已有 `.ep-box`，云端新出现的 SP 状态如果本地没有对应元素会直接被清空；现在清空后会按云端数据重建 frontmatter。
+- 修复右键菜单单条更新会顺手清空其他集状态的副作用：`updateLocalStatus` 改为走细粒度 `updateEpStatusInContent`。
+
+## v6.9.6
+
+### 改进
+- 设置面板中硬编码的"模板语法"标题改为走 i18n 国际化。
+
 ## v6.9.5
 
 ### 改进

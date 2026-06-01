@@ -108,7 +108,9 @@ export class EpisodeStatusManager {
 		status: EpisodeStatusType
 	): Promise<void> {
 		await this.app.vault.process(file, (content) => {
-			return this.applyEpisodeStatusUpdates(content, [{ episodeId, epNumber, status }]);
+			// 单条更新走细粒度 updateEpStatusInContent，避免触发 applyEpisodeStatusUpdates
+			// 的"先清空再重建"流程把其他集的状态也清掉。
+			return this.updateEpStatusInContent(content, episodeId, epNumber, status);
 		});
 	}
 
@@ -189,10 +191,45 @@ export class EpisodeStatusManager {
 		episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>
 	): string {
 		const withoutOldStatuses = this.clearEpisodeStatusArtifacts(content);
-		return episodes.reduce(
+		const withUpdatedBoxes = episodes.reduce(
 			(updatedContent, ep) => this.updateEpisodeBoxStatusInContent(updatedContent, ep.episodeId, ep.epNumber, ep.status),
 			withoutOldStatuses
 		);
+		// 同步云端时 frontmatter `ep_statuses` 会被 `clearEpisodeStatusArtifacts` 清空，
+		// 而 `.ep-box` 只覆盖已有元素；云端新出现的 SP 状态如果本地没有 .ep-box 就会永久丢失。
+		// 这里在清空后按云端数据重建 frontmatter，避免 SP/OP/ED 等非本篇集的状态无法保留。
+		return this.writeEpisodeStatusesToFrontmatter(withUpdatedBoxes, episodes);
+	}
+
+	private writeEpisodeStatusesToFrontmatter(
+		content: string,
+		episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>
+	): string {
+		const validEntries = episodes
+			.filter(ep => ep.status !== 0)
+			.sort((a, b) => a.episodeId - b.episodeId);
+
+		if (validEntries.length === 0) {
+			return content;
+		}
+
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+		if (!frontmatterMatch) {
+			return content;
+		}
+
+		const prefix = frontmatterMatch[1];
+		const frontmatter = frontmatterMatch[2];
+		const suffix = frontmatterMatch[3];
+		const bodyContent = frontmatterMatch[4];
+
+		const statusLines = validEntries
+			.map(ep => `  - ${ep.episodeId}:${ep.epNumber}:${ep.status}`)
+			.join('\n');
+
+		const updatedFrontmatter = `${frontmatter}\nep_statuses:\n${statusLines}`;
+
+		return prefix + updatedFrontmatter + suffix + bodyContent;
 	}
 
 	private createLocalEpisodeStatus(episodeId: number, epNumber: number, status: EpisodeStatusType): LocalEpisodeStatus {
