@@ -266,6 +266,21 @@ export function addFrontmatterField(content: string, field: string, value: unkno
 	return block.prefix + newFrontmatter + block.suffix + block.rest;
 }
 
+export function removeFrontmatterField(content: string, field: string): string {
+	const block = parseFrontmatterBlock(content);
+	if (!block) {
+		return content;
+	}
+
+	const escapedName = escapeRegExp(field);
+	const fieldRegex = new RegExp(`^${escapedName}:.*$`, 'm');
+	const updatedFrontmatter = block.frontmatter
+		.replace(fieldRegex, '')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim();
+	return block.prefix + updatedFrontmatter + block.suffix + block.rest;
+}
+
 export function readTextField(content: string, fieldNames: string | string[]): string | null {
 	const frontmatter = extractFrontmatter(content);
 	if (!frontmatter) {

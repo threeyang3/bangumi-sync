@@ -4510,6 +4510,16 @@ function addFrontmatterField(content, field, value) {
 ${entry}`;
   return block.prefix + newFrontmatter + block.suffix + block.rest;
 }
+function removeFrontmatterField(content, field) {
+  const block = parseFrontmatterBlock(content);
+  if (!block) {
+    return content;
+  }
+  const escapedName = escapeRegExp(field);
+  const fieldRegex = new RegExp(`^${escapedName}:.*$`, "m");
+  const updatedFrontmatter = block.frontmatter.replace(fieldRegex, "").replace(/\n{3,}/g, "\n\n").trim();
+  return block.prefix + updatedFrontmatter + block.suffix + block.rest;
+}
 function readTextField(content, fieldNames) {
   const frontmatter = extractFrontmatter(content);
   if (!frontmatter) {
@@ -4877,6 +4887,9 @@ var SubjectDocumentService = class {
       return content;
     }
     return upsertFrontmatterField(content, "\u8BC4\u5206", newRate);
+  }
+  removeRate(content) {
+    return removeFrontmatterField(content, "\u8BC4\u5206");
   }
   updateStatus(content, newStatus, statusFieldName) {
     const statusText = getCollectionStatusLabel(newStatus, this.getSubjectTypeFromStatusFieldName(statusFieldName), true);
@@ -12932,7 +12945,7 @@ var StatusSyncExecutor = class {
       if (diff.rate.decision === "local") {
         cloudUpdates.rate = diff.rate.localValue || void 0;
       } else if (diff.rate.decision === "cloud") {
-        content = this.documentService.updateRate(content, diff.rate.cloudValue);
+        content = diff.rate.cloudValue ? this.documentService.updateRate(content, diff.rate.cloudValue) : this.documentService.removeRate(content);
       }
     }
     if (diff.comment.hasDiff && diff.comment.decision !== "skip") {
@@ -14685,7 +14698,7 @@ var EpisodeContextMenu = class {
    */
   async showContextMenu(evt, epBox) {
     const episodeId = parseInt(epBox.getAttribute("data-id") || "0", 10);
-    const epNumber = parseInt(epBox.getAttribute("data-ep") || "0", 10);
+    const epNumber = parseFloat(epBox.getAttribute("data-ep") || "0");
     if (!episodeId || !epNumber) {
       return;
     }
@@ -14754,7 +14767,7 @@ var EpisodeContextMenu = class {
       epBoxes.forEach((el) => {
         const epBox = el;
         const episodeId = parseInt(epBox.getAttribute("data-id") || "0", 10);
-        const epNumber = parseInt(epBox.getAttribute("data-ep") || "0", 10);
+        const epNumber = parseFloat(epBox.getAttribute("data-ep") || "0");
         if (episodeId && epNumber && epNumber <= targetEpNumber) {
           episodesToUpdate.push({ episodeId, epNumber, epBox });
         }
@@ -14923,7 +14936,7 @@ var EpisodeStatusManager = class {
     const suffix = frontmatterMatch[3];
     const bodyContent = frontmatterMatch[4];
     if (status === 0) {
-      const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+:\\d+\\n?`, "m");
+      const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+\\n?`, "m");
       frontmatter = frontmatter.replace(statusLineRegex, "");
       if (frontmatter.includes("ep_statuses:\n") && !frontmatter.match(/ep_statuses:\n\s+- /)) {
         frontmatter = frontmatter.replace(/ep_statuses:\n/, "");
@@ -14932,10 +14945,10 @@ var EpisodeStatusManager = class {
       const statusEntry = `${episodeId}:${epNumber}:${status}`;
       const existingStatusesMatch = frontmatter.match(/^ep_statuses:\s*\n((?:\s+- .+\n?)+)/m);
       if (existingStatusesMatch) {
-        const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+:\\d+$`, "m");
+        const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+$`, "m");
         if (statusLineRegex.test(frontmatter)) {
           frontmatter = frontmatter.replace(
-            new RegExp(`^\\s+- ${episodeId}:\\d+:\\d+$`, "m"),
+            new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+$`, "m"),
             `  - ${statusEntry}`
           );
         } else {
@@ -15003,12 +15016,12 @@ ${statusLines}`;
     }
     const lines = epStatusesMatch[1].split("\n");
     for (const line of lines) {
-      const match = line.match(/^\s+- (\d+):(\d+):(\d+)/);
+      const match = line.match(/^\s+- (\d+):(\d+(?:\.\d+)?):(\d+)/);
       if (!match) {
         continue;
       }
       const episodeId = parseInt(match[1], 10);
-      const epNumber = parseInt(match[2], 10);
+      const epNumber = parseFloat(match[2]);
       const status = parseInt(match[3], 10);
       statusMap.set(episodeId, this.createLocalEpisodeStatus(episodeId, epNumber, status));
     }
@@ -15076,14 +15089,14 @@ ${statusLines}`;
   parseEpisodeBox(tag) {
     const classMatch = tag.match(/\bclass="([^"]*\bep-box\b[^"]*)"/);
     const idMatch = tag.match(/\bdata-id="(\d+)"/);
-    const epMatch = tag.match(/\bdata-ep="(\d+)"/);
+    const epMatch = tag.match(/\bdata-ep="(\d+(?:\.\d+)?)"/);
     const statusMatch = tag.match(/\bdata-status="(\d+)"/);
     if (!classMatch || !idMatch || !epMatch) {
       return null;
     }
     const className = classMatch[1];
     const episodeId = parseInt(idMatch[1], 10);
-    const epNumber = parseInt(epMatch[1], 10);
+    const epNumber = parseFloat(epMatch[1]);
     const status = statusMatch ? parseInt(statusMatch[1], 10) : /\bwatched\b/.test(className) ? 2 : 0;
     return {
       episodeId,
@@ -15279,10 +15292,10 @@ ${callout}
   async getEpisodeComments(file) {
     const content = await this.app.vault.read(file);
     const comments = [];
-    const calloutRegex = /> \[!note\] 第(\d+)集吐槽[^\n]*\n((?:> .+\n)*)/g;
+    const calloutRegex = /> \[!note\] 第(\d+(?:\.\d+)?)集吐槽[^\n]*\n((?:> .+\n)*)/g;
     let match;
     while ((match = calloutRegex.exec(content)) !== null) {
-      const epNumber = parseInt(match[1], 10);
+      const epNumber = parseFloat(match[1]);
       const rawContent = match[2];
       const commentContent = rawContent.split("\n").map((line) => line.replace(/^> /, "").trim()).filter((line) => line.length > 0).join("\n");
       comments.push({ epNumber, content: commentContent });
@@ -15294,7 +15307,8 @@ ${callout}
    */
   async hasEpisodeComment(file, epNumber) {
     const content = await this.app.vault.read(file);
-    const regex = new RegExp(`> \\[!note\\] \u7B2C${epNumber}\u96C6\u5410\u69FD`);
+    const escapedEp = String(epNumber).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`> \\[!note\\] \u7B2C${escapedEp}\u96C6\u5410\u69FD`);
     return regex.test(content);
   }
 };

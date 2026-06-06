@@ -1,5 +1,11 @@
 # 版本历史
 
+## v6.9.8
+
+### 修复
+- 修复云端评分为空时无法覆盖本地评分的 bug：`SubjectDocumentService.updateRate` 在 cloudValue 为 `null` 时直接 `return content` 不会删除 frontmatter `评分`；新增 `removeRate`（底层走新增的 `removeFrontmatterField` 帮助函数），executor 在 cloud 决策下空值显式调用 `removeRate`，与 `removeComment` / `removeTags` 行为一致。
+- 修复 SP/OP/ED 集数使用小数编号（如 `29.1`、`0.5`）时云端→本地同步丢失状态的问题：frontmatter `ep_statuses` 行的解析、`updateEpStatusInContent` 内的查找/替换/删除正则、`parseEpisodeBox` 的 `data-ep` 提取、右键菜单的集数读取、吐槽 callout 的读取与匹配全部从 `(\d+)` / `parseInt` 改为 `(\d+(?:\.\d+)?)` / `parseFloat`，并对 `hasEpisodeComment` 拼接的正则做转义。
+
 ## v6.9.7
 
 ### 修复

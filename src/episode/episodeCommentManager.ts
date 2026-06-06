@@ -169,11 +169,11 @@ export class EpisodeCommentManager {
 		const comments: Array<{ epNumber: number; content: string }> = [];
 
 		// 匹配所有单集吐槽 callout
-		const calloutRegex = /> \[!note\] 第(\d+)集吐槽[^\n]*\n((?:> .+\n)*)/g;
+		const calloutRegex = /> \[!note\] 第(\d+(?:\.\d+)?)集吐槽[^\n]*\n((?:> .+\n)*)/g;
 		let match;
 
 		while ((match = calloutRegex.exec(content)) !== null) {
-			const epNumber = parseInt(match[1], 10);
+			const epNumber = parseFloat(match[1]);
 			const rawContent = match[2];
 			// 提取实际内容（去除 "> " 前缀）
 			const commentContent = rawContent
@@ -193,7 +193,8 @@ export class EpisodeCommentManager {
 	 */
 	async hasEpisodeComment(file: TFile, epNumber: number): Promise<boolean> {
 		const content = await this.app.vault.read(file);
-		const regex = new RegExp(`> \\[!note\\] 第${epNumber}集吐槽`);
+		const escapedEp = String(epNumber).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const regex = new RegExp(`> \\[!note\\] 第${escapedEp}集吐槽`);
 		return regex.test(content);
 	}
 }

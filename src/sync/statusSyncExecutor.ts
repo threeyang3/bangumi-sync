@@ -61,7 +61,9 @@ export class StatusSyncExecutor {
 			if (diff.rate.decision === 'local') {
 				cloudUpdates.rate = diff.rate.localValue || undefined;
 			} else if (diff.rate.decision === 'cloud') {
-				content = this.documentService.updateRate(content, diff.rate.cloudValue);
+				content = diff.rate.cloudValue
+					? this.documentService.updateRate(content, diff.rate.cloudValue)
+					: this.documentService.removeRate(content);
 			}
 		}
 

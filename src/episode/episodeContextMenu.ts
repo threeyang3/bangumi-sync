@@ -62,7 +62,7 @@ export class EpisodeContextMenu {
 	 */
 	private async showContextMenu(evt: MouseEvent, epBox: HTMLElement): Promise<void> {
 		const episodeId = parseInt(epBox.getAttribute('data-id') || '0', 10);
-		const epNumber = parseInt(epBox.getAttribute('data-ep') || '0', 10);
+		const epNumber = parseFloat(epBox.getAttribute('data-ep') || '0');
 
 		if (!episodeId || !epNumber) {
 			return;
@@ -179,7 +179,7 @@ export class EpisodeContextMenu {
 			epBoxes.forEach((el) => {
 				const epBox = el as HTMLElement;
 				const episodeId = parseInt(epBox.getAttribute('data-id') || '0', 10);
-				const epNumber = parseInt(epBox.getAttribute('data-ep') || '0', 10);
+				const epNumber = parseFloat(epBox.getAttribute('data-ep') || '0');
 
 				if (episodeId && epNumber && epNumber <= targetEpNumber) {
 					episodesToUpdate.push({ episodeId, epNumber, epBox });

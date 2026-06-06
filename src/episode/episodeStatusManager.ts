@@ -146,7 +146,7 @@ export class EpisodeStatusManager {
 
 		// 如果状态为 0（未收藏），则移除该条目
 		if (status === 0) {
-			const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+:\\d+\\n?`, 'm');
+			const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+\\n?`, 'm');
 			frontmatter = frontmatter.replace(statusLineRegex, '');
 
 			// 如果 ep_statuses 为空，移除整个字段
@@ -162,11 +162,11 @@ export class EpisodeStatusManager {
 
 			if (existingStatusesMatch) {
 				// 检查是否已有该集数的状态
-				const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+:\\d+$`, 'm');
+				const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+$`, 'm');
 				if (statusLineRegex.test(frontmatter)) {
 					// 更新现有状态
 					frontmatter = frontmatter.replace(
-						new RegExp(`^\\s+- ${episodeId}:\\d+:\\d+$`, 'm'),
+						new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+$`, 'm'),
 						`  - ${statusEntry}`
 					);
 				} else {
@@ -256,13 +256,13 @@ export class EpisodeStatusManager {
 
 		const lines = epStatusesMatch[1].split('\n');
 		for (const line of lines) {
-			const match = line.match(/^\s+- (\d+):(\d+):(\d+)/);
+			const match = line.match(/^\s+- (\d+):(\d+(?:\.\d+)?):(\d+)/);
 			if (!match) {
 				continue;
 			}
 
 			const episodeId = parseInt(match[1], 10);
-			const epNumber = parseInt(match[2], 10);
+			const epNumber = parseFloat(match[2]);
 			const status = parseInt(match[3], 10) as EpisodeStatusType;
 
 			statusMap.set(episodeId, this.createLocalEpisodeStatus(episodeId, epNumber, status));
@@ -352,7 +352,7 @@ export class EpisodeStatusManager {
 	private parseEpisodeBox(tag: string): { episodeId: number; epNumber: number; status: EpisodeStatusType; className: string } | null {
 		const classMatch = tag.match(/\bclass="([^"]*\bep-box\b[^"]*)"/);
 		const idMatch = tag.match(/\bdata-id="(\d+)"/);
-		const epMatch = tag.match(/\bdata-ep="(\d+)"/);
+		const epMatch = tag.match(/\bdata-ep="(\d+(?:\.\d+)?)"/);
 		const statusMatch = tag.match(/\bdata-status="(\d+)"/);
 
 		if (!classMatch || !idMatch || !epMatch) {
@@ -361,7 +361,7 @@ export class EpisodeStatusManager {
 
 		const className = classMatch[1];
 		const episodeId = parseInt(idMatch[1], 10);
-		const epNumber = parseInt(epMatch[1], 10);
+		const epNumber = parseFloat(epMatch[1]);
 		const status = statusMatch
 			? parseInt(statusMatch[1], 10) as EpisodeStatusType
 			: (/\bwatched\b/.test(className) ? 2 : 0);

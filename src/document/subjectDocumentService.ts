@@ -18,6 +18,7 @@ import {
 	hasFrontmatterField,
 	readNumberField,
 	readTextField,
+	removeFrontmatterField,
 	removeYamlListField,
 	upsertFrontmatterField,
 	upsertQuotedTextField,
@@ -270,6 +271,10 @@ export class SubjectDocumentService {
 			return content;
 		}
 		return upsertFrontmatterField(content, '评分', newRate);
+	}
+
+	removeRate(content: string): string {
+		return removeFrontmatterField(content, '评分');
 	}
 
 	updateStatus(content: string, newStatus: CollectionType, statusFieldName: string): string {
