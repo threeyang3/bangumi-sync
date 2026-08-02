@@ -5,6 +5,8 @@ import { BangumiPluginSettings } from '../settings/settings';
 import { BangumiClient } from '../api/client';
 import { renderContentTemplate } from '../template/contentTemplate';
 import { tn } from '../i18n/translations';
+import { SubjectDocumentService } from '../document/subjectDocumentService';
+import { limitPathLength } from '../../common/file/pathUtils';
 
 interface SubjectNoteContext {
 	subject: Subject;
@@ -18,11 +20,15 @@ interface NoteMatch {
 }
 
 export class SubjectNoteManager {
+	private readonly documentService: SubjectDocumentService;
+
 	constructor(
 		private readonly app: App,
 		private readonly client: BangumiClient,
 		private readonly settings: BangumiPluginSettings,
-	) {}
+	) {
+		this.documentService = new SubjectDocumentService(app);
+	}
 
 	async createOrAppendForCurrentFile(): Promise<void> {
 		const file = this.app.workspace.getActiveFile();
@@ -62,15 +68,12 @@ export class SubjectNoteManager {
 	}
 
 	private async resolveContext(localFile: TFile): Promise<SubjectNoteContext | null> {
-		const cache = this.app.metadataCache.getFileCache(localFile);
-		const frontmatter = cache?.frontmatter;
-		const rawId: unknown = frontmatter?.id;
-		const subjectId = this.toNumber(rawId);
-		if (!subjectId) {
+		const identity = await this.documentService.getSubjectIdentity(localFile);
+		if (!identity.subjectId || identity.conflicts?.length) {
 			return null;
 		}
 
-		const subject = await this.client.getSubject(subjectId);
+		const subject = await this.client.getSubject(identity.subjectId);
 		return {
 			subject,
 			localFile,
@@ -91,7 +94,7 @@ export class SubjectNoteManager {
 
 			visited.add(file.path);
 			const content = await this.app.vault.read(file);
-			const currentId = this.extractSubjectId(content);
+			const currentId = this.getSafeSubjectId(content);
 			if (currentId) {
 				ids.add(currentId);
 			}
@@ -102,7 +105,7 @@ export class SubjectNoteManager {
 				}
 
 				const relatedContent = await this.app.vault.read(relatedFile);
-				const relatedId = this.extractSubjectId(relatedContent);
+				const relatedId = this.getSafeSubjectId(relatedContent);
 				if (relatedId) {
 					ids.add(relatedId);
 					queue.push(relatedFile);
@@ -132,31 +135,9 @@ export class SubjectNoteManager {
 		return matches[0];
 	}
 
-	private findLocalSubjectFile(subjectId: number): TFile | null {
-		const scanRoot = normalizePath(this.settings.scanFolderPath || '');
-		for (const file of this.app.vault.getMarkdownFiles()) {
-			if (scanRoot && !file.path.startsWith(scanRoot)) {
-				continue;
-			}
-
-			const cache = this.app.metadataCache.getFileCache(file);
-			const rawId: unknown = cache?.frontmatter?.id;
-			if (this.toNumber(rawId) === subjectId) {
-				return file;
-			}
-		}
-
-		return null;
-	}
-
-	private extractSubjectId(content: string): number | null {
-		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-		if (!frontmatterMatch) {
-			return null;
-		}
-
-		const idMatch = frontmatterMatch[1].match(/^id:\s*"?(\d+)"?\s*$/m);
-		return idMatch ? Number(idMatch[1]) : null;
+	private getSafeSubjectId(content: string): number | null {
+		const identity = this.documentService.getSubjectIdentityFromContent(content);
+		return identity.conflicts?.length ? null : identity.subjectId;
 	}
 
 	private resolveRelatedFiles(content: string, sourceFile: TFile): TFile[] {
@@ -217,16 +198,42 @@ export class SubjectNoteManager {
 	}
 
 	private async createNewNote(context: SubjectNoteContext, candidateIds: number[]): Promise<TFile> {
-		const notePath = normalizePath(generateFilePath(this.settings.notePathTemplate, context.subject));
-		const existing = this.app.vault.getAbstractFileByPath(notePath);
+		const preferredPath = normalizePath(generateFilePath(this.settings.notePathTemplate, context.subject));
+		let notePath = preferredPath;
+		let existing = this.app.vault.getAbstractFileByPath(notePath);
 		if (existing instanceof TFile) {
 			const ids = await this.readNoteIds(existing);
-			return this.updateExistingNote({ file: existing, ids }, candidateIds, context.heading);
+			if (ids.some(id => candidateIds.includes(id))) {
+				return this.updateExistingNote({ file: existing, ids }, candidateIds, context.heading);
+			}
+
+			notePath = this.appendNoteSuffix(preferredPath, this.extractYear(context.subject) ?? `bgm-${context.subject.id}`);
+			existing = this.app.vault.getAbstractFileByPath(notePath);
+			if (existing instanceof TFile) {
+				const yearIds = await this.readNoteIds(existing);
+				if (yearIds.some(id => candidateIds.includes(id))) {
+					return this.updateExistingNote({ file: existing, ids: yearIds }, candidateIds, context.heading);
+				}
+				notePath = this.appendNoteSuffix(preferredPath, `bgm-${context.subject.id}`);
+				if (this.app.vault.getAbstractFileByPath(notePath)) {
+					throw new Error(`Shared note path is occupied by an unrelated subject: ${notePath}`);
+				}
+			}
 		}
 
 		await this.ensureParentFolder(notePath);
 		const content = this.renderNoteTemplate(context.subject, candidateIds, context.heading);
 		return this.app.vault.create(notePath, content);
+	}
+
+	private extractYear(subject: Subject): string | null {
+		return subject.date?.match(/^(\d{4})/)?.[1] ?? null;
+	}
+
+	private appendNoteSuffix(path: string, suffix: string): string {
+		return limitPathLength(path.toLocaleLowerCase('en-US').endsWith('.md')
+			? `${path.slice(0, -3)}（${suffix}）.md`
+			: `${path}（${suffix}）.md`);
 	}
 
 	private async updateExistingNote(match: NoteMatch, candidateIds: number[], heading: string): Promise<TFile> {

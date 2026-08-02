@@ -8,7 +8,8 @@
 
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
 import { SubjectType } from '../../common/api/types';
-import { getFrontmatterRecord, getFrontmatterString } from '../../common/utils/frontmatter';
+import { isDescendantPath } from '../../common/file/pathUtils';
+import { getFrontmatterString } from '../../common/utils/frontmatter';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 import {
 	SubjectUserData,
@@ -28,17 +29,14 @@ export class UserDataExtractor {
 		this.documentService = new SubjectDocumentService(app);
 	}
 
-	extractFromFile(file: TFile): SubjectUserData | null {
-		const cache = this.app.metadataCache.getFileCache(file);
-		return this.extractFromFrontmatter(file, getFrontmatterRecord(cache?.frontmatter));
-	}
-
 	async extractFromFileAsync(file: TFile): Promise<SubjectUserData | null> {
-		const cache = this.app.metadataCache.getFileCache(file);
-		const result = this.extractFromFrontmatter(file, getFrontmatterRecord(cache?.frontmatter));
+		const content = await this.app.vault.read(file);
+		const identity = this.documentService.getSubjectIdentityFromContent(content);
+		if (identity.subjectId === null || identity.conflicts?.length) return null;
+		const frontmatter = this.documentService.extractFrontmatterRecord(content);
+		const result = this.extractFromFrontmatter(file, frontmatter, identity.subjectId);
 		if (!result) return null;
 
-		const content = await this.app.vault.read(file);
 		const record = this.documentService.extractSection(content, '记录');
 		const thoughts = this.documentService.extractSection(content, '感想');
 		if (record || thoughts) {
@@ -55,14 +53,13 @@ export class UserDataExtractor {
 		file: TFile,
 		dataTypes: UserDataType[] = [UserDataType.ALL]
 	): Promise<SubjectUserData | null> {
-		const cache = this.app.metadataCache.getFileCache(file);
-		const frontmatter = getFrontmatterRecord(cache?.frontmatter);
-		if (!frontmatter) return null;
-
-		const base = this.extractFromFrontmatter(file, frontmatter);
+		const content = await this.app.vault.read(file);
+		const identity = this.documentService.getSubjectIdentityFromContent(content);
+		if (identity.subjectId === null || identity.conflicts?.length) return null;
+		const frontmatter = this.documentService.extractFrontmatterRecord(content);
+		const base = this.extractFromFrontmatter(file, frontmatter, identity.subjectId);
 		if (!base) return null;
 
-		const content = await this.app.vault.read(file);
 		const record = this.documentService.extractSection(content, '记录');
 		const thoughts = this.documentService.extractSection(content, '感想');
 		const shortComment = this.documentService.extractComment(content);
@@ -81,11 +78,12 @@ export class UserDataExtractor {
 		return base;
 	}
 
-	private extractFromFrontmatter(file: TFile, frontmatter: Record<string, unknown> | null): SubjectUserData | null {
+	private extractFromFrontmatter(
+		file: TFile,
+		frontmatter: Record<string, unknown> | null,
+		id: number,
+	): SubjectUserData | null {
 		if (!frontmatter) return null;
-
-		const id = this.extractId(frontmatter);
-		if (!id) return null;
 
 		const name_cn = getFrontmatterString(frontmatter, '中文名')
 			|| getFrontmatterString(frontmatter, 'name_cn')
@@ -119,7 +117,7 @@ export class UserDataExtractor {
 		}
 
 		const allFiles = this.app.vault.getMarkdownFiles();
-		const targetFiles = allFiles.filter(file => file.path.startsWith(normalizedPath));
+		const targetFiles = allFiles.filter(file => isDescendantPath(file.path, normalizedPath));
 
 		let processed = 0;
 		for (const file of targetFiles) {
@@ -154,7 +152,7 @@ export class UserDataExtractor {
 		}
 
 		const allFiles = this.app.vault.getMarkdownFiles();
-		const targetFiles = allFiles.filter(file => file.path.startsWith(normalizedPath));
+		const targetFiles = allFiles.filter(file => isDescendantPath(file.path, normalizedPath));
 
 		let processed = 0;
 		for (const file of targetFiles) {
@@ -172,16 +170,6 @@ export class UserDataExtractor {
 		}
 
 		return result;
-	}
-
-	private extractId(frontmatter: Record<string, unknown>): number | null {
-		const id = frontmatter['id'] ?? frontmatter['ID'];
-		if (typeof id === 'number') return id;
-		if (typeof id === 'string') {
-			const parsed = parseInt(id, 10);
-			return isNaN(parsed) ? null : parsed;
-		}
-		return null;
 	}
 
 	private extractCustomProperties(frontmatter: Record<string, unknown>): Record<string, unknown> {

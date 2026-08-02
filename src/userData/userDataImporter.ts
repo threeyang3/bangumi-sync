@@ -7,6 +7,7 @@
 import { App, TFile } from 'obsidian';
 import { UserDataMerger } from './userDataMerger';
 import { IncrementalSync } from '../sync/incrementalSync';
+import { LocalSubjectRegistry } from '../sync/localSubjectRegistry';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 import {
 	UserDataExport,
@@ -24,7 +25,7 @@ import {
 	isCustomPropertyField,
 	isUserPropertyField,
 } from './types';
-import { getFrontmatterNumber, getFrontmatterRecord } from '../../common/utils/frontmatter';
+import { getFrontmatterRecord } from '../../common/utils/frontmatter';
 import {
 	importValuesEqual,
 	mapLegacyRatingField,
@@ -71,12 +72,17 @@ export class UserDataImporter {
 	private merger: UserDataMerger;
 	private incrementalSync: IncrementalSync;
 	private documentService: SubjectDocumentService;
+	private registry: LocalSubjectRegistry;
+	private registryReady = false;
+	private scanRoot: string;
 
-	constructor(app: App) {
+	constructor(app: App, scanRoot = 'ACGN') {
 		this.app = app;
 		this.merger = new UserDataMerger(app);
 		this.incrementalSync = new IncrementalSync(app);
 		this.documentService = new SubjectDocumentService(app);
+		this.registry = new LocalSubjectRegistry(app, this.documentService);
+		this.scanRoot = scanRoot;
 	}
 
 	async importFromFile(
@@ -222,7 +228,7 @@ export class UserDataImporter {
 					continue;
 				}
 
-				const localFile = this.findLocalFile(subjectId);
+				const localFile = await this.findLocalFile(subjectId);
 				if (!localFile) {
 					result.skipped++;
 					continue;
@@ -257,7 +263,7 @@ export class UserDataImporter {
 		}
 
 		for (const [subjectId, fieldDecisions] of grouped) {
-			const localFile = this.findLocalFile(subjectId);
+			const localFile = await this.findLocalFile(subjectId);
 			if (!localFile) continue;
 
 			let content = await this.app.vault.read(localFile);
@@ -286,7 +292,7 @@ export class UserDataImporter {
 		let applied = 0;
 
 		for (const item of diffs) {
-			const localFile = this.findLocalFile(item.subjectId);
+			const localFile = await this.findLocalFile(item.subjectId);
 			if (!localFile) continue;
 
 			let content = await this.app.vault.read(localFile);
@@ -375,7 +381,7 @@ export class UserDataImporter {
 					continue;
 				}
 
-				const localFile = this.findLocalFile(subjectId);
+				const localFile = await this.findLocalFile(subjectId);
 				if (!localFile) {
 					result.skipped++;
 					continue;
@@ -959,20 +965,15 @@ export class UserDataImporter {
 		return frontmatter?.[fieldName];
 	}
 
-	private findLocalFile(subjectId: number): TFile | null {
-		const files = this.app.vault.getMarkdownFiles();
-
-		for (const file of files) {
-			const cache = this.app.metadataCache.getFileCache(file);
-			const frontmatter = getFrontmatterRecord(cache?.frontmatter);
-			const id = getFrontmatterNumber(frontmatter, 'id') ?? getFrontmatterNumber(frontmatter, 'ID');
-
-			if (id === subjectId) {
-				return file;
-			}
+	private async findLocalFile(subjectId: number): Promise<TFile | null> {
+		if (!this.registryReady) {
+			await this.registry.scan(this.scanRoot);
+			this.registryReady = true;
 		}
-
-		return null;
+		const record = this.registry.getById(subjectId);
+		if (!record) return null;
+		const file = this.app.vault.getAbstractFileByPath(record.path);
+		return file instanceof TFile ? file : null;
 	}
 }
 
