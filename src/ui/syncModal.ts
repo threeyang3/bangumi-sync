@@ -151,10 +151,14 @@ export class SyncModal extends Modal {
 			this.completedEl.empty();
 
 			// 统计信息
-			const statsText = tnFormat('syncModal', 'completedStats', {
-				added: result.added,
+			const statsText = tnFormat('syncModal', 'detailedStats', {
+				created: result.created,
+				updated: result.updated,
+				unchanged: result.unchanged,
+				renamed: result.renamed,
+				collisionResolved: result.collisionResolved,
 				skipped: result.skipped,
-				errors: result.errors,
+				failed: result.failed,
 			});
 			this.completedEl.createEl('p', { text: statsText, cls: 'bangumi-sync-stats' });
 
@@ -171,10 +175,9 @@ export class SyncModal extends Modal {
 			}
 
 			// 如果是取消状态，显示回滚按钮
-			if (result.wasCancelled && result.batchFiles.some(f => f.wasNewlyCreated)) {
-				const newFileCount = result.batchFiles.filter(f => f.wasNewlyCreated).length;
+			if (result.wasCancelled && result.canRollback) {
 				this.completedEl.createEl('p', {
-					text: `${tn('notices', 'syncCancelled')} (${newFileCount} files)`,
+					text: tn('syncModal', 'rollbackAvailable'),
 					cls: 'bangumi-sync-cancelled-info',
 				});
 
@@ -210,6 +213,10 @@ export class SyncModal extends Modal {
 		if (this.statusText) {
 			if (result.wasCancelled) {
 				this.updateStatus(tn('notices', 'syncCancelled'));
+			} else if (result.completion === 'partial-success') {
+				this.updateStatus(tn('syncModal', 'partialSuccess'));
+			} else if (result.completion === 'failed') {
+				this.updateStatus(tn('notices', 'syncFailed'));
 			} else {
 				this.updateStatus(tn('syncModal', 'completed'));
 			}

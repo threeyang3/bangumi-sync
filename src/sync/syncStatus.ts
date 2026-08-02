@@ -19,13 +19,28 @@ export interface SyncOptions {
  */
 export interface SyncResult {
 	success: boolean;
+	completion: 'success' | 'partial-success' | 'failed' | 'cancelled';
 	total: number;          // 需要同步的总数
 	added: number;
 	skipped: number;        // 已存在跳过的数量
 	errors: number;
+	created: number;
+	updated: number;
+	unchanged: number;
+	renamed: number;
+	collisionResolved: number;
+	failed: number;
 	duration: number;
 	errorDetails: string[]; // 失败条目的详细错误信息
+	outcomes: SubjectSyncOutcome[];
 }
+
+export type SubjectSyncOutcome =
+	| { status: 'created' | 'updated' | 'unchanged'; subjectId: number; path: string }
+	| { status: 'renamed-and-updated'; subjectId: number; oldPath: string; newPath: string }
+	| { status: 'collision-resolved'; subjectId: number; preferredPath: string; finalPath: string }
+	| { status: 'skipped'; subjectId: number; reason: string }
+	| { status: 'failed'; subjectId: number; name: string; preferredPath?: string; actualPath?: string; error: string };
 
 /**
  * 同步进度
@@ -66,6 +81,17 @@ export interface BatchSyncedFile {
 export interface SyncResultWithRollback extends SyncResult {
 	batchFiles: BatchSyncedFile[];
 	wasCancelled: boolean;
+	canRollback: boolean;
+}
+
+export function determineSyncCompletion(
+	succeeded: number,
+	failed: number,
+	cancelled: boolean,
+): SyncResult['completion'] {
+	if (cancelled) return 'cancelled';
+	if (failed === 0) return 'success';
+	return succeeded > 0 ? 'partial-success' : 'failed';
 }
 
 /**

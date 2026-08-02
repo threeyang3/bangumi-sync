@@ -469,9 +469,12 @@ export class StatusSyncModal extends Modal {
                 this.statusEl.setText(tn('statusSyncModal', 'syncProgress'));
                 const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
 
-                const message = tn('statusSyncModal', 'syncComplete')
-                        .replace('{success}', String(successCount))
-                        .replace('{failed}', String(failCount));
+				const summary = tn('statusSyncModal', 'syncComplete')
+						.replace('{success}', String(successCount))
+						.replace('{failed}', String(failCount));
+				const message = successCount > 0 && failCount > 0
+						? `${tn('syncModal', 'partialSuccess')}: ${summary}`
+						: summary;
                 this.statusEl.setText(message);
 
                 if (successCount > 0) {

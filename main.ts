@@ -36,6 +36,7 @@ import { EpisodeStatusManager } from './src/episode/episodeStatusManager';
 import { EpisodeCommentManager } from './src/episode/episodeCommentManager';
 import { SubjectNoteManager } from './src/note/subjectNoteManager';
 import { StatusSyncFieldSelection } from './src/sync/statusSyncTypes';
+import { PathDiagnosticModal, PathMigrationPreviewModal } from './src/ui/pathToolsModal';
 
 /**
  * 缓存数据结构
@@ -152,6 +153,18 @@ export default class BangumiPlugin extends Plugin {
 			callback: () => void this.scanAndLinkRelated(),
 		});
 
+		this.addCommand({
+			id: 'diagnose-local-subjects',
+			name: tn('commands', 'diagnoseLocalSubjects'),
+			callback: () => void this.openPathDiagnostic(),
+		});
+
+		this.addCommand({
+			id: 'preview-path-migration',
+			name: tn('commands', 'previewPathMigration'),
+			callback: () => void this.openPathMigrationPreview(),
+		});
+
 		// 添加 Ribbon 图标
 		this.addRibbonIcon('database', tn('ribbon', 'collectionManager'), () => {
 			this.openControlPanel();
@@ -165,7 +178,9 @@ export default class BangumiPlugin extends Plugin {
 			async () => {
 				await this.saveSettings();
 				await this.initSyncManager();
-			}
+			},
+			() => this.openPathDiagnostic(),
+			() => this.openPathMigrationPreview(),
 		));
 
 		// 设置自动同步
@@ -173,6 +188,41 @@ export default class BangumiPlugin extends Plugin {
 			this.setupAutoSync();
 		}
 
+	}
+
+	private async openPathDiagnostic(): Promise<void> {
+		try {
+			if (!this.syncManager) {
+				new Notice(tn('notices', 'syncManagerNotInit'));
+				return;
+			}
+			const report = await this.syncManager.diagnoseLocalSubjects();
+			new PathDiagnosticModal(
+				this.app,
+				report,
+				() => this.syncManager?.exportDiagnosticReport(report) ?? Promise.reject(new Error(tn('notices', 'syncManagerNotInit'))),
+			).open();
+		} catch (error) {
+			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	private async openPathMigrationPreview(): Promise<void> {
+		try {
+			if (!this.syncManager) {
+				new Notice(tn('notices', 'syncManagerNotInit'));
+				return;
+			}
+			const preview = await this.syncManager.previewPathMigration();
+			new PathMigrationPreviewModal(
+				this.app,
+				preview,
+				actualPreview => this.syncManager?.applyPathMigration(actualPreview) ?? Promise.reject(new Error(tn('notices', 'syncManagerNotInit'))),
+				options => this.syncManager?.previewPathMigration(options) ?? Promise.reject(new Error(tn('notices', 'syncManagerNotInit'))),
+			).open();
+		} catch (error) {
+			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 
 	onunload() {
@@ -298,6 +348,14 @@ export default class BangumiPlugin extends Plugin {
 			scanFolderPath: this.settings.scanFolderPath,
 			coverLinkType: this.settings.coverLinkType,
 			customTemplates: templates,
+			enableRelatedLinks: this.settings.enableRelatedLinks,
+			dataProtection: this.settings.dataProtection,
+			subjectPathStates: this.settings.subjectPathStates,
+			pathNamingStrategy: this.settings.pathNamingStrategy,
+			onPathStatesChanged: async states => {
+				this.settings.subjectPathStates = states;
+				await this.saveSettings();
+			},
 		};
 
 		this.syncManager = new SyncManager(this.app, config);
@@ -462,9 +520,10 @@ export default class BangumiPlugin extends Plugin {
 				this.app,
 				importFiles,
 				(result) => {
-					const resultModal = new ImportResultModal(this.app, result);
+					const resultModal = new ImportResultModal(this.app, result, this.settings.scanFolderPath);
 					resultModal.open();
-				}
+				},
+				this.settings.scanFolderPath,
 			);
 			modal.open();
 		})();

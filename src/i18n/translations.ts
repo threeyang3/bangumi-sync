@@ -23,6 +23,8 @@ export interface TranslationStrings {
                 createSubjectNote: string;
                 batchDownloadCovers: string;
                 scanAndLinkRelated: string;
+                diagnoseLocalSubjects: string;
+                previewPathMigration: string;
         };
 
 	// Ribbon
@@ -100,6 +102,15 @@ export interface TranslationStrings {
 		notePathTemplateDesc: string;
 		noteTemplateContent: string;
 		noteTemplateContentDesc: string;
+		pathNamingStrategy: string;
+		pathNamingStrategyDesc: string;
+		pathNamingSimple: string;
+		pathNamingYear: string;
+		pathNamingId: string;
+		pathNamingCustom: string;
+		pathTemplateRisk: string;
+		previewNormal: string;
+		previewCollision: string;
 		templateSettings: string;
 		templateVarTip: string;
 		templateSyntax: string;
@@ -229,7 +240,10 @@ export interface TranslationStrings {
 		rollback: string;
 		rollbackComplete: string;
 		rollbackFailed: string;
+		rollbackAvailable: string;
 		completedStats: string;
+		detailedStats: string;
+		partialSuccess: string;
 		errorDetails: string;
 		scanCompleted: string;
 		scanCompletedStats: string;
@@ -632,6 +646,21 @@ export interface TranslationStrings {
 		createdNote: string;
 	};
 
+	pathTools: {
+		diagnosticTitle: string;
+		diagnosticSummary: string;
+		exportReport: string;
+		reportExported: string;
+		migrationTitle: string;
+		migrationSummary: string;
+		applyMigration: string;
+		migrationComplete: string;
+		noRenames: string;
+		includeUnknown: string;
+		includeUserRenamed: string;
+		close: string;
+	};
+
 }
 
 /**
@@ -649,6 +678,8 @@ const en: TranslationStrings = {
                 createSubjectNote: 'Create or append subject note',
                 batchDownloadCovers: 'Batch download cover images',
                 scanAndLinkRelated: 'Scan and link related subjects',
+                diagnoseLocalSubjects: 'Check local Bangumi subjects',
+                previewPathMigration: 'Preview and apply current path template',
 	},
 
 	ribbon: {
@@ -699,7 +730,7 @@ const en: TranslationStrings = {
 		enterAccessToken: 'Enter Access token',
 		pathSettings: 'Path settings',
 		filePathTemplate: 'File path template',
-		filePathTemplateDesc: 'Supported variables: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}',
+		filePathTemplateDesc: 'Supported variables: {{type}}, {{category}}, {{platform}}, {{name}}, {{name_cn}}, {{name_cn_with_type}}, {{year}}, {{author}}, {{id}}',
 		pathTemplateByType: 'Per-type path templates',
 		pathTemplateByTypeDesc: 'Optional overrides; empty falls back to the default template above',
 		scanFolderPath: 'Scan folder path',
@@ -723,6 +754,15 @@ const en: TranslationStrings = {
 		notePathTemplateDesc: 'Full shared note file path template. Example: 收集箱/笔记/ACGN/{{name_cn}}.md',
 		noteTemplateContent: 'Note template content',
 		noteTemplateContentDesc: 'Template used when creating a new shared note file. Supported variables: {{id_yaml}}, {{primary_id}}, {{name}}, {{name_cn}}, {{entry_heading}}',
+		pathNamingStrategy: 'Naming strategy',
+		pathNamingStrategyDesc: 'Existing subjects keep their current ID-linked path; collision suffixes are added at runtime.',
+		pathNamingSimple: 'Simple names; disambiguate on collision',
+		pathNamingYear: 'Always append year',
+		pathNamingId: 'Always append Bangumi ID',
+		pathNamingCustom: 'Use custom template',
+		pathTemplateRisk: 'This template omits {{id}}. Runtime year/ID disambiguation still protects collisions.',
+		previewNormal: 'Normal',
+		previewCollision: 'On collision',
 		templateSettings: 'Template settings',
 		templateVarTip: 'Template variable tip: {{tags}} uses your own tags, empty if none',
 		templateSyntax: 'Template syntax',
@@ -846,7 +886,10 @@ const en: TranslationStrings = {
 		rollback: 'Rollback',
 		rollbackComplete: 'Rollback complete: {deleted} deleted, {failed} failed',
 		rollbackFailed: 'Rollback failed',
+		rollbackAvailable: 'This cancelled batch changed local files and can be rolled back safely.',
 		completedStats: 'Added: {added}, Skipped: {skipped}, Errors: {errors}',
+		detailedStats: 'Created {created}, updated {updated}, unchanged {unchanged}, renamed {renamed}, collisions resolved {collisionResolved}, skipped {skipped}, failed {failed}',
+		partialSuccess: 'Sync partially completed',
 		errorDetails: 'Error details',
 		scanCompleted: 'Scan completed',
 		scanCompletedStats: 'Checked {checked} items, updated {linked}, skipped {skipped}, failed {failed}',
@@ -1231,6 +1274,21 @@ const en: TranslationStrings = {
 		appendedToNote: 'Appended to shared note',
 		createdNote: 'Created shared note',
 	},
+
+	pathTools: {
+		diagnosticTitle: 'Local Bangumi subject diagnostic',
+		diagnosticSummary: '{valid} valid subjects, {issues} issues',
+		exportReport: 'Export report',
+		reportExported: 'Diagnostic report exported: {path}',
+		migrationTitle: 'Path migration preview',
+		migrationSummary: '{rename} renames, {protected} protected, {failed} failed',
+		applyMigration: 'Apply migration',
+		migrationComplete: 'Path migration complete: {renamed} renamed, {failed} failed',
+		noRenames: 'No managed paths need migration.',
+		includeUnknown: 'Include legacy paths with unknown ownership state',
+		includeUserRenamed: 'Include user-renamed paths',
+		close: 'Close',
+	},
 };
 
 /**
@@ -1248,6 +1306,8 @@ const zhCN: TranslationStrings = {
                 createSubjectNote: '创建或追加条目笔记',
                 batchDownloadCovers: '批量下载封面图片',
                 scanAndLinkRelated: '扫描并关联相关条目',
+                diagnoseLocalSubjects: '检查本地 Bangumi 条目',
+                previewPathMigration: '预览并应用当前路径模板',
         },
 
 	ribbon: {
@@ -1298,7 +1358,7 @@ const zhCN: TranslationStrings = {
 		enterAccessToken: '输入 Access Token',
 		pathSettings: '路径设置',
 		filePathTemplate: '文件路径模板',
-		filePathTemplateDesc: '支持变量: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}',
+		filePathTemplateDesc: '支持变量: {{type}}, {{category}}, {{platform}}, {{name}}, {{name_cn}}, {{name_cn_with_type}}, {{year}}, {{author}}, {{id}}',
 		pathTemplateByType: '各类型路径模板',
 		pathTemplateByTypeDesc: '可选覆盖，为空则使用上方默认模板',
 		scanFolderPath: '扫描文件夹路径',
@@ -1322,6 +1382,15 @@ const zhCN: TranslationStrings = {
 		noteTemplateContent: '笔记模板内容',
 		noteTemplateContentDesc: '创建新的共享笔记文件时使用。支持变量：{{id_yaml}}、{{primary_id}}、{{name}}、{{name_cn}}、{{entry_heading}}',
 		notePathTemplateDesc: '共享笔记完整文件路径模板，例如：收集箱/笔记/ACGN/{{name_cn}}.md',
+		pathNamingStrategy: '命名策略',
+		pathNamingStrategyDesc: '已有条目保留 ID 对应的当前路径；运行时仅在冲突时追加消歧后缀。',
+		pathNamingSimple: '简洁命名，仅冲突时消歧',
+		pathNamingYear: '始终追加年份',
+		pathNamingId: '始终追加 Bangumi ID',
+		pathNamingCustom: '完全按自定义模板',
+		pathTemplateRisk: '模板未包含 {{id}}；运行时仍会使用年份和 ID 自动消歧。',
+		previewNormal: '普通',
+		previewCollision: '发生重名',
 		templateSettings: '模板设置',
 		templateVarTip: '模板变量提示：{{tags}} 使用用户自己的标签，如果没有则留空',
 		templateSyntax: '模板语法',
@@ -1445,7 +1514,10 @@ const zhCN: TranslationStrings = {
 		rollback: '回滚',
 		rollbackComplete: '回滚完成：删除 {deleted} 个，失败 {failed} 个',
 		rollbackFailed: '回滚失败',
+		rollbackAvailable: '本次已取消的同步修改了本地文件，可以安全回滚。',
 		completedStats: '新增 {added}，跳过 {skipped}，失败 {errors}',
+		detailedStats: '创建 {created}，更新 {updated}，未变化 {unchanged}，重命名 {renamed}，解决冲突 {collisionResolved}，跳过 {skipped}，失败 {failed}',
+		partialSuccess: '同步部分成功',
 		errorDetails: '错误详情',
 		scanCompleted: '扫描关联完成',
 		scanCompletedStats: '检查 {checked} 个条目，更新 {linked} 个，跳过 {skipped} 个，失败 {failed} 个',
@@ -1829,6 +1901,21 @@ const zhCN: TranslationStrings = {
 		missingSubjectId: '当前文件缺少有效的条目 ID，无法创建条目笔记',
 		appendedToNote: '已追加到共享笔记',
 		createdNote: '已创建共享笔记',
+	},
+
+	pathTools: {
+		diagnosticTitle: '本地 Bangumi 条目诊断',
+		diagnosticSummary: '有效条目 {valid} 个，发现问题 {issues} 个',
+		exportReport: '导出报告',
+		reportExported: '诊断报告已导出：{path}',
+		migrationTitle: '路径迁移预览',
+		migrationSummary: '将重命名 {rename} 个，保护 {protected} 个，失败 {failed} 个',
+		applyMigration: '应用迁移',
+		migrationComplete: '路径迁移完成：重命名 {renamed} 个，失败 {failed} 个',
+		noRenames: '没有需要迁移的插件管理路径。',
+		includeUnknown: '包含管理状态未知的旧路径',
+		includeUserRenamed: '包含用户手动重命名的路径',
+		close: '关闭',
 	},
 
 };
