@@ -26,17 +26,16 @@
 
 本地扫描入口在 `IncrementalSync.scanLocalFolder()`。
 
-识别某个 Markdown 文件对应哪个条目的顺序是：
+统一身份服务识别某个 Markdown 文件对应哪个条目的顺序是：
 
 1. frontmatter `id`
-2. frontmatter `ID`
-3. frontmatter `BangumiID`
-4. 封面路径中的 `{id}_cover.xxx`
-5. `bgm.tv/subject/{id}` 链接
+2. frontmatter `BangumiID`（旧版本兼容）
+3. `bgm.tv/subject/{id}` 等 Bangumi 链接（迁移兜底）
+4. 封面路径中的 `{id}_cover.xxx`（迁移兜底）
 
-只要能提取到 id，这个文件就会被视为某个已同步条目。
+所有来源都会同时检查；值不一致时文件进入阻断诊断，不会静默选择一个 ID。重复 ID 不会由后扫描文件覆盖前一个结果。
 
-这套逻辑是为了兼容旧模板和旧文件，而不是推荐继续扩展更多兜底来源。
+注册表同时维护 `ID → 当前路径` 与规范化 `路径 → ID`。同步已有 ID 时使用当前实际路径；模板仅为新条目提供首选路径。
 
 ## 3. 增量同步 diff 如何计算
 

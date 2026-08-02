@@ -28,6 +28,10 @@ npm run test:watch
 
 ## 测试策略
 
+CI 在 Node.js 22 上同时运行 Ubuntu 与 Windows，依次执行 `npm ci`、`npm run lint`、`npm run test`、`npm run build`。路径规则必须在大小写不敏感、Windows 保留名和路径长度场景下有自动化覆盖。
+
+身份与路径代码应遵守 [PATH_AND_ID_MODEL.md](PATH_AND_ID_MODEL.md)：禁止新增第二套 ID 正则解析、路径冲突分配或根据标题判定身份的实现。
+
 当前采用“两层护栏”：
 
 1. 自动化纯逻辑测试
