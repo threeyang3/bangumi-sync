@@ -19,7 +19,7 @@ export interface SyncOptions {
  */
 export interface SyncResult {
 	success: boolean;
-	completion: 'success' | 'partial-success' | 'failed' | 'cancelled';
+	completion: 'success' | 'partial-success' | 'failed' | 'cancelled' | 'rolled-back' | 'rollback-failed';
 	total: number;          // 需要同步的总数
 	added: number;
 	skipped: number;        // 已存在跳过的数量
@@ -35,12 +35,15 @@ export interface SyncResult {
 	outcomes: SubjectSyncOutcome[];
 }
 
-export type SubjectSyncOutcome =
-	| { status: 'created' | 'updated' | 'unchanged'; subjectId: number; path: string }
-	| { status: 'renamed-and-updated'; subjectId: number; oldPath: string; newPath: string }
-	| { status: 'collision-resolved'; subjectId: number; preferredPath: string; finalPath: string }
-	| { status: 'skipped'; subjectId: number; reason: string }
-	| { status: 'failed'; subjectId: number; name: string; preferredPath?: string; actualPath?: string; error: string };
+export interface SubjectSyncOutcome {
+	subjectId: number;
+	name?: string;
+	preferredPath?: string;
+	actualPath?: string;
+	pathAction: 'unchanged' | 'renamed' | 'collision-resolved' | 'rolled-back' | 'failed';
+	writeAction: 'created' | 'updated' | 'unchanged' | 'skipped' | 'failed' | 'rolled-back';
+	error?: string;
+}
 
 /**
  * 同步进度
@@ -82,6 +85,12 @@ export interface SyncResultWithRollback extends SyncResult {
 	batchFiles: BatchSyncedFile[];
 	wasCancelled: boolean;
 	canRollback: boolean;
+	rollback?: {
+		deletedCreatedFiles: number;
+		restoredContents: number;
+		restoredPaths: number;
+		failed: number;
+	};
 }
 
 export function determineSyncCompletion(

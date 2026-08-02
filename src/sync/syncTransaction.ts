@@ -1,5 +1,6 @@
 import { App, TFile, normalizePath } from 'obsidian';
 import { FileManager, FileWriteResult } from '../../common/file/fileManager';
+import { normalizePathCollisionKey } from '../../common/file/pathUtils';
 
 export interface TransactionRename {
 	subjectId: number;
@@ -8,8 +9,9 @@ export interface TransactionRename {
 }
 
 export interface SyncRollbackResult {
-	deleted: number;
-	restored: number;
+	deletedCreatedFiles: number;
+	restoredContents: number;
+	restoredPaths: number;
 	failed: number;
 }
 
@@ -21,6 +23,7 @@ export class SyncTransaction {
 	private readonly createdFiles: TFile[] = [];
 	private readonly updatedContents = new Map<TFile, string>();
 	private readonly renames: ExecutedRename[] = [];
+	private state: 'active' | 'committed' | 'rolled-back' = 'active';
 
 	constructor(
 		private readonly app: App,
@@ -28,7 +31,15 @@ export class SyncTransaction {
 	) {}
 
 	hasChanges(): boolean {
-		return this.createdFiles.length > 0 || this.updatedContents.size > 0 || this.renames.length > 0;
+		return this.state === 'active' && (this.createdFiles.length > 0 || this.updatedContents.size > 0 || this.renames.length > 0);
+	}
+
+	commit(): void {
+		if (this.state !== 'active') return;
+		this.state = 'committed';
+		this.createdFiles.length = 0;
+		this.updatedContents.clear();
+		this.renames.length = 0;
 	}
 
 	getRenameCount(): number {
@@ -36,6 +47,7 @@ export class SyncTransaction {
 	}
 
 	async executeRenames(renames: TransactionRename[]): Promise<void> {
+		this.assertActive();
 		if (renames.length === 0) return;
 		const sources = new Map<string, { rename: TransactionRename; file: TFile }>();
 		const targets = new Set<string>();
@@ -43,20 +55,20 @@ export class SyncTransaction {
 		for (const rename of renames) {
 			const from = normalizePath(rename.from);
 			const to = normalizePath(rename.to);
-			if (targets.has(to.toLocaleLowerCase('en-US'))) {
+			if (targets.has(normalizePathCollisionKey(to))) {
 				throw new Error(`Duplicate rename target: ${to}`);
 			}
 			const file = await this.fileManager.assertPathOwnership(from, rename.subjectId);
 			if (!file) {
 				throw new Error(`Rename source does not exist: ${from}`);
 			}
-			sources.set(from.toLocaleLowerCase('en-US'), { rename: { ...rename, from, to }, file });
-			targets.add(to.toLocaleLowerCase('en-US'));
+			sources.set(normalizePathCollisionKey(from), { rename: { ...rename, from, to }, file });
+			targets.add(normalizePathCollisionKey(to));
 		}
 
 		for (const { rename } of sources.values()) {
 			const target = this.fileManager.getFile(rename.to);
-			if (target && !sources.has(rename.to.toLocaleLowerCase('en-US'))) {
+			if (target && !sources.has(normalizePathCollisionKey(rename.to))) {
 				throw new Error(`Rename target is occupied by an unplanned file: ${rename.to}`);
 			}
 		}
@@ -91,6 +103,7 @@ export class SyncTransaction {
 		content: string,
 		options: { overwrite?: boolean; subjectId: number },
 	): Promise<FileWriteResult> {
+		this.assertActive();
 		const existing = await this.fileManager.assertPathOwnership(path, options.subjectId);
 		if (existing && !this.updatedContents.has(existing)) {
 			this.updatedContents.set(existing, await this.app.vault.read(existing));
@@ -107,11 +120,13 @@ export class SyncTransaction {
 	}
 
 	async rollback(): Promise<SyncRollbackResult> {
-		const result: SyncRollbackResult = { deleted: 0, restored: 0, failed: 0 };
+		const result: SyncRollbackResult = { deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0 };
+		if (this.state !== 'active') return result;
+		this.state = 'rolled-back';
 		for (const file of [...this.createdFiles].reverse()) {
 			try {
 				await this.app.fileManager.trashFile(file);
-				result.deleted++;
+				result.deletedCreatedFiles++;
 			} catch {
 				result.failed++;
 			}
@@ -119,7 +134,7 @@ export class SyncTransaction {
 		for (const [file, content] of this.updatedContents) {
 			try {
 				await this.app.vault.process(file, () => content);
-				result.restored++;
+				result.restoredContents++;
 			} catch {
 				result.failed++;
 			}
@@ -140,12 +155,18 @@ export class SyncTransaction {
 			try {
 				await this.fileManager.ensureDirectory(rename.from);
 				await this.app.fileManager.renameFile(rename.file, rename.from);
-				result.restored++;
+				result.restoredPaths++;
 			} catch {
 				result.failed++;
 			}
 		}
 		return result;
+	}
+
+	private assertActive(): void {
+		if (this.state !== 'active') {
+			throw new Error(`Cannot use a ${this.state} sync transaction.`);
+		}
 	}
 
 	private async findTemporaryPath(sourcePath: string, subjectId: number, index: number): Promise<string> {

@@ -69,6 +69,10 @@ export class Notice {
 	constructor(_message: string) {}
 }
 
+export function getLanguage(): string {
+	return 'en';
+}
+
 export function normalizePath(path: string): string {
 	return path.replace(/\\/g, '/').replace(/\/{2,}/g, '/').replace(/^\.\//, '').replace(/\/$/, '');
 }

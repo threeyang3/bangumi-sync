@@ -22,8 +22,11 @@ describe('path utilities', () => {
 		expect(normalizePathCollisionKey('ACGN/Cafe\u0301.md')).toBe(
 			normalizePathCollisionKey('acgn/CAFÉ.md'),
 		);
-		expect(normalizePathCollisionKey('ＡＣＧＮ／乱马１／２.md')).toBe(
-			normalizePathCollisionKey('acgn/乱马1/2.md'),
+		expect(normalizePathCollisionKey('ＡＣＧＮ/乱马１／２.md')).toBe(
+			normalizePathCollisionKey('acgn/乱马1／2.md'),
+		);
+		expect(normalizePathCollisionKey('ACGN/anime/乱马1／2.md')).not.toBe(
+			normalizePathCollisionKey('ACGN/anime/乱马1/2.md'),
 		);
 	});
 

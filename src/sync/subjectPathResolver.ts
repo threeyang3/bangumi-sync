@@ -81,7 +81,7 @@ export class SubjectPathResolver {
 			if (group.length < 2) continue;
 
 			const movable = group.filter(candidate => !candidate.currentPath || (
-				candidate.namingState === 'managed'
+				(candidate.namingState === 'managed' || candidate.namingState === 'inferred-managed')
 				&& normalizePathCollisionKey(candidate.currentPath) === normalizePathCollisionKey(candidate.preferredPath)
 			));
 			for (const candidate of movable) {

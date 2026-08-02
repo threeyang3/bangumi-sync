@@ -3,7 +3,7 @@ import { isDescendantPath, normalizePathCollisionKey } from '../../common/file/p
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 import { SubjectIdentitySource } from '../document/subjectIdentity';
 
-export type SubjectNamingState = 'managed' | 'user-renamed' | 'unknown';
+export type SubjectNamingState = 'managed' | 'inferred-managed' | 'user-renamed' | 'unknown';
 export type LocalFileProblemSeverity = 'safe-auto-fix' | 'needs-user-decision' | 'blocking-error';
 
 export interface LocalSubjectRecord {
@@ -18,7 +18,7 @@ export interface SubjectPathState {
 	subjectId: number;
 	currentPath: string;
 	lastManagedPath?: string;
-	namingState: Exclude<SubjectNamingState, 'unknown'>;
+	namingState: Exclude<SubjectNamingState, 'unknown' | 'inferred-managed'>;
 }
 
 export interface LocalFileProblem {
@@ -158,6 +158,14 @@ export class LocalSubjectRegistry {
 		return this.pathToId.get(normalizePathCollisionKey(path));
 	}
 
+	markInferredManaged(subjectId: number, preferredPath: string): boolean {
+		const record = this.getById(subjectId);
+		if (!record || record.namingState !== 'unknown') return false;
+		if (normalizePathCollisionKey(record.path) !== normalizePathCollisionKey(preferredPath)) return false;
+		this.idToRecord.set(subjectId, { ...record, namingState: 'inferred-managed' });
+		return true;
+	}
+
 	upsert(record: LocalSubjectRecord): void {
 		const previous = this.idToRecord.get(record.subjectId);
 		if (previous) {
@@ -165,7 +173,7 @@ export class LocalSubjectRegistry {
 			this.idToRecord.delete(record.subjectId);
 		}
 		this.register(record);
-		if (record.namingState === 'managed') {
+		if (record.namingState === 'managed' || record.namingState === 'inferred-managed') {
 			this.lastManagedPaths.set(record.subjectId, normalizePath(record.path));
 		}
 	}
@@ -197,7 +205,7 @@ export class LocalSubjectRegistry {
 	exportPathStates(): Record<string, SubjectPathState> {
 		const result: Record<string, SubjectPathState> = {};
 		for (const [subjectId, record] of this.idToRecord) {
-			const managed = record.namingState === 'managed';
+			const managed = record.namingState === 'managed' || record.namingState === 'inferred-managed';
 			result[String(subjectId)] = {
 				subjectId,
 				currentPath: record.path,

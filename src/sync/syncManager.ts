@@ -23,12 +23,14 @@ import { applyNamedPropertyValuesToContent, CustomTemplates, generateContentByTy
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { SyncPreviewItem } from '../ui/syncPreviewModal';
 import { CoverLinkType, PathNamingStrategy } from '../settings/settings';
-import { UserDataExtractor, UserDataMerger, DataProtectionSettings, DEFAULT_DATA_PROTECTION_SETTINGS } from '../userData';
+import { UserDataExtractor } from '../userData/userDataExtractor';
+import { UserDataMerger } from '../userData/userDataMerger';
+import { DataProtectionSettings, DEFAULT_DATA_PROTECTION_SETTINGS } from '../userData/types';
 import { LocalPropertyModalResult, LocalPropertyValueMap } from '../ui/localPropertyModal';
 import { buildExtraTemplateVarsFromPropertyValues, getTemplatePropertyGroupsForSubject } from '../template/templateProperties';
 import { tn, tnFormat } from '../i18n/translations';
 import { SubjectPathAllocation, SubjectPathResolver } from './subjectPathResolver';
-import { SyncTransaction } from './syncTransaction';
+import { SyncRollbackResult, SyncTransaction, TransactionRename } from './syncTransaction';
 import { SubjectPathState } from './localSubjectRegistry';
 import {
 	formatDiagnosticReport,
@@ -49,6 +51,22 @@ interface PreparedCollection {
 interface PreparationFailure {
 	collection: UserCollection;
 	error: string;
+}
+
+interface PreparedCollectionBatch {
+	prepared: PreparedCollection[];
+	failures: PreparationFailure[];
+	renamed: TransactionRename[];
+}
+
+interface RenderedCollection {
+	prepared: PreparedCollection;
+	subject: Subject;
+	filePath: string;
+	content: string;
+	fileExisted: boolean;
+	shouldOverwrite: boolean;
+	relations: RelatedSubject[];
 }
 
 /**
@@ -87,6 +105,7 @@ export class SyncManager {
 	private cancellationSignal: SyncCancellationSignal | null = null;
 	private pathResolver = new SubjectPathResolver();
 	private activeTransaction: SyncTransaction | null = null;
+	private lastAutomaticRollback: SyncRollbackResult | undefined;
 
 	constructor(app: App, config: SyncManagerConfig) {
 		this.app = app;
@@ -118,7 +137,7 @@ export class SyncManager {
 	/**
 	 * 回滚本次批次新建的文件
 	 */
-	async rollbackBatch(): Promise<{ deleted: number; restored?: number; failed: number }> {
+	async rollbackBatch(): Promise<SyncRollbackResult> {
 		if (this.activeTransaction) {
 			const result = await this.activeTransaction.rollback();
 			await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
@@ -126,7 +145,7 @@ export class SyncManager {
 			this.activeTransaction = null;
 			return result;
 		}
-		return this.incrementalSync.rollbackBatch();
+		return { deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0 };
 	}
 
 	/**
@@ -279,11 +298,11 @@ export class SyncManager {
 			.filter(entry => entry.status === 'rename')
 			.map(entry => ({ subjectId: entry.subjectId, from: entry.from, to: entry.to }));
 		const transaction = new SyncTransaction(this.app, this.fileManager);
-		this.activeTransaction = transaction;
 		try {
 			await transaction.executeRenames(renames);
 			for (const rename of renames) this.incrementalSync.renameLocalSubject(rename.subjectId, rename.to);
 			await this.persistPathStates();
+			transaction.commit();
 			return { renamed: renames.length, failed: 0 };
 		} catch {
 			await transaction.rollback();
@@ -315,11 +334,13 @@ export class SyncManager {
 			...base,
 			batchFiles,
 			wasCancelled,
-			canRollback: Boolean(this.activeTransaction?.hasChanges()) || batchFiles.some(file => file.wasNewlyCreated),
+			canRollback: Boolean(this.activeTransaction?.hasChanges()),
+			...(this.lastAutomaticRollback ? { rollback: this.lastAutomaticRollback } : {}),
 		};
 	}
 
 	private createSyncResult(total = 0): SyncResult {
+		this.lastAutomaticRollback = undefined;
 		return {
 			success: false,
 			completion: 'failed',
@@ -344,36 +365,30 @@ export class SyncManager {
 		result.failed++;
 		result.errorDetails.push(`[${failure.collection.subject_id}] ${name}: ${failure.error}`);
 		result.outcomes.push({
-			status: 'failed',
 			subjectId: failure.collection.subject_id,
 			name,
+			pathAction: 'failed',
+			writeAction: 'failed',
 			error: failure.error,
 		});
 	}
 
 	private recordWriteOutcome(result: SyncResult, prepared: PreparedCollection, writeStatus: FileWriteStatus): void {
-		result.added++;
+		if (writeStatus !== 'unchanged') result.added++;
 		result[writeStatus]++;
-		if (prepared.allocation.renameFrom) {
-			result.outcomes.push({
-				status: 'renamed-and-updated',
-				subjectId: prepared.collection.subject_id,
-				oldPath: prepared.allocation.renameFrom,
-				newPath: prepared.allocation.finalPath,
-			});
-			return;
-		}
-		if (prepared.allocation.collisionResolved) {
-			result.collisionResolved++;
-			result.outcomes.push({
-				status: 'collision-resolved',
-				subjectId: prepared.collection.subject_id,
-				preferredPath: prepared.allocation.preferredPath,
-				finalPath: prepared.allocation.finalPath,
-			});
-			return;
-		}
-		result.outcomes.push({ status: writeStatus, subjectId: prepared.collection.subject_id, path: prepared.allocation.finalPath });
+		const pathAction = prepared.allocation.renameFrom
+			? 'renamed' as const
+			: prepared.allocation.collisionResolved
+				? 'collision-resolved' as const
+				: 'unchanged' as const;
+		if (pathAction === 'collision-resolved') result.collisionResolved++;
+		result.outcomes.push({
+			subjectId: prepared.collection.subject_id,
+			preferredPath: prepared.allocation.preferredPath,
+			actualPath: prepared.allocation.finalPath,
+			pathAction,
+			writeAction: writeStatus,
+		});
 	}
 
 	private recordProcessingFailure(result: SyncResult, prepared: PreparedCollection, error: unknown): void {
@@ -383,19 +398,109 @@ export class SyncManager {
 		result.failed++;
 		result.errorDetails.push(`[${collection.subject_id}] ${name}: ${errorMessage}`);
 		result.outcomes.push({
-			status: 'failed',
 			subjectId: collection.subject_id,
 			name,
 			preferredPath: prepared.allocation.preferredPath,
 			actualPath: prepared.allocation.finalPath,
+			pathAction: 'failed',
+			writeAction: 'failed',
 			error: errorMessage,
 		});
 	}
 
 	private finalizeSyncResult(result: SyncResult, wasCancelled: boolean): void {
+		result.created = result.outcomes.filter(outcome => outcome.writeAction === 'created').length;
+		result.updated = result.outcomes.filter(outcome => outcome.writeAction === 'updated').length;
+		result.unchanged = result.outcomes.filter(outcome => outcome.writeAction === 'unchanged').length;
+		result.failed = result.outcomes.filter(outcome => outcome.writeAction === 'failed').length;
+		result.renamed = result.outcomes.filter(outcome => outcome.pathAction === 'renamed').length;
+		result.collisionResolved = result.outcomes.filter(outcome => outcome.pathAction === 'collision-resolved').length;
+		result.added = result.created + result.updated;
 		result.errors = result.failed;
-		result.completion = determineSyncCompletion(result.added, result.failed, wasCancelled);
+		result.completion = this.lastAutomaticRollback
+			? this.lastAutomaticRollback.failed > 0 ? 'rollback-failed' : 'rolled-back'
+			: determineSyncCompletion(result.added, result.failed, wasCancelled);
 		result.success = result.completion === 'success';
+	}
+
+	private async executePreparedCollectionBatch(
+		batch: PreparedCollectionBatch,
+		concurrency: number,
+		result: SyncResult,
+		optionsFor: (prepared: PreparedCollection) => { overwrite: boolean; localPropertyValues?: LocalPropertyValueMap; preserveUserDataOnOverwrite: boolean },
+		onProgress?: (prepared: PreparedCollection, index: number) => void,
+	): Promise<{ wasCancelled: boolean; relations: Array<{ subjectId: number; filePath: string; relations: RelatedSubject[] }> }> {
+		this.lastAutomaticRollback = undefined;
+		this.activeTransaction?.commit();
+		this.activeTransaction = null;
+		for (const failure of batch.failures) this.recordPreparedFailure(result, failure);
+
+		let wasCancelled = false;
+		const rendered: RenderedCollection[] = [];
+		await this.processConcurrently(batch.prepared, concurrency, async (prepared, index) => {
+			if (await this.checkCancellation()) {
+				wasCancelled = true;
+				return;
+			}
+			onProgress?.(prepared, index);
+			try {
+				rendered.push(await this.renderCollection(prepared.collection, optionsFor(prepared), prepared));
+			} catch (error) {
+				this.recordProcessingFailure(result, prepared, error);
+			}
+		});
+
+		if (wasCancelled) return { wasCancelled, relations: [] };
+		if (result.failed > 0 && batch.renamed.length > 0) {
+			for (const item of rendered) {
+				this.recordProcessingFailure(result, item.prepared, new Error('Collision transaction was not started because another item failed during content preparation.'));
+			}
+			return { wasCancelled, relations: [] };
+		}
+
+		const transaction = new SyncTransaction(this.app, this.fileManager);
+		this.activeTransaction = transaction;
+		try {
+			await transaction.executeRenames(batch.renamed);
+		} catch (error) {
+			for (const item of rendered) this.recordProcessingFailure(result, item.prepared, error);
+			await transaction.rollback();
+			this.activeTransaction = null;
+			await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
+			return { wasCancelled, relations: [] };
+		}
+		for (const rename of batch.renamed) this.incrementalSync.renameLocalSubject(rename.subjectId, rename.to);
+
+		const relations: Array<{ subjectId: number; filePath: string; relations: RelatedSubject[] }> = [];
+		await this.processConcurrently(rendered, concurrency, async item => {
+			try {
+				const writeResult = await this.writeRenderedCollection(item);
+				relations.push(writeResult);
+				this.recordWriteOutcome(result, item.prepared, writeResult.writeStatus);
+			} catch (error) {
+				this.recordProcessingFailure(result, item.prepared, error);
+			}
+		});
+
+		if (result.failed > 0 && transaction.getRenameCount() > 0) {
+			this.lastAutomaticRollback = await transaction.rollback();
+			await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
+			for (const outcome of result.outcomes) {
+				if (outcome.writeAction !== 'failed') {
+					outcome.pathAction = 'rolled-back';
+					outcome.writeAction = 'rolled-back';
+				}
+			}
+			this.activeTransaction = null;
+			return { wasCancelled, relations: [] };
+		}
+
+		if (result.failed === 0) {
+			await this.persistPathStates();
+			transaction.commit();
+			this.activeTransaction = null;
+		}
+		return { wasCancelled, relations };
 	}
 
 	/**
@@ -416,51 +521,20 @@ export class SyncManager {
 			// 开始批次同步
 			this.incrementalSync.startBatch();
 			const batch = await this.prepareCollectionBatch(diff.toAdd, concurrency);
-			result.renamed = this.activeTransaction?.getRenameCount() ?? 0;
-			for (const failure of batch.failures) {
-				this.recordPreparedFailure(result, failure);
-			}
-
-			// 使用并发控制处理条目
-			await this.processConcurrently(
-				batch.prepared,
+			const execution = await this.executePreparedCollectionBatch(
+				batch,
 				concurrency,
-				async (prepared, index) => {
-					const collection = prepared.collection;
-					if (wasCancelled) return;
-
-					if (await this.checkCancellation()) {
-						wasCancelled = true;
-						return;
-					}
-
-					this.reportProgress({
-						status: 'processing',
-						current: index + 1,
-						total: diff.toAdd.length,
-						currentItem: collection.subject.name_cn || collection.subject.name,
-						message: `处理条目... (${index + 1}/${diff.toAdd.length})`,
-					});
-
-					try {
-						const processResult = await this.processCollection(
-							collection,
-							{ overwrite: false, preserveUserDataOnOverwrite: false },
-							prepared,
-						);
-						if (processResult) {
-							this.recordWriteOutcome(result, prepared, processResult.writeStatus);
-						}
-					} catch (error) {
-						const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
-						console.error(`[Bangumi Sync] 处理条目失败: ${name}`, error);
-						this.recordProcessingFailure(result, prepared, error);
-					}
-				}
+				result,
+				() => ({ overwrite: false, preserveUserDataOnOverwrite: false }),
+				(prepared, index) => this.reportProgress({
+					status: 'processing', current: index + 1, total: diff.toAdd.length,
+					currentItem: prepared.collection.subject.name_cn || prepared.collection.subject.name,
+					message: `处理条目... (${index + 1}/${diff.toAdd.length})`,
+				}),
 			);
+			wasCancelled = execution.wasCancelled;
 
 			this.finalizeSyncResult(result, wasCancelled);
-			await this.persistPathStates();
 
 			if (!wasCancelled) {
 				this.reportProgress({ status: 'completed', message: tn('notices', 'syncComplete') });
@@ -519,7 +593,7 @@ export class SyncManager {
 	private async prepareCollectionBatch(
 		collections: UserCollection[],
 		concurrency: number,
-	): Promise<{ prepared: PreparedCollection[]; failures: PreparationFailure[] }> {
+	): Promise<PreparedCollectionBatch> {
 		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
 		const registry = this.incrementalSync.getRegistry();
 		const details = new Map<number, FullSubjectInfo>();
@@ -547,42 +621,48 @@ export class SyncManager {
 			const fullInfo = details.get(collection.subject_id);
 			if (!fullInfo) return [];
 			const existing = registry.getById(collection.subject_id);
+			const preferredPath = this.generatePreferredPath(fullInfo.subject, collection);
+			if (existing?.namingState === 'unknown') {
+				registry.markInferredManaged(collection.subject_id, preferredPath);
+			}
+			const reconciled = registry.getById(collection.subject_id);
 			return [{
 				subjectId: collection.subject_id,
-				preferredPath: this.generatePreferredPath(fullInfo.subject, collection),
+				preferredPath,
 				year: extractPathVars(fullInfo.subject, collection).year,
-				currentPath: existing?.path,
-				namingState: existing?.namingState ?? 'managed' as const,
+				currentPath: reconciled?.path,
+				namingState: reconciled?.namingState ?? 'managed' as const,
 			}];
 		});
-		const incomingTitleKeys = new Set(Array.from(details.values()).map(({ subject }) =>
-			normalizePathCollisionKey(subject.name_cn || subject.name || String(subject.id)),
-		));
-		const contextRecords = Array.from(registry.idToRecord.values()).filter(record =>
-			!details.has(record.subjectId)
-			&& incomingTitleKeys.has(normalizePathCollisionKey(record.nameCn)),
-		);
+		const contextIds = new Set<number>();
+		for (const candidate of candidates) {
+			const owner = registry.getPathOwner(candidate.preferredPath);
+			if (owner !== undefined && !details.has(owner)) contextIds.add(owner);
+		}
+		const contextRecords = Array.from(contextIds).flatMap(subjectId => {
+			const record = registry.getById(subjectId);
+			return record ? [record] : [];
+		});
 		await this.processConcurrently(contextRecords, concurrency, async record => {
 			try {
 				const subject = await this.client.getSubject(record.subjectId);
+				const preferredPath = this.generatePreferredPath(subject);
+				if (record.namingState === 'unknown') {
+					registry.markInferredManaged(record.subjectId, preferredPath);
+				}
+				const reconciled = registry.getById(record.subjectId) ?? record;
 				candidates.push({
 					subjectId: record.subjectId,
-					preferredPath: this.generatePreferredPath(subject),
+					preferredPath,
 					year: extractPathVars(subject).year,
-					currentPath: record.path,
-					namingState: record.namingState,
+					currentPath: reconciled.path,
+					namingState: reconciled.namingState,
 				});
 			} catch {
 				// The existing subject remains protected by its current path if context lookup fails.
 			}
 		});
 		const pathPlan = this.pathResolver.plan(candidates, registry.pathToId);
-		this.activeTransaction = new SyncTransaction(this.app, this.fileManager);
-		await this.activeTransaction.executeRenames(pathPlan.renamed);
-		for (const rename of pathPlan.renamed) {
-			this.incrementalSync.renameLocalSubject(rename.subjectId, rename.to);
-		}
-		await this.persistPathStates();
 
 		const prepared: PreparedCollection[] = [];
 		for (const collection of collections) {
@@ -592,7 +672,7 @@ export class SyncManager {
 				prepared.push({ collection, fullInfo, allocation });
 			}
 		}
-		return { prepared, failures };
+		return { prepared, failures, renamed: pathPlan.renamed };
 	}
 
 	/**
@@ -893,52 +973,22 @@ export class SyncManager {
 			// 开始批次同步
 			this.incrementalSync.startBatch();
 			const batch = await this.prepareCollectionBatch(collections, concurrency);
-			result.renamed = this.activeTransaction?.getRenameCount() ?? 0;
-			for (const failure of batch.failures) {
-				this.recordPreparedFailure(result, failure);
-			}
-
-			// 收集每个条目的 relations 数据，用于后处理同批次相关条目的双向链接
-			const batchRelations: { subjectId: number; filePath: string; relations: RelatedSubject[] }[] = [];
-
-			// 使用并发控制处理条目
-			await this.processConcurrently(
-				batch.prepared,
+			const execution = await this.executePreparedCollectionBatch(
+				batch,
 				concurrency,
-				async (prepared, i) => {
-					const collection = prepared.collection;
-					if (await this.checkCancellation()) {
-						wasCancelled = true;
-						return;
-					}
-
-					if (onProgress) {
-						onProgress(i + 1, collections.length, `正在同步条目 ${i + 1}/${collections.length}`);
-					}
-
-					this.reportProgress({
-						status: 'processing',
-						current: i + 1,
-						total: collections.length,
-						message: `同步条目... (${i + 1}/${collections.length})`,
-					});
-
-					try {
-						const processResult = await this.processCollection(collection, {
-							overwrite,
-							preserveUserDataOnOverwrite: true,
-							localPropertyValues: localPropertyValuesBySubjectId?.get(collection.subject_id),
-						}, prepared);
-						if (processResult) {
-							batchRelations.push(processResult);
-							this.recordWriteOutcome(result, prepared, processResult.writeStatus);
-						}
-					} catch (error) {
-						console.error(`[Bangumi Sync] 同步条目失败 (ID: ${collection.subject_id}):`, error);
-						this.recordProcessingFailure(result, prepared, error);
-					}
-				}
+				result,
+				prepared => ({
+					overwrite,
+					preserveUserDataOnOverwrite: true,
+					localPropertyValues: localPropertyValuesBySubjectId?.get(prepared.collection.subject_id),
+				}),
+				(_prepared, index) => {
+					onProgress?.(index + 1, collections.length, `正在同步条目 ${index + 1}/${collections.length}`);
+					this.reportProgress({ status: 'processing', current: index + 1, total: collections.length, message: `同步条目... (${index + 1}/${collections.length})` });
+				},
 			);
+			wasCancelled = execution.wasCancelled;
+			const batchRelations = execution.relations;
 
 			// 后处理：为同批次相关条目补充双向链接
 			if (batchRelations.length > 1) {
@@ -946,7 +996,6 @@ export class SyncManager {
 			}
 
 			this.finalizeSyncResult(result, wasCancelled);
-			await this.persistPathStates();
 
 			if (!wasCancelled) {
 				this.reportProgress({ status: 'completed', message: tn('notices', 'syncComplete') });
@@ -1047,50 +1096,23 @@ export class SyncManager {
 				itemsToSync.map(item => item.collection),
 				concurrency,
 			);
-			result.renamed = this.activeTransaction?.getRenameCount() ?? 0;
-			for (const failure of batch.failures) {
-				this.recordPreparedFailure(result, failure);
-			}
-
-			// 收集每个条目的 relations 数据，用于后处理同批次相关条目的双向链接
-			const batchRelations: { subjectId: number; filePath: string; relations: RelatedSubject[] }[] = [];
-
-			// 使用并发控制处理条目
-			await this.processConcurrently(
-				batch.prepared,
+			const execution = await this.executePreparedCollectionBatch(
+				batch,
 				concurrency,
-				async (prepared, i) => {
-					const item = itemsToSync.find(candidate => candidate.collection.subject_id === prepared.collection.subject_id);
-					if (!item) return;
-					if (await this.checkCancellation()) {
-						wasCancelled = true;
-						return;
-					}
-
-					this.reportProgress({
-						status: 'processing',
-						current: i + 1,
-						total: itemsToSync.length,
-						currentItem: item.name_cn || item.name,
-						message: `处理条目... (${i + 1}/${itemsToSync.length})`,
-					});
-
-					try {
-						const processResult = await this.processCollection(item.collection, {
-							overwrite: false,
-							preserveUserDataOnOverwrite: false,
-							localPropertyValues: localPropertyResult?.propertyValuesBySubjectId?.get(item.collection.subject_id),
-						}, prepared);
-						if (processResult) {
-							batchRelations.push(processResult);
-							this.recordWriteOutcome(result, prepared, processResult.writeStatus);
-						}
-					} catch (error) {
-						console.error(`[Bangumi Sync] 处理条目失败: ${item.name_cn || item.name}`, error);
-						this.recordProcessingFailure(result, prepared, error);
-					}
-				}
+				result,
+				prepared => ({
+					overwrite: false,
+					preserveUserDataOnOverwrite: false,
+					localPropertyValues: localPropertyResult?.propertyValuesBySubjectId?.get(prepared.collection.subject_id),
+				}),
+				(prepared, index) => this.reportProgress({
+					status: 'processing', current: index + 1, total: itemsToSync.length,
+					currentItem: prepared.collection.subject.name_cn || prepared.collection.subject.name,
+					message: `处理条目... (${index + 1}/${itemsToSync.length})`,
+				}),
 			);
+			wasCancelled = execution.wasCancelled;
+			const batchRelations = execution.relations;
 
 			// 后处理：为同批次相关条目补充双向链接
 			if (batchRelations.length > 1) {
@@ -1098,7 +1120,6 @@ export class SyncManager {
 			}
 
 			this.finalizeSyncResult(result, wasCancelled);
-			await this.persistPathStates();
 
 			if (!wasCancelled) {
 				this.reportProgress({ status: 'completed', message: tn('notices', 'syncComplete') });
@@ -1120,16 +1141,15 @@ export class SyncManager {
 	 * 处理单个收藏条目
 	 * 统一处理：获取详情、生成内容、写入文件、更新双向链接
 	 */
-	private async processCollection(
+	private async renderCollection(
 		collection: UserCollection,
 		options: { overwrite: boolean; localPropertyValues?: LocalPropertyValueMap; preserveUserDataOnOverwrite: boolean },
-		prepared?: Pick<PreparedCollection, 'fullInfo' | 'allocation'>,
-	): Promise<{ subjectId: number; filePath: string; relations: RelatedSubject[]; writeStatus: FileWriteStatus } | undefined> {
+		prepared: PreparedCollection,
+	): Promise<RenderedCollection> {
 		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
-		const { subject, characters: relatedCharacters, relations, persons } = prepared?.fullInfo
-			?? await this.client.getFullSubjectInfo(collection.subject_id);
+		const { subject, characters: relatedCharacters, relations, persons } = prepared.fullInfo;
 		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
 
 		// 解析角色信息
@@ -1142,9 +1162,7 @@ export class SyncManager {
 		const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
 
 		// 生成文件路径
-		const filePath = prepared?.allocation.finalPath
-			?? this.incrementalSync.getLocalPath(subject.id)
-			?? this.generatePreferredPath(subject, collection);
+		const filePath = prepared.allocation.finalPath;
 
 		// 获取章节信息
 		const episodeData = await this.fetchEpisodeData(subject);
@@ -1188,7 +1206,8 @@ export class SyncManager {
 
 		// 文件已存在时保护用户数据（记录、感想等）
 		if (options.preserveUserDataOnOverwrite) {
-			const existingFile = await this.fileManager.assertPathOwnership(filePath, subject.id);
+			const existingPath = prepared.allocation.renameFrom ?? filePath;
+			const existingFile = await this.fileManager.assertPathOwnership(existingPath, subject.id);
 			if (existingFile) {
 				const localUserData = await this.userDataExtractor.extractFromFileAsync(existingFile);
 				if (localUserData) {
@@ -1203,11 +1222,18 @@ export class SyncManager {
 		}
 
 		// 判断文件是否已存在（用于回滚跟踪）
-		const fileExisted = this.fileManager.getFile(filePath) !== null;
+		const fileExisted = this.fileManager.getFile(prepared.allocation.renameFrom ?? filePath) !== null;
 
 		// 创建或更新文件
 		// 当 preserveUserDataOnOverwrite 为 true 且文件已存在时，使用 overwrite 确保 API 数据（如具体类型）更新
 		const shouldOverwrite = options.overwrite || (options.preserveUserDataOnOverwrite && fileExisted);
+		return { prepared, subject, filePath, content, fileExisted, shouldOverwrite, relations };
+	}
+
+	private async writeRenderedCollection(
+		rendered: RenderedCollection,
+	): Promise<{ subjectId: number; filePath: string; relations: RelatedSubject[]; writeStatus: FileWriteStatus }> {
+		const { subject, filePath, content, fileExisted, shouldOverwrite, relations } = rendered;
 		const writeOptions = { overwrite: shouldOverwrite, subjectId: subject.id };
 		const writeResult = this.activeTransaction
 			? await this.activeTransaction.createOrUpdateFile(filePath, content, writeOptions)
@@ -1359,20 +1385,7 @@ export class SyncManager {
 
 			// 2. 创建本地文件
 			if (input.createLocal) {
-				await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
-				// 获取完整条目信息
-				const { subject, characters: relatedCharacters, relations, persons } = await this.client.getFullSubjectInfo(subjectId);
-
-				// 解析角色信息
-				const characters = parseCharacters(relatedCharacters, 9);
-
-				// 获取类型标签
-				const typeLabel = getTypeLabel(subject.type);
-
-				// 下载封面图片
-				const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
-
-				// 创建临时 collection 对象
+				const subject = await this.client.getSubject(subjectId);
 				const collection: UserCollection = {
 					subject_id: subject.id,
 					subject_type: subject.type,
@@ -1400,57 +1413,23 @@ export class SyncManager {
 						tags: subject.tags,
 					},
 				};
-
-				// 生成文件路径
-				const filePath = this.incrementalSync.getLocalPath(subject.id)
-					?? this.generatePreferredPath(subject, collection);
-
-				// V4: 获取章节信息
-				const episodeData = await this.fetchEpisodeData(subject);
-				const templateProperties = getTemplatePropertyGroupsForSubject(subject, this.config.customTemplates).customProperties;
-				const extraTemplateVars = buildExtraTemplateVarsFromPropertyValues(templateProperties, input.localPropertyValues);
-
-				// 生成相关条目链接
-				const relatedLinks = this.config.enableRelatedLinks !== false
-					? this.generateRelatedLinks(relations)
-					: [];
-
-				// 生成文件内容
-				const content = generateContentByType(
-					subject,
-					collection,
-					characters,
-					this.config.customTemplates,
-					undefined,
-					episodeData?.episodes,
-					episodeData?.userStatus,
-					this.config.notePathTemplate,
-					this.config.coverLinkType,
-					localCoverPath,
-					relatedLinks,
-					extraTemplateVars,
-					persons
-				);
-
-				const finalContent = input.localPropertyValues && Object.keys(input.localPropertyValues).length > 0
-					? applyNamedPropertyValuesToContent(content, input.localPropertyValues)
-					: content;
-
-				// 创建文件
-				const writeResult = await this.fileManager.createOrUpdateFile(filePath, finalContent, {
+				const localProperties = input.localPropertyValues
+					? new Map([[subjectId, input.localPropertyValues]])
+					: undefined;
+				const result = await this.syncByCollections([collection], {
 					overwrite: false,
-					subjectId: subject.id,
+					localPropertyValuesBySubjectId: localProperties,
+					concurrency: 1,
 				});
-				console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
-				this.incrementalSync.addBatchSyncedItem(
-					subject.id,
-					filePath,
-					subject.name_cn || subject.name,
-					writeResult.status === 'created',
-				);
-				await this.persistPathStates();
-
-				return { success: true, filePath, writeStatus: writeResult.status };
+				const outcome = result.outcomes.find(item => item.subjectId === subjectId);
+				if (!outcome || !['created', 'updated', 'unchanged'].includes(outcome.writeAction)) {
+					return { success: false, error: outcome?.error ?? result.errorDetails[0] ?? 'Local sync failed.' };
+				}
+				return {
+					success: true,
+					filePath: outcome.actualPath,
+					writeStatus: outcome.writeAction as FileWriteStatus,
+				};
 			}
 
 			return { success: true };
