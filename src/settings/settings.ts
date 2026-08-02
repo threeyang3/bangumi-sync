@@ -6,6 +6,7 @@ import { SubjectType, CollectionType } from '../../common/api/types';
 import { ImageQuality } from '../../common/file/imageHandler';
 import type { TemplateKey } from '../../common/template/templateRegistry';
 import { DataProtectionSettings, DEFAULT_DATA_PROTECTION_SETTINGS } from '../userData/types';
+import type { SubjectPathState } from '../sync/localSubjectRegistry';
 
 /**
  * 模板来源类型
@@ -43,6 +44,7 @@ export interface PanelFilters {
  * - local: 本地链接（下载到本地的相对路径）
  */
 export type CoverLinkType = 'network' | 'local';
+export type PathNamingStrategy = 'simple-until-collision' | 'always-year' | 'always-id' | 'custom-template';
 
 /**
  * 插件设置
@@ -101,6 +103,8 @@ export interface BangumiPluginSettings {
 
 	// 各类型独立路径模板
 	pathTemplateByType?: Record<string, string>;  // key: book/anime/music/game/real
+	pathNamingStrategy: PathNamingStrategy;
+	subjectPathStates: Record<string, SubjectPathState>;
 }
 
 export type { TemplateKey };
@@ -180,6 +184,8 @@ export const DEFAULT_SETTINGS: BangumiPluginSettings = {
 
 	// 数据保护设置
 	dataProtection: { ...DEFAULT_DATA_PROTECTION_SETTINGS },
+	pathNamingStrategy: 'simple-until-collision',
+	subjectPathStates: {},
 };
 
 // 兼容旧版本的类型别名

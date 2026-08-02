@@ -527,6 +527,16 @@ SearchModal
 
 ## 12. 文档阅读顺序建议
 
+## 13. ID 与路径事实层
+
+- `SubjectDocumentService` 统一解析 `id`、旧 `BangumiID`、Bangumi URL 和封面兜底，并报告来源冲突。
+- `LocalSubjectRegistry` 建立 ID/路径双向索引，检测重复 ID、规范化路径占用和异常文件。
+- `SubjectPathResolver` 在并发写入前统一分组、预留路径，执行年份/ID 消歧并保护用户命名。
+- `SyncTransaction` 使用 Obsidian API 执行临时路径重命名，记录创建、更新前内容和重命名以支持回滚。
+- `SyncManager` 只编排准备、路径计划、受控并发和真实结果汇总。
+
+完整不变量见 [PATH_AND_ID_MODEL.md](PATH_AND_ID_MODEL.md)，升级流程见 [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)。
+
 如果你是：
 
 - 新接手开发者：先看本文，再看 [LOGIC_REFERENCE.md](./LOGIC_REFERENCE.md)

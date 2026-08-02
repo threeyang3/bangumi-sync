@@ -165,13 +165,14 @@ export class UserDataImportModal extends Modal {
     private importMode: ImportMode = 'item';
     private importDataTypes: UserDataType[] = [...DEFAULT_EXPORT_DATA_TYPES];
 
-    constructor(
-        app: App,
-        importFiles: Array<{ name: string; content: string }>,
-        onImport: (result: ImportResult) => void
-    ) {
-        super(app);
-        this.importer = new UserDataImporter(app);
+	constructor(
+		app: App,
+		importFiles: Array<{ name: string; content: string }>,
+		onImport: (result: ImportResult) => void,
+		scanRoot = 'ACGN',
+	) {
+		super(app);
+		this.importer = new UserDataImporter(app, scanRoot);
         this.importFiles = importFiles;
         this.onImport = onImport;
     }
@@ -980,10 +981,10 @@ export class ImportResultModal extends Modal {
     private result: ImportResult;
     private importer: UserDataImporter;
 
-    constructor(app: App, result: ImportResult) {
+	constructor(app: App, result: ImportResult, scanRoot = 'ACGN') {
         super(app);
         this.result = result;
-        this.importer = new UserDataImporter(app);
+		this.importer = new UserDataImporter(app, scanRoot);
     }
 
     onOpen(): void {

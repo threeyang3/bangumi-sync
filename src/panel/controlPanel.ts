@@ -1126,8 +1126,11 @@ export class ControlPanel extends Modal {
 
 			this.state.loading = false;
 
-			if (result.success) {
-				new Notice(`${tn('controlPanel', 'syncComplete')}! ${result.added}, ${result.errors}`);
+			if (result.completion === 'success' || result.completion === 'partial-success') {
+				const completionText = result.completion === 'partial-success'
+					? tn('syncModal', 'partialSuccess')
+					: tn('controlPanel', 'syncComplete');
+				new Notice(`${completionText}: ${result.added}, ${result.errors}`);
 
 				// 重新扫描本地文件夹以更新同步状态
 				const scanPath = this.settings.scanFolderPath || 'ACGN';
