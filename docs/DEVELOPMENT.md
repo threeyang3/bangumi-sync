@@ -252,3 +252,9 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 ### Q: 发布后插件不工作？
 
 检查 manifest.json 中的版本号是否与 Release tag 一致。
+
+## 测试 6.10.2 事务终结
+
+依次运行 `npm run lint`、`npm test` 和 `npm run build`。故障注入覆盖位于 `tests/sync/syncTransaction.test.ts` 与 `tests/sync/syncManagerPathTransaction.test.ts`；UI 状态映射由纯函数测试 `tests/sync/syncCompletionPresentation.test.ts` 覆盖。
+
+Obsidian 集成检查应部署生产构建的 `main.js`、`manifest.json`、`styles.css`，执行 `obsidian plugin:reload id=bangumi-sync`，再检查 `obsidian dev:errors` 与 `obsidian dev:console level=error`。完成后恢复用户原安装版本。

@@ -33,6 +33,13 @@ export interface SyncResult {
 	duration: number;
 	errorDetails: string[]; // 失败条目的详细错误信息
 	outcomes: SubjectSyncOutcome[];
+	warnings: SyncWarning[];
+}
+
+export interface SyncWarning {
+	subjectId?: number;
+	operation: string;
+	message: string;
 }
 
 export interface SubjectSyncOutcome {
@@ -40,6 +47,7 @@ export interface SubjectSyncOutcome {
 	name?: string;
 	preferredPath?: string;
 	actualPath?: string;
+	previousPath?: string;
 	pathAction: 'unchanged' | 'renamed' | 'collision-resolved' | 'rolled-back' | 'failed';
 	writeAction: 'created' | 'updated' | 'unchanged' | 'skipped' | 'failed' | 'rolled-back';
 	error?: string;

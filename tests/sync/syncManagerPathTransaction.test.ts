@@ -2,7 +2,7 @@ import { Vault } from 'obsidian';
 import { describe, expect, it } from 'vitest';
 import { BangumiClient } from '../../src/api/client';
 import { CollectionType, Subject, SubjectType, UserCollection } from '../../common/api/types';
-import { SyncManager, SyncManagerConfig } from '../../src/sync/syncManager';
+import { PendingSyncTransactionError, SyncManager, SyncManagerConfig } from '../../src/sync/syncManager';
 import { SubjectPathState } from '../../src/sync/localSubjectRegistry';
 import { InMemoryVault } from '../mocks/inMemoryVault';
 
@@ -49,15 +49,16 @@ function fakeClient(subjects: Subject[], failures = new Set<number>()): BangumiC
 function createManager(vault: InMemoryVault, subjects: Subject[], options: {
 	failures?: Set<number>;
 	onStates?: (states: Record<string, SubjectPathState>) => void;
+	pathStateHandler?: (states: Record<string, SubjectPathState>) => Promise<void>;
 } = {}): SyncManager {
 	const config: SyncManagerConfig = {
 		accessToken: 'test-token', pathTemplate: 'ACGN/music/{{name_cn}}.md',
 		imagePathTemplate: 'assets/{{id}}', downloadImages: false, scanFolderPath: 'ACGN',
 		enableRelatedLinks: false, subjectPathStates: {},
 		customTemplates: { musicTemplateConfig: '---\nid: {{id}}\n中文名: "{{name_cn}}"\n---\n{{summary}}' },
-		onPathStatesChanged: options.onStates
+		onPathStatesChanged: options.pathStateHandler ?? (options.onStates
 			? states => { options.onStates?.(states); return Promise.resolve(); }
-			: undefined,
+			: undefined),
 	};
 	const manager = new SyncManager(vault.app, config);
 	manager.client = fakeClient(subjects, options.failures);
@@ -98,6 +99,11 @@ describe('SyncManager path transaction integration', () => {
 		]);
 		expect(states['1']?.namingState).toBe('managed');
 		expect(states['2']?.namingState).toBe('managed');
+		expect(result.renamed).toBe(1);
+		expect(result.outcomes).toContainEqual(expect.objectContaining({
+			subjectId: 1, previousPath: 'ACGN/music/乱马.md', actualPath: 'ACGN/music/乱马（1989）.md',
+			pathAction: 'renamed', writeAction: 'skipped',
+		}));
 	});
 
 	it('protects an unknown custom path and does not fetch it as collision context', async () => {
@@ -200,6 +206,117 @@ describe('SyncManager path transaction integration', () => {
 		const rollback = await manager.rollbackBatch();
 		expect(rollback.deletedCreatedFiles).toBe(1);
 		expect((await manager.rollbackBatch()).deletedCreatedFiles).toBe(0);
+	});
+
+	it('blocks a new batch until partial success is explicitly committed', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '成功');
+		const second = makeSubject(11, '2021-01-01', '失败');
+		const manager = createManager(vault, [first, second], { failures: new Set([11]) });
+
+		const partial = await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+		expect(partial.canRollback).toBe(true);
+		expect(manager.getBatchTransactionState()).toBe('awaiting-user-decision');
+		await expect(manager.syncByCollections([makeCollection(first)], { concurrency: 1 }))
+			.rejects.toBeInstanceOf(PendingSyncTransactionError);
+
+		expect(await manager.commitPendingBatch()).toMatchObject({ committed: true, persistedStates: true });
+		expect(manager.getBatchTransactionState()).toBe('committed');
+		expect(vault.files.has('ACGN/music/成功.md')).toBe(true);
+	});
+
+	it('clears batch lookups after manual rollback', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '成功');
+		const second = makeSubject(11, '2021-01-01', '失败');
+		const manager = createManager(vault, [first, second], { failures: new Set([11]) });
+		await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+
+		await manager.rollbackBatch();
+		const incremental = (manager as unknown as { incrementalSync: {
+			getLocalPath(id: number): string | undefined;
+			isSyncedIncludingBatch(id: number): boolean;
+			getBatchSyncedFiles(): unknown[];
+		} }).incrementalSync;
+		expect(incremental.getLocalPath(10)).toBeUndefined();
+		expect(incremental.isSyncedIncludingBatch(10)).toBe(false);
+		expect(incremental.getBatchSyncedFiles()).toEqual([]);
+	});
+
+	it('rolls files and path state back when state persistence fails', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2022-01-01', '持久化失败');
+		let calls = 0;
+		const manager = createManager(vault, [subject], {
+			pathStateHandler: () => ++calls === 1 ? Promise.reject(new Error('save failed')) : Promise.resolve(),
+		});
+
+		const result = await manager.syncByCollections([makeCollection(subject)], { concurrency: 1 });
+
+		expect(result.completion).toBe('rolled-back');
+		expect(vault.files.has('ACGN/music/持久化失败.md')).toBe(false);
+		expect(manager.getBatchTransactionState()).toBe('rolled-back');
+	});
+
+	it('reports rollback-failed when old path state restoration also fails', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2022-01-01', '状态恢复失败');
+		const manager = createManager(vault, [subject], {
+			pathStateHandler: () => Promise.reject(new Error('settings unavailable')),
+		});
+
+		const result = await manager.syncByCollections([makeCollection(subject)], { concurrency: 1 });
+
+		expect(result.completion).toBe('rollback-failed');
+		expect(result.rollback?.failed).toBe(1);
+	});
+
+	it('isolates successful collision and normal groups from an unrelated write failure', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile('ACGN/music/乱马.md', '---\nid: 1\n中文名: "乱马"\n---\nlegacy');
+		const oldSubject = makeSubject(1, '1989-04-15');
+		const newSubject = makeSubject(2, '2024-10-06');
+		const normal = makeSubject(3, '2023-01-01', '正常');
+		const failing = makeSubject(4, '2024-01-01', '写入失败');
+		const originalCreate = vault.app.vault.create.bind(vault.app.vault);
+		vault.app.vault.create = (path, content) => path.includes('写入失败')
+			? Promise.reject(new Error('injected independent failure'))
+			: originalCreate(path, content);
+		const manager = createManager(vault, [oldSubject, newSubject, normal, failing]);
+
+		const result = await manager.syncByCollections(
+			[makeCollection(newSubject), makeCollection(normal), makeCollection(failing)], { concurrency: 1 },
+		);
+
+		expect(result.completion).toBe('partial-success');
+		expect(result.canRollback).toBe(true);
+		expect(vault.files.has('ACGN/music/乱马（1989）.md')).toBe(true);
+		expect(vault.files.has('ACGN/music/乱马（2024）.md')).toBe(true);
+		expect(vault.files.has('ACGN/music/正常.md')).toBe(true);
+		expect(vault.files.has('ACGN/music/写入失败.md')).toBe(false);
+	});
+
+	it('reports related-link postprocessing failures as warnings', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile('ACGN/music/当前.md', '---\nid: 1\n中文名: "当前"\n---\n');
+		vault.addFile('ACGN/music/相关.md', '---\nid: 2\n中文名: "相关"\n---\n');
+		const manager = createManager(vault, []);
+		manager.updateConfig({ enableRelatedLinks: true });
+		const injectable = manager as unknown as {
+			incrementalSync: { scanLocalFolder(path: string): Promise<number> };
+			postProcessBatchRelations(items: unknown[]): Promise<Array<{ operation: string; subjectId?: number }>>;
+		};
+		await injectable.incrementalSync.scanLocalFolder('ACGN');
+		vault.app.vault.process = () => Promise.reject(new Error('link write failed'));
+
+		const warnings = await injectable.postProcessBatchRelations([{
+			subjectId: 1, filePath: 'ACGN/music/当前.md',
+			relations: [{ id: 2, type: SubjectType.Music, name: '相关', name_cn: '相关', relation: '关联' }],
+		}]);
+
+		expect(warnings).toContainEqual(expect.objectContaining({
+			subjectId: 2, operation: 'related-link-update',
+		}));
 	});
 
 	it('routes search sync through the same collision planner and clears a successful transaction', async () => {
