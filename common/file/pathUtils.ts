@@ -85,6 +85,11 @@ export function sanitizeFileName(
 }
 
 export function normalizePathValue(path: string): string {
+	return normalizeStoragePath(path);
+}
+
+/** Normalize path separators without changing filename segment boundaries. */
+export function normalizeStoragePath(path: string): string {
 	return path
 		.normalize('NFC')
 		.replace(/\\/g, '/')
@@ -93,14 +98,21 @@ export function normalizePathValue(path: string): string {
 		.replace(/\/$/, '');
 }
 
-export function normalizePathCollisionKey(path: string): string {
-	return normalizePathValue(path)
+/** Normalize one filename segment for Windows/macOS-style collision checks. */
+export function normalizePathSegment(segment: string): string {
+	return segment
 		.normalize('NFKC')
-		.replace(/\\/g, '/')
-		.replace(/\/{2,}/g, '/')
+		.replace(/[\\/]/g, character => FILE_NAME_REPLACEMENTS[character])
+		.replace(/[. ]+$/g, '')
+		.toLocaleLowerCase('en-US');
+}
+
+export function normalizePathCollisionKey(path: string): string {
+	return normalizeStoragePath(path)
 		.split('/')
-		.map(segment => segment.replace(/[. ]+$/g, '').toLocaleLowerCase('en-US'))
-		.join('/');
+		.map(normalizePathSegment)
+		.map(segment => `${segment.length}:${segment}`)
+		.join('|');
 }
 
 export function isDescendantPath(filePath: string, folderPath: string): boolean {

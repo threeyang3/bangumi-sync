@@ -5,6 +5,7 @@
 
 import { App, Modal, Setting } from 'obsidian';
 import { SyncProgress, SyncCancellationSignal, SyncResultWithRollback } from '../sync/syncStatus';
+import { SyncRollbackResult } from '../sync/syncTransaction';
 import { tn, tnFormat } from '../i18n';
 
 export class SyncModal extends Modal {
@@ -16,7 +17,7 @@ export class SyncModal extends Modal {
 	private pauseBtn: HTMLButtonElement | null = null;
 	private cancelBtn: HTMLButtonElement | null = null;
 	private completedEl: HTMLElement | null = null;
-	private onCancelled: (() => Promise<{ deleted: number; failed: number }>) | null = null;
+	private onCancelled: (() => Promise<SyncRollbackResult>) | null = null;
 	private isCompleted = false;
 
 	constructor(app: App, cancellationSignal: SyncCancellationSignal) {
@@ -108,7 +109,7 @@ export class SyncModal extends Modal {
 	/**
 	 * 设置回滚回调
 	 */
-	setRollbackHandler(handler: () => Promise<{ deleted: number; failed: number }>): void {
+	setRollbackHandler(handler: () => Promise<SyncRollbackResult>): void {
 		this.onCancelled = handler;
 	}
 
@@ -161,6 +162,17 @@ export class SyncModal extends Modal {
 				failed: result.failed,
 			});
 			this.completedEl.createEl('p', { text: statsText, cls: 'bangumi-sync-stats' });
+			if (result.rollback) {
+				this.completedEl.createEl('p', {
+					text: result.rollback.failed > 0
+						? `${tn('syncModal', 'rollbackFailed')}: ${result.rollback.failed}`
+						: tnFormat('syncModal', 'rollbackComplete', {
+							deleted: result.rollback.deletedCreatedFiles,
+							failed: result.rollback.failed,
+						}),
+					cls: result.rollback.failed > 0 ? 'bangumi-sync-error' : 'bangumi-sync-stats',
+				});
+			}
 
 			// 错误详情（可折叠）
 			if (result.errorDetails.length > 0) {
@@ -191,7 +203,7 @@ export class SyncModal extends Modal {
 					if (this.onCancelled) {
 						const rollbackResult = await this.onCancelled();
 						rollbackBtn.setText(tnFormat('syncModal', 'rollbackComplete', {
-							deleted: rollbackResult.deleted,
+							deleted: rollbackResult.deletedCreatedFiles,
 							failed: rollbackResult.failed,
 						}));
 					}
@@ -215,6 +227,8 @@ export class SyncModal extends Modal {
 				this.updateStatus(tn('notices', 'syncCancelled'));
 			} else if (result.completion === 'partial-success') {
 				this.updateStatus(tn('syncModal', 'partialSuccess'));
+			} else if (result.completion === 'rollback-failed') {
+				this.updateStatus(tn('syncModal', 'rollbackFailed'));
 			} else if (result.completion === 'failed') {
 				this.updateStatus(tn('notices', 'syncFailed'));
 			} else {
