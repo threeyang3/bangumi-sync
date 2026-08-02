@@ -1,5 +1,17 @@
 # 版本历史
 
+## v6.10.1
+
+### 修复
+- 修复 NFKC 把文件名全角斜杠误转成目录分隔符；碰撞键改为先按 ASCII `/` 切分、逐段规范化和长度前缀编码。
+- 修复内容生成失败后旧文件已被提前重命名的半完成状态；重命名后写入失败会自动恢复创建、内容与路径。
+- 修复搜索添加绕过批量路径规划、碰撞上下文按标题匹配、成功事务残留以及 `unchanged` 误计入 `added`。
+
+### 改进
+- 旧文件仅在当前路径等于相关首选路径时推断为 `inferred-managed`，自定义路径继续保护。
+- 所有本地同步入口统一使用 prepare/render/commit 管线；结果按 `pathAction` / `writeAction` 汇总并支持 `rolled-back`、`rollback-failed`。
+- 新增真实 `SyncManager.sync()`、`syncByCollections()`、`syncSingleSubject()` 集成回归，覆盖多个失败阶段、部分成功和事务生命周期。
+
 ## v6.10.0
 
 ### 新增

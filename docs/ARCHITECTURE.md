@@ -531,9 +531,10 @@ SearchModal
 
 - `SubjectDocumentService` 统一解析 `id`、旧 `BangumiID`、Bangumi URL 和封面兜底，并报告来源冲突。
 - `LocalSubjectRegistry` 建立 ID/路径双向索引，检测重复 ID、规范化路径占用和异常文件。
-- `SubjectPathResolver` 在并发写入前统一分组、预留路径，执行年份/ID 消歧并保护用户命名。
-- `SyncTransaction` 使用 Obsidian API 执行临时路径重命名，记录创建、更新前内容和重命名以支持回滚。
-- `SyncManager` 只编排准备、路径计划、受控并发和真实结果汇总。
+- `SubjectPathResolver` 使用逐段碰撞键统一分组、预留路径，执行年份/ID 消歧并保护用户命名。
+- `SyncTransaction` 使用 Obsidian API 执行临时路径重命名，记录创建、更新前内容和重命名；生命周期为 active → committed / rolled-back，回滚幂等。
+- `SyncManager` 将 `sync()`、`syncByCollections()`、`executeSync()` 与 `syncSingleSubject()` 汇入同一个 prepare/render/commit 管线。路径上下文按首选路径所有者查询，不再按标题猜测；内容生成先于重命名，状态持久化晚于成功提交。
+- 每个条目输出独立的 `pathAction` 与 `writeAction`，聚合计数由 outcomes 反算，`unchanged` 不计入 `added`。
 
 完整不变量见 [PATH_AND_ID_MODEL.md](PATH_AND_ID_MODEL.md)，升级流程见 [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)。
 

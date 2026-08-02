@@ -3376,7 +3376,7 @@ var TemplateEditorModal = class extends import_obsidian2.Modal {
 };
 
 // src/sync/syncManager.ts
-var import_obsidian14 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 
 // src/api/client.ts
 var import_obsidian3 = require("obsidian");
@@ -3959,10 +3959,16 @@ function sanitizeFileName(name, fallback = "untitled", maxLength = DEFAULT_MAX_S
   return truncateSegment(sanitized, maxLength);
 }
 function normalizePathValue(path) {
+  return normalizeStoragePath(path);
+}
+function normalizeStoragePath(path) {
   return path.normalize("NFC").replace(/\\/g, "/").replace(/\/{2,}/g, "/").replace(/^\.\//, "").replace(/\/$/, "");
 }
+function normalizePathSegment(segment) {
+  return segment.normalize("NFKC").replace(/[\\/]/g, (character) => FILE_NAME_REPLACEMENTS[character]).replace(/[. ]+$/g, "").toLocaleLowerCase("en-US");
+}
 function normalizePathCollisionKey(path) {
-  return normalizePathValue(path).normalize("NFKC").replace(/\\/g, "/").replace(/\/{2,}/g, "/").split("/").map((segment) => segment.replace(/[. ]+$/g, "").toLocaleLowerCase("en-US")).join("/");
+  return normalizeStoragePath(path).split("/").map(normalizePathSegment).map((segment) => `${segment.length}:${segment}`).join("|");
 }
 function isDescendantPath(filePath, folderPath) {
   const normalizedFile = normalizePathValue(filePath);
@@ -5308,6 +5314,15 @@ var LocalSubjectRegistry = class {
   getPathOwner(path) {
     return this.pathToId.get(normalizePathCollisionKey(path));
   }
+  markInferredManaged(subjectId, preferredPath) {
+    const record = this.getById(subjectId);
+    if (!record || record.namingState !== "unknown")
+      return false;
+    if (normalizePathCollisionKey(record.path) !== normalizePathCollisionKey(preferredPath))
+      return false;
+    this.idToRecord.set(subjectId, { ...record, namingState: "inferred-managed" });
+    return true;
+  }
   upsert(record) {
     const previous = this.idToRecord.get(record.subjectId);
     if (previous) {
@@ -5315,7 +5330,7 @@ var LocalSubjectRegistry = class {
       this.idToRecord.delete(record.subjectId);
     }
     this.register(record);
-    if (record.namingState === "managed") {
+    if (record.namingState === "managed" || record.namingState === "inferred-managed") {
       this.lastManagedPaths.set(record.subjectId, (0, import_obsidian7.normalizePath)(record.path));
     }
   }
@@ -5339,7 +5354,7 @@ var LocalSubjectRegistry = class {
   exportPathStates() {
     const result = {};
     for (const [subjectId, record] of this.idToRecord) {
-      const managed = record.namingState === "managed";
+      const managed = record.namingState === "managed" || record.namingState === "inferred-managed";
       result[String(subjectId)] = {
         subjectId,
         currentPath: record.path,
@@ -6873,8 +6888,6781 @@ var UserDataMerger = class {
   }
 };
 
-// src/userData/userDataExporter.ts
+// src/template/templateProperties.ts
+var IDENTIFIER_PROPERTY_NAMES = /* @__PURE__ */ new Set([
+  "id",
+  "ID",
+  "\u4E2D\u6587\u540D",
+  "\u539F\u540D",
+  "\u522B\u540D",
+  "\u4F5C\u54C1\u5927\u7C7B",
+  "\u5177\u4F53\u7C7B\u578B"
+]);
+var AUTO_FILLED_PROPERTY_NAMES = /* @__PURE__ */ new Set([
+  "Bangumi\u8BC4\u5206",
+  "Bangumi\u94FE\u63A5",
+  "\u5C01\u9762"
+]);
+var AUTO_FILLED_TEMPLATE_VARS = /* @__PURE__ */ new Set([
+  "id",
+  "name",
+  "name_cn",
+  "alias",
+  "summary",
+  "rating",
+  "rank",
+  "tags",
+  "tags_inline",
+  "cover",
+  "bangumi_url",
+  "type",
+  "typeLabel",
+  "typeId",
+  "category",
+  "date",
+  "year",
+  "month",
+  "my_rate",
+  "my_comment",
+  "my_comment_raw",
+  "my_status",
+  "my_tags",
+  "episode",
+  "director",
+  "music",
+  "animeMake",
+  "from",
+  "musicMake",
+  "audioDirector",
+  "artDirector",
+  "animeChief",
+  "website",
+  "author",
+  "illustration",
+  "publish",
+  "series",
+  "journal",
+  "volumes",
+  "status",
+  "progress",
+  "start",
+  "end",
+  "staff",
+  "platform",
+  "develop",
+  "playerNum",
+  "script",
+  "art",
+  "producer",
+  "price",
+  "pages",
+  "isbn",
+  "name_cn_with_type",
+  "actor",
+  "country",
+  "language",
+  "episodeLength",
+  "tvStation",
+  "imdbId",
+  "episodes",
+  "volumes_display",
+  "note_link",
+  "related",
+  "character1",
+  "character2",
+  "character3",
+  "character4",
+  "character5",
+  "character6",
+  "character7",
+  "character8",
+  "character9",
+  "characterCV1",
+  "characterCV2",
+  "characterCV3",
+  "characterCV4",
+  "characterCV5",
+  "characterCV6",
+  "characterCV7",
+  "characterCV8",
+  "characterCV9",
+  "characterPhoto1",
+  "characterPhoto2",
+  "characterPhoto3",
+  "characterPhoto4",
+  "characterPhoto5",
+  "characterPhoto6",
+  "characterPhoto7",
+  "characterPhoto8",
+  "characterPhoto9"
+]);
+var TEMPLATE_VAR_REGEX = /\{\{(\w+)(?:\|([^}]+))?\}\}/g;
+var SINGLE_TEMPLATE_VAR_REGEX = /^"?\{\{(\w+)(?:\|([^}]+))?\}\}"?$/;
+function getTemplatePropertyGroupsForSubject(subject, customTemplates) {
+  const template = resolveTemplateForSubject(subject, customTemplates);
+  return extractTemplatePropertyGroupsFromTemplate(template);
+}
+function extractTemplatePropertyGroupsFromTemplate(template) {
+  const customProperties = [];
+  const autoProperties = [];
+  const identifierProperties = [];
+  const frontmatter = extractFrontmatter2(template);
+  if (!frontmatter) {
+    return { identifierProperties, autoProperties, customProperties };
+  }
+  const lines = frontmatter.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed || trimmed.startsWith("{{")) {
+      continue;
+    }
+    const match = lines[i].match(/^([^:\n]+):(?:\s*(.*))?$/);
+    if (!match) {
+      continue;
+    }
+    const propertyName = match[1].trim();
+    const rawValue = (match[2] || "").trim();
+    const continuationValue = rawValue === "" ? getTemplateDrivenContinuationValue(lines, i) : void 0;
+    const valueForClassification = continuationValue != null ? continuationValue : rawValue;
+    const templateVariables = extractTemplateVariables(valueForClassification);
+    const initialValue = parseTemplateInitialValue(rawValue);
+    const inputTemplateVariable = parseInputTemplateVariable(valueForClassification);
+    const source = classifyTemplateProperty(propertyName, templateVariables);
+    const propertyType = parseTemplateFieldType(rawValue);
+    const property = {
+      name: propertyName,
+      label: propertyName,
+      rawValue,
+      type: propertyType,
+      source,
+      initialValue,
+      templateVariables,
+      inputTemplateVariable,
+      placeholder: propertyType === "list" ? "\u503C1, \u503C2" : (inputTemplateVariable == null ? void 0 : inputTemplateVariable.startsWith("rating_")) ? "0-10" : void 0
+    };
+    if (source === "identifier") {
+      identifierProperties.push(property);
+    } else if (source === "auto") {
+      autoProperties.push(property);
+    } else {
+      customProperties.push(property);
+    }
+  }
+  return { identifierProperties, autoProperties, customProperties };
+}
+function buildExtraTemplateVarsFromPropertyValues(properties, propertyValues) {
+  const extraVars = {};
+  if (!propertyValues) {
+    return extraVars;
+  }
+  for (const property of properties) {
+    const value = propertyValues[property.name];
+    if (value === void 0 || value === "" || !property.inputTemplateVariable) {
+      continue;
+    }
+    extraVars[property.inputTemplateVariable] = Array.isArray(value) ? value.join(", ") : String(value);
+  }
+  return extraVars;
+}
+function classifyTemplateProperty(propertyName, templateVariables) {
+  if (IDENTIFIER_PROPERTY_NAMES.has(propertyName)) {
+    return "identifier";
+  }
+  if (AUTO_FILLED_PROPERTY_NAMES.has(propertyName)) {
+    return "auto";
+  }
+  if (templateVariables.length === 0) {
+    return "custom";
+  }
+  return templateVariables.every((variable) => AUTO_FILLED_TEMPLATE_VARS.has(variable)) ? "auto" : "custom";
+}
+function extractFrontmatter2(template) {
+  const normalized = template.replace(/\r\n?/g, "\n");
+  const match = normalized.match(/^---\n([\s\S]*?)\n---/);
+  return match ? match[1] : null;
+}
+function getTemplateDrivenContinuationValue(lines, currentIndex) {
+  var _a;
+  const nextLine = (_a = lines[currentIndex + 1]) == null ? void 0 : _a.trim();
+  if (!nextLine || !/^\{\{(?!#if\b|\/if\b)/.test(nextLine)) {
+    return void 0;
+  }
+  return nextLine;
+}
+function extractTemplateVariables(rawValue) {
+  const variables = /* @__PURE__ */ new Set();
+  let match;
+  const regex = new RegExp(TEMPLATE_VAR_REGEX);
+  while ((match = regex.exec(rawValue)) !== null) {
+    variables.add(match[1]);
+  }
+  return [...variables];
+}
+function parseTemplateInitialValue(rawValue) {
+  if (!rawValue) {
+    return void 0;
+  }
+  if (rawValue === "true") {
+    return true;
+  }
+  if (rawValue === "false") {
+    return false;
+  }
+  if (rawValue === "[]") {
+    return [];
+  }
+  const singleVarMatch = rawValue.match(SINGLE_TEMPLATE_VAR_REGEX);
+  if (singleVarMatch) {
+    return typeof singleVarMatch[2] === "string" ? singleVarMatch[2] : void 0;
+  }
+  if (rawValue.startsWith('"') && rawValue.endsWith('"') || rawValue.startsWith("'") && rawValue.endsWith("'")) {
+    return rawValue.slice(1, -1);
+  }
+  return rawValue;
+}
+function parseTemplateFieldType(rawValue) {
+  if (rawValue === "true" || rawValue === "false") {
+    return "toggle";
+  }
+  if (rawValue === "[]") {
+    return "list";
+  }
+  return "text";
+}
+function parseInputTemplateVariable(rawValue) {
+  const singleVarMatch = rawValue.match(SINGLE_TEMPLATE_VAR_REGEX);
+  if (!singleVarMatch) {
+    return void 0;
+  }
+  const variableName = singleVarMatch[1];
+  return AUTO_FILLED_TEMPLATE_VARS.has(variableName) ? void 0 : variableName;
+}
+
+// src/sync/subjectPathResolver.ts
+function appendSuffix(path, suffix) {
+  const normalized = normalizePathValue(path);
+  return limitPathLength(normalized.toLocaleLowerCase("en-US").endsWith(".md") ? `${normalized.slice(0, -3)}${suffix}.md` : `${normalized}${suffix}.md`);
+}
+function collisionSuffix(candidate, useYearOnly) {
+  var _a, _b;
+  const year = (_b = (_a = candidate.year) == null ? void 0 : _a.match(/^\d{4}$/)) == null ? void 0 : _b[0];
+  if (year && useYearOnly) {
+    return `\uFF08${year}\uFF09`;
+  }
+  if (year) {
+    return `\uFF08${year}\uFF09[bgm-${candidate.subjectId}]`;
+  }
+  return `[bgm-${candidate.subjectId}]`;
+}
+var SubjectPathResolver = class {
+  plan(candidates, occupiedPaths = /* @__PURE__ */ new Map()) {
+    var _a;
+    const byId = /* @__PURE__ */ new Map();
+    for (const candidate of candidates) {
+      if (byId.has(candidate.subjectId)) {
+        throw new Error(`Duplicate subject ${candidate.subjectId} in path planning input.`);
+      }
+      byId.set(candidate.subjectId, {
+        ...candidate,
+        preferredPath: normalizePathValue(candidate.preferredPath),
+        currentPath: candidate.currentPath ? normalizePathValue(candidate.currentPath) : void 0
+      });
+    }
+    const sortedCandidates = Array.from(byId.values()).sort((left, right) => {
+      const pathOrder = normalizePathCollisionKey(left.preferredPath).localeCompare(normalizePathCollisionKey(right.preferredPath), "en-US");
+      return pathOrder || left.subjectId - right.subjectId;
+    });
+    const reservations = new Map(occupiedPaths);
+    const collisionGroups = /* @__PURE__ */ new Map();
+    for (const candidate of sortedCandidates) {
+      const currentKey = candidate.currentPath ? normalizePathCollisionKey(candidate.currentPath) : void 0;
+      const preferredKey = normalizePathCollisionKey(candidate.preferredPath);
+      const group = (_a = collisionGroups.get(preferredKey)) != null ? _a : [];
+      group.push(candidate);
+      collisionGroups.set(preferredKey, group);
+      if (candidate.currentPath) {
+        reservations.set(currentKey, candidate.subjectId);
+      }
+    }
+    const allocations = /* @__PURE__ */ new Map();
+    const renamed = [];
+    for (const group of collisionGroups.values()) {
+      if (group.length < 2)
+        continue;
+      const movable = group.filter((candidate) => !candidate.currentPath || (candidate.namingState === "managed" || candidate.namingState === "inferred-managed") && normalizePathCollisionKey(candidate.currentPath) === normalizePathCollisionKey(candidate.preferredPath));
+      for (const candidate of movable) {
+        if (candidate.currentPath) {
+          reservations.delete(normalizePathCollisionKey(candidate.currentPath));
+        }
+      }
+      const years = group.map((candidate) => {
+        var _a2, _b, _c;
+        return (_c = (_b = (_a2 = candidate.year) == null ? void 0 : _a2.match(/^\d{4}$/)) == null ? void 0 : _b[0]) != null ? _c : "";
+      });
+      const useYearOnly = years.every(Boolean) && new Set(years).size === group.length;
+      for (const candidate of movable) {
+        const finalPath = this.reserveUnique(
+          appendSuffix(candidate.preferredPath, collisionSuffix(candidate, useYearOnly)),
+          candidate.subjectId,
+          reservations
+        );
+        const renameFrom = candidate.currentPath && normalizePathCollisionKey(candidate.currentPath) !== normalizePathCollisionKey(finalPath) ? candidate.currentPath : void 0;
+        allocations.set(candidate.subjectId, {
+          subjectId: candidate.subjectId,
+          preferredPath: candidate.preferredPath,
+          finalPath,
+          collisionResolved: true,
+          ...renameFrom ? { renameFrom } : {}
+        });
+        if (renameFrom) {
+          renamed.push({ subjectId: candidate.subjectId, from: renameFrom, to: finalPath });
+        }
+      }
+    }
+    for (const candidate of sortedCandidates) {
+      if (allocations.has(candidate.subjectId))
+        continue;
+      if (candidate.currentPath) {
+        allocations.set(candidate.subjectId, {
+          subjectId: candidate.subjectId,
+          preferredPath: candidate.preferredPath,
+          finalPath: candidate.currentPath,
+          collisionResolved: false
+        });
+        continue;
+      }
+      const preferredOwner = reservations.get(normalizePathCollisionKey(candidate.preferredPath));
+      const needsSuffix = preferredOwner !== void 0 && preferredOwner !== candidate.subjectId;
+      const proposedPath = needsSuffix ? appendSuffix(candidate.preferredPath, collisionSuffix(candidate, false)) : candidate.preferredPath;
+      const finalPath = this.reserveUnique(proposedPath, candidate.subjectId, reservations);
+      allocations.set(candidate.subjectId, {
+        subjectId: candidate.subjectId,
+        preferredPath: candidate.preferredPath,
+        finalPath,
+        collisionResolved: normalizePathCollisionKey(finalPath) !== normalizePathCollisionKey(candidate.preferredPath)
+      });
+    }
+    return { allocations, renamed };
+  }
+  reserveUnique(path, subjectId, reservations) {
+    let candidatePath = path;
+    let attempt = 1;
+    while (true) {
+      const key = normalizePathCollisionKey(candidatePath);
+      const owner = reservations.get(key);
+      if (owner === void 0 || owner === subjectId) {
+        reservations.set(key, subjectId);
+        return candidatePath;
+      }
+      attempt++;
+      candidatePath = appendSuffix(path, `\uFF3B${attempt}\uFF3D`);
+    }
+  }
+};
+
+// src/sync/syncTransaction.ts
 var import_obsidian10 = require("obsidian");
+var SyncTransaction = class {
+  constructor(app, fileManager) {
+    this.app = app;
+    this.fileManager = fileManager;
+    this.createdFiles = [];
+    this.updatedContents = /* @__PURE__ */ new Map();
+    this.renames = [];
+    this.state = "active";
+  }
+  hasChanges() {
+    return this.state === "active" && (this.createdFiles.length > 0 || this.updatedContents.size > 0 || this.renames.length > 0);
+  }
+  commit() {
+    if (this.state !== "active")
+      return;
+    this.state = "committed";
+    this.createdFiles.length = 0;
+    this.updatedContents.clear();
+    this.renames.length = 0;
+  }
+  getRenameCount() {
+    return this.renames.length;
+  }
+  async executeRenames(renames) {
+    this.assertActive();
+    if (renames.length === 0)
+      return;
+    const sources = /* @__PURE__ */ new Map();
+    const targets = /* @__PURE__ */ new Set();
+    for (const rename of renames) {
+      const from = (0, import_obsidian10.normalizePath)(rename.from);
+      const to = (0, import_obsidian10.normalizePath)(rename.to);
+      if (targets.has(normalizePathCollisionKey(to))) {
+        throw new Error(`Duplicate rename target: ${to}`);
+      }
+      const file = await this.fileManager.assertPathOwnership(from, rename.subjectId);
+      if (!file) {
+        throw new Error(`Rename source does not exist: ${from}`);
+      }
+      sources.set(normalizePathCollisionKey(from), { rename: { ...rename, from, to }, file });
+      targets.add(normalizePathCollisionKey(to));
+    }
+    for (const { rename } of sources.values()) {
+      const target = this.fileManager.getFile(rename.to);
+      if (target && !sources.has(normalizePathCollisionKey(rename.to))) {
+        throw new Error(`Rename target is occupied by an unplanned file: ${rename.to}`);
+      }
+    }
+    const staged = [];
+    try {
+      let index = 0;
+      for (const { rename, file } of sources.values()) {
+        const temporaryPath = await this.findTemporaryPath(rename.from, rename.subjectId, index++);
+        await this.app.fileManager.renameFile(file, temporaryPath);
+        staged.push({ rename, file, temporaryPath });
+      }
+      for (const entry of staged) {
+        await this.fileManager.ensureDirectory(entry.rename.to);
+        await this.app.fileManager.renameFile(entry.file, entry.rename.to);
+        this.renames.push({ ...entry.rename, file: entry.file });
+      }
+    } catch (error) {
+      for (const entry of staged.reverse()) {
+        try {
+          await this.app.fileManager.renameFile(entry.file, entry.rename.from);
+        } catch (e) {
+        }
+      }
+      throw error;
+    }
+  }
+  async createOrUpdateFile(path, content, options) {
+    this.assertActive();
+    const existing = await this.fileManager.assertPathOwnership(path, options.subjectId);
+    if (existing && !this.updatedContents.has(existing)) {
+      this.updatedContents.set(existing, await this.app.vault.read(existing));
+    }
+    const result = await this.fileManager.createOrUpdateFile(path, content, options);
+    if (result.status === "created") {
+      this.createdFiles.push(result.file);
+    }
+    if (result.status !== "updated" && existing) {
+      this.updatedContents.delete(existing);
+    }
+    return result;
+  }
+  async rollback() {
+    const result = { deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0 };
+    if (this.state !== "active")
+      return result;
+    this.state = "rolled-back";
+    for (const file of [...this.createdFiles].reverse()) {
+      try {
+        await this.app.fileManager.trashFile(file);
+        result.deletedCreatedFiles++;
+      } catch (e) {
+        result.failed++;
+      }
+    }
+    for (const [file, content] of this.updatedContents) {
+      try {
+        await this.app.vault.process(file, () => content);
+        result.restoredContents++;
+      } catch (e) {
+        result.failed++;
+      }
+    }
+    const staged = [];
+    for (let index = 0; index < this.renames.length; index++) {
+      const rename = this.renames[index];
+      try {
+        const temporaryPath = await this.findTemporaryPath(rename.to, rename.subjectId, index);
+        await this.app.fileManager.renameFile(rename.file, temporaryPath);
+        staged.push({ rename, temporaryPath });
+      } catch (e) {
+        result.failed++;
+      }
+    }
+    for (const { rename } of staged.reverse()) {
+      try {
+        await this.fileManager.ensureDirectory(rename.from);
+        await this.app.fileManager.renameFile(rename.file, rename.from);
+        result.restoredPaths++;
+      } catch (e) {
+        result.failed++;
+      }
+    }
+    return result;
+  }
+  assertActive() {
+    if (this.state !== "active") {
+      throw new Error(`Cannot use a ${this.state} sync transaction.`);
+    }
+  }
+  async findTemporaryPath(sourcePath, subjectId, index) {
+    const slash = sourcePath.lastIndexOf("/");
+    const directory = slash >= 0 ? sourcePath.slice(0, slash + 1) : "";
+    let attempt = 0;
+    while (true) {
+      const path = (0, import_obsidian10.normalizePath)(`${directory}.bangumi-sync-${subjectId}-${index}-${attempt}.tmp.md`);
+      if (!await this.fileManager.fileExists(path)) {
+        return path;
+      }
+      attempt++;
+    }
+  }
+};
+
+// src/sync/pathDiagnostics.ts
+function formatDiagnosticReport(report) {
+  var _a;
+  const lines = [
+    "# Bangumi Sync local subject diagnostic",
+    "",
+    `- Generated: ${report.generatedAt}`,
+    `- Scan root: ${report.scanRoot}`,
+    `- Valid subjects: ${report.validSubjects}`,
+    `- Issues: ${report.issues.length}`,
+    "",
+    "## Issues",
+    ""
+  ];
+  if (report.issues.length === 0) {
+    lines.push("No issues found.");
+  } else {
+    for (const issue of report.issues) {
+      const identity = issue.subjectId ? ` subject=${issue.subjectId}` : "";
+      const path = issue.path ? ` path=${issue.path}` : "";
+      lines.push(`- **${issue.severity} / ${issue.code}**${identity}${path}: ${issue.message}`);
+      if ((_a = issue.relatedPaths) == null ? void 0 : _a.length) {
+        for (const relatedPath of issue.relatedPaths)
+          lines.push(`  - ${relatedPath}`);
+      }
+    }
+  }
+  return `${lines.join("\n")}
+`;
+}
+
+// src/sync/syncManager.ts
+var SyncManager = class {
+  constructor(app, config) {
+    this.cancellationSignal = null;
+    this.pathResolver = new SubjectPathResolver();
+    this.activeTransaction = null;
+    var _a;
+    this.app = app;
+    this.config = config;
+    this.client = new BangumiClient(config.accessToken);
+    this.fileManager = new FileManager(app);
+    this.imageHandler = new ImageHandler(app, this.fileManager);
+    this.imageHandler.setDownloadEnabled(config.downloadImages);
+    this.incrementalSync = new IncrementalSync(app);
+    this.incrementalSync.setPathStates((_a = config.subjectPathStates) != null ? _a : {});
+    this.userDataExtractor = new UserDataExtractor(app);
+    this.userDataMerger = new UserDataMerger(app);
+  }
+  /**
+   * 设置进度回调
+   */
+  setProgressCallback(callback) {
+    this.onProgress = callback;
+  }
+  /**
+   * 设置取消信号
+   */
+  setCancellationSignal(signal) {
+    this.cancellationSignal = signal;
+  }
+  /**
+   * 回滚本次批次新建的文件
+   */
+  async rollbackBatch() {
+    if (this.activeTransaction) {
+      const result = await this.activeTransaction.rollback();
+      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+      await this.persistPathStates();
+      this.activeTransaction = null;
+      return result;
+    }
+    return { deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0 };
+  }
+  /**
+   * 更新配置
+   */
+  updateConfig(config) {
+    var _a;
+    this.config = { ...this.config, ...config };
+    this.client.setAccessToken(config.accessToken || "");
+    this.imageHandler.setDownloadEnabled((_a = config.downloadImages) != null ? _a : true);
+    if (config.subjectPathStates) {
+      this.incrementalSync.setPathStates(config.subjectPathStates);
+    }
+  }
+  async persistPathStates() {
+    var _a, _b;
+    const states = this.incrementalSync.exportPathStates();
+    this.config.subjectPathStates = states;
+    await ((_b = (_a = this.config).onPathStatesChanged) == null ? void 0 : _b.call(_a, states));
+  }
+  async diagnoseLocalSubjects() {
+    const scanRoot = this.config.scanFolderPath || "ACGN";
+    await this.incrementalSync.scanLocalFolder(scanRoot);
+    const registry = this.incrementalSync.getRegistry();
+    const issues = registry.invalidFiles.map((problem) => ({ ...problem }));
+    const preferredGroups = /* @__PURE__ */ new Map();
+    await this.processConcurrently(Array.from(registry.idToRecord.values()), 3, async (record) => {
+      var _a;
+      if (record.namingState !== "managed") {
+        issues.push({
+          severity: "needs-user-decision",
+          code: record.namingState === "user-renamed" ? "user-renamed" : "unknown-path-state",
+          message: record.namingState === "user-renamed" ? "The current filename is user-managed and will not be renamed automatically." : "No previous managed-path state exists; automatic rename is disabled.",
+          subjectId: record.subjectId,
+          path: record.path
+        });
+      }
+      try {
+        const subject = await this.client.getSubject(record.subjectId);
+        const preferredPath = this.generatePreferredPath(subject);
+        const key = normalizePathCollisionKey(preferredPath);
+        const group = (_a = preferredGroups.get(key)) != null ? _a : [];
+        group.push({ subjectId: record.subjectId, path: preferredPath });
+        preferredGroups.set(key, group);
+      } catch (error) {
+        issues.push({
+          severity: "needs-user-decision",
+          code: "subject-lookup-failed",
+          message: error instanceof Error ? error.message : String(error),
+          subjectId: record.subjectId,
+          path: record.path
+        });
+      }
+    });
+    for (const group of preferredGroups.values()) {
+      if (group.length < 2)
+        continue;
+      issues.push({
+        severity: "needs-user-decision",
+        code: "template-path-collision",
+        message: `The current template maps ${group.length} subjects to the same normalized path.`,
+        subjectId: group[0].subjectId,
+        path: group[0].path,
+        relatedPaths: group.map((item) => `${item.subjectId}: ${item.path}`)
+      });
+    }
+    return {
+      generatedAt: new Date().toISOString(),
+      scanRoot,
+      validSubjects: registry.idToRecord.size,
+      issues
+    };
+  }
+  async exportDiagnosticReport(report) {
+    const actualReport = report != null ? report : await this.diagnoseLocalSubjects();
+    const stamp = actualReport.generatedAt.replace(/[:.]/g, "-");
+    const path = `Bangumi Sync/Diagnostics/diagnostic-${stamp}.md`;
+    await this.fileManager.ensureDirectory(path);
+    await this.app.vault.create(path, formatDiagnosticReport(actualReport));
+    return path;
+  }
+  async previewPathMigration(options = {}) {
+    await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+    const registry = this.incrementalSync.getRegistry();
+    const selected = Array.from(registry.idToRecord.values()).filter(
+      (record) => record.namingState === "managed" || record.namingState === "unknown" && options.includeUnknown || record.namingState === "user-renamed" && options.includeUserRenamed
+    );
+    const selectedIds = new Set(selected.map((record) => record.subjectId));
+    const occupied = new Map(registry.pathToId);
+    for (const record of selected)
+      occupied.delete(normalizePathCollisionKey(record.path));
+    const details = /* @__PURE__ */ new Map();
+    const failures = /* @__PURE__ */ new Map();
+    await this.processConcurrently(selected, 3, async (record) => {
+      try {
+        details.set(record.subjectId, await this.client.getSubject(record.subjectId));
+      } catch (error) {
+        failures.set(record.subjectId, error instanceof Error ? error.message : String(error));
+      }
+    });
+    const candidates = selected.flatMap((record) => {
+      const subject = details.get(record.subjectId);
+      if (!subject)
+        return [];
+      return [{
+        subjectId: record.subjectId,
+        preferredPath: this.generatePreferredPath(subject),
+        year: extractPathVars(subject).year,
+        namingState: "managed"
+      }];
+    });
+    const plan = this.pathResolver.plan(candidates, occupied);
+    const entries = Array.from(registry.idToRecord.values()).map((record) => {
+      var _a;
+      if (!selectedIds.has(record.subjectId)) {
+        return {
+          subjectId: record.subjectId,
+          name: record.nameCn,
+          from: record.path,
+          to: record.path,
+          namingState: record.namingState,
+          status: "protected",
+          reason: "User-renamed or unknown paths require explicit inclusion."
+        };
+      }
+      const error = failures.get(record.subjectId);
+      if (error) {
+        return { subjectId: record.subjectId, name: record.nameCn, from: record.path, to: record.path, namingState: record.namingState, status: "failed", reason: error };
+      }
+      const allocation = plan.allocations.get(record.subjectId);
+      const to = (_a = allocation == null ? void 0 : allocation.finalPath) != null ? _a : record.path;
+      return {
+        subjectId: record.subjectId,
+        name: record.nameCn,
+        from: record.path,
+        to,
+        namingState: record.namingState,
+        status: normalizePathCollisionKey(record.path) === normalizePathCollisionKey(to) ? "unchanged" : "rename"
+      };
+    });
+    return { generatedAt: new Date().toISOString(), entries };
+  }
+  async applyPathMigration(preview) {
+    const renames = preview.entries.filter((entry) => entry.status === "rename").map((entry) => ({ subjectId: entry.subjectId, from: entry.from, to: entry.to }));
+    const transaction = new SyncTransaction(this.app, this.fileManager);
+    try {
+      await transaction.executeRenames(renames);
+      for (const rename of renames)
+        this.incrementalSync.renameLocalSubject(rename.subjectId, rename.to);
+      await this.persistPathStates();
+      transaction.commit();
+      return { renamed: renames.length, failed: 0 };
+    } catch (e) {
+      await transaction.rollback();
+      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+      return { renamed: 0, failed: renames.length };
+    }
+  }
+  /**
+   * 检查取消/暂停信号
+   * @returns true 如果已取消
+   */
+  async checkCancellation() {
+    var _a, _b, _c, _d;
+    if ((_a = this.cancellationSignal) == null ? void 0 : _a.cancelled) {
+      return true;
+    }
+    while ((_b = this.cancellationSignal) == null ? void 0 : _b.paused) {
+      await new Promise((resolve) => activeWindow.setTimeout(resolve, 200));
+    }
+    return (_d = (_c = this.cancellationSignal) == null ? void 0 : _c.cancelled) != null ? _d : false;
+  }
+  /**
+   * 创建带回滚能力的同步结果
+   */
+  createSyncResultWithRollback(base, wasCancelled) {
+    var _a;
+    const batchFiles = this.incrementalSync.getBatchSyncedFiles();
+    return {
+      ...base,
+      batchFiles,
+      wasCancelled,
+      canRollback: Boolean((_a = this.activeTransaction) == null ? void 0 : _a.hasChanges()),
+      ...this.lastAutomaticRollback ? { rollback: this.lastAutomaticRollback } : {}
+    };
+  }
+  createSyncResult(total = 0) {
+    this.lastAutomaticRollback = void 0;
+    return {
+      success: false,
+      completion: "failed",
+      total,
+      added: 0,
+      skipped: 0,
+      errors: 0,
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      renamed: 0,
+      collisionResolved: 0,
+      failed: 0,
+      duration: 0,
+      errorDetails: [],
+      outcomes: []
+    };
+  }
+  recordPreparedFailure(result, failure) {
+    const name = failure.collection.subject.name_cn || failure.collection.subject.name || String(failure.collection.subject_id);
+    result.failed++;
+    result.errorDetails.push(`[${failure.collection.subject_id}] ${name}: ${failure.error}`);
+    result.outcomes.push({
+      subjectId: failure.collection.subject_id,
+      name,
+      pathAction: "failed",
+      writeAction: "failed",
+      error: failure.error
+    });
+  }
+  recordWriteOutcome(result, prepared, writeStatus) {
+    if (writeStatus !== "unchanged")
+      result.added++;
+    result[writeStatus]++;
+    const pathAction = prepared.allocation.renameFrom ? "renamed" : prepared.allocation.collisionResolved ? "collision-resolved" : "unchanged";
+    if (pathAction === "collision-resolved")
+      result.collisionResolved++;
+    result.outcomes.push({
+      subjectId: prepared.collection.subject_id,
+      preferredPath: prepared.allocation.preferredPath,
+      actualPath: prepared.allocation.finalPath,
+      pathAction,
+      writeAction: writeStatus
+    });
+  }
+  recordProcessingFailure(result, prepared, error) {
+    const collection = prepared.collection;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
+    result.failed++;
+    result.errorDetails.push(`[${collection.subject_id}] ${name}: ${errorMessage}`);
+    result.outcomes.push({
+      subjectId: collection.subject_id,
+      name,
+      preferredPath: prepared.allocation.preferredPath,
+      actualPath: prepared.allocation.finalPath,
+      pathAction: "failed",
+      writeAction: "failed",
+      error: errorMessage
+    });
+  }
+  finalizeSyncResult(result, wasCancelled) {
+    result.created = result.outcomes.filter((outcome) => outcome.writeAction === "created").length;
+    result.updated = result.outcomes.filter((outcome) => outcome.writeAction === "updated").length;
+    result.unchanged = result.outcomes.filter((outcome) => outcome.writeAction === "unchanged").length;
+    result.failed = result.outcomes.filter((outcome) => outcome.writeAction === "failed").length;
+    result.renamed = result.outcomes.filter((outcome) => outcome.pathAction === "renamed").length;
+    result.collisionResolved = result.outcomes.filter((outcome) => outcome.pathAction === "collision-resolved").length;
+    result.added = result.created + result.updated;
+    result.errors = result.failed;
+    result.completion = this.lastAutomaticRollback ? this.lastAutomaticRollback.failed > 0 ? "rollback-failed" : "rolled-back" : determineSyncCompletion(result.added, result.failed, wasCancelled);
+    result.success = result.completion === "success";
+  }
+  async executePreparedCollectionBatch(batch, concurrency, result, optionsFor, onProgress) {
+    var _a;
+    this.lastAutomaticRollback = void 0;
+    (_a = this.activeTransaction) == null ? void 0 : _a.commit();
+    this.activeTransaction = null;
+    for (const failure of batch.failures)
+      this.recordPreparedFailure(result, failure);
+    let wasCancelled = false;
+    const rendered = [];
+    await this.processConcurrently(batch.prepared, concurrency, async (prepared, index) => {
+      if (await this.checkCancellation()) {
+        wasCancelled = true;
+        return;
+      }
+      onProgress == null ? void 0 : onProgress(prepared, index);
+      try {
+        rendered.push(await this.renderCollection(prepared.collection, optionsFor(prepared), prepared));
+      } catch (error) {
+        this.recordProcessingFailure(result, prepared, error);
+      }
+    });
+    if (wasCancelled)
+      return { wasCancelled, relations: [] };
+    if (result.failed > 0 && batch.renamed.length > 0) {
+      for (const item of rendered) {
+        this.recordProcessingFailure(result, item.prepared, new Error("Collision transaction was not started because another item failed during content preparation."));
+      }
+      return { wasCancelled, relations: [] };
+    }
+    const transaction = new SyncTransaction(this.app, this.fileManager);
+    this.activeTransaction = transaction;
+    try {
+      await transaction.executeRenames(batch.renamed);
+    } catch (error) {
+      for (const item of rendered)
+        this.recordProcessingFailure(result, item.prepared, error);
+      await transaction.rollback();
+      this.activeTransaction = null;
+      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+      return { wasCancelled, relations: [] };
+    }
+    for (const rename of batch.renamed)
+      this.incrementalSync.renameLocalSubject(rename.subjectId, rename.to);
+    const relations = [];
+    await this.processConcurrently(rendered, concurrency, async (item) => {
+      try {
+        const writeResult = await this.writeRenderedCollection(item);
+        relations.push(writeResult);
+        this.recordWriteOutcome(result, item.prepared, writeResult.writeStatus);
+      } catch (error) {
+        this.recordProcessingFailure(result, item.prepared, error);
+      }
+    });
+    if (result.failed > 0 && transaction.getRenameCount() > 0) {
+      this.lastAutomaticRollback = await transaction.rollback();
+      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+      for (const outcome of result.outcomes) {
+        if (outcome.writeAction !== "failed") {
+          outcome.pathAction = "rolled-back";
+          outcome.writeAction = "rolled-back";
+        }
+      }
+      this.activeTransaction = null;
+      return { wasCancelled, relations: [] };
+    }
+    if (result.failed === 0) {
+      await this.persistPathStates();
+      transaction.commit();
+      this.activeTransaction = null;
+    }
+    return { wasCancelled, relations };
+  }
+  /**
+   * 执行同步
+   * 优化：支持并发处理多个条目，提高同步速度
+   */
+  async sync(options, concurrency = 3) {
+    const startTime = Date.now();
+    let wasCancelled = false;
+    const result = this.createSyncResult();
+    try {
+      const { diff } = await this.prepareSyncData(options);
+      result.total = diff.toAdd.length;
+      result.skipped = diff.toSkip.length;
+      this.incrementalSync.startBatch();
+      const batch = await this.prepareCollectionBatch(diff.toAdd, concurrency);
+      const execution = await this.executePreparedCollectionBatch(
+        batch,
+        concurrency,
+        result,
+        () => ({ overwrite: false, preserveUserDataOnOverwrite: false }),
+        (prepared, index) => this.reportProgress({
+          status: "processing",
+          current: index + 1,
+          total: diff.toAdd.length,
+          currentItem: prepared.collection.subject.name_cn || prepared.collection.subject.name,
+          message: `\u5904\u7406\u6761\u76EE... (${index + 1}/${diff.toAdd.length})`
+        })
+      );
+      wasCancelled = execution.wasCancelled;
+      this.finalizeSyncResult(result, wasCancelled);
+      if (!wasCancelled) {
+        this.reportProgress({ status: "completed", message: tn("notices", "syncComplete") });
+      } else {
+        this.reportProgress({ status: "error", message: tn("notices", "syncCancelled") });
+      }
+    } catch (error) {
+      console.error("[Bangumi Sync] \u540C\u6B65\u5931\u8D25:", error);
+      this.reportProgress({ status: "error", message: error instanceof Error ? error.message : String(error) });
+      new import_obsidian11.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    result.duration = Date.now() - startTime;
+    return this.createSyncResultWithRollback(result, wasCancelled);
+  }
+  /**
+   * 并发处理数组中的元素
+   * @param items 要处理的数组
+   * @param concurrency 并发数
+   * @param processor 处理函数
+   */
+  async processConcurrently(items, concurrency, processor) {
+    const queue = [...items.map((item, index) => ({ item, index }))];
+    const workers = [];
+    for (let i = 0; i < Math.min(concurrency, items.length); i++) {
+      workers.push(this.processQueue(queue, processor));
+    }
+    await Promise.all(workers);
+  }
+  /**
+   * 处理队列中的任务
+   */
+  async processQueue(queue, processor) {
+    while (queue.length > 0) {
+      const task = queue.shift();
+      if (!task)
+        break;
+      await processor(task.item, task.index);
+    }
+  }
+  async prepareCollectionBatch(collections, concurrency) {
+    await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+    const registry = this.incrementalSync.getRegistry();
+    const details = /* @__PURE__ */ new Map();
+    const failures = [];
+    await this.processConcurrently(collections, concurrency, async (collection) => {
+      if (registry.duplicateIds.has(collection.subject_id)) {
+        failures.push({
+          collection,
+          error: `Subject ${collection.subject_id} appears in multiple local files.`
+        });
+        return;
+      }
+      try {
+        details.set(collection.subject_id, await this.client.getFullSubjectInfo(collection.subject_id));
+      } catch (error) {
+        failures.push({
+          collection,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+    const candidates = collections.flatMap((collection) => {
+      var _a;
+      const fullInfo = details.get(collection.subject_id);
+      if (!fullInfo)
+        return [];
+      const existing = registry.getById(collection.subject_id);
+      const preferredPath = this.generatePreferredPath(fullInfo.subject, collection);
+      if ((existing == null ? void 0 : existing.namingState) === "unknown") {
+        registry.markInferredManaged(collection.subject_id, preferredPath);
+      }
+      const reconciled = registry.getById(collection.subject_id);
+      return [{
+        subjectId: collection.subject_id,
+        preferredPath,
+        year: extractPathVars(fullInfo.subject, collection).year,
+        currentPath: reconciled == null ? void 0 : reconciled.path,
+        namingState: (_a = reconciled == null ? void 0 : reconciled.namingState) != null ? _a : "managed"
+      }];
+    });
+    const contextIds = /* @__PURE__ */ new Set();
+    for (const candidate of candidates) {
+      const owner = registry.getPathOwner(candidate.preferredPath);
+      if (owner !== void 0 && !details.has(owner))
+        contextIds.add(owner);
+    }
+    const contextRecords = Array.from(contextIds).flatMap((subjectId) => {
+      const record = registry.getById(subjectId);
+      return record ? [record] : [];
+    });
+    await this.processConcurrently(contextRecords, concurrency, async (record) => {
+      var _a;
+      try {
+        const subject = await this.client.getSubject(record.subjectId);
+        const preferredPath = this.generatePreferredPath(subject);
+        if (record.namingState === "unknown") {
+          registry.markInferredManaged(record.subjectId, preferredPath);
+        }
+        const reconciled = (_a = registry.getById(record.subjectId)) != null ? _a : record;
+        candidates.push({
+          subjectId: record.subjectId,
+          preferredPath,
+          year: extractPathVars(subject).year,
+          currentPath: reconciled.path,
+          namingState: reconciled.namingState
+        });
+      } catch (e) {
+      }
+    });
+    const pathPlan = this.pathResolver.plan(candidates, registry.pathToId);
+    const prepared = [];
+    for (const collection of collections) {
+      const fullInfo = details.get(collection.subject_id);
+      const allocation = pathPlan.allocations.get(collection.subject_id);
+      if (fullInfo && allocation) {
+        prepared.push({ collection, fullInfo, allocation });
+      }
+    }
+    return { prepared, failures, renamed: pathPlan.renamed };
+  }
+  /**
+   * 准备同步数据：验证 Token、获取收藏、扫描本地、计算差异
+   * sync() 和 prepareSync() 的共享逻辑
+   */
+  async prepareSyncData(options) {
+    if (!this.config.accessToken) {
+      throw new Error(tn("notices", "configureTokenFirst"));
+    }
+    this.reportProgress({ status: "preparing", message: tn("syncModal", "validatingToken") });
+    const tokenResult = await this.client.validateToken();
+    if (!tokenResult.valid) {
+      throw new Error(tnFormat("notices", "tokenInvalid", { error: tokenResult.error || "" }));
+    }
+    const username = tokenResult.username;
+    if (!username) {
+      throw new Error(tn("notices", "usernameNotFound"));
+    }
+    console.debug(`[Bangumi Sync] \u7528\u6237: ${username}`);
+    this.reportProgress({ status: "fetching", message: tn("syncModal", "fetchingCollections") });
+    const collections = await this.client.getAllUserCollections(username, {
+      subjectType: options.subjectTypes.length === 1 ? options.subjectTypes[0] : void 0,
+      collectionType: options.collectionTypes.length === 1 ? options.collectionTypes[0] : void 0,
+      onProgress: (current, total) => {
+        this.reportProgress({
+          status: "fetching",
+          current,
+          total,
+          message: `${tn("syncModal", "fetchingCollections")} (${current}/${total})`
+        });
+      }
+    });
+    console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
+    this.reportProgress({ status: "scanning", message: tn("syncModal", "scanningLocal") });
+    const scanPath = this.config.scanFolderPath || "ACGN";
+    console.debug(`[Bangumi Sync] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
+    await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
+      this.reportProgress({
+        status: "scanning",
+        current,
+        total,
+        message: `${tn("syncModal", "scanningLocal")} (${current}/${total})`
+      });
+    });
+    this.reportProgress({ status: "preparing", message: tn("syncModal", "computingDiff") });
+    const filteredCollections = this.filterCollections(collections, options);
+    console.debug(`[Bangumi Sync] \u7B26\u5408\u6761\u4EF6\u7684\u6536\u85CF: ${filteredCollections.length}`);
+    const diff = this.incrementalSync.computeDiff(filteredCollections, {
+      limit: options.limit,
+      force: options.force
+    });
+    console.debug(`[Bangumi Sync] \u9700\u8981\u540C\u6B65: ${diff.toAdd.length}\uFF0C\u5DF2\u5B58\u5728\u8DF3\u8FC7: ${diff.toSkip.length}`);
+    return { username, collections, diff };
+  }
+  /**
+   * 过滤符合条件的收藏
+   */
+  filterCollections(collections, options) {
+    return collections.filter((c) => {
+      if (options.subjectTypes.length > 0 && !options.subjectTypes.includes(c.subject_type)) {
+        return false;
+      }
+      if (options.collectionTypes.length > 0 && !options.collectionTypes.includes(c.type)) {
+        return false;
+      }
+      return true;
+    });
+  }
+  /**
+   * 从路径模板提取基础路径
+   * 例如: "ACGN/{{type}}/{{name_cn}}.md" -> "ACGN"
+   */
+  extractBasePath(pathTemplate) {
+    const match = pathTemplate.match(/^([^/{}]+)/);
+    return match ? match[1] : "";
+  }
+  /**
+   * 根据条目类型解析路径模板
+   * 优先使用类型独立模板，回退到默认模板
+   */
+  resolvePathTemplate(subject) {
+    if (this.config.pathTemplateByType) {
+      const vars = extractPathVars(subject);
+      const typeTemplate = this.config.pathTemplateByType[vars.type];
+      if (typeTemplate)
+        return typeTemplate;
+    }
+    return this.config.pathTemplate;
+  }
+  generatePreferredPath(subject, collection) {
+    var _a;
+    const basePath = generateFilePath(this.resolvePathTemplate(subject), subject, collection);
+    const strategy = (_a = this.config.pathNamingStrategy) != null ? _a : "simple-until-collision";
+    if (strategy === "always-id") {
+      return this.appendPathSuffix(basePath, `[bgm-${subject.id}]`);
+    }
+    if (strategy === "always-year") {
+      const year = extractPathVars(subject, collection).year;
+      return this.appendPathSuffix(basePath, year ? `\uFF08${year}\uFF09` : `[bgm-${subject.id}]`);
+    }
+    return basePath;
+  }
+  appendPathSuffix(path, suffix) {
+    return path.toLocaleLowerCase("en-US").endsWith(".md") ? `${path.slice(0, -3)}${suffix}.md` : `${path}${suffix}.md`;
+  }
+  /**
+   * V4: 获取章节数据
+   * 仅对动画、小说、漫画类型获取
+   */
+  async fetchEpisodeData(subject) {
+    if (subject.type !== 2 /* Anime */ && subject.type !== 1 /* Book */ && subject.type !== 6 /* Real */) {
+      return null;
+    }
+    try {
+      console.debug(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F: ${subject.name_cn}`);
+      const episodesData = await this.client.getEpisodes(subject.id);
+      const episodes = episodesData.data;
+      if (!episodes || episodes.length === 0) {
+        console.debug(`[Bangumi Sync] \u65E0\u7AE0\u8282\u4FE1\u606F`);
+        return null;
+      }
+      let userStatus = [];
+      try {
+        userStatus = await this.client.getUserEpisodeStatus(subject.id);
+      } catch (e) {
+        console.debug(`[Bangumi Sync] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001\u5931\u8D25\uFF0C\u53EF\u80FD\u672A\u6536\u85CF\u6B64\u6761\u76EE`);
+      }
+      return { episodes, userStatus };
+    } catch (error) {
+      console.error(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F\u5931\u8D25:`, error);
+      return null;
+    }
+  }
+  /**
+   * 从文件路径提取显示名称（不含扩展名）
+   * 例如: "ACGN/anime/金牌得主(动画).md" -> "金牌得主(动画)"
+   */
+  extractDisplayNameFromPath(path) {
+    const fileName = path.split("/").pop() || path;
+    return fileName.replace(/\.md$/, "");
+  }
+  getCustomTemplates() {
+    return this.config.customTemplates;
+  }
+  /**
+   * 下载并解析本地封面路径
+   */
+  async resolveLocalCoverPath(subject, typeLabel) {
+    var _a, _b;
+    const coverUrl = ((_a = subject.images) == null ? void 0 : _a.large) || ((_b = subject.images) == null ? void 0 : _b.common) || "";
+    if (!this.config.downloadImages || !coverUrl) {
+      return "";
+    }
+    console.debug(`[Bangumi Sync] \u4E0B\u8F7D\u5C01\u9762: ${coverUrl}`);
+    const localPath = await this.imageHandler.downloadCover(
+      coverUrl,
+      subject.id,
+      this.config.imagePathTemplate,
+      {
+        name_cn: subject.name_cn,
+        name: subject.name,
+        typeLabel
+      }
+    );
+    return localPath && !localPath.startsWith("http") ? localPath : "";
+  }
+  /**
+   * 生成相关条目链接
+   * 返回已同步条目的链接（包括本批次已同步的）
+   * 显示名称使用文件名（带类型后缀）
+   */
+  generateRelatedLinks(relations) {
+    console.debug(`[Bangumi Sync] \u5904\u7406 ${(relations == null ? void 0 : relations.length) || 0} \u4E2A\u76F8\u5173\u6761\u76EE`);
+    if (!relations || relations.length === 0) {
+      console.debug(`[Bangumi Sync] \u65E0\u76F8\u5173\u6761\u76EE\u6570\u636E`);
+      return [];
+    }
+    const links = [];
+    for (const relation of relations) {
+      console.debug(`[Bangumi Sync] \u68C0\u67E5\u76F8\u5173\u6761\u76EE: ${relation.name_cn || relation.name} (ID: ${relation.id})`);
+      const localPath = this.resolveRelatedLocalPath(relation.id);
+      console.debug(`[Bangumi Sync] \u672C\u5730\u8DEF\u5F84: ${localPath || "\u672A\u540C\u6B65"}`);
+      if (localPath) {
+        const displayName = this.extractDisplayNameFromPath(localPath);
+        const link = `[[${localPath}|${displayName}]]`;
+        links.push(link);
+        console.debug(`[Bangumi Sync] \u76F8\u5173\u6761\u76EE\u5DF2\u540C\u6B65: ${relation.name_cn} -> ${link}`);
+      }
+    }
+    console.debug(`[Bangumi Sync] \u751F\u6210\u4E86 ${links.length} \u4E2A\u76F8\u5173\u94FE\u63A5`);
+    return links;
+  }
+  resolveRelatedLocalPath(subjectId) {
+    const indexedPath = this.incrementalSync.getLocalPath(subjectId);
+    if (indexedPath) {
+      return indexedPath;
+    }
+    const scanRoot = this.config.scanFolderPath || "";
+    return this.incrementalSync.resolvePathByMetadataCache(subjectId, scanRoot);
+  }
+  /**
+   * 报告进度
+   */
+  reportProgress(progress) {
+    if (this.onProgress) {
+      this.onProgress({
+        current: 0,
+        total: 0,
+        status: "preparing",
+        ...progress
+      });
+    }
+  }
+  /**
+   * 按 UserCollection 列表同步条目
+   * 用于控制面板选中同步功能，保留用户数据（评分、状态、短评等）
+   */
+  async syncByCollections(collections, options, onProgress) {
+    var _a, _b;
+    const startTime = Date.now();
+    let wasCancelled = false;
+    const result = this.createSyncResult(collections.length);
+    const overwrite = (_a = options == null ? void 0 : options.overwrite) != null ? _a : false;
+    const localPropertyValuesBySubjectId = options == null ? void 0 : options.localPropertyValuesBySubjectId;
+    const concurrency = (_b = options == null ? void 0 : options.concurrency) != null ? _b : 3;
+    try {
+      console.debug(`[Bangumi Sync] \u5F00\u59CB\u6309\u6536\u85CF\u5217\u8868\u540C\u6B65 ${collections.length} \u4E2A\u6761\u76EE\uFF0C\u8986\u76D6\u6A21\u5F0F: ${overwrite}\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
+      this.incrementalSync.startBatch();
+      const batch = await this.prepareCollectionBatch(collections, concurrency);
+      const execution = await this.executePreparedCollectionBatch(
+        batch,
+        concurrency,
+        result,
+        (prepared) => ({
+          overwrite,
+          preserveUserDataOnOverwrite: true,
+          localPropertyValues: localPropertyValuesBySubjectId == null ? void 0 : localPropertyValuesBySubjectId.get(prepared.collection.subject_id)
+        }),
+        (_prepared, index) => {
+          onProgress == null ? void 0 : onProgress(index + 1, collections.length, `\u6B63\u5728\u540C\u6B65\u6761\u76EE ${index + 1}/${collections.length}`);
+          this.reportProgress({ status: "processing", current: index + 1, total: collections.length, message: `\u540C\u6B65\u6761\u76EE... (${index + 1}/${collections.length})` });
+        }
+      );
+      wasCancelled = execution.wasCancelled;
+      const batchRelations = execution.relations;
+      if (batchRelations.length > 1) {
+        await this.postProcessBatchRelations(batchRelations);
+      }
+      this.finalizeSyncResult(result, wasCancelled);
+      if (!wasCancelled) {
+        this.reportProgress({ status: "completed", message: tn("notices", "syncComplete") });
+      } else {
+        this.reportProgress({ status: "error", message: tn("notices", "syncCancelled") });
+      }
+    } catch (error) {
+      console.error("[Bangumi Sync] \u6309\u6536\u85CF\u5217\u8868\u540C\u6B65\u5931\u8D25:", error);
+      this.reportProgress({ status: "error", message: String(error) });
+    }
+    result.duration = Date.now() - startTime;
+    return this.createSyncResultWithRollback(result, wasCancelled);
+  }
+  /**
+   * 重置同步状态
+   */
+  resetSyncState() {
+    this.incrementalSync.clear();
+  }
+  /**
+   * 准备同步：获取数据并计算差异，返回预览数据
+   * 用于手动同步模式，在显示预览弹窗前调用
+   */
+  async prepareSync(options) {
+    try {
+      const { diff } = await this.prepareSyncData(options);
+      const previewItems = diff.toAdd.map((collection) => ({
+        id: collection.subject_id,
+        name_cn: collection.subject.name_cn || "",
+        name: collection.subject.name || "",
+        type: collection.subject_type,
+        typeLabel: getTypeLabel(collection.subject_type),
+        rating: collection.subject.score || 0,
+        my_rate: collection.rate,
+        collection,
+        selected: true
+      }));
+      return {
+        success: true,
+        previewItems,
+        skipped: diff.toSkip.length
+      };
+    } catch (error) {
+      console.error("[Bangumi Sync] \u51C6\u5907\u540C\u6B65\u5931\u8D25:", error);
+      this.reportProgress({ status: "error", message: String(error) });
+      return {
+        success: false,
+        skipped: 0,
+        error: String(error)
+      };
+    }
+  }
+  /**
+   * 执行同步：根据预览数据执行实际导入
+   * 用于手动同步模式，在用户确认后调用
+   */
+  async executeSync(previewItems, action, localPropertyResult, concurrency = 3) {
+    const startTime = Date.now();
+    let wasCancelled = false;
+    const result = this.createSyncResult();
+    try {
+      let itemsToSync;
+      if (action === "all") {
+        itemsToSync = previewItems;
+      } else if (action === "selected") {
+        itemsToSync = previewItems.filter((item) => item.selected);
+      } else {
+        itemsToSync = previewItems.filter((item) => !item.selected);
+      }
+      result.total = itemsToSync.length;
+      console.debug(`[Bangumi Sync] \u5F00\u59CB\u540C\u6B65 ${itemsToSync.length} \u4E2A\u6761\u76EE\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
+      this.incrementalSync.startBatch();
+      const batch = await this.prepareCollectionBatch(
+        itemsToSync.map((item) => item.collection),
+        concurrency
+      );
+      const execution = await this.executePreparedCollectionBatch(
+        batch,
+        concurrency,
+        result,
+        (prepared) => {
+          var _a;
+          return {
+            overwrite: false,
+            preserveUserDataOnOverwrite: false,
+            localPropertyValues: (_a = localPropertyResult == null ? void 0 : localPropertyResult.propertyValuesBySubjectId) == null ? void 0 : _a.get(prepared.collection.subject_id)
+          };
+        },
+        (prepared, index) => this.reportProgress({
+          status: "processing",
+          current: index + 1,
+          total: itemsToSync.length,
+          currentItem: prepared.collection.subject.name_cn || prepared.collection.subject.name,
+          message: `\u5904\u7406\u6761\u76EE... (${index + 1}/${itemsToSync.length})`
+        })
+      );
+      wasCancelled = execution.wasCancelled;
+      const batchRelations = execution.relations;
+      if (batchRelations.length > 1) {
+        await this.postProcessBatchRelations(batchRelations);
+      }
+      this.finalizeSyncResult(result, wasCancelled);
+      if (!wasCancelled) {
+        this.reportProgress({ status: "completed", message: tn("notices", "syncComplete") });
+      } else {
+        this.reportProgress({ status: "error", message: tn("notices", "syncCancelled") });
+      }
+    } catch (error) {
+      console.error("[Bangumi Sync] \u6267\u884C\u540C\u6B65\u5931\u8D25:", error);
+      this.reportProgress({ status: "error", message: error instanceof Error ? error.message : String(error) });
+      new import_obsidian11.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    result.duration = Date.now() - startTime;
+    return this.createSyncResultWithRollback(result, wasCancelled);
+  }
+  /**
+   * 处理单个收藏条目
+   * 统一处理：获取详情、生成内容、写入文件、更新双向链接
+   */
+  async renderCollection(collection, options, prepared) {
+    var _a, _b;
+    console.debug(`[Bangumi Sync] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
+    const { subject, characters: relatedCharacters, relations, persons } = prepared.fullInfo;
+    console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
+    const characters = parseCharacters(relatedCharacters, 9);
+    const typeLabel = getTypeLabel(subject.type);
+    const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
+    const filePath = prepared.allocation.finalPath;
+    const episodeData = await this.fetchEpisodeData(subject);
+    let extraTemplateVars;
+    if (options.localPropertyValues || options.overwrite) {
+      const templateProperties = getTemplatePropertyGroupsForSubject(subject, this.config.customTemplates).customProperties;
+      extraTemplateVars = buildExtraTemplateVarsFromPropertyValues(templateProperties, options.localPropertyValues);
+    }
+    const relatedLinks = this.config.enableRelatedLinks !== false ? this.generateRelatedLinks(relations) : [];
+    let content = generateContentByType(
+      subject,
+      collection,
+      characters,
+      this.config.customTemplates,
+      void 0,
+      episodeData == null ? void 0 : episodeData.episodes,
+      episodeData == null ? void 0 : episodeData.userStatus,
+      this.config.notePathTemplate,
+      this.config.coverLinkType,
+      localCoverPath,
+      relatedLinks,
+      extraTemplateVars,
+      persons
+    );
+    const explicitLocalPropertyValues = options.localPropertyValues && Object.keys(options.localPropertyValues).length > 0 ? options.localPropertyValues : void 0;
+    if (explicitLocalPropertyValues) {
+      content = applyNamedPropertyValuesToContent(content, explicitLocalPropertyValues);
+    }
+    if (options.preserveUserDataOnOverwrite) {
+      const existingPath = (_a = prepared.allocation.renameFrom) != null ? _a : filePath;
+      const existingFile = await this.fileManager.assertPathOwnership(existingPath, subject.id);
+      if (existingFile) {
+        const localUserData = await this.userDataExtractor.extractFromFileAsync(existingFile);
+        if (localUserData) {
+          const dataProtection = this.config.dataProtection || DEFAULT_DATA_PROTECTION_SETTINGS;
+          content = this.userDataMerger.mergeUserData(existingFile, content, localUserData, dataProtection);
+          console.debug(`[Bangumi Sync] \u5DF2\u4FDD\u62A4\u7528\u6237\u6570\u636E: ${localUserData.identifier.name_cn}`);
+        }
+      }
+      if (explicitLocalPropertyValues) {
+        content = applyNamedPropertyValuesToContent(content, explicitLocalPropertyValues);
+      }
+    }
+    const fileExisted = this.fileManager.getFile((_b = prepared.allocation.renameFrom) != null ? _b : filePath) !== null;
+    const shouldOverwrite = options.overwrite || options.preserveUserDataOnOverwrite && fileExisted;
+    return { prepared, subject, filePath, content, fileExisted, shouldOverwrite, relations };
+  }
+  async writeRenderedCollection(rendered) {
+    const { subject, filePath, content, fileExisted, shouldOverwrite, relations } = rendered;
+    const writeOptions = { overwrite: shouldOverwrite, subjectId: subject.id };
+    const writeResult = this.activeTransaction ? await this.activeTransaction.createOrUpdateFile(filePath, content, writeOptions) : await this.fileManager.createOrUpdateFile(filePath, content, writeOptions);
+    console.debug(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
+    this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name, !fileExisted);
+    if (this.config.enableRelatedLinks !== false && relations && relations.length > 0) {
+      await this.updateRelatedItemsBidirectional(subject.id, filePath, subject.name_cn || subject.name, relations);
+    }
+    return { subjectId: subject.id, filePath, relations, writeStatus: writeResult.status };
+  }
+  /**
+   * 更新已同步相关条目的链接（双向链接）
+   * 批量处理：先收集所有需要更新的关联关系，按目标文件分组，每个文件只读写一次
+   */
+  async updateRelatedItemsBidirectional(currentId, currentPath, currentName, relations) {
+    var _a;
+    const displayName = this.extractDisplayNameFromPath(currentPath);
+    const currentLink = `[[${currentPath}|${displayName}]]`;
+    const updatesByFile = /* @__PURE__ */ new Map();
+    for (const relation of relations) {
+      const relatedPath = this.resolveRelatedLocalPath(relation.id);
+      if (relatedPath) {
+        const existing = (_a = updatesByFile.get(relatedPath)) != null ? _a : { subjectId: relation.id, links: [] };
+        existing.links.push(currentLink);
+        updatesByFile.set(relatedPath, existing);
+      }
+    }
+    for (const [path, update] of updatesByFile) {
+      try {
+        await this.updateRelatedFile(path, update.subjectId, update.links);
+      } catch (error) {
+        console.error(`[Bangumi Sync] \u66F4\u65B0\u76F8\u5173\u6761\u76EE\u94FE\u63A5\u5931\u8D25: ${path}`, error);
+      }
+    }
+  }
+  /**
+   * 后处理同批次相关条目的双向链接
+   * 解决并发同步时相关条目互相检测不到的问题
+   * 按目标文件分组，每个文件只读写一次
+   */
+  async postProcessBatchRelations(batchItems) {
+    var _a, _b;
+    if (this.config.enableRelatedLinks === false)
+      return;
+    const batchSubjectIds = new Set(batchItems.map((item) => item.subjectId));
+    const updatesByFile = /* @__PURE__ */ new Map();
+    for (const item of batchItems) {
+      const batchRelations = item.relations.filter((r) => batchSubjectIds.has(r.id));
+      if (batchRelations.length === 0)
+        continue;
+      const currentDisplayName = this.extractDisplayNameFromPath(item.filePath);
+      const currentLink = `[[${item.filePath}|${currentDisplayName}]]`;
+      for (const relation of batchRelations) {
+        const relatedPath = this.resolveRelatedLocalPath(relation.id);
+        if (!relatedPath)
+          continue;
+        const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
+        const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
+        const existing1 = (_a = updatesByFile.get(item.filePath)) != null ? _a : { subjectId: item.subjectId, links: [] };
+        existing1.links.push(relatedLink);
+        updatesByFile.set(item.filePath, existing1);
+        const existing2 = (_b = updatesByFile.get(relatedPath)) != null ? _b : { subjectId: relation.id, links: [] };
+        existing2.links.push(currentLink);
+        updatesByFile.set(relatedPath, existing2);
+      }
+    }
+    if (updatesByFile.size === 0)
+      return;
+    console.debug(`[Bangumi Sync] \u540E\u5904\u7406\u540C\u6279\u6B21\u76F8\u5173\u94FE\u63A5: ${updatesByFile.size} \u4E2A\u6587\u4EF6\u9700\u8981\u66F4\u65B0`);
+    for (const [path, update] of updatesByFile) {
+      try {
+        await this.updateRelatedFile(path, update.subjectId, update.links);
+      } catch (error) {
+        console.error(`[Bangumi Sync] \u540E\u5904\u7406\u66F4\u65B0\u76F8\u5173\u94FE\u63A5\u5931\u8D25: ${path}`, error);
+      }
+    }
+  }
+  async updateRelatedFile(path, subjectId, links) {
+    const file = await this.fileManager.assertPathOwnership(path, subjectId);
+    if (!file)
+      return;
+    const content = await this.app.vault.read(file);
+    const updatedContent = this.incrementalSync.updateRelated(content, links);
+    if (updatedContent === content)
+      return;
+    if (this.activeTransaction) {
+      await this.activeTransaction.createOrUpdateFile(path, updatedContent, { overwrite: true, subjectId });
+    } else {
+      await this.app.vault.process(file, () => updatedContent);
+    }
+    console.debug(`[Bangumi Sync] \u5DF2\u66F4\u65B0\u76F8\u5173\u94FE\u63A5: ${path} (+${links.length})`);
+  }
+  /**
+   * 同步单个条目（用于搜索功能）
+   * @param subjectId 条目 ID
+   * @param input 用户输入的收藏信息
+   * @returns 是否成功
+   */
+  async syncSingleSubject(subjectId, input) {
+    var _a, _b, _c, _d, _e, _f;
+    try {
+      if (input.syncToCloud) {
+        await this.client.createOrUpdateCollection(subjectId, {
+          type: input.type,
+          rate: input.rate,
+          comment: input.comment,
+          tags: input.tags,
+          private: input.private
+        });
+        console.debug(`[Bangumi Sync] \u5DF2\u540C\u6B65\u5230\u4E91\u7AEF: ${subjectId}`);
+      }
+      if (input.createLocal) {
+        const subject = await this.client.getSubject(subjectId);
+        const collection = {
+          subject_id: subject.id,
+          subject_type: subject.type,
+          type: input.type,
+          rate: input.rate,
+          comment: input.comment,
+          tags: input.tags,
+          private: input.private,
+          ep_status: 0,
+          vol_status: 0,
+          updated_at: new Date().toISOString(),
+          subject: {
+            id: subject.id,
+            type: subject.type,
+            name: subject.name,
+            name_cn: subject.name_cn,
+            short_summary: ((_a = subject.summary) == null ? void 0 : _a.substring(0, 100)) || "",
+            date: subject.date,
+            images: subject.images,
+            volumes: subject.volumes,
+            eps: subject.eps,
+            collection_total: ((_b = subject.collection) == null ? void 0 : _b.collect) || 0,
+            score: ((_c = subject.rating) == null ? void 0 : _c.score) || 0,
+            rank: ((_d = subject.rating) == null ? void 0 : _d.rank) || 0,
+            tags: subject.tags
+          }
+        };
+        const localProperties = input.localPropertyValues ? /* @__PURE__ */ new Map([[subjectId, input.localPropertyValues]]) : void 0;
+        const result = await this.syncByCollections([collection], {
+          overwrite: false,
+          localPropertyValuesBySubjectId: localProperties,
+          concurrency: 1
+        });
+        const outcome = result.outcomes.find((item) => item.subjectId === subjectId);
+        if (!outcome || !["created", "updated", "unchanged"].includes(outcome.writeAction)) {
+          return { success: false, error: (_f = (_e = outcome == null ? void 0 : outcome.error) != null ? _e : result.errorDetails[0]) != null ? _f : "Local sync failed." };
+        }
+        return {
+          success: true,
+          filePath: outcome.actualPath,
+          writeStatus: outcome.writeAction
+        };
+      }
+      return { success: true };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[Bangumi Sync] \u540C\u6B65\u5355\u4E2A\u6761\u76EE\u5931\u8D25:`, error);
+      return { success: false, error: errorMsg };
+    }
+  }
+  /**
+   * 批量下载封面图片并替换链接
+   * 扫描所有本地条目，将网络封面下载到本地，并替换 frontmatter 和正文中的链接
+   */
+  async batchDownloadCovers() {
+    const scanPath = this.config.scanFolderPath || "ACGN";
+    await this.incrementalSync.scanLocalFolder(scanPath);
+    const localSubjects = this.incrementalSync.getLocalSubjects();
+    const result = { downloaded: 0, skipped: 0, failed: 0 };
+    let processed = 0;
+    for (const [subjectId, info] of localSubjects) {
+      processed++;
+      this.reportProgress({
+        status: "processing",
+        current: processed,
+        total: localSubjects.size,
+        currentItem: info.name_cn || String(subjectId)
+      });
+      try {
+        const file = this.app.vault.getAbstractFileByPath(info.path);
+        if (!(file instanceof import_obsidian11.TFile)) {
+          result.skipped++;
+          continue;
+        }
+        const content = await this.app.vault.read(file);
+        const coverValue = this.extractCoverValue(content);
+        if (!coverValue || !coverValue.startsWith("http")) {
+          result.skipped++;
+          continue;
+        }
+        const name_cn = this.extractFrontmatterString(content, "\u4E2D\u6587\u540D") || info.name_cn;
+        const name = this.extractFrontmatterString(content, "\u539F\u540D") || "";
+        const typeLabel = this.extractFrontmatterString(content, "\u4F5C\u54C1\u5927\u7C7B") || "";
+        const localPath = await this.imageHandler.downloadCover(
+          coverValue,
+          subjectId,
+          this.config.imagePathTemplate,
+          { name_cn, name, typeLabel }
+        );
+        if (!localPath || localPath.startsWith("http")) {
+          result.failed++;
+          continue;
+        }
+        let updatedContent = this.replaceCoverInFrontmatter(content, localPath);
+        updatedContent = this.replaceCoverInBody(updatedContent, localPath);
+        await this.app.vault.process(file, () => updatedContent);
+        result.downloaded++;
+        console.debug(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5B8C\u6210: ${info.name_cn} -> ${localPath}`);
+      } catch (error) {
+        console.error(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5931\u8D25: ${info.name_cn}`, error);
+        result.failed++;
+      }
+    }
+    this.reportProgress({
+      status: "completed",
+      message: tnFormat("notices", "coverDownloadComplete", {
+        downloaded: result.downloaded,
+        skipped: result.skipped,
+        failed: result.failed
+      })
+    });
+    return result;
+  }
+  /**
+   * 扫描所有本地已同步条目，为相关条目补充双向链接
+   * 使用并查集查找连通分量，确保同系列所有条目互相关联
+   */
+  async scanAndLinkRelated() {
+    const scanPath = this.config.scanFolderPath || "ACGN";
+    console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u6761\u76EE\uFF0CscanFolderPath: "${this.config.scanFolderPath}"\uFF0C\u5B9E\u9645\u626B\u63CF\u8DEF\u5F84: "${scanPath}"\uFF0CpathTemplate: "${this.config.pathTemplate}"`);
+    await this.incrementalSync.scanLocalFolder(scanPath);
+    const localSubjects = this.incrementalSync.getLocalSubjects();
+    console.debug(`[Bangumi Sync] \u626B\u63CF\u5230 ${localSubjects.size} \u4E2A\u672C\u5730\u6761\u76EE`);
+    if (localSubjects.size === 0) {
+      console.warn(`[Bangumi Sync] \u672A\u626B\u63CF\u5230\u4EFB\u4F55\u672C\u5730\u6761\u76EE\uFF0C\u626B\u63CF\u8DEF\u5F84: "${scanPath}"`);
+    }
+    const allIds = [...localSubjects.keys()];
+    console.debug(`[Bangumi Sync] \u672C\u5730\u6761\u76EE ID: ${allIds.join(", ")}`);
+    const result = { checked: localSubjects.size, linked: 0, skipped: 0, failed: 0, details: [] };
+    let processed = 0;
+    const localPathMap = /* @__PURE__ */ new Map();
+    for (const [id, info] of localSubjects) {
+      if (info.path) {
+        localPathMap.set(id, info.path);
+      }
+    }
+    const parent = /* @__PURE__ */ new Map();
+    const find = (x) => {
+      if (!parent.has(x))
+        parent.set(x, x);
+      if (parent.get(x) !== x)
+        parent.set(x, find(parent.get(x)));
+      return parent.get(x);
+    };
+    const union = (a, b) => {
+      const ra = find(a), rb = find(b);
+      if (ra !== rb)
+        parent.set(ra, rb);
+    };
+    const localRelationMap = /* @__PURE__ */ new Map();
+    for (const [subjectId, info] of localSubjects) {
+      processed++;
+      this.reportProgress({
+        status: "scanning",
+        current: processed,
+        total: localSubjects.size,
+        currentItem: info.name_cn || String(subjectId)
+      });
+      try {
+        const relations = await this.client.getSubjectRelations(subjectId);
+        console.debug(`[Bangumi Sync] [${processed}/${localSubjects.size}] ${info.name_cn || subjectId} (ID:${subjectId}): ${relations.length} \u4E2A\u5173\u8054`);
+        const localRelatedIds = [];
+        for (const relation of relations) {
+          if (!localPathMap.has(relation.id) || relation.id === subjectId)
+            continue;
+          localRelatedIds.push(relation.id);
+          union(subjectId, relation.id);
+        }
+        localRelationMap.set(subjectId, localRelatedIds);
+        if (localRelatedIds.length > 0) {
+          console.debug(`[Bangumi Sync]   \u672C\u5730\u5173\u8054: ${localRelatedIds.join(", ")}`);
+        }
+      } catch (error) {
+        console.warn(`[Bangumi Sync] \u83B7\u53D6\u5173\u8054\u5173\u7CFB\u5931\u8D25: ${info.name_cn} (${subjectId})`, error);
+        result.failed++;
+        localRelationMap.set(subjectId, []);
+      }
+    }
+    const components = /* @__PURE__ */ new Map();
+    for (const subjectId of localSubjects.keys()) {
+      const root = find(subjectId);
+      if (!components.has(root))
+        components.set(root, []);
+      components.get(root).push(subjectId);
+    }
+    const multiComponents = [...components.entries()].filter(([, ids]) => ids.length >= 2);
+    console.debug(`[Bangumi Sync] \u8FDE\u901A\u5206\u91CF: ${components.size} \u7EC4\uFF0C\u5176\u4E2D ${multiComponents.length} \u7EC4\u542B 2+ \u6761\u76EE`);
+    for (const [root, ids] of multiComponents) {
+      console.debug(`[Bangumi Sync] \u5206\u91CF (root:${root}): ${ids.map((id) => {
+        var _a;
+        return `${((_a = localSubjects.get(id)) == null ? void 0 : _a.name_cn) || id}(${id})`;
+      }).join(", ")}`);
+    }
+    const updatesByFile = /* @__PURE__ */ new Map();
+    let alreadyCorrect = 0;
+    for (const [, componentIds] of multiComponents) {
+      const allLinks = [];
+      for (const id of componentIds) {
+        const info = localSubjects.get(id);
+        if (!(info == null ? void 0 : info.path))
+          continue;
+        const displayName = this.extractDisplayNameFromPath(info.path);
+        allLinks.push({ subjectId: id, link: `[[${info.path}|${displayName}]]` });
+      }
+      for (const id of componentIds) {
+        const info = localSubjects.get(id);
+        if (!(info == null ? void 0 : info.path))
+          continue;
+        const existingRelated = localRelationMap.get(id) || [];
+        const existingSet = new Set(existingRelated);
+        const missingLinks = [];
+        for (const { subjectId: otherId, link } of allLinks) {
+          if (otherId === id)
+            continue;
+          if (!existingSet.has(otherId)) {
+            missingLinks.push(link);
+          }
+        }
+        if (missingLinks.length > 0) {
+          updatesByFile.set(info.path, missingLinks);
+          console.debug(`[Bangumi Sync] ${info.name_cn || id}: \u8865\u5145 ${missingLinks.length} \u4E2A\u94FE\u63A5`);
+        } else {
+          alreadyCorrect++;
+        }
+      }
+    }
+    result.skipped = alreadyCorrect;
+    console.debug(`[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u9700\u8981\u66F4\u65B0 ${updatesByFile.size} \u4E2A\u6587\u4EF6`);
+    for (const [path, links] of updatesByFile) {
+      try {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (!(file instanceof import_obsidian11.TFile)) {
+          console.warn(`[Bangumi Sync] \u6587\u4EF6\u4E0D\u5B58\u5728\u6216\u975E TFile: ${path}`);
+          result.failed++;
+          continue;
+        }
+        const content = await this.app.vault.read(file);
+        const updatedContent = this.incrementalSync.updateRelated(content, links);
+        if (updatedContent !== content) {
+          await this.app.vault.process(file, () => updatedContent);
+          result.linked++;
+          const name = this.extractFrontmatterString(content, "\u4E2D\u6587\u540D") || file.basename;
+          const addedNames = links.map((link) => {
+            const match = link.match(/\[\[.*?\|(.+?)\]\]/);
+            return match ? match[1] : link;
+          });
+          result.details.push({ name, addedLinks: addedNames });
+          console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u66F4\u65B0: ${path} (+${links.length})`);
+        } else {
+          console.debug(`[Bangumi Sync] \u6587\u4EF6\u65E0\u9700\u66F4\u65B0\uFF08\u94FE\u63A5\u5DF2\u5B58\u5728\uFF09: ${path}`);
+          result.skipped++;
+        }
+      } catch (error) {
+        console.error(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u66F4\u65B0\u5931\u8D25: ${path}`, error);
+        result.failed++;
+      }
+    }
+    this.reportProgress({
+      status: "completed",
+      message: `\u5173\u8054\u5B8C\u6210: \u68C0\u67E5 ${result.checked} \u4E2A\u6761\u76EE\uFF0C\u66F4\u65B0 ${result.linked} \u4E2A\uFF0C\u8DF3\u8FC7 ${result.skipped} \u4E2A\uFF0C\u5931\u8D25 ${result.failed} \u4E2A`
+    });
+    return result;
+  }
+  /**
+   * 从 frontmatter 提取封面值
+   */
+  extractCoverValue(content) {
+    const match = content.match(/^---\n[\s\S]*?\n封面:\s*"?([^"\n]+)"?/);
+    return match ? match[1].trim() : "";
+  }
+  /**
+   * 从 frontmatter 提取字符串值
+   */
+  extractFrontmatterString(content, key) {
+    const regex = new RegExp(`^---\\n[\\s\\S]*?\\n${key}:\\s*"?([^"\\n]+)"?`);
+    const match = content.match(regex);
+    return match ? match[1].trim() : "";
+  }
+  /**
+   * 替换 frontmatter 中的封面值
+   */
+  replaceCoverInFrontmatter(content, localPath) {
+    const coverRegex = /^(---\n[\s\S]*?\n封面:\s*)"?[^"\n]+"?/m;
+    return content.replace(coverRegex, `$1"${localPath}"`);
+  }
+  /**
+   * 替换正文中的封面图片链接
+   */
+  replaceCoverInBody(content, localPath) {
+    const imgRegex = /!\[cover\|[^\]]*\]\(https?:\/\/[^)]+\)/g;
+    return content.replace(imgRegex, `![cover|400](${localPath})`);
+  }
+};
+
+// src/ui/syncModal.ts
+var import_obsidian12 = require("obsidian");
+var SyncModal = class extends import_obsidian12.Modal {
+  constructor(app, cancellationSignal) {
+    super(app);
+    this.progressBar = null;
+    this.statusText = null;
+    this.actionsEl = null;
+    this.pauseBtn = null;
+    this.cancelBtn = null;
+    this.completedEl = null;
+    this.onCancelled = null;
+    this.isCompleted = false;
+    this.cancellationSignal = cancellationSignal;
+    this.progress = {
+      current: 0,
+      total: 0,
+      status: "preparing"
+    };
+  }
+  onOpen() {
+    const { contentEl } = this;
+    new import_obsidian12.Setting(contentEl).setName(tn("syncModal", "title")).setHeading();
+    this.progressBar = contentEl.createDiv({ cls: "bangumi-progress-bar" });
+    this.progressBar.createEl("div", { cls: "bangumi-progress-fill" });
+    this.statusText = contentEl.createDiv({ cls: "bangumi-sync-status" });
+    this.updateStatus(tn("syncModal", "preparing"));
+    this.actionsEl = contentEl.createDiv({ cls: "bangumi-sync-actions" });
+    this.pauseBtn = this.actionsEl.createEl("button", {
+      cls: "bangumi-sync-pause-btn bangumi-action-btn",
+      text: tn("syncModal", "pause")
+    });
+    this.pauseBtn.addEventListener("click", () => this.togglePause());
+    this.cancelBtn = this.actionsEl.createEl("button", {
+      cls: "bangumi-sync-cancel-btn bangumi-action-btn",
+      text: tn("syncModal", "cancel")
+    });
+    this.cancelBtn.addEventListener("click", () => void this.handleCancel());
+    this.completedEl = contentEl.createDiv({ cls: "bangumi-sync-completed bangumi-hidden" });
+  }
+  onClose() {
+    if (!this.isCompleted) {
+      this.contentEl.empty();
+    }
+  }
+  /**
+   * 切换暂停/恢复
+   */
+  togglePause() {
+    var _a, _b;
+    if (this.cancellationSignal.paused) {
+      this.cancellationSignal.resume();
+      if (this.pauseBtn) {
+        this.pauseBtn.setText(tn("syncModal", "pause"));
+      }
+      (_a = this.progressBar) == null ? void 0 : _a.removeClass("bangumi-sync-paused");
+      this.updateStatus(tn("syncModal", "processing"));
+    } else {
+      this.cancellationSignal.pause();
+      if (this.pauseBtn) {
+        this.pauseBtn.setText(tn("syncModal", "resume"));
+      }
+      (_b = this.progressBar) == null ? void 0 : _b.addClass("bangumi-sync-paused");
+      this.updateStatus(tn("syncModal", "paused"));
+    }
+  }
+  /**
+   * 处理取消
+   */
+  handleCancel() {
+    this.cancellationSignal.cancel();
+    if (this.pauseBtn) {
+      this.pauseBtn.disabled = true;
+    }
+    if (this.cancelBtn) {
+      this.cancelBtn.disabled = true;
+      this.cancelBtn.setText(tn("syncModal", "cancel") + "...");
+    }
+    this.updateStatus(tn("notices", "syncCancelled"));
+  }
+  /**
+   * 设置回滚回调
+   */
+  setRollbackHandler(handler) {
+    this.onCancelled = handler;
+  }
+  /**
+   * 更新进度
+   */
+  updateProgress(progress) {
+    if (this.isCompleted)
+      return;
+    this.progress = progress;
+    if (this.progressBar && progress.total > 0) {
+      const percent = Math.floor(progress.current / progress.total * 100);
+      const fill = this.progressBar.querySelector(".bangumi-progress-fill");
+      if (fill) {
+        fill.setCssProps({ "--bangumi-progress-width": `${percent}%` });
+      }
+    }
+    if (!this.cancellationSignal.paused && progress.message) {
+      this.updateStatus(progress.message);
+    }
+  }
+  /**
+   * 显示同步完成状态
+   */
+  showCompleted(result) {
+    this.isCompleted = true;
+    if (this.actionsEl) {
+      this.actionsEl.addClass("bangumi-hidden");
+    }
+    if (this.completedEl) {
+      this.completedEl.removeClass("bangumi-hidden");
+      this.completedEl.empty();
+      const statsText = tnFormat("syncModal", "detailedStats", {
+        created: result.created,
+        updated: result.updated,
+        unchanged: result.unchanged,
+        renamed: result.renamed,
+        collisionResolved: result.collisionResolved,
+        skipped: result.skipped,
+        failed: result.failed
+      });
+      this.completedEl.createEl("p", { text: statsText, cls: "bangumi-sync-stats" });
+      if (result.rollback) {
+        this.completedEl.createEl("p", {
+          text: result.rollback.failed > 0 ? `${tn("syncModal", "rollbackFailed")}: ${result.rollback.failed}` : tnFormat("syncModal", "rollbackComplete", {
+            deleted: result.rollback.deletedCreatedFiles,
+            failed: result.rollback.failed
+          }),
+          cls: result.rollback.failed > 0 ? "bangumi-sync-error" : "bangumi-sync-stats"
+        });
+      }
+      if (result.errorDetails.length > 0) {
+        const detailsEl = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details" });
+        detailsEl.createEl("summary", {
+          text: `${tn("syncModal", "errorDetails")} (${result.errorDetails.length})`
+        });
+        const listEl = detailsEl.createEl("ul", { cls: "bangumi-sync-error-list" });
+        for (const detail of result.errorDetails) {
+          listEl.createEl("li", { text: detail });
+        }
+      }
+      if (result.wasCancelled && result.canRollback) {
+        this.completedEl.createEl("p", {
+          text: tn("syncModal", "rollbackAvailable"),
+          cls: "bangumi-sync-cancelled-info"
+        });
+        const rollbackBtn = this.completedEl.createEl("button", {
+          cls: "bangumi-rollback-btn mod-warning",
+          text: tn("syncModal", "rollback")
+        });
+        rollbackBtn.addEventListener("click", () => void (async () => {
+          rollbackBtn.disabled = true;
+          rollbackBtn.setText("...");
+          if (this.onCancelled) {
+            const rollbackResult = await this.onCancelled();
+            rollbackBtn.setText(tnFormat("syncModal", "rollbackComplete", {
+              deleted: rollbackResult.deletedCreatedFiles,
+              failed: rollbackResult.failed
+            }));
+          }
+        })());
+      }
+      const closeBtn = this.completedEl.createEl("button", {
+        cls: "bangumi-sync-close-btn mod-cta",
+        text: tn("syncModal", "completed")
+      });
+      closeBtn.addEventListener("click", () => this.close());
+    }
+    if (this.progressBar) {
+      this.progressBar.addClass("bangumi-progress-complete");
+    }
+    if (this.statusText) {
+      if (result.wasCancelled) {
+        this.updateStatus(tn("notices", "syncCancelled"));
+      } else if (result.completion === "partial-success") {
+        this.updateStatus(tn("syncModal", "partialSuccess"));
+      } else if (result.completion === "rollback-failed") {
+        this.updateStatus(tn("syncModal", "rollbackFailed"));
+      } else if (result.completion === "failed") {
+        this.updateStatus(tn("notices", "syncFailed"));
+      } else {
+        this.updateStatus(tn("syncModal", "completed"));
+      }
+    }
+  }
+  /**
+   * 显示扫描完成状态
+   */
+  showScanCompleted(checked, linked, skipped, failed, details) {
+    this.isCompleted = true;
+    if (this.actionsEl) {
+      this.actionsEl.addClass("bangumi-hidden");
+    }
+    if (this.completedEl) {
+      this.completedEl.removeClass("bangumi-hidden");
+      this.completedEl.empty();
+      this.completedEl.createEl("p", {
+        text: tnFormat("syncModal", "scanCompletedStats", {
+          checked,
+          linked,
+          skipped,
+          failed
+        }),
+        cls: "bangumi-sync-stats"
+      });
+      if (details && details.length > 0) {
+        const detailsEl = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details" });
+        detailsEl.createEl("summary", { text: `${tn("syncModal", "updateDetails")} (${details.length})` });
+        const listEl = detailsEl.createEl("ul", { cls: "bangumi-sync-error-list" });
+        for (const item of details) {
+          listEl.createEl("li", {
+            text: `${item.name} \u2192 \u65B0\u589E: ${item.addedLinks.join("\u3001")}`
+          });
+        }
+      }
+      const closeBtn = this.completedEl.createEl("button", {
+        cls: "bangumi-sync-close-btn mod-cta",
+        text: tn("syncModal", "completed")
+      });
+      closeBtn.addEventListener("click", () => this.close());
+    }
+    if (this.progressBar) {
+      this.progressBar.addClass("bangumi-progress-complete");
+    }
+    if (this.statusText) {
+      this.updateStatus(tn("syncModal", "scanCompleted"));
+    }
+  }
+  /**
+   * 更新状态文本
+   */
+  updateStatus(text) {
+    if (this.statusText) {
+      this.statusText.setText(text);
+    }
+  }
+};
+
+// src/ui/syncOptionsModal.ts
+var import_obsidian13 = require("obsidian");
+var SyncOptionsModal = class extends import_obsidian13.Modal {
+  constructor(app, defaultOptions, onSave) {
+    super(app);
+    this.options = defaultOptions;
+    this.onSave = onSave;
+    this.selectedSubjectTypes = new Set(defaultOptions.subjectTypes);
+    this.selectedCollectionTypes = new Set(defaultOptions.collectionTypes);
+    this.limitValue = defaultOptions.limit;
+    this.forceValue = defaultOptions.force;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "title")).setHeading();
+    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "subjectTypes")).setHeading();
+    const subjectTypesDiv = contentEl.createDiv({ cls: "bangumi-checkbox-group" });
+    const subjectTypes = [
+      2 /* Anime */,
+      4 /* Game */,
+      1 /* Book */,
+      3 /* Music */,
+      6 /* Real */
+    ];
+    subjectTypes.forEach((type) => {
+      const label = subjectTypesDiv.createEl("label", { cls: "bangumi-checkbox-label" });
+      const checkbox = label.createEl("input", { type: "checkbox" });
+      checkbox.checked = this.selectedSubjectTypes.has(type);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) {
+          this.selectedSubjectTypes.add(type);
+        } else {
+          this.selectedSubjectTypes.delete(type);
+        }
+      });
+      label.createSpan({ text: getSubjectTypeName(type) });
+    });
+    const subjectQuickDiv = contentEl.createDiv({ cls: "bangumi-quick-select" });
+    subjectQuickDiv.createEl("button", { text: tn("syncOptions", "selectAll"), cls: "bangumi-quick-btn" }, (btn) => {
+      btn.addEventListener("click", () => {
+        subjectTypes.forEach((t2) => this.selectedSubjectTypes.add(t2));
+        this.redraw();
+      });
+    });
+    subjectQuickDiv.createEl("button", { text: tn("syncOptions", "deselectAll"), cls: "bangumi-quick-btn" }, (btn) => {
+      btn.addEventListener("click", () => {
+        this.selectedSubjectTypes.clear();
+        this.redraw();
+      });
+    });
+    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "collectionTypes")).setHeading();
+    const collectionTypesDiv = contentEl.createDiv({ cls: "bangumi-checkbox-group" });
+    const collectionTypes = [
+      1 /* Wish */,
+      3 /* Doing */,
+      2 /* Done */,
+      4 /* OnHold */,
+      5 /* Dropped */
+    ];
+    collectionTypes.forEach((type) => {
+      const label = collectionTypesDiv.createEl("label", { cls: "bangumi-checkbox-label" });
+      const checkbox = label.createEl("input", { type: "checkbox" });
+      checkbox.checked = this.selectedCollectionTypes.has(type);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) {
+          this.selectedCollectionTypes.add(type);
+        } else {
+          this.selectedCollectionTypes.delete(type);
+        }
+      });
+      label.createSpan({ text: getCollectionTypeName(type) });
+    });
+    const collectionQuickDiv = contentEl.createDiv({ cls: "bangumi-quick-select" });
+    collectionQuickDiv.createEl("button", { text: tn("syncOptions", "selectAll"), cls: "bangumi-quick-btn" }, (btn) => {
+      btn.addEventListener("click", () => {
+        collectionTypes.forEach((t2) => this.selectedCollectionTypes.add(t2));
+        this.redraw();
+      });
+    });
+    collectionQuickDiv.createEl("button", { text: tn("syncOptions", "deselectAll"), cls: "bangumi-quick-btn" }, (btn) => {
+      btn.addEventListener("click", () => {
+        this.selectedCollectionTypes.clear();
+        this.redraw();
+      });
+    });
+    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setHeading();
+    const limitSetting = new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setDesc(tn("syncOptions", "syncLimitDesc")).addText((text) => {
+      text.setPlaceholder("50").setValue(this.limitValue === 0 ? "" : String(this.limitValue)).onChange((value) => {
+        const num = parseInt(value, 10);
+        if (!isNaN(num) && num >= 0) {
+          this.limitValue = num;
+        }
+      });
+    }).addButton((btn) => btn.setButtonText(tn("syncOptions", "syncAll")).onClick(() => {
+      this.limitValue = 0;
+      const input = limitSetting.controlEl.querySelector("input");
+      if (input) {
+        input.value = "";
+      }
+    }));
+    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "forceSync")).setDesc(tn("syncOptions", "forceSyncDesc")).addToggle((toggle) => toggle.setValue(this.forceValue).onChange((value) => {
+      this.forceValue = value;
+    }));
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    const syncBtn = buttonDiv.createEl("button", { text: tn("syncOptions", "startSync"), cls: "mod-cta" });
+    syncBtn.addEventListener("click", () => {
+      this.onSave({
+        subjectTypes: Array.from(this.selectedSubjectTypes),
+        collectionTypes: Array.from(this.selectedCollectionTypes),
+        limit: this.limitValue,
+        force: this.forceValue
+      });
+      this.close();
+    });
+    const cancelBtn = buttonDiv.createEl("button", { text: tn("syncOptions", "cancel") });
+    cancelBtn.addEventListener("click", () => {
+      this.close();
+    });
+  }
+  /**
+   * 重绘弹窗
+   */
+  redraw() {
+    const { contentEl } = this;
+    contentEl.empty();
+    this.onOpen();
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
+
+// src/ui/syncPreviewModal.ts
+var import_obsidian14 = require("obsidian");
+var SyncPreviewModal = class extends import_obsidian14.Modal {
+  constructor(app, items, onConfirm) {
+    super(app);
+    this.itemElements = /* @__PURE__ */ new Map();
+    this.items = items;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    new import_obsidian14.Setting(contentEl).setName(tn("syncPreview", "title")).setHeading();
+    contentEl.createEl("p", {
+      text: `${this.items.length} ${tn("syncPreview", "itemsToSync")}`,
+      cls: "bangumi-preview-info"
+    });
+    const listContainer = contentEl.createDiv({ cls: "bangumi-preview-list" });
+    this.items.forEach((item) => {
+      this.renderItem(listContainer, item);
+    });
+    const quickDiv = contentEl.createDiv({ cls: "bangumi-preview-quick" });
+    quickDiv.createEl("button", { text: tn("syncPreview", "selectAll"), cls: "bangumi-quick-btn" }, (btn) => {
+      btn.addEventListener("click", () => this.selectAll(true));
+    });
+    quickDiv.createEl("button", { text: tn("syncPreview", "deselectAll"), cls: "bangumi-quick-btn" }, (btn) => {
+      btn.addEventListener("click", () => this.selectAll(false));
+    });
+    quickDiv.createEl("button", { text: tn("syncPreview", "invert"), cls: "bangumi-quick-btn" }, (btn) => {
+      btn.addEventListener("click", () => this.invertSelection());
+    });
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    buttonDiv.createEl("button", { text: tn("syncPreview", "importAll"), cls: "mod-cta" }, (btn) => {
+      btn.addEventListener("click", () => this.confirm("all"));
+    });
+    buttonDiv.createEl("button", { text: tn("syncPreview", "importSelected"), cls: "mod-cta" }, (btn) => {
+      btn.addEventListener("click", () => this.confirm("selected"));
+    });
+    buttonDiv.createEl("button", { text: tn("syncPreview", "importUnselected") }, (btn) => {
+      btn.addEventListener("click", () => this.confirm("unselected"));
+    });
+    buttonDiv.createEl("button", { text: tn("syncPreview", "cancel") }, (btn) => {
+      btn.addEventListener("click", () => this.confirm("cancel"));
+    });
+  }
+  /**
+   * 渲染单个条目
+   */
+  renderItem(container, item) {
+    const itemDiv = container.createDiv({ cls: "bangumi-preview-item" });
+    const headerDiv = itemDiv.createDiv({ cls: "bangumi-preview-item-header" });
+    const checkbox = headerDiv.createEl("input", { type: "checkbox" });
+    checkbox.checked = item.selected;
+    checkbox.addClass("bangumi-preview-checkbox");
+    const nameSpan = headerDiv.createSpan({ cls: "bangumi-preview-name" });
+    nameSpan.setText(item.name_cn || item.name);
+    const typeSpan = headerDiv.createSpan({ cls: "bangumi-preview-type" });
+    typeSpan.setText(`(${item.typeLabel})`);
+    const ratingSpan = headerDiv.createSpan({ cls: "bangumi-preview-rating" });
+    ratingSpan.setText(`\u2605${item.rating.toFixed(1)}`);
+    if (item.my_rate) {
+      const myRateSpan = headerDiv.createSpan({ cls: "bangumi-preview-my-rate" });
+      myRateSpan.setText(`[${tn("syncPreview", "myRating")}: ${item.my_rate}]`);
+    }
+    this.itemElements.set(item.id, { checkbox });
+  }
+  /**
+   * 全选/全不选
+   */
+  selectAll(selected) {
+    this.itemElements.forEach(({ checkbox }) => {
+      checkbox.checked = selected;
+    });
+  }
+  /**
+   * 反选
+   */
+  invertSelection() {
+    this.itemElements.forEach(({ checkbox }) => {
+      checkbox.checked = !checkbox.checked;
+    });
+  }
+  /**
+   * 确认
+   */
+  confirm(action) {
+    if (action === "cancel") {
+      this.onConfirm({ items: this.items, action: "cancel" });
+      this.close();
+      return;
+    }
+    this.items.forEach((item) => {
+      const elements = this.itemElements.get(item.id);
+      if (elements) {
+        item.selected = elements.checkbox.checked;
+      }
+    });
+    this.onConfirm({ items: this.items, action });
+    this.close();
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+    this.itemElements.clear();
+  }
+};
+
+// src/ui/searchModal.ts
+var import_obsidian16 = require("obsidian");
+
+// src/ui/addToCollectionModal.ts
+var import_obsidian15 = require("obsidian");
+var COLLECTION_TYPE_OPTIONS = [
+  { value: 1, labelKey: "wish" },
+  { value: 2, labelKey: "done" },
+  { value: 3, labelKey: "doing" },
+  { value: 4, labelKey: "onHold" },
+  { value: 5, labelKey: "dropped" }
+];
+var AddToCollectionModal = class extends import_obsidian15.Modal {
+  constructor(app, client, settings, syncManager, subject, onComplete, existingCollection) {
+    super(app);
+    // 输入状态
+    this.collectionType = 3;
+    // 默认"在看"
+    this.rate = 0;
+    this.comment = "";
+    this.tags = [];
+    this.isPrivate = false;
+    this.localPropertyValues = {};
+    this.syncToCloud = true;
+    this.createLocal = true;
+    this.customFields = [];
+    this.client = client;
+    this.settings = settings;
+    this.syncManager = syncManager;
+    this.subject = subject;
+    this.onComplete = onComplete;
+    this.existingCollection = existingCollection;
+    this.customFields = getTemplatePropertyGroupsForSubject(subject, this.syncManager.getCustomTemplates()).customProperties;
+    this.initializeDefaultLocalPropertyValues();
+    if (existingCollection) {
+      this.collectionType = existingCollection.type || 3;
+      this.rate = existingCollection.rate || 0;
+      this.comment = existingCollection.comment || "";
+      this.tags = existingCollection.tags || [];
+      this.isPrivate = existingCollection.private || false;
+    }
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-add-collection-modal");
+    const title = `${tn("addToCollection", "title")} - ${this.subject.name_cn || this.subject.name}`;
+    new import_obsidian15.Setting(contentEl).setName(title).setHeading();
+    contentEl.createEl("h3", { text: tn("addToCollection", "bangumiProperties"), cls: "bangumi-add-collection-section" });
+    const typeDiv = contentEl.createDiv({ cls: "bangumi-add-collection-type" });
+    typeDiv.createSpan({ text: `${tn("addToCollection", "collectionType")}: ` });
+    COLLECTION_TYPE_OPTIONS.forEach((opt) => {
+      const btn = typeDiv.createEl("button", {
+        text: tn("collectionTypes", opt.labelKey),
+        cls: "bangumi-add-collection-type-btn"
+      });
+      if (opt.value === this.collectionType) {
+        btn.addClass("bangumi-add-collection-type-btn-active");
+      }
+      btn.addEventListener("click", () => {
+        this.collectionType = opt.value;
+        typeDiv.querySelectorAll("button").forEach((b) => b.removeClass("bangumi-add-collection-type-btn-active"));
+        btn.addClass("bangumi-add-collection-type-btn-active");
+      });
+    });
+    const rateSetting = new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "rating")).addSlider((slider) => {
+      slider.setLimits(0, 10, 1).setValue(this.rate).onChange((value) => {
+        this.rate = value;
+        rateValueEl.setText(String(value));
+      });
+    });
+    const rateValueEl = rateSetting.controlEl.createSpan({ cls: "bangumi-add-collection-rate-value", text: "0" });
+    const tagsSetting = new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "tags")).addText((text) => {
+      text.setPlaceholder(tn("addToCollection", "tagsPlaceholder"));
+      this.tagInputEl = text.inputEl;
+      text.inputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          const tag = text.inputEl.value.trim();
+          if (tag && !this.tags.includes(tag)) {
+            this.tags.push(tag);
+            this.renderTags();
+            text.inputEl.value = "";
+          }
+        }
+      });
+    });
+    this.tagsContainer = tagsSetting.controlEl.createDiv({ cls: "bangumi-add-collection-tags" });
+    if (this.tags.length > 0) {
+      this.renderTags();
+    }
+    new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "comment")).addTextArea((text) => {
+      text.setPlaceholder(tn("addToCollection", "commentPlaceholder"));
+      text.setValue(this.comment);
+      text.onChange((value) => {
+        this.comment = value;
+      });
+      text.inputEl.rows = 3;
+    });
+    if (this.customFields.length > 0) {
+      contentEl.createEl("h3", { text: tn("controlPanel", "localPropertyTitle"), cls: "bangumi-add-collection-section" });
+      const gridEl = contentEl.createDiv({ cls: "bangumi-local-property-grid" });
+      this.customFields.forEach((field) => {
+        this.renderCustomField(gridEl, field);
+      });
+    }
+    contentEl.createEl("h3", { text: tn("addToCollection", "syncOptions"), cls: "bangumi-add-collection-section" });
+    new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "syncToCloud")).addToggle((toggle) => {
+      toggle.setValue(this.syncToCloud).onChange((value) => {
+        this.syncToCloud = value;
+      });
+    });
+    new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "createLocal")).addToggle((toggle) => {
+      toggle.setValue(this.createLocal).onChange((value) => {
+        this.createLocal = value;
+      });
+    });
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    buttonDiv.createEl("button", { text: tn("addToCollection", "confirm"), cls: "mod-cta" }, (btn) => {
+      btn.addEventListener("click", () => {
+        void this.confirm();
+      });
+    });
+    buttonDiv.createEl("button", { text: tn("addToCollection", "cancel") }, (btn) => {
+      btn.addEventListener("click", () => {
+        this.close();
+      });
+    });
+  }
+  /**
+   * 渲染标签
+   */
+  renderTags() {
+    this.tagsContainer.empty();
+    this.tags.forEach((tag, index) => {
+      const tagEl = this.tagsContainer.createSpan({ cls: "bangumi-add-collection-tag" });
+      tagEl.createSpan({ text: tag });
+      tagEl.createEl("button", { text: "\xD7", cls: "bangumi-add-collection-tag-remove" }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.tags.splice(index, 1);
+          this.renderTags();
+        });
+      });
+    });
+  }
+  /**
+   * 确认添加
+   */
+  async confirm() {
+    const input = {
+      subjectId: this.subject.id,
+      subjectName: this.subject.name_cn || this.subject.name,
+      type: this.collectionType,
+      rate: this.rate,
+      comment: this.comment,
+      tags: this.tags,
+      private: this.isPrivate,
+      localPropertyValues: { ...this.localPropertyValues },
+      syncToCloud: this.syncToCloud,
+      createLocal: this.createLocal
+    };
+    try {
+      const result = await this.syncManager.syncSingleSubject(this.subject.id, {
+        type: input.type,
+        rate: input.rate,
+        comment: input.comment,
+        tags: input.tags,
+        private: input.private,
+        localPropertyValues: input.localPropertyValues,
+        syncToCloud: input.syncToCloud,
+        createLocal: input.createLocal
+      });
+      if (result.success) {
+        this.onComplete(input);
+        this.close();
+      } else {
+        new import_obsidian15.Notice(`${tn("addToCollection", "addError")}: ${result.error}`);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      new import_obsidian15.Notice(`${tn("addToCollection", "addError")}: ${errorMsg}`);
+    }
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+  initializeDefaultLocalPropertyValues() {
+    for (const field of this.customFields) {
+      if (field.initialValue !== void 0) {
+        this.localPropertyValues[field.name] = field.initialValue;
+      }
+    }
+  }
+  renderCustomField(container, field) {
+    const fieldEl = container.createDiv({ cls: `bangumi-local-property-field bangumi-local-property-field-${field.type}` });
+    fieldEl.createEl("label", { text: field.label, cls: "bangumi-local-property-label" });
+    if (field.type === "toggle") {
+      const toggleWrap = fieldEl.createDiv({ cls: "bangumi-local-property-toggle" });
+      const toggle = toggleWrap.createEl("input", { type: "checkbox" });
+      const initialValue2 = this.localPropertyValues[field.name];
+      toggle.checked = typeof initialValue2 === "boolean" ? initialValue2 : false;
+      toggle.addEventListener("change", () => {
+        this.localPropertyValues[field.name] = toggle.checked;
+      });
+      return;
+    }
+    if (field.type === "list") {
+      const input2 = fieldEl.createEl("input", { type: "text", cls: "bangumi-local-property-input" });
+      input2.placeholder = field.placeholder || "";
+      const initialValue2 = this.localPropertyValues[field.name];
+      if (Array.isArray(initialValue2)) {
+        input2.value = initialValue2.join(", ");
+      }
+      input2.addEventListener("input", () => {
+        const parsed = parseListInput(input2.value);
+        if (parsed && parsed.length > 0) {
+          this.localPropertyValues[field.name] = parsed;
+        } else {
+          delete this.localPropertyValues[field.name];
+        }
+      });
+      return;
+    }
+    const input = fieldEl.createEl("input", { type: "text", cls: "bangumi-local-property-input" });
+    input.placeholder = field.placeholder || "";
+    const initialValue = this.localPropertyValues[field.name];
+    if (typeof initialValue === "string") {
+      input.value = initialValue;
+    }
+    input.addEventListener("input", () => {
+      const trimmed = input.value.trim();
+      if (trimmed) {
+        this.localPropertyValues[field.name] = trimmed;
+      } else {
+        delete this.localPropertyValues[field.name];
+      }
+    });
+  }
+};
+function parseListInput(value) {
+  const items = value.split(",").map((item) => item.trim()).filter(Boolean);
+  return items.length > 0 ? items : void 0;
+}
+
+// src/ui/searchModal.ts
+var SUBJECT_TYPE_OPTIONS = [
+  { value: 0, labelKey: "all" },
+  { value: 2 /* Anime */, labelKey: "anime" },
+  { value: 4 /* Game */, labelKey: "game" },
+  { value: 1 /* Book */, labelKey: "book" },
+  { value: 3 /* Music */, labelKey: "music" },
+  { value: 6 /* Real */, labelKey: "real" }
+];
+var SORT_OPTIONS = [
+  { value: "match", labelKey: "sort_match" },
+  { value: "heat", labelKey: "sort_heat" },
+  { value: "rank", labelKey: "sort_rank" },
+  { value: "score", labelKey: "sort_score" }
+];
+var SEARCH_SHORT_LABELS = getLocale() === "zh-CN" ? {
+  search: "\u641C\u7D22",
+  clear: "\u6E05\u7A7A",
+  add: "\u6DFB\u52A0",
+  edit: "\u7F16\u8F91"
+} : {
+  search: "Search",
+  clear: "Clear",
+  add: "Add",
+  edit: "Edit"
+};
+var SearchModal = class extends import_obsidian16.Modal {
+  constructor(app, client, settings, syncManager, onComplete) {
+    super(app);
+    // 搜索状态
+    this.currentKeyword = "";
+    this.currentType = 0;
+    this.currentSort = "match";
+    this.currentOffset = 0;
+    this.totalResults = 0;
+    this.searchResults = [];
+    this.isLoading = false;
+    // 状态缓存
+    this.syncedSubjectIds = /* @__PURE__ */ new Set();
+    this.collectionStatuses = /* @__PURE__ */ new Map();
+    this.client = client;
+    this.settings = settings;
+    this.syncManager = syncManager;
+    this.onComplete = onComplete;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-search-modal");
+    new import_obsidian16.Setting(contentEl).setName(tn("searchModal", "title")).setHeading();
+    const searchDiv = contentEl.createDiv({ cls: "bangumi-search-input-container" });
+    const inputEl = searchDiv.createEl("input", {
+      type: "text",
+      placeholder: tn("searchModal", "searchPlaceholder"),
+      cls: "bangumi-search-input"
+    });
+    const searchBtn = searchDiv.createEl("button", {
+      text: tn("searchModal", "search"),
+      cls: "bangumi-search-btn"
+    });
+    this.decorateMobileButton(searchBtn, SEARCH_SHORT_LABELS.search, tn("searchModal", "search"));
+    const clearBtn = searchDiv.createEl("button", {
+      text: tn("searchModal", "clear"),
+      cls: "bangumi-search-btn"
+    });
+    this.decorateMobileButton(clearBtn, SEARCH_SHORT_LABELS.clear, tn("searchModal", "clear"));
+    const selectorsDiv = searchDiv.createDiv({ cls: "bangumi-search-selectors-container" });
+    const typeSelect = selectorsDiv.createEl("select", { cls: "bangumi-search-select" });
+    SUBJECT_TYPE_OPTIONS.forEach((opt) => {
+      typeSelect.createEl("option", {
+        value: String(opt.value),
+        text: tn("subjectTypes", opt.labelKey)
+      });
+    });
+    const sortSelect = selectorsDiv.createEl("select", { cls: "bangumi-search-select" });
+    SORT_OPTIONS.forEach((opt) => {
+      sortSelect.createEl("option", {
+        value: opt.value,
+        text: tn("searchModal", opt.labelKey)
+      });
+    });
+    this.statusEl = contentEl.createDiv({ cls: "bangumi-search-status" });
+    this.resultsContainer = contentEl.createDiv({ cls: "bangumi-search-results" });
+    this.loadMoreBtn = contentEl.createEl("button", {
+      text: tn("searchModal", "loadMore"),
+      cls: "bangumi-search-load-more"
+    });
+    this.loadMoreBtn.addEventListener("click", () => {
+      void this.loadMore();
+    });
+    const performSearch = () => {
+      const keyword = inputEl.value.trim();
+      if (keyword) {
+        this.currentKeyword = keyword;
+        this.currentType = Number(typeSelect.value);
+        this.currentSort = sortSelect.value;
+        void this.search(true);
+      }
+    };
+    searchBtn.addEventListener("click", performSearch);
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        performSearch();
+      }
+    });
+    clearBtn.addEventListener("click", () => {
+      inputEl.value = "";
+      this.currentKeyword = "";
+      this.searchResults = [];
+      this.totalResults = 0;
+      this.resultsContainer.empty();
+      this.statusEl.setText("");
+      this.loadMoreBtn.removeClass("visible");
+    });
+    typeSelect.addEventListener("change", () => {
+      this.currentType = Number(typeSelect.value);
+    });
+    sortSelect.addEventListener("change", () => {
+      this.currentSort = sortSelect.value;
+    });
+  }
+  /**
+   * 执行搜索
+   */
+  async search(isNew) {
+    if (this.isLoading)
+      return;
+    if (isNew) {
+      this.currentOffset = 0;
+      this.searchResults = [];
+      this.resultsContainer.empty();
+      this.syncedSubjectIds.clear();
+      this.collectionStatuses.clear();
+    }
+    this.isLoading = true;
+    this.statusEl.setText(tn("searchModal", "searching"));
+    try {
+      const options = {
+        sort: this.currentSort,
+        limit: 20,
+        offset: this.currentOffset
+      };
+      if (this.currentType !== 0) {
+        options.filter = { type: [this.currentType] };
+      }
+      const result = await this.client.searchSubjects(
+        this.currentKeyword,
+        options
+      );
+      this.totalResults = result.total;
+      this.searchResults.push(...result.data);
+      await this.checkStatuses(result.data);
+      this.statusEl.setText(
+        tnFormat("searchModal", "resultsCount", { count: String(this.searchResults.length), total: String(this.totalResults) })
+      );
+      result.data.forEach((subject) => {
+        this.renderResultItem(subject);
+      });
+      if (this.searchResults.length < this.totalResults) {
+        this.loadMoreBtn.addClass("visible");
+      } else {
+        this.loadMoreBtn.removeClass("visible");
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.statusEl.setText(`${tn("searchModal", "searchFailed")}: ${errorMsg}`);
+    } finally {
+      this.isLoading = false;
+    }
+  }
+  /**
+   * 检查条目的同步状态和收藏状态
+   */
+  async checkStatuses(subjects) {
+    for (const subject of subjects) {
+      const localPath = this.checkLocalSyncStatus(subject);
+      if (localPath) {
+        this.syncedSubjectIds.add(subject.id);
+      }
+    }
+    for (const subject of subjects) {
+      try {
+        const collection = await this.client.getCollectionStatus(subject.id);
+        if (collection) {
+          this.collectionStatuses.set(subject.id, collection);
+        }
+      } catch (e) {
+      }
+    }
+  }
+  /**
+   * 检查条目是否已同步到本地
+   */
+  checkLocalSyncStatus(subject) {
+    var _a;
+    try {
+      const typeLabel = extractPathVars(subject).type;
+      const template = ((_a = this.settings.pathTemplateByType) == null ? void 0 : _a[typeLabel]) || this.settings.syncPathTemplate;
+      const filePath = generateFilePath(
+        template,
+        subject
+      );
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (file instanceof import_obsidian16.TFile) {
+        return filePath;
+      }
+    } catch (e) {
+    }
+    return null;
+  }
+  /**
+   * 加载更多
+   */
+  async loadMore() {
+    this.currentOffset += 20;
+    await this.search(false);
+  }
+  /**
+   * 渲染单个搜索结果
+   */
+  renderResultItem(subject) {
+    var _a, _b;
+    const itemEl = this.resultsContainer.createDiv({ cls: "bangumi-search-result-item" });
+    const imgContainer = itemEl.createDiv({ cls: "bangumi-search-result-cover" });
+    if ((_a = subject.images) == null ? void 0 : _a.medium) {
+      imgContainer.createEl("img", {
+        attr: {
+          src: subject.images.medium,
+          alt: subject.name_cn || subject.name
+        }
+      });
+    }
+    const infoEl = itemEl.createDiv({ cls: "bangumi-search-result-info" });
+    const nameEl = infoEl.createDiv({ cls: "bangumi-search-result-name" });
+    nameEl.createSpan({ text: subject.name_cn || subject.name, cls: "bangumi-search-result-name-cn" });
+    if (subject.name && subject.name_cn && subject.name !== subject.name_cn) {
+      nameEl.createSpan({ text: ` (${subject.name})`, cls: "bangumi-search-result-name-original" });
+    }
+    const metaRowEl = infoEl.createDiv({ cls: "bangumi-search-result-meta-row" });
+    const metaEl = metaRowEl.createDiv({ cls: "bangumi-search-result-meta" });
+    const typeLabel = getTypeLabel(subject.type);
+    metaEl.createSpan({ text: typeLabel, cls: "bangumi-search-result-type" });
+    if ((_b = subject.rating) == null ? void 0 : _b.score) {
+      metaEl.createSpan({ text: `\u2605${subject.rating.score.toFixed(1)}`, cls: "bangumi-search-result-rating" });
+    }
+    const isSynced = this.syncedSubjectIds.has(subject.id);
+    if (isSynced) {
+      metaEl.createSpan({ text: tn("searchModal", "synced"), cls: "bangumi-status-badge bangumi-status-synced" });
+    }
+    const collection = this.collectionStatuses.get(subject.id);
+    if (collection) {
+      const collectionTypeLabel = getCollectionStatusLabel(collection.type, subject.type);
+      metaEl.createSpan({ text: collectionTypeLabel, cls: "bangumi-status-badge bangumi-status-collected" });
+    } else {
+      metaEl.createSpan({ text: tn("searchModal", "notCollected"), cls: "bangumi-status-badge bangumi-status-not-collected" });
+    }
+    const addBtn = metaRowEl.createEl("button", {
+      text: collection ? tn("searchModal", "editCollection") : tn("searchModal", "addToCollection"),
+      cls: `bangumi-search-result-add-btn ${collection ? "is-editing" : "is-adding"}`
+    });
+    this.decorateMobileButton(
+      addBtn,
+      collection ? SEARCH_SHORT_LABELS.edit : SEARCH_SHORT_LABELS.add,
+      collection ? tn("searchModal", "editCollection") : tn("searchModal", "addToCollection")
+    );
+    addBtn.addEventListener("click", () => {
+      this.openAddModal(subject, collection);
+    });
+  }
+  /**
+   * 打开添加收藏弹窗
+   */
+  openAddModal(subject, existingCollection) {
+    const modal = new AddToCollectionModal(
+      this.app,
+      this.client,
+      this.settings,
+      this.syncManager,
+      subject,
+      (input) => {
+        void this.handleAddComplete(input);
+      },
+      existingCollection
+    );
+    modal.open();
+  }
+  /**
+   * 处理添加完成
+   */
+  handleAddComplete(input) {
+    new import_obsidian16.Notice(tnFormat("searchModal", "addedSuccess", { name: input.subjectName }));
+    this.onComplete();
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+  decorateMobileButton(button, shortLabel, fullLabel) {
+    button.dataset.mobileLabel = shortLabel;
+    button.setAttribute("aria-label", fullLabel);
+    button.setAttribute("title", fullLabel);
+  }
+};
+
+// src/ui/localPropertyModal.ts
+var import_obsidian17 = require("obsidian");
+var LocalPropertyModal = class extends import_obsidian17.Modal {
+  constructor(app, collections, subjectsById, customTemplates, onSubmit) {
+    super(app);
+    this.propertyValuesBySubjectId = /* @__PURE__ */ new Map();
+    this.items = collections.map((collection) => {
+      const subject = subjectsById.get(collection.subject_id);
+      return {
+        collection,
+        subject,
+        fields: subject ? getTemplatePropertyGroupsForSubject(subject, customTemplates).customProperties : []
+      };
+    }).filter((item) => Boolean(item.subject) && item.fields.length > 0);
+    this.onSubmit = onSubmit;
+    this.initializeDefaultValues();
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-local-property-modal");
+    new import_obsidian17.Setting(contentEl).setName(tn("controlPanel", "localPropertyTitle")).setHeading();
+    contentEl.createEl("p", {
+      text: tn("controlPanel", "localPropertyDesc"),
+      cls: "bangumi-setting-desc"
+    });
+    for (const item of this.items) {
+      this.renderSubjectSection(contentEl, item);
+    }
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    buttonDiv.createEl("button", { text: tn("addToCollection", "confirm"), cls: "mod-cta" }, (btn) => {
+      btn.addEventListener("click", () => {
+        this.onSubmit({ propertyValuesBySubjectId: this.propertyValuesBySubjectId }, "confirm");
+        this.close();
+      });
+    });
+    buttonDiv.createEl("button", { text: tn("controlPanel", "localPropertySkip") }, (btn) => {
+      btn.addEventListener("click", () => {
+        this.onSubmit({ propertyValuesBySubjectId: /* @__PURE__ */ new Map() }, "skip");
+        this.close();
+      });
+    });
+    buttonDiv.createEl("button", { text: tn("addToCollection", "cancel") }, (btn) => {
+      btn.addEventListener("click", () => this.close());
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+  initializeDefaultValues() {
+    for (const item of this.items) {
+      for (const field of item.fields) {
+        if (field.initialValue !== void 0) {
+          this.updatePropertyValue(item.collection.subject_id, field.name, field.initialValue);
+        }
+      }
+    }
+  }
+  renderSubjectSection(container, item) {
+    const subject = item.subject;
+    const sectionEl = container.createDiv({ cls: "bangumi-local-property-section" });
+    const heading = subject.name_cn || subject.name || String(item.collection.subject_id);
+    const typeLabel = getTypeLabel(subject.type);
+    sectionEl.createEl("h3", { text: `${heading} (${typeLabel})`, cls: "bangumi-add-collection-section" });
+    const gridEl = sectionEl.createDiv({ cls: "bangumi-local-property-grid" });
+    item.fields.forEach((field) => {
+      this.renderField(gridEl, item.collection.subject_id, field);
+    });
+  }
+  renderField(container, subjectId, field) {
+    var _a, _b, _c, _d, _e, _f;
+    const fieldEl = container.createDiv({ cls: `bangumi-local-property-field bangumi-local-property-field-${field.type}` });
+    fieldEl.createEl("label", { text: field.label, cls: "bangumi-local-property-label" });
+    if (field.type === "text") {
+      const input = fieldEl.createEl("input", { type: "text", cls: "bangumi-local-property-input" });
+      input.placeholder = field.placeholder || "";
+      const initialValue2 = (_b = (_a = this.propertyValuesBySubjectId.get(subjectId)) == null ? void 0 : _a[field.name]) != null ? _b : field.initialValue;
+      if (typeof initialValue2 === "string") {
+        input.value = initialValue2;
+      }
+      input.addEventListener("input", () => {
+        this.updatePropertyValue(subjectId, field.name, input.value.trim() || void 0);
+      });
+      return;
+    }
+    if (field.type === "list") {
+      const input = fieldEl.createEl("input", { type: "text", cls: "bangumi-local-property-input" });
+      input.placeholder = field.placeholder || "";
+      const initialValue2 = (_d = (_c = this.propertyValuesBySubjectId.get(subjectId)) == null ? void 0 : _c[field.name]) != null ? _d : field.initialValue;
+      if (Array.isArray(initialValue2)) {
+        input.value = initialValue2.join(", ");
+      }
+      input.addEventListener("input", () => {
+        this.updatePropertyValue(subjectId, field.name, parseListInput2(input.value));
+      });
+      return;
+    }
+    const toggleWrap = fieldEl.createDiv({ cls: "bangumi-local-property-toggle" });
+    const toggle = toggleWrap.createEl("input", { type: "checkbox" });
+    const initialValue = (_f = (_e = this.propertyValuesBySubjectId.get(subjectId)) == null ? void 0 : _e[field.name]) != null ? _f : field.initialValue;
+    toggle.checked = typeof initialValue === "boolean" ? initialValue : false;
+    toggle.addEventListener("change", () => {
+      this.updatePropertyValue(subjectId, field.name, toggle.checked);
+    });
+  }
+  updatePropertyValue(subjectId, propertyName, value) {
+    const current = { ...this.propertyValuesBySubjectId.get(subjectId) || {} };
+    if (value === void 0 || value === "" || Array.isArray(value) && value.length === 0) {
+      delete current[propertyName];
+    } else {
+      current[propertyName] = value;
+    }
+    if (Object.keys(current).length === 0) {
+      this.propertyValuesBySubjectId.delete(subjectId);
+      return;
+    }
+    this.propertyValuesBySubjectId.set(subjectId, current);
+  }
+};
+function hasLocalPropertyFieldsForCollections(collections, subjectsById, customTemplates) {
+  let totalCustom = 0;
+  const result = collections.some((collection) => {
+    const subject = subjectsById.get(collection.subject_id);
+    if (!subject) {
+      return false;
+    }
+    const groups = getTemplatePropertyGroupsForSubject(subject, customTemplates);
+    if (groups.customProperties.length > 0) {
+      totalCustom += groups.customProperties.length;
+      return true;
+    }
+    return false;
+  });
+  console.debug(`[Bangumi Sync] hasLocalPropertyFields: ${result}, custom property count across ${collections.length} collections: ${totalCustom}, customTemplates: ${customTemplates ? "configured" : "none"}`);
+  return result;
+}
+function parseListInput2(value) {
+  const items = value.split(",").map((item) => item.trim()).filter(Boolean);
+  return items.length > 0 ? items : void 0;
+}
+var SUBJECT_FETCH_TIMEOUT_MS = 15e3;
+async function loadSubjectsForCollections(collections, client, onWarning) {
+  const subjectsById = /* @__PURE__ */ new Map();
+  let warned = false;
+  for (const collection of collections) {
+    try {
+      const subject = await fetchSubjectWithTimeout(client, collection.subject_id, SUBJECT_FETCH_TIMEOUT_MS);
+      subjectsById.set(collection.subject_id, subject);
+    } catch (error) {
+      console.warn(`[Bangumi Sync] \u83B7\u53D6\u6761\u76EE\u8BE6\u60C5\u5931\u8D25\uFF0C\u4F7F\u7528\u6536\u85CF\u4E2D\u7684\u7B80\u7248\u4FE1\u606F\u56DE\u9000: ${collection.subject_id}`, error);
+      if (!warned) {
+        warned = true;
+        const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
+        onWarning == null ? void 0 : onWarning(`\u90E8\u5206\u6761\u76EE\u8BE6\u60C5\u83B7\u53D6\u5931\u8D25\uFF0C\u5DF2\u4F7F\u7528\u7B80\u7248\u4FE1\u606F\u7EE7\u7EED\uFF1A${name}`);
+      }
+      subjectsById.set(collection.subject_id, createFallbackSubject(collection));
+    }
+  }
+  return subjectsById;
+}
+function fetchSubjectWithTimeout(client, subjectId, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = activeWindow.setTimeout(() => {
+      reject(new Error(`\u83B7\u53D6\u6761\u76EE ${subjectId} \u8D85\u65F6`));
+    }, timeoutMs);
+    client.getSubject(subjectId).then((subject) => {
+      activeWindow.clearTimeout(timer);
+      resolve(subject);
+    }).catch((error) => {
+      activeWindow.clearTimeout(timer);
+      reject(error instanceof Error ? error : new Error(String(error)));
+    });
+  });
+}
+function createFallbackSubject(collection) {
+  return {
+    id: collection.subject.id,
+    type: collection.subject.type,
+    name: collection.subject.name || "",
+    name_cn: collection.subject.name_cn || "",
+    summary: collection.subject.short_summary || "",
+    date: collection.subject.date,
+    platform: "",
+    images: collection.subject.images || {},
+    infobox: [],
+    rating: {
+      rank: collection.subject.rank || 0,
+      total: collection.subject.collection_total || 0,
+      count: {},
+      score: collection.subject.score || 0
+    },
+    collection: {
+      wish: 0,
+      collect: collection.subject.collection_total || 0,
+      doing: 0,
+      on_hold: 0,
+      dropped: 0
+    },
+    tags: collection.subject.tags || [],
+    nsfw: false,
+    locked: false,
+    series: false,
+    volumes: collection.subject.volumes || 0,
+    eps: collection.subject.eps || 0,
+    total_episodes: collection.subject.eps || 0,
+    meta_tags: []
+  };
+}
+
+// src/panel/controlPanel.ts
+var import_obsidian24 = require("obsidian");
+
+// src/panel/batchEditorModal.ts
+var import_obsidian18 = require("obsidian");
+var BatchEditorModal = class extends import_obsidian18.Modal {
+  constructor(app, items, onConfirm, documentService, getCachedSnapshot) {
+    super(app);
+    this.mode = "per_item";
+    this.operations = [];
+    this.editableItems = [];
+    this.availableProperties = [];
+    this.selectedProperties = [];
+    this.draftValues = /* @__PURE__ */ new Map();
+    this.loadingProperties = true;
+    this.items = items;
+    this.onConfirm = onConfirm;
+    this.documentService = documentService != null ? documentService : new SubjectDocumentService(app);
+    this.getCachedSnapshot = getCachedSnapshot != null ? getCachedSnapshot : null;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-batch-editor");
+    const headerEl = contentEl.createDiv({ cls: "bangumi-batch-editor-header" });
+    headerEl.createEl("h2", { text: tn("batchEditor", "title") });
+    headerEl.createEl("p", {
+      text: tnFormat("batchEditor", "info", { count: this.items.length }),
+      cls: "bangumi-batch-editor-info"
+    });
+    const bodyEl = contentEl.createDiv({ cls: "bangumi-batch-editor-body" });
+    const modeCardEl = bodyEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-editor-mode-card"
+    });
+    this.renderModeSwitch(modeCardEl);
+    this.uniformPanelEl = bodyEl.createDiv({ cls: "bangumi-batch-editor-panel" });
+    this.renderUniformPanel();
+    this.perItemPanelEl = bodyEl.createDiv({ cls: "bangumi-batch-editor-panel" });
+    this.renderPerItemPanel();
+    this.updateModeVisibility();
+    const buttonDiv = contentEl.createDiv({
+      cls: "bangumi-modal-buttons bangumi-batch-editor-footer"
+    });
+    buttonDiv.createEl("button", { text: tn("batchEditor", "cancel") }, (btn) => {
+      btn.addEventListener("click", () => this.close());
+    });
+    buttonDiv.createEl("button", { text: tn("batchEditor", "execute"), cls: "mod-cta" }, (btn) => {
+      btn.addEventListener("click", () => void this.handleSubmit());
+    });
+    void this.loadEditableItems();
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+  renderModeSwitch(container) {
+    const switchEl = container.createDiv({ cls: "bangumi-batch-editor-mode-switch" });
+    switchEl.createSpan({
+      text: tn("batchEditor", "modeLabel"),
+      cls: "bangumi-batch-editor-mode-label"
+    });
+    const buttonGroup = switchEl.createDiv({ cls: "bangumi-batch-editor-mode-group" });
+    [
+      ["per_item", tn("batchEditor", "modePerItem")],
+      ["uniform", tn("batchEditor", "modeUniform")]
+    ].forEach(([mode, label]) => {
+      const button = buttonGroup.createEl("button", {
+        text: label,
+        cls: `bangumi-batch-editor-mode-btn${this.mode === mode ? " is-active" : ""}`
+      });
+      button.addEventListener("click", () => {
+        this.mode = mode;
+        for (const sibling of Array.from(buttonGroup.querySelectorAll(".bangumi-batch-editor-mode-btn"))) {
+          sibling.classList.remove("is-active");
+        }
+        button.classList.add("is-active");
+        this.updateModeVisibility();
+      });
+    });
+  }
+  renderUniformPanel() {
+    this.uniformPanelEl.empty();
+    const introCard = this.uniformPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-editor-intro-card"
+    });
+    introCard.createEl("p", {
+      text: tn("batchEditor", "uniformDesc"),
+      cls: "bangumi-batch-editor-section-desc"
+    });
+    const listCard = this.uniformPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-editor-list-card"
+    });
+    const listHeader = listCard.createDiv({ cls: "bangumi-batch-editor-card-header" });
+    listHeader.createEl("h3", {
+      text: tn("batchEditor", "modeUniform"),
+      cls: "bangumi-batch-editor-card-title"
+    });
+    listHeader.createEl("p", {
+      text: tn("batchEditor", "uniformDesc"),
+      cls: "bangumi-batch-editor-card-desc"
+    });
+    this.operationListEl = listCard.createDiv({ cls: "bangumi-operation-list" });
+    this.renderOperationList();
+    const addCard = this.uniformPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-editor-composer-card"
+    });
+    const addHeader = addCard.createDiv({ cls: "bangumi-batch-editor-card-header" });
+    addHeader.createEl("h3", {
+      text: tn("batchEditor", "addOperation"),
+      cls: "bangumi-batch-editor-card-title"
+    });
+    const addOperationDiv = addCard.createDiv({ cls: "bangumi-add-operation" });
+    const typeWrap = addOperationDiv.createDiv({ cls: "bangumi-add-operation-field" });
+    const typeSelect = typeWrap.createEl("select");
+    typeSelect.createEl("option", { value: "add", text: tn("batchEditor", "typeAdd") });
+    typeSelect.createEl("option", { value: "modify", text: tn("batchEditor", "typeModify") });
+    typeSelect.createEl("option", { value: "delete", text: tn("batchEditor", "typeDelete") });
+    const propertyWrap = addOperationDiv.createDiv({ cls: "bangumi-add-operation-field" });
+    const propertyInput = propertyWrap.createEl("input", {
+      type: "text",
+      placeholder: tn("batchEditor", "propertyName"),
+      cls: "bangumi-property-input"
+    });
+    const valueWrap = addOperationDiv.createDiv({
+      cls: "bangumi-add-operation-field bangumi-add-operation-value-wrap"
+    });
+    const valueInput = valueWrap.createEl("input", {
+      type: "text",
+      placeholder: tn("batchEditor", "propertyValue"),
+      cls: "bangumi-value-input"
+    });
+    const updateValueInputState = () => {
+      const hidesValue = typeSelect.value === "delete";
+      valueWrap.classList.toggle("is-disabled", hidesValue);
+      valueInput.disabled = hidesValue;
+      valueInput.placeholder = hidesValue ? tn("batchEditor", "typeDelete") : tn("batchEditor", "propertyValue");
+      if (hidesValue) {
+        valueInput.value = "";
+      }
+    };
+    typeSelect.addEventListener("change", updateValueInputState);
+    updateValueInputState();
+    const addButtonWrap = addOperationDiv.createDiv({ cls: "bangumi-add-operation-action" });
+    addButtonWrap.createEl("button", { text: tn("batchEditor", "addOperation") }, (btn) => {
+      btn.addEventListener("click", () => {
+        const type = typeSelect.value;
+        const property = propertyInput.value.trim();
+        const value = valueInput.value.trim();
+        if (!property) {
+          new import_obsidian18.Notice(tn("batchEditor", "noticeProperty"));
+          return;
+        }
+        if ((type === "add" || type === "modify") && !value) {
+          new import_obsidian18.Notice(tn("batchEditor", "noticeValue"));
+          return;
+        }
+        this.operations.push({ type, property, value });
+        this.renderOperationList();
+        propertyInput.value = "";
+        valueInput.value = "";
+      });
+    });
+  }
+  renderPerItemPanel() {
+    this.perItemPanelEl.empty();
+    const introCard = this.perItemPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-editor-intro-card"
+    });
+    introCard.createEl("p", {
+      text: tn("batchEditor", "perItemDesc"),
+      cls: "bangumi-batch-editor-section-desc"
+    });
+    const propertyPanel = this.perItemPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-property-panel"
+    });
+    const propertyHeader = propertyPanel.createDiv({ cls: "bangumi-batch-property-header" });
+    propertyHeader.createEl("h3", {
+      text: tn("batchEditor", "propertySelectionTitle"),
+      cls: "bangumi-batch-editor-card-title"
+    });
+    propertyHeader.createEl("p", {
+      text: tn("batchEditor", "propertySelectionDesc"),
+      cls: "bangumi-batch-editor-card-desc"
+    });
+    this.propertySelectionEl = propertyPanel.createDiv({ cls: "bangumi-batch-property-selection" });
+    const customPropertyRow = propertyPanel.createDiv({ cls: "bangumi-batch-custom-property-row" });
+    const customPropertyInput = customPropertyRow.createEl("input", {
+      type: "text",
+      placeholder: tn("batchEditor", "customPropertyPlaceholder"),
+      cls: "bangumi-property-input"
+    });
+    customPropertyRow.createEl("button", { text: tn("batchEditor", "addSelectedProperty") }, (btn) => {
+      btn.addEventListener("click", () => {
+        const property = customPropertyInput.value.trim();
+        if (!property) {
+          new import_obsidian18.Notice(tn("batchEditor", "noticeProperty"));
+          return;
+        }
+        this.ensurePropertyExists(property);
+        this.toggleSelectedProperty(property, true);
+        customPropertyInput.value = "";
+      });
+    });
+    const selectedCard = this.perItemPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-selected-card"
+    });
+    const selectedHeader = selectedCard.createDiv({ cls: "bangumi-batch-editor-card-header" });
+    selectedHeader.createEl("h3", {
+      text: tn("batchEditor", "selectedPropertyCount").replace("{count}", "0"),
+      cls: "bangumi-batch-editor-card-title bangumi-batch-selected-title"
+    });
+    this.selectedPropertyEl = selectedCard.createDiv({ cls: "bangumi-batch-selected-properties" });
+    const tableCard = this.perItemPanelEl.createDiv({
+      cls: "bangumi-batch-editor-card bangumi-batch-edit-card"
+    });
+    const tableHeader = tableCard.createDiv({ cls: "bangumi-batch-editor-card-header" });
+    tableHeader.createEl("h3", {
+      text: tn("batchEditor", "itemName"),
+      cls: "bangumi-batch-editor-card-title"
+    });
+    tableHeader.createEl("p", {
+      text: tn("batchEditor", "editTableDesc"),
+      cls: "bangumi-batch-editor-card-desc"
+    });
+    this.editTableEl = tableCard.createDiv({ cls: "bangumi-batch-edit-table-wrap" });
+    this.renderPropertySelection();
+    this.renderSelectedProperties();
+    this.renderPerItemTable();
+  }
+  updateModeVisibility() {
+    this.uniformPanelEl.classList.toggle("is-hidden", this.mode !== "uniform");
+    this.perItemPanelEl.classList.toggle("is-hidden", this.mode !== "per_item");
+  }
+  async loadEditableItems() {
+    var _a;
+    this.loadingProperties = true;
+    this.renderPropertySelection();
+    this.renderPerItemTable();
+    try {
+      const editableItems = [];
+      const propertySet = /* @__PURE__ */ new Set();
+      for (const item of this.items) {
+        const frontmatter = (_a = await this.readFrontmatter(item.filePath)) != null ? _a : {};
+        editableItems.push({
+          ...item,
+          frontmatter
+        });
+        for (const key of Object.keys(frontmatter)) {
+          propertySet.add(key);
+        }
+      }
+      this.editableItems = editableItems;
+      this.availableProperties = [...propertySet].sort((left, right) => left.localeCompare(right, "zh-CN"));
+      for (const item of this.editableItems) {
+        this.draftValues.set(item.filePath, this.createDraftValueRecord(item));
+      }
+    } catch (error) {
+      console.error("[Bangumi Sync] Failed to load batch editor properties", error);
+      new import_obsidian18.Notice(tn("batchEditor", "noticeLoadFailed"));
+    } finally {
+      this.loadingProperties = false;
+      this.renderPropertySelection();
+      this.renderSelectedProperties();
+      this.renderPerItemTable();
+    }
+  }
+  renderOperationList() {
+    this.operationListEl.empty();
+    if (this.operations.length === 0) {
+      this.operationListEl.createDiv({
+        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
+        text: tn("batchEditor", "emptyOperations")
+      });
+      return;
+    }
+    const list = this.operationListEl.createEl("ul", { cls: "bangumi-operation-items" });
+    this.operations.forEach((op, index) => {
+      const item = list.createEl("li", { cls: "bangumi-operation-item" });
+      const typeLabel = op.type === "add" ? tn("batchEditor", "typeAdd") : op.type === "modify" ? tn("batchEditor", "typeModify") : tn("batchEditor", "typeDelete");
+      item.createSpan({ cls: `bangumi-operation-type bangumi-operation-type-${op.type}`, text: typeLabel });
+      item.createSpan({ cls: "bangumi-operation-property", text: op.property });
+      if (op.value !== void 0) {
+        item.createSpan({ cls: "bangumi-operation-arrow", text: "\u2192" });
+        item.createSpan({ cls: "bangumi-operation-value", text: op.value });
+      }
+      item.createEl("button", {
+        text: "\xD7",
+        cls: "bangumi-operation-remove",
+        attr: { "aria-label": tn("batchEditor", "removeOperation") }
+      }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.operations.splice(index, 1);
+          this.renderOperationList();
+        });
+      });
+    });
+  }
+  renderPropertySelection() {
+    this.propertySelectionEl.empty();
+    if (this.loadingProperties) {
+      this.propertySelectionEl.createDiv({
+        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
+        text: tn("batchEditor", "loadingProperties")
+      });
+      return;
+    }
+    if (this.availableProperties.length === 0) {
+      this.propertySelectionEl.createDiv({
+        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
+        text: tn("batchEditor", "emptyEditableProperties")
+      });
+      return;
+    }
+    const list = this.propertySelectionEl.createDiv({ cls: "bangumi-batch-property-list" });
+    for (const property of this.availableProperties) {
+      const label = list.createEl("label", { cls: "bangumi-batch-property-option" });
+      const checkbox = label.createEl("input", { type: "checkbox" });
+      checkbox.checked = this.selectedProperties.includes(property);
+      checkbox.addEventListener("change", () => {
+        this.toggleSelectedProperty(property, checkbox.checked);
+      });
+      label.createSpan({ text: property });
+    }
+  }
+  renderSelectedProperties() {
+    this.selectedPropertyEl.empty();
+    const selectedTitle = this.contentEl.querySelector(".bangumi-batch-selected-title");
+    if (selectedTitle instanceof HTMLElement) {
+      selectedTitle.setText(tnFormat("batchEditor", "selectedPropertyCount", {
+        count: this.selectedProperties.length
+      }));
+    }
+    if (this.selectedProperties.length === 0) {
+      this.selectedPropertyEl.createDiv({
+        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
+        text: tn("batchEditor", "emptySelectedProperties")
+      });
+      return;
+    }
+    const chipWrap = this.selectedPropertyEl.createDiv({ cls: "bangumi-batch-property-chip-wrap" });
+    for (const property of this.selectedProperties) {
+      const chip = chipWrap.createDiv({ cls: "bangumi-batch-property-chip" });
+      chip.createSpan({ text: property });
+      chip.createEl("button", {
+        text: "\xD7",
+        cls: "bangumi-batch-property-chip-remove",
+        attr: { "aria-label": tn("batchEditor", "removeSelectedProperty") }
+      }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.toggleSelectedProperty(property, false);
+        });
+      });
+    }
+  }
+  renderPerItemTable() {
+    var _a, _b;
+    this.editTableEl.empty();
+    if (this.loadingProperties) {
+      this.editTableEl.createDiv({
+        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
+        text: tn("batchEditor", "loadingProperties")
+      });
+      return;
+    }
+    if (this.selectedProperties.length === 0) {
+      this.editTableEl.createDiv({
+        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
+        text: tn("batchEditor", "emptyEditTable")
+      });
+      return;
+    }
+    const scroll = this.editTableEl.createDiv({ cls: "bangumi-batch-edit-table-scroll" });
+    const table = scroll.createEl("table", { cls: "bangumi-batch-edit-table" });
+    const thead = table.createEl("thead");
+    const headerRow = thead.createEl("tr");
+    headerRow.createEl("th", { text: tn("batchEditor", "itemName") });
+    for (const property of this.selectedProperties) {
+      headerRow.createEl("th", { text: property });
+    }
+    const tbody = table.createEl("tbody");
+    for (const item of this.editableItems) {
+      const row = tbody.createEl("tr");
+      row.createEl("td", { text: item.displayName, cls: "bangumi-batch-edit-name-cell" });
+      const rowDraft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
+      for (const property of this.selectedProperties) {
+        const cell = row.createEl("td");
+        const input = cell.createEl("input", {
+          type: "text",
+          value: (_b = rowDraft[property]) != null ? _b : "",
+          cls: "bangumi-batch-edit-input"
+        });
+        input.setAttribute("aria-label", `${item.displayName} - ${property}`);
+        input.addEventListener("input", () => {
+          var _a2;
+          const draft = (_a2 = this.draftValues.get(item.filePath)) != null ? _a2 : {};
+          draft[property] = input.value;
+          this.draftValues.set(item.filePath, draft);
+        });
+      }
+    }
+  }
+  async handleSubmit() {
+    if (this.mode === "uniform") {
+      if (this.operations.length === 0) {
+        new import_obsidian18.Notice(tn("batchEditor", "noticeNoOp"));
+        return;
+      }
+      await this.onConfirm({
+        mode: "uniform",
+        operations: this.operations
+      });
+      this.close();
+      return;
+    }
+    if (this.selectedProperties.length === 0) {
+      new import_obsidian18.Notice(tn("batchEditor", "noticeSelectProperty"));
+      return;
+    }
+    const perItemUpdates = this.buildPerItemUpdates();
+    if (perItemUpdates.length === 0) {
+      new import_obsidian18.Notice(tn("batchEditor", "noticeNothingChanged"));
+      return;
+    }
+    await this.onConfirm({
+      mode: "per_item",
+      perItemUpdates
+    });
+    this.close();
+  }
+  buildPerItemUpdates() {
+    var _a, _b;
+    const updates = [];
+    for (const item of this.editableItems) {
+      const draft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
+      const properties = {};
+      for (const property of this.selectedProperties) {
+        const originalValue = item.frontmatter[property];
+        const originalDisplay = formatFrontmatterValue2(originalValue);
+        const draftValue = (_b = draft[property]) != null ? _b : "";
+        if (draftValue === originalDisplay) {
+          continue;
+        }
+        if (draftValue === "" && originalValue === void 0) {
+          continue;
+        }
+        properties[property] = coerceDraftValue(draftValue, originalValue);
+      }
+      if (Object.keys(properties).length > 0) {
+        updates.push({
+          filePath: item.filePath,
+          properties
+        });
+      }
+    }
+    return updates;
+  }
+  toggleSelectedProperty(property, enabled) {
+    var _a;
+    if (enabled) {
+      if (!this.selectedProperties.includes(property)) {
+        this.selectedProperties.push(property);
+        this.selectedProperties.sort((left, right) => left.localeCompare(right, "zh-CN"));
+        for (const item of this.editableItems) {
+          const draft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
+          if (draft[property] === void 0) {
+            draft[property] = formatFrontmatterValue2(item.frontmatter[property]);
+            this.draftValues.set(item.filePath, draft);
+          }
+        }
+      }
+    } else {
+      this.selectedProperties = this.selectedProperties.filter((current) => current !== property);
+    }
+    this.renderPropertySelection();
+    this.renderSelectedProperties();
+    this.renderPerItemTable();
+  }
+  ensurePropertyExists(property) {
+    var _a;
+    if (!this.availableProperties.includes(property)) {
+      this.availableProperties.push(property);
+      this.availableProperties.sort((left, right) => left.localeCompare(right, "zh-CN"));
+    }
+    for (const item of this.editableItems) {
+      const draft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
+      if (draft[property] === void 0) {
+        draft[property] = formatFrontmatterValue2(item.frontmatter[property]);
+        this.draftValues.set(item.filePath, draft);
+      }
+    }
+  }
+  createDraftValueRecord(item) {
+    const record = {};
+    for (const property of this.availableProperties) {
+      record[property] = formatFrontmatterValue2(item.frontmatter[property]);
+    }
+    return record;
+  }
+  async readFrontmatter(filePath) {
+    var _a;
+    const cachedSnapshot = (_a = this.getCachedSnapshot) == null ? void 0 : _a.call(this, filePath);
+    if (cachedSnapshot) {
+      return this.documentService.extractFrontmatterRecord(cachedSnapshot.content);
+    }
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (!(file instanceof import_obsidian18.TFile)) {
+      return null;
+    }
+    const content = await this.app.vault.read(file);
+    return this.documentService.extractFrontmatterRecord(content);
+  }
+};
+var FrontmatterEditor = class {
+  constructor(app) {
+    this.history = [];
+    this.maxHistory = 10;
+    this.app = app;
+  }
+  async batchModify(filePaths, operations) {
+    const originalContents = await this.captureOriginalContents(filePaths);
+    const affectedFiles = [];
+    let success = 0;
+    let failed = 0;
+    for (const path of filePaths) {
+      const result = await this.applyUniformOperations(path, operations);
+      if (result) {
+        success++;
+        affectedFiles.push(path);
+      } else {
+        failed++;
+      }
+    }
+    this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
+    return { success, failed };
+  }
+  async batchApplyPerItemUpdates(updates) {
+    const filePaths = updates.map((update) => update.filePath);
+    const originalContents = await this.captureOriginalContents(filePaths);
+    const affectedFiles = [];
+    let success = 0;
+    let failed = 0;
+    for (const update of updates) {
+      const result = await this.applyPerItemUpdate(update);
+      if (result) {
+        success++;
+        affectedFiles.push(update.filePath);
+      } else {
+        failed++;
+      }
+    }
+    this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
+    return { success, failed };
+  }
+  async undo() {
+    if (this.history.length === 0) {
+      return false;
+    }
+    const lastOperation = this.history.pop();
+    if (!lastOperation) {
+      return false;
+    }
+    let restored = 0;
+    for (const [path, content] of lastOperation.originalContent) {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (file instanceof import_obsidian18.TFile && lastOperation.affectedFiles.includes(path)) {
+        await this.app.vault.process(file, () => content);
+        restored++;
+      }
+    }
+    return restored > 0;
+  }
+  canUndo() {
+    return this.history.length > 0;
+  }
+  async applyUniformOperations(filePath, operations) {
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (!(file instanceof import_obsidian18.TFile)) {
+      return false;
+    }
+    try {
+      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        var _a;
+        const frontmatterRecord = frontmatter;
+        for (const operation of operations) {
+          if (operation.type === "delete") {
+            delete frontmatterRecord[operation.property];
+            continue;
+          }
+          frontmatterRecord[operation.property] = (_a = operation.value) != null ? _a : "";
+        }
+      });
+      return true;
+    } catch (error) {
+      console.error(`[Bangumi Sync] Failed to batch modify frontmatter: ${filePath}`, error);
+      return false;
+    }
+  }
+  async applyPerItemUpdate(update) {
+    const file = this.app.vault.getAbstractFileByPath(update.filePath);
+    if (!(file instanceof import_obsidian18.TFile)) {
+      return false;
+    }
+    try {
+      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        const frontmatterRecord = frontmatter;
+        for (const [property, value] of Object.entries(update.properties)) {
+          frontmatterRecord[property] = value;
+        }
+      });
+      return true;
+    } catch (error) {
+      console.error(`[Bangumi Sync] Failed to apply per-item batch update: ${update.filePath}`, error);
+      return false;
+    }
+  }
+  async captureOriginalContents(filePaths) {
+    const originalContents = /* @__PURE__ */ new Map();
+    for (const path of filePaths) {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (file instanceof import_obsidian18.TFile) {
+        const content = await this.app.vault.read(file);
+        originalContents.set(path, content);
+      }
+    }
+    return originalContents;
+  }
+  pushHistoryIfNeeded(success, affectedFiles, originalContents) {
+    if (success <= 0) {
+      return;
+    }
+    this.history.push({
+      affectedFiles,
+      originalContent: originalContents,
+      timestamp: Date.now()
+    });
+    if (this.history.length > this.maxHistory) {
+      this.history.shift();
+    }
+  }
+};
+function formatFrontmatterValue2(value) {
+  return formatFrontmatterDisplayValue(value);
+}
+function coerceDraftValue(value, originalValue) {
+  return coerceFrontmatterDraftValue(value, originalValue);
+}
+
+// src/panel/statusSyncModal.ts
+var import_obsidian19 = require("obsidian");
+
+// src/sync/statusSyncTypes.ts
+var USER_STATUS_SYNC_FIELD_KEYS = [
+  "rate",
+  "comment",
+  "tags",
+  "status",
+  "episodeStatus"
+];
+var PLATFORM_STATUS_SYNC_FIELD_KEYS = [
+  "episodeCount",
+  "chapterCount",
+  "volumeCount",
+  "start",
+  "end",
+  "progress"
+];
+function createDefaultStatusSyncFieldSelection() {
+  return {
+    user: {
+      rate: true,
+      comment: true,
+      tags: true,
+      status: true,
+      episodeStatus: true
+    },
+    platform: {
+      episodeCount: false,
+      chapterCount: false,
+      volumeCount: false,
+      start: false,
+      end: false,
+      progress: false
+    }
+  };
+}
+function normalizeStatusSyncFieldSelection(selection) {
+  var _a, _b;
+  const defaults = createDefaultStatusSyncFieldSelection();
+  return {
+    user: {
+      ...defaults.user,
+      ...(_a = selection == null ? void 0 : selection.user) != null ? _a : {}
+    },
+    platform: {
+      ...defaults.platform,
+      ...(_b = selection == null ? void 0 : selection.platform) != null ? _b : {}
+    }
+  };
+}
+function cloneStatusSyncFieldSelection(selection) {
+  return normalizeStatusSyncFieldSelection(selection);
+}
+function hasSelectedUserFields(selection) {
+  return USER_STATUS_SYNC_FIELD_KEYS.some((key) => selection.user[key]);
+}
+function hasSelectedPlatformFields(selection) {
+  return PLATFORM_STATUS_SYNC_FIELD_KEYS.some((key) => selection.platform[key]);
+}
+function getStatusSyncScope(selection) {
+  const hasUser = hasSelectedUserFields(selection);
+  const hasPlatform = hasSelectedPlatformFields(selection);
+  if (hasUser && hasPlatform) {
+    return "mixed";
+  }
+  if (hasPlatform) {
+    return "platform";
+  }
+  return "user";
+}
+
+// src/panel/statusSyncModal.ts
+var StatusSyncModal = class extends import_obsidian19.Modal {
+  constructor(app, statusSyncService, selection, diffs, onComplete) {
+    super(app);
+    this.renderTimer = null;
+    this.isDisposedFlag = false;
+    this.backgroundCompleted = 0;
+    this.backgroundTotal = 0;
+    this.statusSyncService = statusSyncService;
+    this.selection = normalizeStatusSyncFieldSelection(selection);
+    this.diffs = diffs.map((diff) => this.normalizeDiff(diff));
+    this.diffIndexBySubjectId = new Map(diffs.map((diff, index) => [diff.subjectId, index]));
+    this.onComplete = onComplete;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    this.isDisposedFlag = false;
+    contentEl.empty();
+    contentEl.addClass("bangumi-status-sync-modal");
+    this.selection = normalizeStatusSyncFieldSelection(this.selection);
+    this.diffs = this.diffs.map((diff) => this.normalizeDiff(diff));
+    this.diffIndexBySubjectId = new Map(this.diffs.map((diff, index) => [diff.subjectId, index]));
+    try {
+      contentEl.createEl("h2", { text: this.getTitle() });
+      contentEl.createEl("p", {
+        text: this.getDescription().replace("{count}", String(this.diffs.length)),
+        cls: "bangumi-sync-description"
+      });
+      const actionBar = contentEl.createDiv({ cls: "bangumi-status-sync-actions" });
+      actionBar.createEl("button", { text: tn("statusSyncModal", "allCloud") }, (button) => {
+        button.addEventListener("click", () => this.selectAll("cloud"));
+      });
+      if (hasSelectedUserFields(this.selection)) {
+        actionBar.createEl("button", { text: tn("statusSyncModal", "allLocal") }, (button) => {
+          button.addEventListener("click", () => this.selectAll("local"));
+        });
+        actionBar.createEl("button", { text: tn("statusSyncModal", "smartMerge") }, (button) => {
+          button.addEventListener("click", () => this.smartMerge());
+        });
+      }
+      actionBar.createEl("button", { text: tn("statusSyncModal", "allSkip") }, (button) => {
+        button.addEventListener("click", () => this.selectAll("skip"));
+      });
+      this.statusEl = contentEl.createDiv({ cls: "bangumi-status-sync-status" });
+      this.updateStatusSummary();
+      this.tableEl = contentEl.createDiv({ cls: "bangumi-status-sync-table" });
+      this.renderTable();
+      const footer = contentEl.createDiv({ cls: "bangumi-status-sync-footer" });
+      footer.createEl("button", { text: tn("statusSyncModal", "execute"), cls: "mod-cta" }, (button) => {
+        button.addEventListener("click", () => {
+          void this.executeSync();
+        });
+      });
+      footer.createEl("button", { text: tn("statusSyncModal", "cancel") }, (button) => {
+        button.addEventListener("click", () => this.close());
+      });
+    } catch (error) {
+      console.error("[Bangumi Sync] \u72B6\u6001\u540C\u6B65\u5F39\u7A97\u6E32\u67D3\u5931\u8D25:", error, {
+        selection: this.selection,
+        diffCount: this.diffs.length,
+        sampleDiff: this.diffs[0]
+      });
+      this.renderErrorState(error);
+    }
+  }
+  onClose() {
+    this.isDisposedFlag = true;
+    if (this.renderTimer !== null) {
+      this.getOwnerWindow().clearTimeout(this.renderTimer);
+      this.renderTimer = null;
+    }
+    this.contentEl.empty();
+  }
+  isDisposed() {
+    return this.isDisposedFlag;
+  }
+  updateBackgroundProgress(completed, total) {
+    if (this.isDisposedFlag) {
+      return;
+    }
+    this.backgroundCompleted = completed;
+    this.backgroundTotal = total;
+    this.updateStatusSummary();
+  }
+  updateDiff(subjectId, patch) {
+    if (this.isDisposedFlag) {
+      return;
+    }
+    const diffIndex = this.diffIndexBySubjectId.get(subjectId);
+    if (diffIndex === void 0) {
+      return;
+    }
+    const diff = this.diffs[diffIndex];
+    this.diffs[diffIndex] = this.normalizeDiff({
+      ...diff,
+      ...patch
+    });
+    this.recalculateDiffState(this.diffs[diffIndex]);
+    this.updateStatusSummary();
+    this.scheduleRender();
+  }
+  renderTable() {
+    this.tableEl.empty();
+    const visibleDiffs = this.getVisibleDiffs();
+    if (visibleDiffs.length === 0) {
+      this.tableEl.createDiv({ text: tn("statusSyncModal", "noDiff"), cls: "bangumi-empty-message" });
+      return;
+    }
+    const table = this.tableEl.createEl("table");
+    const thead = table.createEl("thead");
+    const headerRow = thead.createEl("tr");
+    headerRow.createEl("th", { text: tn("statusSyncModal", "subjectName") });
+    headerRow.createEl("th", { text: tn("statusSyncModal", "diffFields") });
+    headerRow.createEl("th", { text: tn("statusSyncModal", "action") });
+    const tbody = table.createEl("tbody");
+    visibleDiffs.forEach((diff) => {
+      const index = this.diffIndexBySubjectId.get(diff.subjectId);
+      if (index === void 0) {
+        return;
+      }
+      const row = tbody.createEl("tr", { cls: "bangumi-status-row" });
+      const nameCell = row.createEl("td", { cls: "bangumi-name-cell" });
+      nameCell.createSpan({ text: diff.name_cn || diff.name || "Unknown" });
+      this.appendDiffIcons(nameCell, diff);
+      const fieldsCell = row.createEl("td", { cls: "bangumi-fields-cell" });
+      const diffFields = this.getDiffFields(diff);
+      fieldsCell.setText(diffFields.length > 0 ? diffFields.join("/") : this.getLoadingHint(diff));
+      const actionCell = row.createEl("td", { cls: "bangumi-action-cell" });
+      actionCell.createEl("button", {
+        text: diff.expanded ? tn("statusSyncModal", "collapse") : tn("statusSyncModal", "expand"),
+        cls: "bangumi-expand-btn"
+      }, (button) => {
+        button.addEventListener("click", () => {
+          this.diffs[index].expanded = !this.diffs[index].expanded;
+          this.renderTable();
+        });
+      });
+      if (diff.expanded) {
+        const detailRow = tbody.createEl("tr", { cls: "bangumi-detail-row" });
+        const detailCell = detailRow.createEl("td", { attr: { colspan: "3" } });
+        this.renderDetailTable(detailCell, diff, index);
+      }
+    });
+  }
+  appendDiffIcons(el, diff) {
+    const icons = [];
+    if (this.isUserFieldEnabled("rate") && diff.rate.hasDiff)
+      icons.push("\u2B50");
+    if (this.isUserFieldEnabled("comment") && diff.comment.hasDiff)
+      icons.push("\u{1F4DD}");
+    if (this.isUserFieldEnabled("tags") && diff.tags.hasDiff)
+      icons.push("\u{1F3F7}\uFE0F");
+    if (this.isUserFieldEnabled("status") && diff.status.hasDiff)
+      icons.push("\u{1F4CA}");
+    if (this.isUserFieldEnabled("episodeStatus") && diff.episodeStatus.hasDiff)
+      icons.push("\u{1F39E}\uFE0F");
+    if (diff.hasPlatformDiff)
+      icons.push("\u{1F4DA}");
+    if (icons.length > 0) {
+      el.createSpan({ text: ` ${icons.join("")}`, cls: "bangumi-diff-icons" });
+    }
+  }
+  getDiffFields(diff) {
+    const fields = [];
+    if (this.isUserFieldEnabled("rate") && diff.rate.hasDiff)
+      fields.push(tn("statusSyncModal", "fieldRate"));
+    if (this.isUserFieldEnabled("comment") && diff.comment.hasDiff)
+      fields.push(tn("statusSyncModal", "fieldComment"));
+    if (this.isUserFieldEnabled("tags") && diff.tags.hasDiff)
+      fields.push(tn("statusSyncModal", "fieldTags"));
+    if (this.isUserFieldEnabled("status") && diff.status.hasDiff)
+      fields.push(tn("statusSyncModal", "fieldStatus"));
+    if (this.isUserFieldEnabled("episodeStatus") && diff.episodeStatus.hasDiff)
+      fields.push(tn("statusSyncModal", "fieldEpisodeStatus"));
+    for (const platformField of diff.platformFields) {
+      if (platformField.hasDiff) {
+        fields.push(platformField.label);
+      }
+    }
+    return fields;
+  }
+  getVisibleDiffs() {
+    return this.diffs.filter((diff) => diff.hasAnyDiff || this.isDiffLoading(diff));
+  }
+  isDiffLoading(diff) {
+    return diff.episodeStatusLoadState !== "ready" || diff.platformLoadState !== "ready";
+  }
+  getLoadingHint(diff) {
+    if (diff.backgroundError) {
+      return this.getLoadStateText("failed");
+    }
+    if (diff.episodeStatusLoadState === "loading" || diff.platformLoadState === "loading") {
+      return this.getLoadStateText("loading");
+    }
+    if (this.isDiffLoading(diff)) {
+      return this.getLoadStateText("pending");
+    }
+    return tn("statusSyncModal", "noDiff");
+  }
+  renderDetailTable(el, diff, index) {
+    const detailTable = el.createEl("table", { cls: "bangumi-detail-table" });
+    const thead = detailTable.createEl("thead");
+    const headerRow = thead.createEl("tr");
+    headerRow.createEl("th", { text: tn("statusSyncModal", "field") });
+    headerRow.createEl("th", { text: tn("statusSyncModal", "local") });
+    headerRow.createEl("th", { text: tn("statusSyncModal", "cloud") });
+    headerRow.createEl("th", { text: tn("statusSyncModal", "decision") });
+    const tbody = detailTable.createEl("tbody");
+    if (diff.hasUserDiff) {
+      this.renderSectionHeader(tbody, tn("statusSyncModal", "userDataGroup"));
+    }
+    if (this.isUserFieldEnabled("rate") && diff.rate.hasDiff) {
+      this.renderFieldRow(
+        tbody,
+        tn("statusSyncModal", "fieldRate"),
+        diff.rate.localValue ? String(diff.rate.localValue) : tn("statusSyncModal", "empty"),
+        diff.rate.cloudValue ? String(diff.rate.cloudValue) : tn("statusSyncModal", "empty"),
+        "rate",
+        index,
+        false
+      );
+    }
+    if (this.isUserFieldEnabled("comment") && diff.comment.hasDiff) {
+      this.renderFieldRow(
+        tbody,
+        tn("statusSyncModal", "fieldComment"),
+        diff.comment.localValue || tn("statusSyncModal", "empty"),
+        diff.comment.cloudValue || tn("statusSyncModal", "empty"),
+        "comment",
+        index,
+        false
+      );
+    }
+    if (this.isUserFieldEnabled("tags") && diff.tags.hasDiff) {
+      this.renderFieldRow(
+        tbody,
+        tn("statusSyncModal", "fieldTags"),
+        diff.tags.localValue ? diff.tags.localValue.join(", ") : tn("statusSyncModal", "empty"),
+        diff.tags.cloudValue ? diff.tags.cloudValue.join(", ") : tn("statusSyncModal", "empty"),
+        "tags",
+        index,
+        true
+      );
+    }
+    if (this.isUserFieldEnabled("status") && diff.status.hasDiff) {
+      this.renderFieldRow(
+        tbody,
+        tn("statusSyncModal", "fieldStatus"),
+        this.getStatusText(diff.status.localValue, diff.collection.subject_type),
+        this.getStatusText(diff.status.cloudValue, diff.collection.subject_type),
+        "status",
+        index,
+        false
+      );
+    }
+    if (this.isUserFieldEnabled("episodeStatus") && diff.episodeStatus.hasDiff) {
+      this.renderFieldRow(
+        tbody,
+        tn("statusSyncModal", "fieldEpisodeStatus"),
+        diff.episodeStatus.localValue || tn("statusSyncModal", "empty"),
+        diff.episodeStatus.cloudValue || tn("statusSyncModal", "empty"),
+        "episodeStatus",
+        index,
+        false
+      );
+    } else if (this.isUserFieldEnabled("episodeStatus") && diff.episodeStatusLoadState !== "ready") {
+      this.renderLoadingRow(tbody, tn("statusSyncModal", "fieldEpisodeStatus"), diff.episodeStatusLoadState);
+    }
+    if (diff.hasPlatformDiff) {
+      this.renderSectionHeader(tbody, tn("statusSyncModal", "platformDataGroup"));
+      diff.platformFields.filter((field) => field.hasDiff).forEach((field) => this.renderPlatformFieldRow(tbody, field, index));
+    } else if (hasSelectedPlatformFields(this.selection) && diff.platformLoadState !== "ready") {
+      this.renderSectionHeader(tbody, tn("statusSyncModal", "platformDataGroup"));
+      this.renderLoadingRow(tbody, tn("statusSyncModal", "platformDataGroup"), diff.platformLoadState);
+    }
+    if (diff.backgroundError) {
+      const row = tbody.createEl("tr");
+      row.createEl("td", { text: tn("statusSyncModal", "backgroundLoading"), cls: "bangumi-field-name" });
+      row.createEl("td", { text: diff.backgroundError, attr: { colspan: "3" } });
+    }
+  }
+  renderSectionHeader(tbody, text) {
+    const row = tbody.createEl("tr", { cls: "bangumi-detail-section-row" });
+    row.createEl("td", { text, attr: { colspan: "4" }, cls: "bangumi-field-name" });
+  }
+  renderFieldRow(tbody, fieldName, localValue, cloudValue, fieldKey, diffIndex, supportMerge) {
+    const fieldDiff = this.getUserDecisionField(this.diffs[diffIndex], fieldKey);
+    const row = tbody.createEl("tr");
+    row.createEl("td", { text: fieldName, cls: "bangumi-field-name" });
+    row.createEl("td", { text: localValue, cls: "bangumi-local-value bangumi-sync-value" });
+    row.createEl("td", { text: cloudValue, cls: "bangumi-cloud-value bangumi-sync-value" });
+    const decisionCell = row.createEl("td");
+    const select = decisionCell.createEl("select", { cls: "bangumi-sync-decision-select" });
+    select.createEl("option", { value: "skip", text: tn("statusSyncModal", "skip") });
+    select.createEl("option", { value: "local", text: tn("statusSyncModal", "keepLocal") });
+    select.createEl("option", { value: "cloud", text: tn("statusSyncModal", "keepCloud") });
+    if (supportMerge) {
+      select.createEl("option", { value: "merge", text: tn("statusSyncModal", "merge") });
+    }
+    select.value = fieldDiff.decision;
+    select.addEventListener("change", () => {
+      fieldDiff.decision = select.value;
+    });
+  }
+  renderPlatformFieldRow(tbody, field, diffIndex) {
+    const row = tbody.createEl("tr");
+    row.createEl("td", { text: field.label, cls: "bangumi-field-name" });
+    row.createEl("td", { text: field.localValue || tn("statusSyncModal", "empty"), cls: "bangumi-local-value bangumi-sync-value" });
+    row.createEl("td", { text: field.cloudValue || tn("statusSyncModal", "empty"), cls: "bangumi-cloud-value bangumi-sync-value" });
+    const decisionCell = row.createEl("td");
+    const select = decisionCell.createEl("select", { cls: "bangumi-sync-decision-select" });
+    select.createEl("option", { value: "skip", text: tn("statusSyncModal", "skip") });
+    select.createEl("option", { value: "cloud", text: tn("statusSyncModal", "keepCloudOnly") });
+    select.value = field.decision;
+    select.addEventListener("change", () => {
+      const platformField = this.diffs[diffIndex].platformFields.find((item) => item.key === field.key);
+      if (platformField) {
+        platformField.decision = select.value;
+      }
+    });
+  }
+  renderLoadingRow(tbody, fieldName, state) {
+    const row = tbody.createEl("tr");
+    row.createEl("td", { text: fieldName, cls: "bangumi-field-name" });
+    row.createEl("td", { text: this.getLoadStateText(state), attr: { colspan: "3" } });
+  }
+  getStatusText(status, subjectType) {
+    if (status === null)
+      return tn("statusSyncModal", "empty");
+    const validStatus = this.toValidCollectionType(status);
+    if (validStatus === null) {
+      return tn("statusSyncModal", "empty");
+    }
+    return getCollectionStatusLabel(validStatus, subjectType, true) || tn("statusSyncModal", "empty");
+  }
+  getUserDecisionField(diff, fieldKey) {
+    switch (fieldKey) {
+      case "rate":
+        return diff.rate;
+      case "comment":
+        return diff.comment;
+      case "tags":
+        return diff.tags;
+      case "status":
+        return diff.status;
+      case "episodeStatus":
+        return diff.episodeStatus;
+    }
+  }
+  toValidCollectionType(value) {
+    switch (value) {
+      case 1:
+        return 1 /* Wish */;
+      case 2:
+        return 2 /* Done */;
+      case 3:
+        return 3 /* Doing */;
+      case 4:
+        return 4 /* OnHold */;
+      case 5:
+        return 5 /* Dropped */;
+      default:
+        return null;
+    }
+  }
+  selectAll(decision) {
+    if (!hasSelectedUserFields(this.selection) && hasSelectedPlatformFields(this.selection)) {
+      this.diffs.forEach((diff) => {
+        diff.platformFields.forEach((field) => {
+          field.decision = decision === "cloud" ? "cloud" : "skip";
+        });
+      });
+    } else {
+      this.statusSyncService.applyDecisionPreset(this.diffs, decision);
+    }
+    this.updateStatusSummary();
+    this.renderTable();
+  }
+  smartMerge() {
+    if (!hasSelectedUserFields(this.selection)) {
+      return;
+    }
+    this.statusSyncService.applyDecisionPreset(this.diffs, "smart");
+    this.updateStatusSummary();
+    this.renderTable();
+  }
+  async executeSync() {
+    this.statusEl.setText(tn("statusSyncModal", "syncProgress"));
+    const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
+    const summary = tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount));
+    const message = successCount > 0 && failCount > 0 ? `${tn("syncModal", "partialSuccess")}: ${summary}` : summary;
+    this.statusEl.setText(message);
+    if (successCount > 0) {
+      new import_obsidian19.Notice(message);
+      this.onComplete();
+      this.close();
+      return;
+    }
+    new import_obsidian19.Notice(tn("statusSyncModal", "syncFailed"));
+  }
+  scheduleRender() {
+    if (this.renderTimer !== null || this.isDisposedFlag) {
+      return;
+    }
+    this.renderTimer = this.getOwnerWindow().setTimeout(() => {
+      this.renderTimer = null;
+      if (!this.isDisposedFlag) {
+        this.renderTable();
+      }
+    }, 200);
+  }
+  getOwnerWindow() {
+    const ownerWindow = this.containerEl.ownerDocument.defaultView;
+    return ownerWindow != null ? ownerWindow : activeWindow;
+  }
+  updateStatusSummary() {
+    if (!this.statusEl) {
+      return;
+    }
+    const visibleCount = this.getVisibleDiffs().length;
+    if (this.backgroundTotal > 0 && this.backgroundCompleted < this.backgroundTotal) {
+      this.statusEl.setText(
+        tn("statusSyncModal", "progressSummaryLoading").replace("{completed}", String(this.backgroundCompleted)).replace("{total}", String(this.backgroundTotal)).replace("{visible}", String(visibleCount))
+      );
+      return;
+    }
+    if (this.backgroundTotal > 0) {
+      this.statusEl.setText(
+        tn("statusSyncModal", "progressSummaryDone").replace("{completed}", String(this.backgroundCompleted)).replace("{total}", String(this.backgroundTotal)).replace("{visible}", String(visibleCount))
+      );
+      return;
+    }
+    this.statusEl.setText(
+      tn("statusSyncModal", "progressSummaryVisible").replace("{visible}", String(visibleCount))
+    );
+  }
+  recalculateDiffState(diff) {
+    diff.hasUserDiff = hasSelectedUserFields(this.selection) && (this.isUserFieldEnabled("rate") && diff.rate.hasDiff || this.isUserFieldEnabled("comment") && diff.comment.hasDiff || this.isUserFieldEnabled("tags") && diff.tags.hasDiff || this.isUserFieldEnabled("status") && diff.status.hasDiff || this.isUserFieldEnabled("episodeStatus") && diff.episodeStatus.hasDiff);
+    diff.hasPlatformDiff = diff.platformFields.some((field) => field.hasDiff);
+    diff.hasAnyDiff = diff.hasUserDiff || diff.hasPlatformDiff;
+  }
+  isUserFieldEnabled(key) {
+    var _a;
+    return Boolean((_a = this.selection.user) == null ? void 0 : _a[key]);
+  }
+  normalizeDiff(diff) {
+    var _a, _b, _c;
+    const normalized = {
+      ...diff,
+      rate: this.normalizeFieldDiff(diff.rate),
+      comment: this.normalizeFieldDiff(diff.comment),
+      tags: this.normalizeFieldDiff(diff.tags),
+      status: this.normalizeFieldDiff(diff.status),
+      episodeStatus: this.normalizeFieldDiff(diff.episodeStatus),
+      platformFields: Array.isArray(diff.platformFields) ? diff.platformFields.map((field) => {
+        var _a2, _b2, _c2;
+        return {
+          ...field,
+          localValue: (_a2 = field.localValue) != null ? _a2 : null,
+          cloudValue: (_b2 = field.cloudValue) != null ? _b2 : null,
+          hasDiff: Boolean(field.hasDiff),
+          decision: (_c2 = field.decision) != null ? _c2 : "skip"
+        };
+      }) : [],
+      expanded: Boolean(diff.expanded),
+      episodeStatusLoadState: (_a = diff.episodeStatusLoadState) != null ? _a : "ready",
+      platformLoadState: (_b = diff.platformLoadState) != null ? _b : "ready",
+      backgroundError: (_c = diff.backgroundError) != null ? _c : null
+    };
+    this.recalculateDiffState(normalized);
+    return normalized;
+  }
+  normalizeFieldDiff(fieldDiff) {
+    var _a, _b, _c;
+    return {
+      localValue: (_a = fieldDiff == null ? void 0 : fieldDiff.localValue) != null ? _a : null,
+      cloudValue: (_b = fieldDiff == null ? void 0 : fieldDiff.cloudValue) != null ? _b : null,
+      hasDiff: Boolean(fieldDiff == null ? void 0 : fieldDiff.hasDiff),
+      decision: (_c = fieldDiff == null ? void 0 : fieldDiff.decision) != null ? _c : "skip"
+    };
+  }
+  renderErrorState(error) {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("bangumi-status-sync-modal");
+    contentEl.createEl("h2", { text: this.getTitle() });
+    contentEl.createEl("p", {
+      text: `${tn("controlPanel", "compareStatusFailed")}: ${error instanceof Error ? error.message : String(error)}`,
+      cls: "bangumi-sync-description"
+    });
+    const footer = contentEl.createDiv({ cls: "bangumi-status-sync-footer" });
+    footer.createEl("button", { text: tn("statusSyncModal", "cancel") }, (button) => {
+      button.addEventListener("click", () => this.close());
+    });
+  }
+  getLoadStateText(state) {
+    switch (state) {
+      case "failed":
+        return tn("statusSyncModal", "backgroundLoadFailed");
+      case "loading":
+        return tn("statusSyncModal", "loadInProgress");
+      case "pending":
+        return tn("statusSyncModal", "loadPending");
+      case "ready":
+      default:
+        return tn("statusSyncModal", "noDiff");
+    }
+  }
+  getTitle() {
+    if (hasSelectedUserFields(this.selection) && hasSelectedPlatformFields(this.selection)) {
+      return tn("statusSyncModal", "title");
+    }
+    return hasSelectedUserFields(this.selection) ? tn("statusSyncModal", "userTitle") : tn("statusSyncModal", "platformTitle");
+  }
+  getDescription() {
+    if (hasSelectedUserFields(this.selection) && hasSelectedPlatformFields(this.selection)) {
+      return tn("statusSyncModal", "description");
+    }
+    return hasSelectedUserFields(this.selection) ? tn("statusSyncModal", "userDescription") : tn("statusSyncModal", "platformDescription");
+  }
+};
+
+// src/panel/statusSyncScopeModal.ts
+var import_obsidian20 = require("obsidian");
+var StatusSyncScopeModal = class extends import_obsidian20.Modal {
+  constructor(app, initialSelection, onConfirm) {
+    super(app);
+    this.selection = normalizeStatusSyncFieldSelection(initialSelection);
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    this.modalEl.addClass("bangumi-status-sync-scope-window");
+    this.render();
+  }
+  onClose() {
+    this.modalEl.removeClass("bangumi-status-sync-scope-window");
+    this.contentEl.empty();
+  }
+  render() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("bangumi-status-sync-scope-modal");
+    this.selection = normalizeStatusSyncFieldSelection(this.selection);
+    const header = contentEl.createDiv({ cls: "bangumi-status-sync-scope-header" });
+    header.createEl("h2", {
+      text: tn("statusSyncModal", "scopeTitle"),
+      cls: "bangumi-status-sync-scope-heading"
+    });
+    header.createEl("p", {
+      text: tn("statusSyncModal", "scopeDescription"),
+      cls: "bangumi-status-sync-scope-subtitle"
+    });
+    const body = contentEl.createDiv({ cls: "bangumi-status-sync-scope-body" });
+    const grid = body.createDiv({ cls: "bangumi-status-sync-scope-grid" });
+    this.renderSectionSafely(grid, "user");
+    this.renderSectionSafely(grid, "platform");
+    const footer = contentEl.createDiv({ cls: "bangumi-status-sync-scope-footer" });
+    footer.createDiv({
+      text: tn("statusSyncModal", "scopeFooterHint"),
+      cls: "bangumi-status-sync-scope-hint"
+    });
+    const actions = footer.createDiv({ cls: "bangumi-status-sync-scope-actions" });
+    actions.createEl("button", {
+      text: tn("syncOptions", "cancel"),
+      cls: "bangumi-status-sync-scope-cancel"
+    }, (button) => {
+      button.type = "button";
+      button.addEventListener("click", () => this.close());
+    });
+    actions.createEl("button", {
+      text: tn("statusSyncModal", "startCompare"),
+      cls: "mod-cta bangumi-status-sync-scope-submit"
+    }, (button) => {
+      button.type = "button";
+      button.addEventListener("click", () => {
+        if (!hasSelectedUserFields(this.selection) && !hasSelectedPlatformFields(this.selection)) {
+          new import_obsidian20.Notice(tn("statusSyncModal", "selectAtLeastOne"));
+          return;
+        }
+        this.onConfirm(cloneStatusSyncFieldSelection(this.selection));
+        this.close();
+      });
+    });
+  }
+  renderSectionSafely(container, section) {
+    try {
+      this.renderSection(container, section);
+    } catch (error) {
+      console.error("[Bangumi Sync] \u72B6\u6001\u540C\u6B65\u8303\u56F4\u9009\u62E9\u5F39\u7A97\u6E32\u67D3\u5931\u8D25:", section, error);
+      this.renderSectionFallback(container, section);
+    }
+  }
+  renderSection(container, section) {
+    const card = container.createDiv({
+      cls: `bangumi-status-sync-scope-card ${section === "user" ? "is-default" : ""}`
+    });
+    const fieldDescriptors = section === "user" ? this.getUserFieldDescriptors() : this.getPlatformFieldDescriptors();
+    const header = card.createDiv({ cls: "bangumi-status-sync-scope-head" });
+    const topLine = header.createDiv({ cls: "bangumi-status-sync-scope-topline" });
+    const titleWrap = topLine.createDiv({ cls: "bangumi-status-sync-scope-title-wrap" });
+    const masterLabel = titleWrap.createEl("label", { cls: "bangumi-status-sync-scope-master" });
+    const masterCheckbox = masterLabel.createEl("input", { type: "checkbox" });
+    masterLabel.createSpan({
+      text: section === "user" ? tn("statusSyncModal", "userDataGroup") : tn("statusSyncModal", "platformDataGroup"),
+      cls: "bangumi-status-sync-scope-title"
+    });
+    titleWrap.createSpan({
+      text: section === "user" ? tn("statusSyncModal", "scopeDefaultUser") : tn("statusSyncModal", "scopeDefaultPlatform"),
+      cls: "bangumi-status-sync-scope-badge"
+    });
+    const tools = topLine.createDiv({ cls: "bangumi-status-sync-scope-tools" });
+    tools.createEl("button", { text: tn("statusSyncModal", "selectAll") }, (button) => {
+      button.type = "button";
+      button.addEventListener("click", () => {
+        this.setSectionSelection(section, true);
+        this.render();
+      });
+    });
+    tools.createEl("button", { text: tn("statusSyncModal", "deselectAll") }, (button) => {
+      button.type = "button";
+      button.addEventListener("click", () => {
+        this.setSectionSelection(section, false);
+        this.render();
+      });
+    });
+    header.createEl("p", {
+      text: section === "user" ? tn("statusSyncModal", "scopeUserDescription") : tn("statusSyncModal", "scopePlatformDescription"),
+      cls: "bangumi-status-sync-scope-desc"
+    });
+    const items = card.createDiv({ cls: "bangumi-status-sync-scope-items" });
+    for (const field of fieldDescriptors) {
+      const isChecked = this.getFieldChecked(section, field.key);
+      const item = items.createEl("label", {
+        cls: `bangumi-status-sync-scope-item ${isChecked ? "is-checked" : ""}`
+      });
+      const checkbox = item.createEl("input", { type: "checkbox" });
+      checkbox.checked = isChecked;
+      checkbox.addEventListener("change", () => {
+        this.setFieldChecked(section, field.key, checkbox.checked);
+        this.render();
+      });
+      const content = item.createDiv({ cls: "bangumi-status-sync-scope-item-content" });
+      content.createDiv({ text: field.label, cls: "bangumi-status-sync-scope-item-name" });
+      content.createDiv({ text: field.description, cls: "bangumi-status-sync-scope-item-meta" });
+    }
+    const selectedCount = fieldDescriptors.filter((field) => this.getFieldChecked(section, field.key)).length;
+    masterCheckbox.checked = selectedCount === fieldDescriptors.length && fieldDescriptors.length > 0;
+    masterCheckbox.indeterminate = selectedCount > 0 && selectedCount < fieldDescriptors.length;
+    masterCheckbox.addEventListener("change", () => {
+      this.setSectionSelection(section, masterCheckbox.checked);
+      this.render();
+    });
+  }
+  renderSectionFallback(container, section) {
+    const card = container.createDiv({ cls: "bangumi-status-sync-scope-card" });
+    const header = card.createDiv({ cls: "bangumi-status-sync-scope-head" });
+    header.createEl("div", {
+      text: section === "user" ? tn("statusSyncModal", "userDataGroup") : tn("statusSyncModal", "platformDataGroup"),
+      cls: "bangumi-status-sync-scope-title"
+    });
+    card.createDiv({
+      text: tn("statusSyncModal", "backgroundLoadFailed"),
+      cls: "bangumi-status-sync-scope-desc"
+    });
+  }
+  getFieldChecked(section, key) {
+    if (section === "user") {
+      return Boolean(this.selection.user[key]);
+    }
+    return Boolean(this.selection.platform[key]);
+  }
+  setFieldChecked(section, key, checked) {
+    if (section === "user") {
+      this.selection.user[key] = checked;
+      return;
+    }
+    this.selection.platform[key] = checked;
+  }
+  setSectionSelection(section, checked) {
+    if (section === "user") {
+      for (const key of USER_STATUS_SYNC_FIELD_KEYS) {
+        this.selection.user[key] = checked;
+      }
+      return;
+    }
+    for (const key of PLATFORM_STATUS_SYNC_FIELD_KEYS) {
+      this.selection.platform[key] = checked;
+    }
+  }
+  getUserFieldDescriptors() {
+    return [
+      { key: "rate", label: tn("statusSyncModal", "fieldRate"), description: tn("statusSyncModal", "scopeFieldRate") },
+      { key: "comment", label: tn("statusSyncModal", "fieldComment"), description: tn("statusSyncModal", "scopeFieldComment") },
+      { key: "tags", label: tn("statusSyncModal", "fieldTags"), description: tn("statusSyncModal", "scopeFieldTags") },
+      { key: "status", label: tn("statusSyncModal", "fieldStatus"), description: tn("statusSyncModal", "scopeFieldStatus") },
+      { key: "episodeStatus", label: tn("statusSyncModal", "fieldEpisodeStatus"), description: tn("statusSyncModal", "scopeFieldEpisodeStatus") }
+    ];
+  }
+  getPlatformFieldDescriptors() {
+    return [
+      { key: "episodeCount", label: tn("statusSyncModal", "fieldEpisodeCount"), description: tn("statusSyncModal", "scopeFieldEpisodeCount") },
+      { key: "chapterCount", label: tn("statusSyncModal", "fieldChapterCount"), description: tn("statusSyncModal", "scopeFieldChapterCount") },
+      { key: "volumeCount", label: tn("statusSyncModal", "fieldVolumeCount"), description: tn("statusSyncModal", "scopeFieldVolumeCount") },
+      { key: "start", label: tn("statusSyncModal", "fieldStart"), description: tn("statusSyncModal", "scopeFieldStart") },
+      { key: "end", label: tn("statusSyncModal", "fieldEnd"), description: tn("statusSyncModal", "scopeFieldEnd") },
+      { key: "progress", label: tn("statusSyncModal", "fieldProgress"), description: tn("statusSyncModal", "scopeFieldProgress") }
+    ];
+  }
+};
+
+// src/panel/conflictResolver.ts
+var ConflictDetector = class {
+  constructor(app) {
+    this.app = app;
+  }
+  /**
+   * 检测冲突
+   * @param localItems 本地条目映射
+   * @param cloudItems 云端收藏列表
+   * @param localModifiedTime 本地修改时间映射
+   */
+  detectConflicts(localItems, cloudItems, localModifiedTime) {
+    const conflicts = [];
+    for (const cloudItem of cloudItems) {
+      const subjectId = cloudItem.subject_id;
+      const localData = localItems.get(subjectId);
+      if (!localData)
+        continue;
+      const localModified = localModifiedTime.get(subjectId) || "";
+      const cloudModified = cloudItem.updated_at || "";
+      const diff = this.computeDiff(localData, cloudItem);
+      if (this.hasDiff(diff) && localModified) {
+        conflicts.push({
+          subjectId,
+          name_cn: cloudItem.subject.name_cn || "",
+          name: cloudItem.subject.name || "",
+          localModified,
+          cloudModified,
+          localData,
+          cloudData: cloudItem,
+          diff,
+          decision: "skip"
+        });
+      }
+    }
+    return conflicts;
+  }
+  /**
+   * 计算差异
+   */
+  computeDiff(local, cloud) {
+    return {
+      rateChanged: local.rate !== cloud.rate,
+      commentChanged: (local.comment || "") !== (cloud.comment || ""),
+      tagsChanged: !this.arraysEqual(local.tags || [], cloud.tags || []),
+      statusChanged: local.type !== cloud.type,
+      localRate: local.rate,
+      cloudRate: cloud.rate,
+      localComment: local.comment,
+      cloudComment: cloud.comment,
+      localTags: local.tags,
+      cloudTags: cloud.tags,
+      localStatus: local.type,
+      cloudStatus: cloud.type
+    };
+  }
+  /**
+   * 检查是否有差异
+   */
+  hasDiff(diff) {
+    return diff.rateChanged || diff.commentChanged || diff.tagsChanged || diff.statusChanged;
+  }
+  /**
+   * 比较数组是否相等
+   */
+  arraysEqual(a, b) {
+    if (a.length !== b.length)
+      return false;
+    return a.every((val, index) => val === b[index]);
+  }
+  /**
+   * 从本地文件提取数据
+   */
+  extractLocalData(file) {
+    var _a;
+    try {
+      const frontmatter = getFrontmatterRecord((_a = this.app.metadataCache.getFileCache(file)) == null ? void 0 : _a.frontmatter);
+      if (!frontmatter)
+        return null;
+      const title = getFrontmatterString(frontmatter, "title") || "";
+      const nameCn = getFrontmatterString(frontmatter, "name_cn") || "";
+      const rate = getFrontmatterNumber(frontmatter, "my_rate");
+      const comment = getFrontmatterString(frontmatter, "comment");
+      const status = getFrontmatterNumber(frontmatter, "status");
+      const updatedAt = getFrontmatterString(frontmatter, "updated_at") || file.stat.mtime.toString();
+      const tags = getFrontmatterStringArray(frontmatter, "tags");
+      return {
+        path: file.path,
+        name_cn: title || nameCn,
+        rate,
+        comment,
+        tags,
+        type: status,
+        updated_at: updatedAt
+      };
+    } catch (error) {
+      console.error("[ConflictDetector] \u63D0\u53D6\u672C\u5730\u6570\u636E\u5931\u8D25:", error);
+      return null;
+    }
+  }
+};
+
+// src/utils/mobile.ts
+function isMobile() {
+  return activeWindow.matchMedia("(max-width: 767px)").matches;
+}
+
+// src/document/localSubjectSnapshotSession.ts
+var import_obsidian21 = require("obsidian");
+var LocalSubjectSnapshotSession = class {
+  constructor(app, documentService) {
+    this.snapshotsById = /* @__PURE__ */ new Map();
+    this.subjectIdByPath = /* @__PURE__ */ new Map();
+    this.warmupGeneration = 0;
+    this.warmupPromise = null;
+    this.app = app;
+    this.documentService = documentService;
+  }
+  get currentWarmup() {
+    return this.warmupPromise;
+  }
+  cancelWarmup() {
+    this.warmupGeneration++;
+    this.warmupPromise = null;
+  }
+  clear() {
+    this.snapshotsById.clear();
+    this.subjectIdByPath.clear();
+  }
+  warm(collections, localSubjects, options = {}) {
+    var _a;
+    const generation = ++this.warmupGeneration;
+    this.clear();
+    if (collections.length === 0) {
+      this.warmupPromise = null;
+      return null;
+    }
+    this.warmupPromise = this.mapWithConcurrency(collections, (_a = options.concurrency) != null ? _a : 4, async (collection) => {
+      if (generation !== this.warmupGeneration) {
+        return;
+      }
+      const localInfo = localSubjects.get(collection.subject_id);
+      if (!localInfo) {
+        return;
+      }
+      const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+      if (!(file instanceof import_obsidian21.TFile)) {
+        return;
+      }
+      const snapshot = await this.documentService.readSnapshot(file, collection.subject_type);
+      if (generation !== this.warmupGeneration) {
+        return;
+      }
+      this.set(collection.subject_id, {
+        ...snapshot,
+        file,
+        path: localInfo.path,
+        mtime: file.stat.mtime
+      });
+    }).then(() => {
+      var _a2;
+      if (generation === this.warmupGeneration) {
+        (_a2 = options.onComplete) == null ? void 0 : _a2.call(options, this.snapshotsById.size);
+      }
+    }).catch((error) => {
+      var _a2;
+      if (generation === this.warmupGeneration) {
+        (_a2 = options.onError) == null ? void 0 : _a2.call(options, error);
+      }
+    });
+    return this.warmupPromise;
+  }
+  get(subjectId, path, mtime) {
+    const snapshot = this.snapshotsById.get(subjectId);
+    if (!snapshot) {
+      return null;
+    }
+    if (snapshot.path !== path || snapshot.mtime !== mtime) {
+      this.delete(subjectId);
+      return null;
+    }
+    return snapshot;
+  }
+  getByPath(path) {
+    const subjectId = this.subjectIdByPath.get(path);
+    if (subjectId === void 0) {
+      return null;
+    }
+    const snapshot = this.snapshotsById.get(subjectId);
+    if (!snapshot || snapshot.path !== path) {
+      this.delete(subjectId);
+      return null;
+    }
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof import_obsidian21.TFile) || snapshot.mtime !== file.stat.mtime) {
+      this.delete(subjectId);
+      return null;
+    }
+    return snapshot;
+  }
+  invalidatePath(path) {
+    const subjectId = this.subjectIdByPath.get(path);
+    if (subjectId !== void 0) {
+      this.delete(subjectId);
+    }
+  }
+  set(subjectId, snapshot) {
+    this.snapshotsById.set(subjectId, snapshot);
+    if (snapshot.path) {
+      this.subjectIdByPath.set(snapshot.path, subjectId);
+    }
+  }
+  delete(subjectId) {
+    const snapshot = this.snapshotsById.get(subjectId);
+    if (snapshot == null ? void 0 : snapshot.path) {
+      this.subjectIdByPath.delete(snapshot.path);
+    }
+    this.snapshotsById.delete(subjectId);
+  }
+  async mapWithConcurrency(items, concurrency, task) {
+    const results = new Array(items.length);
+    let nextIndex = 0;
+    const workerCount = Math.max(1, Math.min(concurrency, items.length));
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex++;
+        results[currentIndex] = await task(items[currentIndex], currentIndex);
+      }
+    });
+    await Promise.all(workers);
+    return results;
+  }
+};
+
+// src/sync/platformSyncLogic.ts
+function createCloudPlatformFieldDiff(key, label, localValue, cloudValue) {
+  return {
+    key,
+    label,
+    localValue,
+    cloudValue,
+    hasDiff: true,
+    decision: "cloud"
+  };
+}
+
+// src/sync/statusSyncBackgroundLoader.ts
+var StatusSyncBackgroundLoader = class {
+  constructor(client, episodeStatusManager) {
+    this.client = client;
+    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
+  }
+  async loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency = 4) {
+    const context = {
+      subjectCache: /* @__PURE__ */ new Map(),
+      cloudEpisodeStatusCache: /* @__PURE__ */ new Map(),
+      platformDiffCache: /* @__PURE__ */ new Map()
+    };
+    const candidates = snapshots.filter(
+      (snapshot) => selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus || hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData
+    );
+    let completed = 0;
+    callbacks.updateBackgroundProgress(completed, candidates.length);
+    await this.mapWithConcurrency(candidates, concurrency, async (snapshot) => {
+      if (callbacks.isDisposed()) {
+        return;
+      }
+      const loadingPatch = {};
+      if (selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus) {
+        loadingPatch.episodeStatusLoadState = "loading";
+      }
+      if (hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData) {
+        loadingPatch.platformLoadState = "loading";
+      }
+      callbacks.updateDiff(snapshot.subjectId, loadingPatch);
+      try {
+        const [episodeStatus, platformResult] = await Promise.all([
+          selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? this.buildEpisodeStatusDiff(snapshot, context) : Promise.resolve(null),
+          hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? this.buildPlatformFieldDiffs(snapshot, context, selection) : Promise.resolve(null)
+        ]);
+        if (callbacks.isDisposed()) {
+          return;
+        }
+        const patch = { backgroundError: null };
+        if (episodeStatus) {
+          patch.episodeStatus = episodeStatus;
+          patch.episodeStatusLoadState = "ready";
+        }
+        if (platformResult) {
+          patch.platformFields = platformResult.fields;
+          patch.platformSyncPayload = platformResult.payload;
+          patch.platformLoadState = "ready";
+        }
+        callbacks.updateDiff(snapshot.subjectId, patch);
+      } catch (error) {
+        if (callbacks.isDisposed()) {
+          return;
+        }
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        callbacks.updateDiff(snapshot.subjectId, {
+          episodeStatusLoadState: selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? "failed" : "ready",
+          platformLoadState: hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? "failed" : "ready",
+          backgroundError: errorMessage
+        });
+      } finally {
+        completed++;
+        callbacks.updateBackgroundProgress(completed, candidates.length);
+        onProgress == null ? void 0 : onProgress(completed, candidates.length);
+      }
+    });
+  }
+  async buildPlatformFieldDiffs(snapshot, context, selection) {
+    return this.getOrCreateCachedPromise(
+      context.platformDiffCache,
+      snapshot.subjectId,
+      async () => {
+        const collection = snapshot.collection;
+        if (collection.subject_type !== 2 /* Anime */ && collection.subject_type !== 6 /* Real */ && collection.subject_type !== 1 /* Book */) {
+          return { fields: [] };
+        }
+        if (!snapshot.localSnapshot.shouldLoadPlatformData) {
+          return { fields: [] };
+        }
+        const subject = await this.getOrCreateCachedPromise(
+          context.subjectCache,
+          snapshot.subjectId,
+          () => this.client.getSubject(snapshot.subjectId)
+        );
+        const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
+        const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
+        const fields = [];
+        const localContext = snapshot.localSnapshot.platform;
+        if (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */) {
+          const cloudValue = cloudPayload.episodeCount;
+          if (selection.platform.episodeCount && cloudValue !== void 0 && cloudValue !== null && localContext.episodeCount !== cloudValue) {
+            fields.push(createCloudPlatformFieldDiff(
+              "episodeCount",
+              tn("statusSyncModal", "fieldEpisodeCount"),
+              localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
+              String(cloudValue)
+            ));
+          }
+        }
+        if (collection.subject_type === 1 /* Book */) {
+          const isComic = (parsedInfo.category || "").includes("\u6F2B\u753B") || localContext.chapterCount !== null;
+          if (isComic) {
+            if (selection.platform.chapterCount && cloudPayload.chapterCount !== void 0 && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
+              fields.push(createCloudPlatformFieldDiff(
+                "chapterCount",
+                tn("statusSyncModal", "fieldChapterCount"),
+                localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
+                String(cloudPayload.chapterCount)
+              ));
+            }
+            if (selection.platform.volumeCount && cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+              fields.push(createCloudPlatformFieldDiff(
+                "volumeCount",
+                tn("statusSyncModal", "fieldVolumeCount"),
+                localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+                String(cloudPayload.volumeCount)
+              ));
+            }
+          } else if (selection.platform.volumeCount && cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
+            fields.push(createCloudPlatformFieldDiff(
+              "volumeCount",
+              tn("statusSyncModal", "fieldVolumeCount"),
+              localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
+              String(cloudPayload.volumeCount)
+            ));
+          }
+        }
+        this.appendTextPlatformFieldDiff(
+          fields,
+          selection.platform.start,
+          "start",
+          tn("statusSyncModal", "fieldStart"),
+          localContext.start,
+          cloudPayload.start
+        );
+        this.appendTextPlatformFieldDiff(
+          fields,
+          selection.platform.end,
+          "end",
+          tn("statusSyncModal", "fieldEnd"),
+          localContext.end,
+          cloudPayload.end
+        );
+        this.appendTextPlatformFieldDiff(
+          fields,
+          selection.platform.progress,
+          "progress",
+          tn("statusSyncModal", "fieldProgress"),
+          localContext.progress,
+          cloudPayload.progress
+        );
+        return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
+      }
+    );
+  }
+  buildPlatformSyncPayload(subject, parsedInfo) {
+    const episodeCount = subject.total_episodes || subject.eps || parsedInfo.episode || null;
+    const volumeCount = subject.volumes || parsedInfo.volumes || null;
+    const start = parsedInfo.start || null;
+    const end = parsedInfo.end || null;
+    const progress = parsedInfo.progress || null;
+    return {
+      progress,
+      start,
+      end,
+      episodeCount,
+      chapterCount: parsedInfo.episode || null,
+      volumeCount
+    };
+  }
+  async buildEpisodeStatusDiff(snapshot, context) {
+    if (!this.episodeStatusManager || !snapshot.localSnapshot.shouldLoadEpisodeStatus) {
+      return {
+        localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) : null,
+        cloudValue: null,
+        hasDiff: false,
+        decision: "skip"
+      };
+    }
+    const cloudMap = await this.getOrCreateCachedPromise(
+      context.cloudEpisodeStatusCache,
+      snapshot.subjectId,
+      () => this.episodeStatusManager.getCloudEpisodeStatusMap(snapshot.subjectId)
+    );
+    const localValue = this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap);
+    const cloudValue = this.episodeStatusManager.summarizeEpisodeStatuses(cloudMap);
+    const hasDiff = this.episodeStatusManager.serializeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) !== this.episodeStatusManager.serializeEpisodeStatuses(cloudMap);
+    return {
+      localValue,
+      cloudValue,
+      hasDiff,
+      decision: "skip"
+    };
+  }
+  appendTextPlatformFieldDiff(fields, enabled, key, label, localValue, cloudValue) {
+    if (!enabled) {
+      return;
+    }
+    const normalizedCloudValue = cloudValue != null ? cloudValue : null;
+    if ((localValue != null ? localValue : null) === normalizedCloudValue) {
+      return;
+    }
+    fields.push(createCloudPlatformFieldDiff(
+      key,
+      label,
+      localValue,
+      normalizedCloudValue
+    ));
+  }
+  async mapWithConcurrency(items, concurrency, task) {
+    const results = new Array(items.length);
+    let nextIndex = 0;
+    const workerCount = Math.max(1, Math.min(concurrency, items.length));
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex++;
+        results[currentIndex] = await task(items[currentIndex], currentIndex);
+      }
+    });
+    await Promise.all(workers);
+    return results;
+  }
+  getOrCreateCachedPromise(cache, key, factory) {
+    const existing = cache.get(key);
+    if (existing) {
+      return existing;
+    }
+    const promise = factory().catch((error) => {
+      cache.delete(key);
+      throw error;
+    });
+    cache.set(key, promise);
+    return promise;
+  }
+};
+
+// src/sync/statusSyncExecutor.ts
+var import_obsidian22 = require("obsidian");
+var StatusSyncExecutor = class {
+  constructor(app, client, documentService, episodeStatusManager) {
+    this.app = app;
+    this.client = client;
+    this.documentService = documentService;
+    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
+  }
+  async executeSync(diffs) {
+    let successCount = 0;
+    let failCount = 0;
+    const actionableDiffs = diffs.filter((diff) => diff.hasAnyDiff);
+    for (const diff of actionableDiffs) {
+      try {
+        await this.syncItem(diff);
+        successCount++;
+      } catch (error) {
+        failCount++;
+        console.error(`[Bangumi Sync] \u540C\u6B65\u5931\u8D25: ${diff.name_cn}`, error);
+      }
+    }
+    return { successCount, failCount };
+  }
+  async syncItem(diff) {
+    var _a, _b, _c, _d;
+    const file = this.app.vault.getAbstractFileByPath(diff.localPath);
+    if (!(file instanceof import_obsidian22.TFile)) {
+      throw new Error("File not found");
+    }
+    const originalContent = await this.app.vault.read(file);
+    let content = originalContent;
+    const cloudUpdates = {};
+    if (diff.rate.hasDiff && diff.rate.decision !== "skip") {
+      if (diff.rate.decision === "local") {
+        cloudUpdates.rate = diff.rate.localValue || void 0;
+      } else if (diff.rate.decision === "cloud") {
+        content = diff.rate.cloudValue ? this.documentService.updateRate(content, diff.rate.cloudValue) : this.documentService.removeRate(content);
+      }
+    }
+    if (diff.comment.hasDiff && diff.comment.decision !== "skip") {
+      if (diff.comment.decision === "local") {
+        cloudUpdates.comment = diff.comment.localValue || "";
+      } else if (diff.comment.decision === "cloud") {
+        content = diff.comment.cloudValue ? this.documentService.updateComment(content, diff.comment.cloudValue) : this.documentService.removeComment(content);
+      }
+    }
+    if (diff.tags.hasDiff && diff.tags.decision !== "skip") {
+      if (diff.tags.decision === "local") {
+        cloudUpdates.tags = this.documentService.normalizeTags(diff.tags.localValue);
+      } else if (diff.tags.decision === "cloud") {
+        content = diff.tags.cloudValue && diff.tags.cloudValue.length > 0 ? this.documentService.updateTags(content, this.documentService.normalizeTags(diff.tags.cloudValue)) : this.documentService.removeTags(content);
+      } else if (diff.tags.decision === "merge") {
+        const mergedTags = /* @__PURE__ */ new Set();
+        (_a = diff.tags.localValue) == null ? void 0 : _a.forEach((tag) => mergedTags.add(tag));
+        (_b = diff.tags.cloudValue) == null ? void 0 : _b.forEach((tag) => mergedTags.add(tag));
+        const mergedArray = this.documentService.normalizeTags(Array.from(mergedTags));
+        content = this.documentService.updateTags(content, mergedArray);
+        cloudUpdates.tags = mergedArray;
+      }
+    }
+    if (diff.status.hasDiff && diff.status.decision !== "skip") {
+      if (diff.status.decision === "local") {
+        const localStatus = this.toValidCollectionType(diff.status.localValue);
+        if (localStatus !== null) {
+          cloudUpdates.type = localStatus;
+        }
+      } else if (diff.status.decision === "cloud") {
+        content = this.documentService.updateStatus(content, diff.status.cloudValue, diff.statusFieldName);
+      }
+    }
+    if (Object.keys(cloudUpdates).length > 0) {
+      const fallbackType = this.toValidCollectionType(diff.collection.type);
+      const finalUpdates = {
+        ...cloudUpdates,
+        type: (_d = (_c = cloudUpdates.type) != null ? _c : fallbackType) != null ? _d : void 0
+      };
+      await this.syncCloudUpdates(diff.subjectId, finalUpdates);
+    }
+    if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== "skip" && this.episodeStatusManager) {
+      if (content !== originalContent) {
+        await this.app.vault.process(file, () => content);
+        content = await this.app.vault.read(file);
+      }
+      if (diff.episodeStatus.decision === "local") {
+        const result = await this.episodeStatusManager.syncStatusToCloud(file);
+        if (result.failed > 0 && result.success === 0) {
+          throw new Error(`\u5355\u96C6\u72B6\u6001\u540C\u6B65\u5230\u4E91\u7AEF\u5168\u90E8\u5931\u8D25 (${result.failed}\u96C6)`);
+        }
+      } else if (diff.episodeStatus.decision === "cloud") {
+        const synced = await this.episodeStatusManager.syncStatusFromCloud(file, diff.subjectId);
+        if (!synced) {
+          throw new Error("\u5355\u96C6\u72B6\u6001\u4ECE\u4E91\u7AEF\u540C\u6B65\u5931\u8D25");
+        }
+        content = await this.app.vault.read(file);
+      }
+    }
+    if (diff.hasPlatformDiff && diff.platformFields.some((field) => field.hasDiff && field.decision === "cloud")) {
+      content = await this.applyPlatformSync(diff, file, content);
+    }
+    if (content !== originalContent) {
+      await this.app.vault.process(file, () => content);
+    }
+  }
+  async applyPlatformSync(diff, file, content) {
+    var _a;
+    if (!diff.platformSyncPayload) {
+      return content;
+    }
+    const selectedPayload = this.buildSelectedPlatformSyncPayload(diff);
+    const nextContent = this.documentService.updatePlatformMetadata(content, selectedPayload);
+    if (diff.collection.subject_type !== 2 /* Anime */ && diff.collection.subject_type !== 6 /* Real */) {
+      return nextContent;
+    }
+    const shouldRefreshEpisodeSection = diff.platformFields.some(
+      (field) => field.decision === "cloud" && field.key === "episodeCount"
+    );
+    if (!shouldRefreshEpisodeSection) {
+      return nextContent;
+    }
+    const episodesResult = await this.client.getEpisodes(diff.subjectId);
+    const episodes = (_a = episodesResult == null ? void 0 : episodesResult.data) != null ? _a : [];
+    if (episodes.length === 0) {
+      return nextContent;
+    }
+    const statusMap = /* @__PURE__ */ new Map();
+    if (this.episodeStatusManager) {
+      const localStatuses = await this.episodeStatusManager.getEpisodeStatusMap(file);
+      for (const entry of localStatuses.values()) {
+        statusMap.set(entry.episodeId, entry.status);
+      }
+    }
+    const renderedEpisodes = parseEpisodes(episodes, statusMap);
+    if (!renderedEpisodes) {
+      return nextContent;
+    }
+    return this.documentService.updateEpisodeSection(nextContent, renderedEpisodes);
+  }
+  buildSelectedPlatformSyncPayload(diff) {
+    var _a, _b, _c, _d, _e, _f;
+    const payload = {};
+    for (const field of diff.platformFields) {
+      if (!field.hasDiff || field.decision !== "cloud" || !diff.platformSyncPayload) {
+        continue;
+      }
+      switch (field.key) {
+        case "episodeCount":
+          payload.episodeCount = (_a = diff.platformSyncPayload.episodeCount) != null ? _a : null;
+          break;
+        case "chapterCount":
+          payload.chapterCount = (_b = diff.platformSyncPayload.chapterCount) != null ? _b : null;
+          break;
+        case "volumeCount":
+          payload.volumeCount = (_c = diff.platformSyncPayload.volumeCount) != null ? _c : null;
+          break;
+        case "start":
+          payload.start = (_d = diff.platformSyncPayload.start) != null ? _d : null;
+          break;
+        case "end":
+          payload.end = (_e = diff.platformSyncPayload.end) != null ? _e : null;
+          break;
+        case "progress":
+          payload.progress = (_f = diff.platformSyncPayload.progress) != null ? _f : null;
+          break;
+      }
+    }
+    return payload;
+  }
+  toValidCollectionType(value) {
+    if (value === 1 /* Wish */ || value === 2 /* Done */ || value === 3 /* Doing */ || value === 4 /* OnHold */ || value === 5 /* Dropped */) {
+      return value;
+    }
+    return null;
+  }
+  async syncCloudUpdates(subjectId, updates) {
+    const hasUpdates = Object.values(updates).some((value) => value !== void 0);
+    if (!hasUpdates) {
+      return;
+    }
+    try {
+      await this.client.updateCollection(subjectId, updates);
+    } catch (error) {
+      console.error("[Bangumi Sync] \u4E91\u7AEF\u5B57\u6BB5\u540C\u6B65\u5931\u8D25:", {
+        subjectId,
+        payload: updates,
+        error
+      });
+      throw new Error("\u4E91\u7AEF\u7528\u6237\u6570\u636E\u66F4\u65B0\u5931\u8D25");
+    }
+  }
+};
+
+// src/sync/statusSyncSnapshotBuilder.ts
+var import_obsidian23 = require("obsidian");
+var StatusSyncSnapshotBuilder = class {
+  constructor(app, documentService, episodeStatusManager) {
+    this.app = app;
+    this.documentService = documentService;
+    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
+  }
+  async buildDiffSession(options) {
+    var _a;
+    const snapshots = (await this.mapWithConcurrency(
+      options.collections,
+      (_a = options.concurrency) != null ? _a : 6,
+      async (collection, index) => {
+        var _a2;
+        (_a2 = options.onProgress) == null ? void 0 : _a2.call(options, index + 1, options.collections.length);
+        return this.buildSnapshot(collection, options.localSubjects, options.getCachedSnapshot, options.onPrefetchHit, options.onPrefetchMiss);
+      }
+    )).filter((snapshot) => snapshot !== null);
+    const diffs = snapshots.map((snapshot) => this.buildStatusSyncDiff(snapshot, options.selection)).filter((diff) => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
+    return { snapshots, diffs };
+  }
+  async buildSnapshot(collection, localSubjects, getCachedSnapshot, onPrefetchHit, onPrefetchMiss) {
+    var _a;
+    const localInfo = localSubjects.get(collection.subject_id);
+    if (!localInfo) {
+      return null;
+    }
+    const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+    if (!(file instanceof import_obsidian23.TFile)) {
+      return null;
+    }
+    const cachedSnapshot = (_a = getCachedSnapshot == null ? void 0 : getCachedSnapshot(collection.subject_id, localInfo.path, file.stat.mtime)) != null ? _a : null;
+    if (cachedSnapshot) {
+      onPrefetchHit == null ? void 0 : onPrefetchHit();
+      return {
+        subjectId: collection.subject_id,
+        collection,
+        localInfo,
+        file,
+        localSnapshot: {
+          ...cachedSnapshot,
+          file,
+          path: localInfo.path,
+          mtime: file.stat.mtime,
+          episodeStatusMap: new Map(cachedSnapshot.episodeStatusMap)
+        }
+      };
+    }
+    onPrefetchMiss == null ? void 0 : onPrefetchMiss();
+    const localSnapshot = await this.documentService.readSnapshot(file, collection.subject_type);
+    return {
+      subjectId: collection.subject_id,
+      collection,
+      localInfo,
+      file,
+      localSnapshot
+    };
+  }
+  buildStatusSyncDiff(snapshot, selection) {
+    const { collection, localInfo } = snapshot;
+    const userDiffs = buildUserStatusSyncDiff({
+      localRate: snapshot.localSnapshot.user.rate,
+      cloudRate: collection.rate || null,
+      localComment: snapshot.localSnapshot.user.comment,
+      cloudComment: collection.comment || null,
+      localTags: snapshot.localSnapshot.user.tags,
+      cloudTags: collection.tags && collection.tags.length > 0 ? this.documentService.normalizeTags(collection.tags) : null,
+      localStatus: snapshot.localSnapshot.user.status,
+      cloudStatus: collection.type || null
+    });
+    const scope = getStatusSyncScope(selection);
+    const episodeStatus = {
+      localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) : null,
+      cloudValue: null,
+      hasDiff: false,
+      decision: "skip"
+    };
+    const rateDiff = {
+      ...userDiffs.rate,
+      hasDiff: selection.user.rate ? userDiffs.rate.hasDiff : false,
+      decision: "skip"
+    };
+    const commentDiff = {
+      ...userDiffs.comment,
+      hasDiff: selection.user.comment ? userDiffs.comment.hasDiff : false,
+      decision: "skip"
+    };
+    const tagsDiff = {
+      ...userDiffs.tags,
+      hasDiff: selection.user.tags ? userDiffs.tags.hasDiff : false,
+      decision: "skip"
+    };
+    const statusDiff = {
+      ...userDiffs.status,
+      hasDiff: selection.user.status ? userDiffs.status.hasDiff : false,
+      decision: "skip"
+    };
+    const hasUserDiff = hasSelectedUserFields(selection) && (rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff);
+    return {
+      scope,
+      subjectId: collection.subject_id,
+      name_cn: collection.subject.name_cn || "",
+      name: collection.subject.name || "",
+      localPath: localInfo.path,
+      collection,
+      statusFieldName: snapshot.localSnapshot.user.statusFieldName,
+      rate: rateDiff,
+      comment: commentDiff,
+      tags: tagsDiff,
+      status: statusDiff,
+      episodeStatus,
+      platformFields: [],
+      hasUserDiff,
+      hasPlatformDiff: false,
+      hasAnyDiff: hasUserDiff,
+      expanded: false,
+      episodeStatusLoadState: selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? "pending" : "ready",
+      platformLoadState: hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? "pending" : "ready",
+      backgroundError: null
+    };
+  }
+  hasPendingBackgroundLoad(diff) {
+    return diff.episodeStatusLoadState !== "ready" || diff.platformLoadState !== "ready";
+  }
+  async mapWithConcurrency(items, concurrency, task) {
+    const results = new Array(items.length);
+    let nextIndex = 0;
+    const workerCount = Math.max(1, Math.min(concurrency, items.length));
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex++;
+        results[currentIndex] = await task(items[currentIndex], currentIndex);
+      }
+    });
+    await Promise.all(workers);
+    return results;
+  }
+};
+
+// src/sync/statusSyncService.ts
+var StatusSyncService = class {
+  constructor(app, client, documentService, episodeStatusManager) {
+    this.snapshotBuilder = new StatusSyncSnapshotBuilder(app, documentService, episodeStatusManager);
+    this.backgroundLoader = new StatusSyncBackgroundLoader(client, episodeStatusManager);
+    this.executor = new StatusSyncExecutor(app, client, documentService, episodeStatusManager);
+  }
+  async buildDiffSession(options) {
+    return await this.snapshotBuilder.buildDiffSession(options);
+  }
+  async loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency = 4) {
+    await this.backgroundLoader.loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency);
+  }
+  applyDecisionPreset(diffs, decision) {
+    if (decision === "smart") {
+      this.applySmartMerge(diffs);
+      return;
+    }
+    diffs.forEach((diff) => {
+      diff.rate.decision = decision;
+      diff.comment.decision = decision;
+      diff.tags.decision = decision;
+      diff.status.decision = decision;
+      diff.episodeStatus.decision = decision === "merge" ? "skip" : decision;
+      diff.platformFields.forEach((field) => {
+        field.decision = decision === "cloud" || decision === "merge" ? "cloud" : "skip";
+      });
+    });
+  }
+  async executeSync(diffs) {
+    return await this.executor.executeSync(diffs);
+  }
+  applySmartMerge(diffs) {
+    diffs.forEach((diff) => {
+      if (diff.rate.hasDiff) {
+        diff.rate.decision = diff.rate.localValue && !diff.rate.cloudValue ? "local" : !diff.rate.localValue && diff.rate.cloudValue ? "cloud" : "local";
+      }
+      if (diff.comment.hasDiff) {
+        if (diff.comment.localValue && !diff.comment.cloudValue) {
+          diff.comment.decision = "local";
+        } else if (!diff.comment.localValue && diff.comment.cloudValue) {
+          diff.comment.decision = "cloud";
+        } else if (diff.comment.localValue && diff.comment.cloudValue) {
+          diff.comment.decision = diff.comment.localValue.length >= diff.comment.cloudValue.length ? "local" : "cloud";
+        }
+      }
+      if (diff.tags.hasDiff) {
+        diff.tags.decision = "merge";
+      }
+      if (diff.status.hasDiff) {
+        diff.status.decision = diff.status.localValue && !diff.status.cloudValue ? "local" : !diff.status.localValue && diff.status.cloudValue ? "cloud" : "local";
+      }
+      if (diff.episodeStatus.hasDiff) {
+        diff.episodeStatus.decision = diff.episodeStatus.localValue && !diff.episodeStatus.cloudValue ? "local" : !diff.episodeStatus.localValue && diff.episodeStatus.cloudValue ? "cloud" : "local";
+      }
+      diff.platformFields.forEach((field) => {
+        if (field.hasDiff) {
+          field.decision = "cloud";
+        }
+      });
+    });
+  }
+};
+
+// src/panel/controlPanel.ts
+var ControlPanel = class extends import_obsidian24.Modal {
+  constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, onOpenSyncOptions, onBatchDownloadCovers, onScanAndLinkRelated, subjectNoteManager, episodeStatusManager, autoSyncSelection) {
+    super(app);
+    // 分页
+    this.currentPage = 1;
+    this.pageSize = 50;
+    // 键盘导航
+    this.focusedRowIndex = -1;
+    this.tableRows = [];
+    // 滑动关闭（移动端）
+    this.touchStartY = 0;
+    this.touchCurrentY = 0;
+    this.swipeEnabled = false;
+    this.touchStartHandler = null;
+    this.touchMoveHandler = null;
+    this.touchEndHandler = null;
+    this.mobileShortLabels = getLocale() === "zh-CN" ? {
+      refresh: "\u5237\u65B0",
+      syncSelected: "\u540C\u6B65",
+      forceSync: "\u5F3A\u540C",
+      deleteSelected: "\u5220\u9664",
+      batchEdit: "\u6279\u7F16",
+      syncStatus: "\u72B6\u6001",
+      syncCollections: "\u6536\u85CF",
+      scanAndLinkRelated: "\u5173\u8054",
+      batchDownloadCovers: "\u5C01\u9762",
+      undo: "\u64A4\u9500",
+      more: "\u66F4\u591A",
+      search: "\u641C\u7D22"
+    } : {
+      refresh: "Refresh",
+      syncSelected: "Sync",
+      forceSync: "Force",
+      deleteSelected: "Delete",
+      batchEdit: "Batch",
+      syncStatus: "Status",
+      syncCollections: "Library",
+      scanAndLinkRelated: "Links",
+      batchDownloadCovers: "Cover",
+      undo: "Undo",
+      more: "More",
+      search: "Search"
+    };
+    this.lastStatusSyncPerf = null;
+    this.settings = settings;
+    this.syncManager = syncManager;
+    this.subjectNoteManager = subjectNoteManager != null ? subjectNoteManager : null;
+    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
+    this.onFiltersChange = onFiltersChange;
+    this.cachedData = cachedData;
+    this.onCacheUpdate = onCacheUpdate;
+    this.onOpenSyncOptions = onOpenSyncOptions;
+    this.onBatchDownloadCovers = onBatchDownloadCovers;
+    this.onScanAndLinkRelated = onScanAndLinkRelated;
+    this.autoSyncSelection = autoSyncSelection != null ? autoSyncSelection : null;
+    this.client = new BangumiClient(settings.accessToken);
+    this.incrementalSync = new IncrementalSync(app);
+    this.documentService = new SubjectDocumentService(app, this.episodeStatusManager);
+    this.subjectSnapshotSession = new LocalSubjectSnapshotSession(app, this.documentService);
+    this.statusSyncService = new StatusSyncService(app, this.client, this.documentService, this.episodeStatusManager);
+    this.frontmatterEditor = new FrontmatterEditor(app);
+    this.conflictDetector = new ConflictDetector(app);
+    this.filters = { ...DEFAULT_PANEL_FILTERS, ...settings.panelFilters };
+    this.state = {
+      collections: (cachedData == null ? void 0 : cachedData.collections) || [],
+      localSubjects: (cachedData == null ? void 0 : cachedData.localSubjects) instanceof Map ? cachedData.localSubjects : /* @__PURE__ */ new Map(),
+      selectedIds: /* @__PURE__ */ new Set(),
+      loading: false,
+      loadingProgress: { current: 0, total: 0 },
+      error: null
+    };
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-control-panel");
+    contentEl.createEl("h2", { text: tn("controlPanel", "title") });
+    this.filterBarEl = contentEl.createDiv({ cls: "bangumi-panel-filter-bar" });
+    this.renderFilterBar();
+    this.actionBarEl = contentEl.createDiv({ cls: "bangumi-panel-action-bar" });
+    this.renderActionBar();
+    this.tableEl = contentEl.createDiv({ cls: "bangumi-panel-table" });
+    this.footerBarEl = contentEl.createDiv({ cls: "bangumi-panel-footer-bar" });
+    this.statusEl = this.footerBarEl.createDiv({ cls: "bangumi-panel-status" });
+    this.paginationEl = this.footerBarEl.createDiv({ cls: "bangumi-panel-pagination" });
+    this.tableEl.setAttribute("tabindex", "0");
+    this.tableEl.addEventListener("keydown", (e) => this.handleKeyDown(e));
+    if (this.cachedData && this.cachedData.collections.length > 0) {
+      this.renderStatus(`${tn("controlPanel", "cachedDataLoaded")} ${this.state.collections.length}`);
+      this.applyFilters();
+      this.startUserDataPrefetch();
+      this.triggerAutoSyncStatus();
+    } else {
+      void this.loadData();
+    }
+    this.setupSwipeToClose();
+  }
+  onClose() {
+    this.subjectSnapshotSession.cancelWarmup();
+    if (this.touchStartHandler) {
+      this.contentEl.removeEventListener("touchstart", this.touchStartHandler);
+    }
+    if (this.touchMoveHandler) {
+      this.contentEl.removeEventListener("touchmove", this.touchMoveHandler);
+    }
+    if (this.touchEndHandler) {
+      this.contentEl.removeEventListener("touchend", this.touchEndHandler);
+    }
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+  /**
+   * 渲染筛选栏
+   */
+  renderFilterBar() {
+    this.filterBarEl.empty();
+    this.filterBarEl.addClass("bangumi-panel-toolbar");
+    const filterGroup = this.filterBarEl.createDiv({ cls: "bangumi-toolbar-group bangumi-toolbar-group-filters" });
+    const typeSelect = filterGroup.createEl("select", { cls: "bangumi-filter-select" });
+    typeSelect.createEl("option", { value: "all", text: tn("controlPanel", "allTypes") });
+    Object.values(SubjectType).forEach((type) => {
+      if (typeof type === "number") {
+        const option = typeSelect.createEl("option", {
+          value: String(type),
+          text: getSubjectTypeName(type)
+        });
+        if (this.filters.subjectType === type) {
+          option.selected = true;
+        }
+      }
+    });
+    typeSelect.addEventListener("change", () => {
+      this.filters.subjectType = typeSelect.value === "all" ? "all" : parseInt(typeSelect.value);
+      this.onFiltersChange(this.filters);
+      this.applyFilters();
+    });
+    const statusSelect = filterGroup.createEl("select", { cls: "bangumi-filter-select" });
+    statusSelect.createEl("option", { value: "all", text: tn("controlPanel", "allStatus") });
+    Object.values(CollectionType).forEach((type) => {
+      if (typeof type === "number") {
+        const option = statusSelect.createEl("option", {
+          value: String(type),
+          text: getCollectionTypeName(type)
+        });
+        if (this.filters.collectionType === type) {
+          option.selected = true;
+        }
+      }
+    });
+    statusSelect.addEventListener("change", () => {
+      this.filters.collectionType = statusSelect.value === "all" ? "all" : parseInt(statusSelect.value);
+      this.onFiltersChange(this.filters);
+      this.applyFilters();
+    });
+    const syncSelect = filterGroup.createEl("select", { cls: "bangumi-filter-select" });
+    syncSelect.createEl("option", { value: "all", text: tn("controlPanel", "allSyncStatus") });
+    syncSelect.createEl("option", { value: "synced", text: tn("controlPanel", "synced") });
+    syncSelect.createEl("option", { value: "unsynced", text: tn("controlPanel", "unsynced") });
+    syncSelect.value = this.filters.syncStatus;
+    syncSelect.addEventListener("change", () => {
+      this.filters.syncStatus = syncSelect.value;
+      this.onFiltersChange(this.filters);
+      this.applyFilters();
+    });
+    const sortByWrapper = filterGroup.createDiv({ cls: "bangumi-sort-field" });
+    sortByWrapper.createEl("label", { text: tn("controlPanel", "sortBy"), cls: "bangumi-sort-label" });
+    this.sortBySelect = sortByWrapper.createEl("select", { cls: "bangumi-filter-select bangumi-sort-select" });
+    this.sortBySelect.createEl("option", { value: "default", text: tn("controlPanel", "sortDefault") });
+    this.sortBySelect.createEl("option", { value: "time", text: tn("controlPanel", "sortTime") });
+    this.sortBySelect.createEl("option", { value: "title", text: tn("controlPanel", "sortTitle") });
+    this.sortBySelect.createEl("option", { value: "status", text: tn("controlPanel", "sortStatus") });
+    this.sortBySelect.createEl("option", { value: "rating", text: tn("controlPanel", "sortRating") });
+    this.sortBySelect.value = this.filters.sortBy;
+    this.sortBySelect.addEventListener("change", () => {
+      this.filters.sortBy = this.sortBySelect.value;
+      this.onFiltersChange(this.filters);
+      this.applyFilters();
+    });
+    const sortDirectionWrapper = filterGroup.createDiv({ cls: "bangumi-sort-field" });
+    sortDirectionWrapper.createEl("label", { text: tn("controlPanel", "sortDirection"), cls: "bangumi-sort-label" });
+    this.sortDirectionSelect = sortDirectionWrapper.createEl("select", { cls: "bangumi-filter-select bangumi-sort-select" });
+    this.sortDirectionSelect.createEl("option", { value: "desc", text: tn("controlPanel", "sortDesc") });
+    this.sortDirectionSelect.createEl("option", { value: "asc", text: tn("controlPanel", "sortAsc") });
+    this.sortDirectionSelect.value = this.filters.sortDirection;
+    this.sortDirectionSelect.addEventListener("change", () => {
+      this.filters.sortDirection = this.sortDirectionSelect.value;
+      this.onFiltersChange(this.filters);
+      this.applyFilters();
+    });
+    const searchInput = filterGroup.createEl("input", {
+      type: "text",
+      placeholder: tn("controlPanel", "searchPlaceholder"),
+      cls: "bangumi-filter-search"
+    });
+    searchInput.value = this.filters.keyword;
+    searchInput.addEventListener("input", () => {
+      this.filters.keyword = searchInput.value;
+      this.onFiltersChange(this.filters);
+      this.applyFilters();
+    });
+  }
+  /**
+   * 渲染操作栏
+   */
+  renderActionBar() {
+    this.actionBarEl.empty();
+    const hasSelection = this.state.selectedIds.size > 0;
+    const toolbarActions = this.getToolbarActions(hasSelection);
+    for (const action of toolbarActions) {
+      const button = this.actionBarEl.createEl("button", {
+        text: action.label,
+        cls: `bangumi-action-btn ${action.className}`
+      });
+      this.decorateMobileButton(button, action.mobileLabel, action.label);
+      button.addEventListener("click", (evt) => {
+        action.run(evt);
+      });
+      if (action.key === "undo") {
+        button.disabled = !this.frontmatterEditor.canUndo();
+      }
+    }
+    this.updateSelectedCount();
+  }
+  getToolbarActions(hasSelection) {
+    const actionMap = new Map(this.getActionDescriptors().map((action) => [action.key, action]));
+    const keys = hasSelection ? ["search", "refresh", "syncSelected", "forceSync", "batchEdit", "deleteSelected", "undo", "more"] : ["search", "refresh", "syncStatus", "syncCollections", "scanAndLinkRelated", "batchDownloadCovers", "undo", "more"];
+    return keys.map((key) => actionMap.get(key)).filter((action) => action !== void 0);
+  }
+  getMoreMenuActions(hasSelection) {
+    const toolbarKeys = new Set(this.getToolbarActions(hasSelection).map((action) => action.key));
+    return this.getActionDescriptors().filter(
+      (action) => action.showInMoreMenu && !toolbarKeys.has(action.key)
+    );
+  }
+  getActionDescriptors() {
+    return [
+      {
+        key: "search",
+        label: tn("searchModal", "title"),
+        mobileLabel: this.mobileShortLabels.search,
+        className: "bangumi-action-btn-search",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: true,
+        showInMoreMenu: false,
+        menuSection: "tools",
+        run: () => this.openSearchModal()
+      },
+      {
+        key: "refresh",
+        label: tn("controlPanel", "refresh"),
+        mobileLabel: this.mobileShortLabels.refresh,
+        className: "bangumi-action-btn-refresh",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: true,
+        showInMoreMenu: false,
+        menuSection: "tools",
+        run: () => {
+          void this.loadData();
+        }
+      },
+      {
+        key: "syncStatus",
+        label: tn("controlPanel", "syncStatus"),
+        mobileLabel: this.mobileShortLabels.syncStatus,
+        className: "bangumi-action-btn-status",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: false,
+        showInMoreMenu: true,
+        menuSection: "sync",
+        run: () => this.openStatusSyncScopeSelector()
+      },
+      {
+        key: "syncCollections",
+        label: tn("commands", "syncCollections"),
+        mobileLabel: this.mobileShortLabels.syncCollections,
+        className: "bangumi-action-btn-sync",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: false,
+        showInMoreMenu: true,
+        menuSection: "sync",
+        run: () => this.onOpenSyncOptions()
+      },
+      {
+        key: "scanAndLinkRelated",
+        label: tn("commands", "scanAndLinkRelated"),
+        mobileLabel: this.mobileShortLabels.scanAndLinkRelated,
+        className: "bangumi-action-btn-tools",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: false,
+        showInMoreMenu: true,
+        menuSection: "tools",
+        run: () => this.onScanAndLinkRelated()
+      },
+      {
+        key: "batchDownloadCovers",
+        label: tn("commands", "batchDownloadCovers"),
+        mobileLabel: this.mobileShortLabels.batchDownloadCovers,
+        className: "bangumi-action-btn-tools",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: false,
+        showInMoreMenu: true,
+        menuSection: "tools",
+        run: () => this.onBatchDownloadCovers()
+      },
+      {
+        key: "undo",
+        label: tn("controlPanel", "undo"),
+        mobileLabel: this.mobileShortLabels.undo,
+        className: "bangumi-action-btn-undo",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: true,
+        showInMoreMenu: false,
+        menuSection: "selection",
+        run: () => {
+          void this.undoLastEdit();
+        }
+      },
+      {
+        key: "syncSelected",
+        label: tn("controlPanel", "syncSelected"),
+        mobileLabel: this.mobileShortLabels.syncSelected,
+        className: "bangumi-action-btn-sync",
+        showInDefaultToolbar: false,
+        showInSelectionToolbar: true,
+        showInMoreMenu: true,
+        menuSection: "selection",
+        requiresSelection: true,
+        run: () => {
+          void this.syncSelected(false);
+        }
+      },
+      {
+        key: "forceSync",
+        label: tn("controlPanel", "forceSync"),
+        mobileLabel: this.mobileShortLabels.forceSync,
+        className: "bangumi-action-btn-force",
+        showInDefaultToolbar: false,
+        showInSelectionToolbar: true,
+        showInMoreMenu: true,
+        menuSection: "selection",
+        requiresSelection: true,
+        run: () => {
+          void this.syncSelected(true);
+        }
+      },
+      {
+        key: "batchEdit",
+        label: tn("controlPanel", "batchEdit"),
+        mobileLabel: this.mobileShortLabels.batchEdit,
+        className: "bangumi-action-btn-batch",
+        showInDefaultToolbar: false,
+        showInSelectionToolbar: true,
+        showInMoreMenu: true,
+        menuSection: "selection",
+        requiresSelection: true,
+        run: () => this.openBatchEditor()
+      },
+      {
+        key: "deleteSelected",
+        label: tn("controlPanel", "deleteSelected"),
+        mobileLabel: this.mobileShortLabels.deleteSelected,
+        className: "bangumi-action-btn-delete",
+        showInDefaultToolbar: false,
+        showInSelectionToolbar: true,
+        showInMoreMenu: true,
+        menuSection: "selection",
+        requiresSelection: true,
+        run: () => this.deleteSelected()
+      },
+      {
+        key: "more",
+        label: tn("controlPanel", "more"),
+        mobileLabel: this.mobileShortLabels.more,
+        className: "bangumi-action-btn-more",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: true,
+        showInMoreMenu: false,
+        menuSection: "tools",
+        run: (evt) => this.openMoreMenu(evt)
+      }
+    ];
+  }
+  openMoreMenu(evt) {
+    if (!evt) {
+      return;
+    }
+    const hasSelection = this.state.selectedIds.size > 0;
+    const menu = new import_obsidian24.Menu();
+    const actions = this.getMoreMenuActions(hasSelection);
+    const orderedSections = ["sync", "selection", "tools"];
+    let hasRenderedAnyItem = false;
+    for (const section of orderedSections) {
+      const sectionActions = actions.filter((action) => action.menuSection === section);
+      if (sectionActions.length === 0) {
+        continue;
+      }
+      if (hasRenderedAnyItem) {
+        menu.addSeparator();
+      }
+      for (const action of sectionActions) {
+        const disabled = !!action.requiresSelection && !hasSelection;
+        menu.addItem((item) => {
+          item.setTitle(disabled ? `${action.label} (${tn("controlPanel", "selectFirst")})` : action.label).setDisabled(disabled).onClick(() => action.run());
+        });
+      }
+      hasRenderedAnyItem = true;
+    }
+    menu.showAtMouseEvent(evt);
+  }
+  decorateMobileButton(button, shortLabel, fullLabel) {
+    button.dataset.mobileLabel = shortLabel;
+    button.setAttribute("aria-label", fullLabel);
+    button.setAttribute("title", fullLabel);
+  }
+  /**
+   * 加载数据
+   */
+  async loadData() {
+    this.state.loading = true;
+    this.state.error = null;
+    this.renderStatus(tn("controlPanel", "loadingCollections"));
+    this.renderTable();
+    try {
+      const validateResult = await this.client.validateToken();
+      if (!validateResult.valid || !validateResult.username) {
+        throw new Error(validateResult.error || "Token validation failed");
+      }
+      this.renderStatus(tn("controlPanel", "fetchingCollections"));
+      const collections = await this.client.getAllUserCollections(validateResult.username, {
+        onProgress: (current, total) => {
+          this.state.loadingProgress = { current, total };
+          this.renderStatus(`${tn("controlPanel", "fetchingCollections")} (${current}/${total})`);
+        }
+      });
+      this.state.collections = collections;
+      this.renderStatus(tn("controlPanel", "scanningLocal"));
+      const scanPath = this.settings.scanFolderPath || "ACGN";
+      await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
+        this.renderStatus(`${tn("controlPanel", "scanningFiles")} (${current}/${total})`);
+      });
+      this.state.localSubjects = /* @__PURE__ */ new Map();
+      const syncedIds = this.incrementalSync.getSyncedIds();
+      for (const id of syncedIds) {
+        const info = this.incrementalSync.getLocalSubject(id);
+        if (info) {
+          this.state.localSubjects.set(id, info);
+        }
+      }
+      this.state.loading = false;
+      this.renderStatus(`${tn("controlPanel", "loadComplete")}, ${tn("controlPanel", "totalItems")} ${collections.length}, ${tn("controlPanel", "synced")} ${syncedIds.size}`);
+      this.onCacheUpdate({
+        collections: this.state.collections,
+        localSubjects: new Map(this.state.localSubjects)
+      });
+      this.applyFilters();
+      this.startUserDataPrefetch();
+      this.triggerAutoSyncStatus();
+    } catch (error) {
+      this.state.loading = false;
+      this.state.error = error instanceof Error ? error.message : String(error);
+      this.renderStatus(`${tn("controlPanel", "loadFailed")}: ${this.state.error}`);
+    }
+  }
+  /**
+   * 应用筛选
+   */
+  applyFilters() {
+    this.currentPage = 1;
+    this.renderTable();
+    this.renderPagination();
+  }
+  /**
+   * 获取筛选后的数据
+   */
+  getFilteredCollections() {
+    let result = [...this.state.collections];
+    if (this.filters.subjectType !== "all") {
+      result = result.filter((c) => c.subject_type === this.filters.subjectType);
+    }
+    if (this.filters.collectionType !== "all") {
+      result = result.filter((c) => c.type === this.filters.collectionType);
+    }
+    if (this.filters.syncStatus === "synced") {
+      result = result.filter((c) => this.state.localSubjects.has(c.subject_id));
+    } else if (this.filters.syncStatus === "unsynced") {
+      result = result.filter((c) => !this.state.localSubjects.has(c.subject_id));
+    }
+    if (this.filters.keyword.trim()) {
+      const keyword = this.filters.keyword.toLowerCase().trim();
+      result = result.filter(
+        (c) => c.subject.name_cn && c.subject.name_cn.toLowerCase().includes(keyword) || c.subject.name && c.subject.name.toLowerCase().includes(keyword)
+      );
+    }
+    return this.sortCollections(result);
+  }
+  sortCollections(collections) {
+    const { sortBy, sortDirection } = this.filters;
+    if (sortBy === "default") {
+      return collections;
+    }
+    const direction = sortDirection === "asc" ? 1 : -1;
+    return [...collections].sort((left, right) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case "time":
+          comparison = compareTime(left.updated_at, right.updated_at);
+          break;
+        case "title":
+          comparison = compareTitle(
+            left.subject.name_cn || left.subject.name || "",
+            right.subject.name_cn || right.subject.name || ""
+          );
+          break;
+        case "status":
+          comparison = left.type - right.type;
+          break;
+        case "rating":
+          comparison = compareNumber(left.rate, right.rate);
+          if (comparison === 0) {
+            comparison = compareNumber(left.subject.score, right.subject.score);
+          }
+          break;
+      }
+      if (comparison === 0) {
+        comparison = compareTitle(
+          left.subject.name_cn || left.subject.name || "",
+          right.subject.name_cn || right.subject.name || ""
+        );
+      }
+      if (comparison === 0) {
+        comparison = left.subject_id - right.subject_id;
+      }
+      return comparison * direction;
+    });
+  }
+  /**
+   * 渲染状态栏
+   */
+  renderStatus(message) {
+    this.statusEl.empty();
+    this.statusEl.createSpan({ cls: "bangumi-status-message", text: message });
+    this.statusEl.createSpan({
+      cls: "bangumi-selected-count",
+      text: `${tn("controlPanel", "selectedCount")}: ${this.state.selectedIds.size}`
+    });
+    if (this.state.loading) {
+      this.statusEl.addClass("loading");
+    } else {
+      this.statusEl.removeClass("loading");
+    }
+  }
+  /**
+   * 更新状态栏中的已选数量
+   */
+  updateSelectedCount() {
+    if (!this.statusEl)
+      return;
+    const selectedCount = this.statusEl.querySelector(".bangumi-selected-count");
+    if (selectedCount) {
+      selectedCount.setText(`${tn("controlPanel", "selectedCount")}: ${this.state.selectedIds.size}`);
+    }
+  }
+  /**
+   * 渲染表格
+   */
+  renderTable() {
+    this.tableEl.empty();
+    if (this.state.loading) {
+      this.tableEl.createDiv({ cls: "bangumi-table-loading", text: tn("controlPanel", "loading") });
+      return;
+    }
+    if (this.state.error) {
+      this.tableEl.createDiv({ cls: "bangumi-table-error", text: `${tn("controlPanel", "loadFailed")}: ${this.state.error}` });
+      return;
+    }
+    const filteredCollections = this.getFilteredCollections();
+    const startIndex = (this.currentPage - 1) * this.pageSize;
+    const endIndex = startIndex + this.pageSize;
+    const pageCollections = filteredCollections.slice(startIndex, endIndex);
+    if (pageCollections.length === 0) {
+      this.tableEl.createDiv({ cls: "bangumi-table-empty", text: "No items" });
+      return;
+    }
+    const table = this.tableEl.createEl("table", { cls: "bangumi-collection-table" });
+    const thead = table.createEl("thead");
+    const headerRow = thead.createEl("tr");
+    headerRow.createEl("th").createEl("input", { type: "checkbox" }, (checkbox) => {
+      const allSelected = pageCollections.length > 0 && pageCollections.every((c) => this.state.selectedIds.has(c.subject_id));
+      checkbox.checked = allSelected;
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) {
+          pageCollections.forEach((c) => this.state.selectedIds.add(c.subject_id));
+        } else {
+          pageCollections.forEach((c) => this.state.selectedIds.delete(c.subject_id));
+        }
+        this.renderTable();
+        this.renderActionBar();
+      });
+    });
+    headerRow.createEl("th", { text: tn("controlPanel", "name") });
+    headerRow.createEl("th", { text: tn("controlPanel", "type") });
+    headerRow.createEl("th", { text: tn("controlPanel", "status") });
+    headerRow.createEl("th", { text: tn("controlPanel", "rating") });
+    headerRow.createEl("th", { text: tn("controlPanel", "comment") });
+    headerRow.createEl("th", { text: tn("controlPanel", "tags") });
+    headerRow.createEl("th", { text: tn("controlPanel", "sync") });
+    headerRow.createEl("th", { text: tn("controlPanel", "action") });
+    const tbody = table.createEl("tbody");
+    this.tableRows = [];
+    pageCollections.forEach((collection) => {
+      const row = tbody.createEl("tr");
+      this.tableRows.push(row);
+      const isSynced = this.state.localSubjects.has(collection.subject_id);
+      const localInfo = this.state.localSubjects.get(collection.subject_id);
+      row.createEl("td").createEl("input", { type: "checkbox" }, (checkbox) => {
+        checkbox.checked = this.state.selectedIds.has(collection.subject_id);
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) {
+            this.state.selectedIds.add(collection.subject_id);
+          } else {
+            this.state.selectedIds.delete(collection.subject_id);
+          }
+          this.renderActionBar();
+        });
+      });
+      const nameCell = row.createEl("td", { cls: "bangumi-name-cell" });
+      nameCell.createSpan({ text: collection.subject.name_cn || collection.subject.name || tn("controlPanel", "unknown") });
+      if (!isMobile() && collection.subject.name && collection.subject.name_cn && collection.subject.name !== collection.subject.name_cn) {
+        nameCell.createEl("br");
+        nameCell.createSpan({ cls: "bangumi-name-original", text: collection.subject.name });
+      }
+      row.createEl("td", { text: getTypeLabel(collection.subject_type) });
+      row.createEl("td", { text: getCollectionStatusLabel(collection.type, collection.subject_type) });
+      const ratingCell = row.createEl("td");
+      if (collection.subject.score) {
+        ratingCell.createSpan({ text: `\u2605${collection.subject.score.toFixed(1)}` });
+      }
+      if (collection.rate) {
+        ratingCell.createSpan({ cls: "bangumi-my-rate", text: ` [${collection.rate}]` });
+      }
+      const commentCell = row.createEl("td", { cls: "bangumi-comment-cell" });
+      if (collection.comment) {
+        const maxLen = isMobile() ? collection.comment.length : 20;
+        const displayComment = !isMobile() && collection.comment.length > maxLen ? collection.comment.substring(0, maxLen) + "..." : collection.comment;
+        commentCell.setText(displayComment);
+        if (!isMobile()) {
+          commentCell.setAttribute("title", collection.comment);
+        }
+      }
+      const tagsCell = row.createEl("td", { cls: "bangumi-tags-cell" });
+      if (collection.tags && collection.tags.length > 0) {
+        const displayTags = collection.tags.slice(0, 3).join(", ");
+        tagsCell.setText(displayTags);
+        if (collection.tags.length > 3) {
+          tagsCell.setText(displayTags + "...");
+        }
+      }
+      const syncCell = row.createEl("td", { cls: "bangumi-sync-status" });
+      if (isSynced) {
+        syncCell.createSpan({ text: `\u2713 ${tn("controlPanel", "synced")}`, cls: "synced" });
+      } else {
+        syncCell.createSpan({ text: `\u2717 ${tn("controlPanel", "unsynced")}`, cls: "unsynced" });
+      }
+      if (isMobile()) {
+        const metaCell = row.createEl("td", { cls: "bangumi-mobile-meta" });
+        metaCell.createSpan({ cls: "bangumi-mobile-meta-item", text: getTypeLabel(collection.subject_type) });
+        metaCell.createSpan({ cls: "bangumi-mobile-meta-item", text: getCollectionStatusLabel(collection.type, collection.subject_type) });
+        const ratingSpan = metaCell.createSpan({ cls: "bangumi-mobile-meta-item" });
+        if (collection.subject.score) {
+          ratingSpan.createSpan({ text: `\u2605${collection.subject.score.toFixed(1)}` });
+        }
+        if (collection.rate) {
+          ratingSpan.createSpan({ cls: "bangumi-my-rate", text: ` [${collection.rate}]` });
+        }
+        if (!collection.subject.score && !collection.rate) {
+          ratingSpan.setText("-");
+        }
+        const syncSpan = metaCell.createSpan({ cls: "bangumi-mobile-meta-item" });
+        if (isSynced) {
+          syncSpan.createSpan({ text: `\u2713 ${tn("controlPanel", "synced")}`, cls: "synced" });
+        } else {
+          syncSpan.createSpan({ text: `\u2717 ${tn("controlPanel", "unsynced")}`, cls: "unsynced" });
+        }
+      }
+      const actionCell = row.createEl("td", { cls: "bangumi-action-cell" });
+      if (isSynced && localInfo) {
+        actionCell.createEl("button", { text: tn("controlPanel", "open"), cls: "bangumi-action-btn-small" }, (btn) => {
+          btn.addEventListener("click", () => this.openFile(localInfo.path));
+        });
+        actionCell.createEl("button", { text: tn("controlPanel", "note"), cls: "bangumi-action-btn-small" }, (btn) => {
+          btn.addEventListener("click", () => {
+            void this.openOrCreateNote(localInfo.path);
+          });
+        });
+      }
+    });
+  }
+  async openOrCreateNote(path) {
+    if (!this.subjectNoteManager) {
+      new import_obsidian24.Notice(tn("notices", "noteManagerNotInit"));
+      return;
+    }
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof import_obsidian24.TFile)) {
+      new import_obsidian24.Notice(tn("controlPanel", "fileNotFound"));
+      return;
+    }
+    await this.subjectNoteManager.createOrAppendForLocalFile(file);
+  }
+  /**
+   * 渲染分页
+   */
+  renderPagination() {
+    this.paginationEl.empty();
+    const filteredCollections = this.getFilteredCollections();
+    const totalPages = Math.ceil(filteredCollections.length / this.pageSize);
+    if (totalPages <= 1) {
+      this.footerBarEl.addClass("no-pagination");
+      return;
+    }
+    this.footerBarEl.removeClass("no-pagination");
+    this.paginationEl.createEl("button", { text: tn("controlPanel", "prevPage"), cls: "bangumi-pagination-btn bangumi-pagination-prev" }, (btn) => {
+      btn.disabled = this.currentPage <= 1;
+      btn.addEventListener("click", () => {
+        if (this.currentPage > 1) {
+          this.currentPage--;
+          this.renderTable();
+          this.renderPagination();
+        }
+      });
+    });
+    const info = this.paginationEl.createSpan({ cls: "bangumi-pagination-info" });
+    info.setText(`${tn("controlPanel", "totalItems")} ${filteredCollections.length}, ${this.currentPage}/${totalPages}`);
+    this.paginationEl.createEl("button", { text: tn("controlPanel", "nextPage"), cls: "bangumi-pagination-btn bangumi-pagination-next" }, (btn) => {
+      btn.disabled = this.currentPage >= totalPages;
+      btn.addEventListener("click", () => {
+        if (this.currentPage < totalPages) {
+          this.currentPage++;
+          this.renderTable();
+          this.renderPagination();
+        }
+      });
+    });
+  }
+  /**
+   * 打开文件
+   */
+  openFile(path) {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (file instanceof import_obsidian24.TFile) {
+      this.close();
+      void this.app.workspace.openLinkText(file.path, "", true);
+    } else {
+      new import_obsidian24.Notice(tn("controlPanel", "fileNotFound"));
+    }
+  }
+  /**
+   * 同步选中条目
+   * @param overwrite 是否强制覆盖已存在的文件
+   */
+  async syncSelected(overwrite = false) {
+    if (this.state.selectedIds.size === 0) {
+      new import_obsidian24.Notice(tn("controlPanel", "selectToSync"));
+      return;
+    }
+    let selectedCollections;
+    if (overwrite) {
+      selectedCollections = this.state.collections.filter(
+        (c) => this.state.selectedIds.has(c.subject_id)
+      );
+    } else {
+      selectedCollections = this.state.collections.filter(
+        (c) => this.state.selectedIds.has(c.subject_id) && !this.state.localSubjects.has(c.subject_id)
+      );
+    }
+    if (selectedCollections.length === 0) {
+      new import_obsidian24.Notice(overwrite ? tn("controlPanel", "selectToSync") : tn("controlPanel", "alreadySynced"));
+      return;
+    }
+    const localPropertyResult = await this.collectLocalPropertyValues(selectedCollections);
+    if (localPropertyResult === null) {
+      return;
+    }
+    this.state.loading = true;
+    this.renderStatus(`${tn("controlPanel", "syncingItems")} ${selectedCollections.length}...`);
+    try {
+      const result = await this.syncManager.syncByCollections(
+        selectedCollections,
+        {
+          overwrite,
+          localPropertyValuesBySubjectId: localPropertyResult.propertyValuesBySubjectId,
+          concurrency: this.settings.syncConcurrency
+        },
+        (current, total, message) => {
+          this.renderStatus(message);
+        }
+      );
+      this.state.loading = false;
+      if (result.completion === "success" || result.completion === "partial-success") {
+        const completionText = result.completion === "partial-success" ? tn("syncModal", "partialSuccess") : tn("controlPanel", "syncComplete");
+        new import_obsidian24.Notice(`${completionText}: ${result.added}, ${result.errors}`);
+        const scanPath = this.settings.scanFolderPath || "ACGN";
+        await this.incrementalSync.scanLocalFolder(scanPath);
+        this.state.localSubjects = /* @__PURE__ */ new Map();
+        const syncedIds = this.incrementalSync.getSyncedIds();
+        for (const id of syncedIds) {
+          const info = this.incrementalSync.getLocalSubject(id);
+          if (info) {
+            this.state.localSubjects.set(id, info);
+          }
+        }
+        this.state.selectedIds.clear();
+        this.renderStatus(`${tn("controlPanel", "syncComplete")}, ${tn("controlPanel", "totalItems")} ${this.state.collections.length}, ${tn("controlPanel", "synced")} ${syncedIds.size}`);
+        this.renderTable();
+        this.renderActionBar();
+        this.renderPagination();
+      } else {
+        new import_obsidian24.Notice(tn("controlPanel", "syncFailed"));
+        this.renderStatus(tn("controlPanel", "syncFailed"));
+      }
+    } catch (error) {
+      this.state.loading = false;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      new import_obsidian24.Notice(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
+      this.renderStatus(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
+    }
+  }
+  async collectLocalPropertyValues(collections) {
+    if (collections.length > 10) {
+      console.debug(`[Bangumi Sync] \u6279\u91CF\u540C\u6B65 ${collections.length} \u6761\uFF0C\u8DF3\u8FC7\u81EA\u5B9A\u4E49\u5C5E\u6027\u5F39\u7A97`);
+      return { propertyValuesBySubjectId: /* @__PURE__ */ new Map() };
+    }
+    let warned = false;
+    const subjectsById = await loadSubjectsForCollections(
+      collections,
+      this.client,
+      (message) => {
+        if (!warned) {
+          warned = true;
+          new import_obsidian24.Notice(message);
+        }
+      }
+    );
+    if (!hasLocalPropertyFieldsForCollections(collections, subjectsById, this.syncManager.getCustomTemplates())) {
+      console.debug(`[Bangumi Sync] No custom property fields, skipping modal`);
+      return { propertyValuesBySubjectId: /* @__PURE__ */ new Map() };
+    }
+    console.debug(`[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
+    return new Promise((resolve) => {
+      let resolved = false;
+      const modal = new LocalPropertyModal(
+        this.app,
+        collections,
+        subjectsById,
+        this.syncManager.getCustomTemplates(),
+        (result) => {
+          resolved = true;
+          resolve(result);
+        }
+      );
+      const originalOnClose = modal.onClose.bind(modal);
+      modal.onClose = () => {
+        originalOnClose();
+        if (!resolved) {
+          resolved = true;
+          resolve(null);
+        }
+      };
+      modal.open();
+    });
+  }
+  /**
+   * 删除选中的本地条目
+   */
+  deleteSelected() {
+    if (this.state.selectedIds.size === 0) {
+      new import_obsidian24.Notice(tn("controlPanel", "selectToDelete"));
+      return;
+    }
+    const syncedCollections = this.state.collections.filter(
+      (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
+    );
+    if (syncedCollections.length === 0) {
+      new import_obsidian24.Notice(tn("controlPanel", "selectSyncedToDelete"));
+      return;
+    }
+    const modal = new ConfirmModal(
+      this.app,
+      tn("controlPanel", "confirmDeleteMessage"),
+      () => {
+        void (async () => {
+          let deleted = 0;
+          let failed = 0;
+          for (const collection of syncedCollections) {
+            const localInfo = this.state.localSubjects.get(collection.subject_id);
+            if (localInfo) {
+              try {
+                const file = this.app.vault.getAbstractFileByPath(localInfo.path);
+                if (file instanceof import_obsidian24.TFile) {
+                  await this.app.fileManager.trashFile(file);
+                  this.state.localSubjects.delete(collection.subject_id);
+                  deleted++;
+                }
+              } catch (error) {
+                console.error(`Delete file failed: ${localInfo.path}`, error);
+                failed++;
+              }
+            }
+          }
+          new import_obsidian24.Notice(`${tn("controlPanel", "deleteComplete")}: ${deleted}, ${failed}`);
+          this.state.selectedIds.clear();
+          this.renderStatus(`${tn("controlPanel", "totalItems")} ${this.state.collections.length}, ${tn("controlPanel", "synced")} ${this.state.localSubjects.size}`);
+          this.renderTable();
+          this.renderActionBar();
+        })();
+      }
+    );
+    modal.open();
+  }
+  /**
+   * 打开批量编辑器
+   */
+  openBatchEditor() {
+    const selectedCollections = this.state.collections.filter(
+      (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
+    );
+    if (selectedCollections.length === 0) {
+      new import_obsidian24.Notice(tn("controlPanel", "selectSyncedToEdit"));
+      return;
+    }
+    const targetItems = selectedCollections.map((collection) => {
+      const localInfo = this.state.localSubjects.get(collection.subject_id);
+      if (!(localInfo == null ? void 0 : localInfo.path)) {
+        return null;
+      }
+      return {
+        filePath: localInfo.path,
+        displayName: collection.subject.name_cn || collection.subject.name || localInfo.name_cn || String(collection.subject_id),
+        subjectId: collection.subject_id
+      };
+    }).filter((item) => item !== null);
+    const modal = new BatchEditorModal(
+      this.app,
+      targetItems,
+      async (submission) => {
+        var _a, _b;
+        const result = submission.mode === "uniform" ? await this.frontmatterEditor.batchModify(
+          targetItems.map((item) => item.filePath),
+          (_a = submission.operations) != null ? _a : []
+        ) : await this.frontmatterEditor.batchApplyPerItemUpdates((_b = submission.perItemUpdates) != null ? _b : []);
+        new import_obsidian24.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
+        for (const item of targetItems) {
+          this.subjectSnapshotSession.invalidatePath(item.filePath);
+        }
+        this.renderActionBar();
+      },
+      this.documentService,
+      (filePath) => this.subjectSnapshotSession.getByPath(filePath)
+    );
+    modal.open();
+  }
+  /**
+   * 打开搜索弹窗
+   */
+  openSearchModal() {
+    const modal = new SearchModal(
+      this.app,
+      this.client,
+      this.settings,
+      this.syncManager,
+      () => {
+        void this.loadData();
+      }
+    );
+    modal.open();
+  }
+  /**
+   * 撤销上一次编辑
+   */
+  async undoLastEdit() {
+    if (!this.frontmatterEditor.canUndo()) {
+      new import_obsidian24.Notice(tn("controlPanel", "noUndo"));
+      return;
+    }
+    const success = await this.frontmatterEditor.undo();
+    if (success) {
+      new import_obsidian24.Notice(tn("controlPanel", "undoSuccess"));
+      this.renderActionBar();
+    } else {
+      new import_obsidian24.Notice(tn("controlPanel", "undoFailed"));
+    }
+  }
+  /**
+   * 自动触发指定范围的状态同步
+   */
+  triggerAutoSyncStatus() {
+    if (!this.autoSyncSelection) {
+      return;
+    }
+    const autoSyncSelection = this.autoSyncSelection;
+    this.autoSyncSelection = null;
+    if (autoSyncSelection === "prompt") {
+      this.openStatusSyncScopeSelector();
+      return;
+    }
+    void this.syncStatusAfterPrefetchWarmup(autoSyncSelection);
+  }
+  async syncStatusAfterPrefetchWarmup(selection) {
+    const prefetchPromise = this.subjectSnapshotSession.currentWarmup;
+    if (prefetchPromise) {
+      try {
+        await Promise.race([
+          prefetchPromise,
+          this.delay(1e3)
+        ]);
+      } catch (error) {
+        console.warn("\u72B6\u6001\u540C\u6B65\u9884\u70ED\u7F13\u5B58\u5931\u8D25\uFF0C\u7EE7\u7EED\u6267\u884C\u540C\u6B65:", error);
+      }
+    }
+    await this.syncStatus(selection);
+  }
+  delay(ms) {
+    var _a;
+    const ownerWindow = (_a = this.contentEl.ownerDocument.defaultView) != null ? _a : activeWindow;
+    return new Promise((resolve) => ownerWindow.setTimeout(resolve, ms));
+  }
+  openStatusSyncScopeSelector(initialSelection) {
+    const modal = new StatusSyncScopeModal(
+      this.app,
+      normalizeStatusSyncFieldSelection(initialSelection != null ? initialSelection : createDefaultStatusSyncFieldSelection()),
+      (selection) => {
+        void this.syncStatusAfterPrefetchWarmup(selection);
+      }
+    );
+    modal.open();
+  }
+  async syncStatus(selection) {
+    selection = normalizeStatusSyncFieldSelection(selection);
+    if (!hasSelectedUserFields(selection) && !hasSelectedPlatformFields(selection)) {
+      new import_obsidian24.Notice(tn("statusSyncModal", "selectAtLeastOne"));
+      return;
+    }
+    const scope = getStatusSyncScope(selection);
+    const perfStart = Date.now();
+    this.lastStatusSyncPerf = {
+      startAt: perfStart,
+      syncedCollections: 0,
+      prefetchHits: 0,
+      prefetchMisses: 0,
+      lastError: null
+    };
+    const syncedCollections = this.state.collections.filter(
+      (c) => this.state.localSubjects.has(c.subject_id)
+    );
+    this.lastStatusSyncPerf.syncedCollections = syncedCollections.length;
+    if (syncedCollections.length === 0) {
+      new import_obsidian24.Notice(tn("controlPanel", "noSyncedItemsStatus"));
+      return;
+    }
+    this.state.loading = true;
+    this.renderStatus(`${this.getSyncStatusLabel(scope)} (1/2)`);
+    console.debug(`[Bangumi Sync][Perf] syncStatus:start synced=${syncedCollections.length}`);
+    try {
+      const snapshotStart = Date.now();
+      const { snapshots, diffs } = await this.statusSyncService.buildDiffSession({
+        selection,
+        collections: syncedCollections,
+        localSubjects: this.state.localSubjects,
+        getCachedSnapshot: (subjectId, path, mtime) => this.subjectSnapshotSession.get(subjectId, path, mtime),
+        onProgress: (current, total) => {
+          this.renderStatus(`${this.getSyncStatusLabel(scope)} (1/2 ${current}/${total})`);
+        },
+        onPrefetchHit: () => {
+          var _a;
+          if (this.lastStatusSyncPerf) {
+            this.lastStatusSyncPerf.prefetchHits = ((_a = this.lastStatusSyncPerf.prefetchHits) != null ? _a : 0) + 1;
+          }
+        },
+        onPrefetchMiss: () => {
+          var _a;
+          if (this.lastStatusSyncPerf) {
+            this.lastStatusSyncPerf.prefetchMisses = ((_a = this.lastStatusSyncPerf.prefetchMisses) != null ? _a : 0) + 1;
+          }
+        }
+      });
+      const snapshotDuration = Date.now() - snapshotStart;
+      this.lastStatusSyncPerf.snapshotDurationMs = snapshotDuration;
+      this.lastStatusSyncPerf.snapshotCount = snapshots.length;
+      console.debug(
+        `[Bangumi Sync][Perf] syncStatus:snapshots duration=${snapshotDuration}ms snapshots=${snapshots.length}`
+      );
+      const diffBuildDuration = 0;
+      this.lastStatusSyncPerf.initialDiffDurationMs = diffBuildDuration;
+      this.lastStatusSyncPerf.initialVisibleDiffs = diffs.length;
+      console.debug(
+        `[Bangumi Sync][Perf] syncStatus:initialDiffs duration=${diffBuildDuration}ms visible=${diffs.length}`
+      );
+      this.state.loading = false;
+      if (diffs.length === 0) {
+        const message = this.getNoDiffMessage(selection);
+        new import_obsidian24.Notice(message);
+        this.renderStatus(message);
+        return;
+      }
+      const modal = new StatusSyncModal(
+        this.app,
+        this.statusSyncService,
+        cloneStatusSyncFieldSelection(selection),
+        diffs,
+        () => {
+          void this.loadData();
+        }
+      );
+      modal.open();
+      const modalOpenDuration = Date.now() - perfStart;
+      this.lastStatusSyncPerf.modalOpenedMs = modalOpenDuration;
+      console.debug(
+        `[Bangumi Sync][Perf] syncStatus:modalOpened total=${modalOpenDuration}ms visible=${diffs.length}`
+      );
+      this.renderStatus(`${this.getSyncStatusLabel(scope)} (2/2)`);
+      void this.statusSyncService.loadBackgroundDiffs(
+        selection,
+        snapshots,
+        {
+          isDisposed: () => modal.isDisposed(),
+          updateDiff: (subjectId, patch) => modal.updateDiff(subjectId, patch),
+          updateBackgroundProgress: (completed, total) => modal.updateBackgroundProgress(completed, total)
+        },
+        (completed, total) => {
+          this.renderStatus(`${this.getSyncStatusLabel(scope)} (2/2 ${completed}/${total})`);
+          if (this.lastStatusSyncPerf) {
+            this.lastStatusSyncPerf.backgroundCompleted = completed;
+            this.lastStatusSyncPerf.backgroundCandidates = total;
+          }
+        }
+      );
+    } catch (error) {
+      this.state.loading = false;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (this.lastStatusSyncPerf) {
+        this.lastStatusSyncPerf.lastError = errorMsg;
+      }
+      new import_obsidian24.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
+      this.renderStatus(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
+    }
+  }
+  getSyncStatusLabel(scope) {
+    if (scope === "mixed") {
+      return tn("controlPanel", "comparingStatus");
+    }
+    return scope === "user" ? tn("controlPanel", "comparingUserData") : tn("controlPanel", "comparingPlatformData");
+  }
+  getNoDiffMessage(selection) {
+    const hasUser = hasSelectedUserFields(selection);
+    const hasPlatform = hasSelectedPlatformFields(selection);
+    if (hasUser && hasPlatform) {
+      return tn("controlPanel", "noStatusDiff");
+    }
+    return hasUser ? tn("controlPanel", "noUserDataDiff") : tn("controlPanel", "noPlatformDataDiff");
+  }
+  startUserDataPrefetch() {
+    const syncedCollections = this.getSyncedCollections();
+    if (syncedCollections.length === 0) {
+      this.subjectSnapshotSession.clear();
+      return;
+    }
+    void this.subjectSnapshotSession.warm(syncedCollections, this.state.localSubjects, {
+      concurrency: 4,
+      onComplete: (count) => {
+        console.debug(`[Bangumi Sync] \u7528\u6237\u6570\u636E\u9884\u70ED\u5B8C\u6210: ${count}`);
+      },
+      onError: (error) => {
+        console.warn("[Bangumi Sync] \u7528\u6237\u6570\u636E\u9884\u70ED\u5931\u8D25:", error);
+      }
+    });
+  }
+  getSyncedCollections() {
+    return this.state.collections.filter((collection) => this.state.localSubjects.has(collection.subject_id));
+  }
+  /**
+   * 处理键盘导航
+   */
+  handleKeyDown(event) {
+    const filteredCollections = this.getFilteredCollections();
+    const startIndex = (this.currentPage - 1) * this.pageSize;
+    const pageCollections = filteredCollections.slice(startIndex, startIndex + this.pageSize);
+    if (pageCollections.length === 0)
+      return;
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        this.focusedRowIndex = Math.min(this.focusedRowIndex + 1, pageCollections.length - 1);
+        this.updateFocus();
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        this.focusedRowIndex = Math.max(this.focusedRowIndex - 1, 0);
+        this.updateFocus();
+        break;
+      case "PageDown":
+        event.preventDefault();
+        if (this.currentPage < Math.ceil(filteredCollections.length / this.pageSize)) {
+          this.currentPage++;
+          this.focusedRowIndex = 0;
+          this.renderTable();
+          this.renderPagination();
+        }
+        break;
+      case "PageUp":
+        event.preventDefault();
+        if (this.currentPage > 1) {
+          this.currentPage--;
+          this.focusedRowIndex = 0;
+          this.renderTable();
+          this.renderPagination();
+        }
+        break;
+      case "Enter":
+      case " ":
+        event.preventDefault();
+        if (this.focusedRowIndex >= 0 && this.focusedRowIndex < pageCollections.length) {
+          const collection = pageCollections[this.focusedRowIndex];
+          const localInfo = this.state.localSubjects.get(collection.subject_id);
+          if (localInfo) {
+            this.openFile(localInfo.path);
+          }
+        }
+        break;
+      case "Escape":
+        event.preventDefault();
+        this.close();
+        break;
+    }
+  }
+  /**
+   * 更新焦点样式
+   */
+  updateFocus() {
+    this.tableRows.forEach((row, index) => {
+      if (index === this.focusedRowIndex) {
+        row.addClass("focused");
+        row.scrollIntoView({ block: "nearest" });
+      } else {
+        row.removeClass("focused");
+      }
+    });
+  }
+  /**
+   * 设置滑动关闭手势（仅移动端）
+   * 只在从顶部下拉时触发，避免与表格滚动冲突
+   */
+  setupSwipeToClose() {
+    if (!isMobile())
+      return;
+    this.touchStartHandler = (e) => {
+      this.touchStartY = e.touches[0].clientY;
+      this.swipeEnabled = this.tableEl.scrollTop === 0;
+    };
+    this.touchMoveHandler = (e) => {
+      if (!this.swipeEnabled)
+        return;
+      this.touchCurrentY = e.touches[0].clientY;
+      const diff = this.touchCurrentY - this.touchStartY;
+      if (diff > 0 && this.tableEl.scrollTop === 0) {
+        this.contentEl.setCssProps({
+          "--swipe-y": `${diff}px`,
+          "--swipe-opacity": String(1 - diff / 300)
+        });
+        this.contentEl.addClass("is-swiping");
+      }
+    };
+    this.touchEndHandler = () => {
+      if (!this.swipeEnabled)
+        return;
+      const diff = this.touchCurrentY - this.touchStartY;
+      if (diff > 100 && this.tableEl.scrollTop === 0) {
+        this.close();
+      } else {
+        this.contentEl.setCssProps({
+          "--swipe-y": "",
+          "--swipe-opacity": ""
+        });
+        this.contentEl.removeClass("is-swiping");
+      }
+      this.swipeEnabled = false;
+    };
+    this.contentEl.addEventListener("touchstart", this.touchStartHandler, { passive: true });
+    this.contentEl.addEventListener("touchmove", this.touchMoveHandler, { passive: true });
+    this.contentEl.addEventListener("touchend", this.touchEndHandler, { passive: true });
+  }
+};
+function compareTime(left, right) {
+  return parseDateTime(left) - parseDateTime(right);
+}
+function compareTitle(left, right) {
+  return left.localeCompare(right, "zh-CN", { numeric: true, sensitivity: "base" });
+}
+function compareNumber(left, right) {
+  return left - right;
+}
+function parseDateTime(value) {
+  if (!value)
+    return 0;
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
+}
+var ConfirmModal = class extends import_obsidian24.Modal {
+  constructor(app, message, onConfirm) {
+    super(app);
+    this.message = message;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("p", { text: this.message });
+    const buttonDiv = contentEl.createDiv({ cls: "modal-button-container" });
+    const confirmBtn = buttonDiv.createEl("button", { text: tn("controlPanel", "confirmDelete"), cls: "mod-cta" });
+    confirmBtn.addEventListener("click", () => {
+      void this.onConfirm();
+      this.close();
+    });
+    const cancelBtn = buttonDiv.createEl("button", { text: tn("syncOptions", "cancel") });
+    cancelBtn.addEventListener("click", () => {
+      this.close();
+    });
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
+
+// src/userData/userDataExporter.ts
+var import_obsidian25 = require("obsidian");
 var UserDataExporter = class {
   constructor(app) {
     this.app = app;
@@ -6897,7 +13685,7 @@ var UserDataExporter = class {
         totalCount: userDataMap.size,
         categories: groupedData
       };
-      const filePath = (0, import_obsidian10.normalizePath)(`${outputDir}/bangumi-user-data.json`);
+      const filePath = (0, import_obsidian25.normalizePath)(`${outputDir}/bangumi-user-data.json`);
       await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
       return { success: true, files: [filePath] };
     } catch (error) {
@@ -6957,7 +13745,7 @@ var UserDataExporter = class {
    * 确保目录存在
    */
   async ensureDirectory(path) {
-    const normalizedPath = (0, import_obsidian10.normalizePath)(path);
+    const normalizedPath = (0, import_obsidian25.normalizePath)(path);
     const exists = await this.app.vault.adapter.exists(normalizedPath);
     if (!exists) {
       await this.app.vault.createFolder(normalizedPath);
@@ -6967,9 +13755,9 @@ var UserDataExporter = class {
    * 保存文件
    */
   async saveFile(path, content) {
-    const normalizedPath = (0, import_obsidian10.normalizePath)(path);
+    const normalizedPath = (0, import_obsidian25.normalizePath)(path);
     const existing = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (existing instanceof import_obsidian10.TFile) {
+    if (existing instanceof import_obsidian25.TFile) {
       await this.app.vault.process(existing, () => content);
     } else {
       await this.app.vault.create(normalizedPath, content);
@@ -6978,7 +13766,7 @@ var UserDataExporter = class {
 };
 
 // src/userData/userDataImporter.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 
 // src/userData/importLogic.ts
 var LIST_LIKE_FIELDS = /* @__PURE__ */ new Set([
@@ -7232,7 +14020,7 @@ var UserDataImporter = class {
   async importFromFile(filePath, options, onProgress) {
     try {
       const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (!(file instanceof import_obsidian11.TFile)) {
+      if (!(file instanceof import_obsidian26.TFile)) {
         throw new Error("Import file not found");
       }
       const content = await this.app.vault.read(file);
@@ -7248,7 +14036,7 @@ var UserDataImporter = class {
     const files = [];
     for (const filePath of filePaths) {
       const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (!(file instanceof import_obsidian11.TFile)) {
+      if (!(file instanceof import_obsidian26.TFile)) {
         throw new Error(`Import file not found: ${filePath}`);
       }
       files.push({
@@ -7927,7 +14715,7 @@ var UserDataImporter = class {
     if (!record)
       return null;
     const file = this.app.vault.getAbstractFileByPath(record.path);
-    return file instanceof import_obsidian11.TFile ? file : null;
+    return file instanceof import_obsidian26.TFile ? file : null;
   }
 };
 function asString(value) {
@@ -7969,13 +14757,13 @@ function sortObjectKeysDeep(value) {
 }
 
 // src/userData/userDataModal.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 var DEFAULT_EXPORT_DATA_TYPES = [
   "userProperties" /* USER_PROPERTIES */,
   "customProperties" /* CUSTOM_PROPERTIES */,
   "bodySections" /* BODY_CONTENT */
 ];
-var UserDataExportModal = class extends import_obsidian12.Modal {
+var UserDataExportModal = class extends import_obsidian27.Modal {
   constructor(app, scanFolderPath, onExport) {
     super(app);
     this.exportDataTypes = [...DEFAULT_EXPORT_DATA_TYPES];
@@ -7992,12 +14780,12 @@ var UserDataExportModal = class extends import_obsidian12.Modal {
       text: tn("userData", "exportDesc"),
       cls: "bangumi-modal-desc"
     });
-    new import_obsidian12.Setting(contentEl).setName(tn("userData", "scanFolder")).setDesc(tn("userData", "scanFolderDesc")).addText((text) => {
+    new import_obsidian27.Setting(contentEl).setName(tn("userData", "scanFolder")).setDesc(tn("userData", "scanFolderDesc")).addText((text) => {
       text.setValue(this.scanFolderPath).onChange((value) => {
         this.scanFolderPath = value;
       });
     });
-    new import_obsidian12.Setting(contentEl).setName(tn("userData", "outputDir")).setDesc(tn("userData", "outputDirDesc")).addText((text) => {
+    new import_obsidian27.Setting(contentEl).setName(tn("userData", "outputDir")).setDesc(tn("userData", "outputDirDesc")).addText((text) => {
       text.setValue(this.outputDir).onChange((value) => {
         this.outputDir = value;
       });
@@ -8023,7 +14811,7 @@ var UserDataExportModal = class extends import_obsidian12.Modal {
   }
   async doExport() {
     if (this.exportDataTypes.length === 0) {
-      new import_obsidian12.Notice(tn("userData", "selectAtLeastOneDataType"));
+      new import_obsidian27.Notice(tn("userData", "selectAtLeastOneDataType"));
       return;
     }
     const result = await this.exporter.exportByCategory(
@@ -8032,11 +14820,11 @@ var UserDataExportModal = class extends import_obsidian12.Modal {
       this.exportDataTypes
     );
     if (result.success && result.files.length > 0) {
-      new import_obsidian12.Notice(tnFormat("userData", "exportSuccess", { count: result.files.length }));
+      new import_obsidian27.Notice(tnFormat("userData", "exportSuccess", { count: result.files.length }));
       this.onExport(result.files);
       this.close();
     } else {
-      new import_obsidian12.Notice(tnFormat("userData", "exportFailed", { error: result.error || "Unknown error" }));
+      new import_obsidian27.Notice(tnFormat("userData", "exportFailed", { error: result.error || "Unknown error" }));
     }
   }
   onClose() {
@@ -8044,14 +14832,14 @@ var UserDataExportModal = class extends import_obsidian12.Modal {
     contentEl.empty();
   }
   addDataTypeToggle(container, dataType, nameKey, descKey) {
-    new import_obsidian12.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
+    new import_obsidian27.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
       toggle.setValue(this.exportDataTypes.includes(dataType)).onChange((value) => {
         this.exportDataTypes = updateDataTypeSelection(this.exportDataTypes, dataType, value);
       });
     });
   }
 };
-var UserDataImportModal = class extends import_obsidian12.Modal {
+var UserDataImportModal = class extends import_obsidian27.Modal {
   constructor(app, importFiles, onImport, scanRoot = "ACGN") {
     super(app);
     this.mergeStrategy = "smart";
@@ -8073,12 +14861,12 @@ var UserDataImportModal = class extends import_obsidian12.Modal {
     for (const file of this.importFiles) {
       fileListEl.createEl("div", { text: file.name, cls: "bangumi-import-file-item" });
     }
-    new import_obsidian12.Setting(contentEl).setName(tn("userData", "mergeStrategy")).setDesc(tn("userData", "mergeStrategyDesc")).addDropdown((dropdown) => {
+    new import_obsidian27.Setting(contentEl).setName(tn("userData", "mergeStrategy")).setDesc(tn("userData", "mergeStrategyDesc")).addDropdown((dropdown) => {
       dropdown.addOption("prefer_local", tn("userData", "preferLocal")).addOption("prefer_import", tn("userData", "preferImport")).addOption("smart", tn("userData", "smartMerge")).setValue(this.mergeStrategy).onChange((value) => {
         this.mergeStrategy = value;
       });
     });
-    new import_obsidian12.Setting(contentEl).setName(tn("userData", "importMode")).setDesc(tn("userData", "importModeDesc")).addDropdown((dropdown) => {
+    new import_obsidian27.Setting(contentEl).setName(tn("userData", "importMode")).setDesc(tn("userData", "importModeDesc")).addDropdown((dropdown) => {
       dropdown.addOption("item", tn("userData", "itemImportMode")).addOption("property", tn("userData", "propertyImportMode")).setValue(this.importMode).onChange((value) => {
         this.importMode = value;
       });
@@ -8104,7 +14892,7 @@ var UserDataImportModal = class extends import_obsidian12.Modal {
   }
   async doImport() {
     if (this.importDataTypes.length === 0) {
-      new import_obsidian12.Notice(tn("userData", "selectAtLeastOneDataType"));
+      new import_obsidian27.Notice(tn("userData", "selectAtLeastOneDataType"));
       return;
     }
     const dataTypeOptions = { dataTypes: this.importDataTypes };
@@ -8204,14 +14992,14 @@ var UserDataImportModal = class extends import_obsidian12.Modal {
     contentEl.empty();
   }
   addDataTypeToggle(container, dataType, nameKey, descKey) {
-    new import_obsidian12.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
+    new import_obsidian27.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
       toggle.setValue(this.importDataTypes.includes(dataType)).onChange((value) => {
         this.importDataTypes = updateDataTypeSelection(this.importDataTypes, dataType, value);
       });
     });
   }
 };
-var MissingFieldModal = class extends import_obsidian12.Modal {
+var MissingFieldModal = class extends import_obsidian27.Modal {
   constructor(app, missingFields, onResolve) {
     super(app);
     this.decisions = /* @__PURE__ */ new Map();
@@ -8315,7 +15103,7 @@ var MissingFieldModal = class extends import_obsidian12.Modal {
     contentEl.empty();
   }
 };
-var PropertyManageModal = class extends import_obsidian12.Modal {
+var PropertyManageModal = class extends import_obsidian27.Modal {
   constructor(app, propertyNames, suggestedAliases, onConfirm) {
     super(app);
     this.decisions = {};
@@ -8389,7 +15177,7 @@ var PropertyManageModal = class extends import_obsidian12.Modal {
     this.contentEl.empty();
   }
 };
-var ImportCompareModal = class extends import_obsidian12.Modal {
+var ImportCompareModal = class extends import_obsidian27.Modal {
   constructor(app, diffs, onConfirm) {
     super(app);
     this.diffs = diffs;
@@ -8504,7 +15292,7 @@ var ImportCompareModal = class extends import_obsidian12.Modal {
     this.contentEl.empty();
   }
 };
-var PropertyImportReviewModal = class extends import_obsidian12.Modal {
+var PropertyImportReviewModal = class extends import_obsidian27.Modal {
   constructor(app, propertyGroups, onConfirm) {
     super(app);
     this.currentIndex = 0;
@@ -8658,7 +15446,7 @@ var PropertyImportReviewModal = class extends import_obsidian12.Modal {
     this.contentEl.empty();
   }
 };
-var ImportResultModal = class extends import_obsidian12.Modal {
+var ImportResultModal = class extends import_obsidian27.Modal {
   constructor(app, result, scanRoot = "ACGN") {
     super(app);
     this.result = result;
@@ -8714,7 +15502,7 @@ var ImportResultModal = class extends import_obsidian12.Modal {
   }
   async applyDecisions(decisions) {
     await this.importer.applyMissingFieldDecisions(decisions);
-    new import_obsidian12.Notice(tnFormat("userData", "missingFieldsApplied", { count: decisions.filter((d) => d.decision === "add").length }));
+    new import_obsidian27.Notice(tnFormat("userData", "missingFieldsApplied", { count: decisions.filter((d) => d.decision === "add").length }));
   }
   onClose() {
     const { contentEl } = this;
@@ -8819,6754 +15607,6 @@ function updateDataTypeSelection(selected, dataType, enabled) {
   }
   return Array.from(next);
 }
-
-// src/template/templateProperties.ts
-var IDENTIFIER_PROPERTY_NAMES = /* @__PURE__ */ new Set([
-  "id",
-  "ID",
-  "\u4E2D\u6587\u540D",
-  "\u539F\u540D",
-  "\u522B\u540D",
-  "\u4F5C\u54C1\u5927\u7C7B",
-  "\u5177\u4F53\u7C7B\u578B"
-]);
-var AUTO_FILLED_PROPERTY_NAMES = /* @__PURE__ */ new Set([
-  "Bangumi\u8BC4\u5206",
-  "Bangumi\u94FE\u63A5",
-  "\u5C01\u9762"
-]);
-var AUTO_FILLED_TEMPLATE_VARS = /* @__PURE__ */ new Set([
-  "id",
-  "name",
-  "name_cn",
-  "alias",
-  "summary",
-  "rating",
-  "rank",
-  "tags",
-  "tags_inline",
-  "cover",
-  "bangumi_url",
-  "type",
-  "typeLabel",
-  "typeId",
-  "category",
-  "date",
-  "year",
-  "month",
-  "my_rate",
-  "my_comment",
-  "my_comment_raw",
-  "my_status",
-  "my_tags",
-  "episode",
-  "director",
-  "music",
-  "animeMake",
-  "from",
-  "musicMake",
-  "audioDirector",
-  "artDirector",
-  "animeChief",
-  "website",
-  "author",
-  "illustration",
-  "publish",
-  "series",
-  "journal",
-  "volumes",
-  "status",
-  "progress",
-  "start",
-  "end",
-  "staff",
-  "platform",
-  "develop",
-  "playerNum",
-  "script",
-  "art",
-  "producer",
-  "price",
-  "pages",
-  "isbn",
-  "name_cn_with_type",
-  "actor",
-  "country",
-  "language",
-  "episodeLength",
-  "tvStation",
-  "imdbId",
-  "episodes",
-  "volumes_display",
-  "note_link",
-  "related",
-  "character1",
-  "character2",
-  "character3",
-  "character4",
-  "character5",
-  "character6",
-  "character7",
-  "character8",
-  "character9",
-  "characterCV1",
-  "characterCV2",
-  "characterCV3",
-  "characterCV4",
-  "characterCV5",
-  "characterCV6",
-  "characterCV7",
-  "characterCV8",
-  "characterCV9",
-  "characterPhoto1",
-  "characterPhoto2",
-  "characterPhoto3",
-  "characterPhoto4",
-  "characterPhoto5",
-  "characterPhoto6",
-  "characterPhoto7",
-  "characterPhoto8",
-  "characterPhoto9"
-]);
-var TEMPLATE_VAR_REGEX = /\{\{(\w+)(?:\|([^}]+))?\}\}/g;
-var SINGLE_TEMPLATE_VAR_REGEX = /^"?\{\{(\w+)(?:\|([^}]+))?\}\}"?$/;
-function getTemplatePropertyGroupsForSubject(subject, customTemplates) {
-  const template = resolveTemplateForSubject(subject, customTemplates);
-  return extractTemplatePropertyGroupsFromTemplate(template);
-}
-function extractTemplatePropertyGroupsFromTemplate(template) {
-  const customProperties = [];
-  const autoProperties = [];
-  const identifierProperties = [];
-  const frontmatter = extractFrontmatter2(template);
-  if (!frontmatter) {
-    return { identifierProperties, autoProperties, customProperties };
-  }
-  const lines = frontmatter.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
-    if (!trimmed || trimmed.startsWith("{{")) {
-      continue;
-    }
-    const match = lines[i].match(/^([^:\n]+):(?:\s*(.*))?$/);
-    if (!match) {
-      continue;
-    }
-    const propertyName = match[1].trim();
-    const rawValue = (match[2] || "").trim();
-    const continuationValue = rawValue === "" ? getTemplateDrivenContinuationValue(lines, i) : void 0;
-    const valueForClassification = continuationValue != null ? continuationValue : rawValue;
-    const templateVariables = extractTemplateVariables(valueForClassification);
-    const initialValue = parseTemplateInitialValue(rawValue);
-    const inputTemplateVariable = parseInputTemplateVariable(valueForClassification);
-    const source = classifyTemplateProperty(propertyName, templateVariables);
-    const propertyType = parseTemplateFieldType(rawValue);
-    const property = {
-      name: propertyName,
-      label: propertyName,
-      rawValue,
-      type: propertyType,
-      source,
-      initialValue,
-      templateVariables,
-      inputTemplateVariable,
-      placeholder: propertyType === "list" ? "\u503C1, \u503C2" : (inputTemplateVariable == null ? void 0 : inputTemplateVariable.startsWith("rating_")) ? "0-10" : void 0
-    };
-    if (source === "identifier") {
-      identifierProperties.push(property);
-    } else if (source === "auto") {
-      autoProperties.push(property);
-    } else {
-      customProperties.push(property);
-    }
-  }
-  return { identifierProperties, autoProperties, customProperties };
-}
-function buildExtraTemplateVarsFromPropertyValues(properties, propertyValues) {
-  const extraVars = {};
-  if (!propertyValues) {
-    return extraVars;
-  }
-  for (const property of properties) {
-    const value = propertyValues[property.name];
-    if (value === void 0 || value === "" || !property.inputTemplateVariable) {
-      continue;
-    }
-    extraVars[property.inputTemplateVariable] = Array.isArray(value) ? value.join(", ") : String(value);
-  }
-  return extraVars;
-}
-function classifyTemplateProperty(propertyName, templateVariables) {
-  if (IDENTIFIER_PROPERTY_NAMES.has(propertyName)) {
-    return "identifier";
-  }
-  if (AUTO_FILLED_PROPERTY_NAMES.has(propertyName)) {
-    return "auto";
-  }
-  if (templateVariables.length === 0) {
-    return "custom";
-  }
-  return templateVariables.every((variable) => AUTO_FILLED_TEMPLATE_VARS.has(variable)) ? "auto" : "custom";
-}
-function extractFrontmatter2(template) {
-  const normalized = template.replace(/\r\n?/g, "\n");
-  const match = normalized.match(/^---\n([\s\S]*?)\n---/);
-  return match ? match[1] : null;
-}
-function getTemplateDrivenContinuationValue(lines, currentIndex) {
-  var _a;
-  const nextLine = (_a = lines[currentIndex + 1]) == null ? void 0 : _a.trim();
-  if (!nextLine || !/^\{\{(?!#if\b|\/if\b)/.test(nextLine)) {
-    return void 0;
-  }
-  return nextLine;
-}
-function extractTemplateVariables(rawValue) {
-  const variables = /* @__PURE__ */ new Set();
-  let match;
-  const regex = new RegExp(TEMPLATE_VAR_REGEX);
-  while ((match = regex.exec(rawValue)) !== null) {
-    variables.add(match[1]);
-  }
-  return [...variables];
-}
-function parseTemplateInitialValue(rawValue) {
-  if (!rawValue) {
-    return void 0;
-  }
-  if (rawValue === "true") {
-    return true;
-  }
-  if (rawValue === "false") {
-    return false;
-  }
-  if (rawValue === "[]") {
-    return [];
-  }
-  const singleVarMatch = rawValue.match(SINGLE_TEMPLATE_VAR_REGEX);
-  if (singleVarMatch) {
-    return typeof singleVarMatch[2] === "string" ? singleVarMatch[2] : void 0;
-  }
-  if (rawValue.startsWith('"') && rawValue.endsWith('"') || rawValue.startsWith("'") && rawValue.endsWith("'")) {
-    return rawValue.slice(1, -1);
-  }
-  return rawValue;
-}
-function parseTemplateFieldType(rawValue) {
-  if (rawValue === "true" || rawValue === "false") {
-    return "toggle";
-  }
-  if (rawValue === "[]") {
-    return "list";
-  }
-  return "text";
-}
-function parseInputTemplateVariable(rawValue) {
-  const singleVarMatch = rawValue.match(SINGLE_TEMPLATE_VAR_REGEX);
-  if (!singleVarMatch) {
-    return void 0;
-  }
-  const variableName = singleVarMatch[1];
-  return AUTO_FILLED_TEMPLATE_VARS.has(variableName) ? void 0 : variableName;
-}
-
-// src/sync/subjectPathResolver.ts
-function appendSuffix(path, suffix) {
-  const normalized = normalizePathValue(path);
-  return limitPathLength(normalized.toLocaleLowerCase("en-US").endsWith(".md") ? `${normalized.slice(0, -3)}${suffix}.md` : `${normalized}${suffix}.md`);
-}
-function collisionSuffix(candidate, useYearOnly) {
-  var _a, _b;
-  const year = (_b = (_a = candidate.year) == null ? void 0 : _a.match(/^\d{4}$/)) == null ? void 0 : _b[0];
-  if (year && useYearOnly) {
-    return `\uFF08${year}\uFF09`;
-  }
-  if (year) {
-    return `\uFF08${year}\uFF09[bgm-${candidate.subjectId}]`;
-  }
-  return `[bgm-${candidate.subjectId}]`;
-}
-var SubjectPathResolver = class {
-  plan(candidates, occupiedPaths = /* @__PURE__ */ new Map()) {
-    var _a;
-    const byId = /* @__PURE__ */ new Map();
-    for (const candidate of candidates) {
-      if (byId.has(candidate.subjectId)) {
-        throw new Error(`Duplicate subject ${candidate.subjectId} in path planning input.`);
-      }
-      byId.set(candidate.subjectId, {
-        ...candidate,
-        preferredPath: normalizePathValue(candidate.preferredPath),
-        currentPath: candidate.currentPath ? normalizePathValue(candidate.currentPath) : void 0
-      });
-    }
-    const sortedCandidates = Array.from(byId.values()).sort((left, right) => {
-      const pathOrder = normalizePathCollisionKey(left.preferredPath).localeCompare(normalizePathCollisionKey(right.preferredPath), "en-US");
-      return pathOrder || left.subjectId - right.subjectId;
-    });
-    const reservations = new Map(occupiedPaths);
-    const collisionGroups = /* @__PURE__ */ new Map();
-    for (const candidate of sortedCandidates) {
-      const currentKey = candidate.currentPath ? normalizePathCollisionKey(candidate.currentPath) : void 0;
-      const preferredKey = normalizePathCollisionKey(candidate.preferredPath);
-      const group = (_a = collisionGroups.get(preferredKey)) != null ? _a : [];
-      group.push(candidate);
-      collisionGroups.set(preferredKey, group);
-      if (candidate.currentPath) {
-        reservations.set(currentKey, candidate.subjectId);
-      }
-    }
-    const allocations = /* @__PURE__ */ new Map();
-    const renamed = [];
-    for (const group of collisionGroups.values()) {
-      if (group.length < 2)
-        continue;
-      const movable = group.filter((candidate) => !candidate.currentPath || candidate.namingState === "managed" && normalizePathCollisionKey(candidate.currentPath) === normalizePathCollisionKey(candidate.preferredPath));
-      for (const candidate of movable) {
-        if (candidate.currentPath) {
-          reservations.delete(normalizePathCollisionKey(candidate.currentPath));
-        }
-      }
-      const years = group.map((candidate) => {
-        var _a2, _b, _c;
-        return (_c = (_b = (_a2 = candidate.year) == null ? void 0 : _a2.match(/^\d{4}$/)) == null ? void 0 : _b[0]) != null ? _c : "";
-      });
-      const useYearOnly = years.every(Boolean) && new Set(years).size === group.length;
-      for (const candidate of movable) {
-        const finalPath = this.reserveUnique(
-          appendSuffix(candidate.preferredPath, collisionSuffix(candidate, useYearOnly)),
-          candidate.subjectId,
-          reservations
-        );
-        const renameFrom = candidate.currentPath && normalizePathCollisionKey(candidate.currentPath) !== normalizePathCollisionKey(finalPath) ? candidate.currentPath : void 0;
-        allocations.set(candidate.subjectId, {
-          subjectId: candidate.subjectId,
-          preferredPath: candidate.preferredPath,
-          finalPath,
-          collisionResolved: true,
-          ...renameFrom ? { renameFrom } : {}
-        });
-        if (renameFrom) {
-          renamed.push({ subjectId: candidate.subjectId, from: renameFrom, to: finalPath });
-        }
-      }
-    }
-    for (const candidate of sortedCandidates) {
-      if (allocations.has(candidate.subjectId))
-        continue;
-      if (candidate.currentPath) {
-        allocations.set(candidate.subjectId, {
-          subjectId: candidate.subjectId,
-          preferredPath: candidate.preferredPath,
-          finalPath: candidate.currentPath,
-          collisionResolved: false
-        });
-        continue;
-      }
-      const preferredOwner = reservations.get(normalizePathCollisionKey(candidate.preferredPath));
-      const needsSuffix = preferredOwner !== void 0 && preferredOwner !== candidate.subjectId;
-      const proposedPath = needsSuffix ? appendSuffix(candidate.preferredPath, collisionSuffix(candidate, false)) : candidate.preferredPath;
-      const finalPath = this.reserveUnique(proposedPath, candidate.subjectId, reservations);
-      allocations.set(candidate.subjectId, {
-        subjectId: candidate.subjectId,
-        preferredPath: candidate.preferredPath,
-        finalPath,
-        collisionResolved: normalizePathCollisionKey(finalPath) !== normalizePathCollisionKey(candidate.preferredPath)
-      });
-    }
-    return { allocations, renamed };
-  }
-  reserveUnique(path, subjectId, reservations) {
-    let candidatePath = path;
-    let attempt = 1;
-    while (true) {
-      const key = normalizePathCollisionKey(candidatePath);
-      const owner = reservations.get(key);
-      if (owner === void 0 || owner === subjectId) {
-        reservations.set(key, subjectId);
-        return candidatePath;
-      }
-      attempt++;
-      candidatePath = appendSuffix(path, `\uFF3B${attempt}\uFF3D`);
-    }
-  }
-};
-
-// src/sync/syncTransaction.ts
-var import_obsidian13 = require("obsidian");
-var SyncTransaction = class {
-  constructor(app, fileManager) {
-    this.app = app;
-    this.fileManager = fileManager;
-    this.createdFiles = [];
-    this.updatedContents = /* @__PURE__ */ new Map();
-    this.renames = [];
-  }
-  hasChanges() {
-    return this.createdFiles.length > 0 || this.updatedContents.size > 0 || this.renames.length > 0;
-  }
-  getRenameCount() {
-    return this.renames.length;
-  }
-  async executeRenames(renames) {
-    if (renames.length === 0)
-      return;
-    const sources = /* @__PURE__ */ new Map();
-    const targets = /* @__PURE__ */ new Set();
-    for (const rename of renames) {
-      const from = (0, import_obsidian13.normalizePath)(rename.from);
-      const to = (0, import_obsidian13.normalizePath)(rename.to);
-      if (targets.has(to.toLocaleLowerCase("en-US"))) {
-        throw new Error(`Duplicate rename target: ${to}`);
-      }
-      const file = await this.fileManager.assertPathOwnership(from, rename.subjectId);
-      if (!file) {
-        throw new Error(`Rename source does not exist: ${from}`);
-      }
-      sources.set(from.toLocaleLowerCase("en-US"), { rename: { ...rename, from, to }, file });
-      targets.add(to.toLocaleLowerCase("en-US"));
-    }
-    for (const { rename } of sources.values()) {
-      const target = this.fileManager.getFile(rename.to);
-      if (target && !sources.has(rename.to.toLocaleLowerCase("en-US"))) {
-        throw new Error(`Rename target is occupied by an unplanned file: ${rename.to}`);
-      }
-    }
-    const staged = [];
-    try {
-      let index = 0;
-      for (const { rename, file } of sources.values()) {
-        const temporaryPath = await this.findTemporaryPath(rename.from, rename.subjectId, index++);
-        await this.app.fileManager.renameFile(file, temporaryPath);
-        staged.push({ rename, file, temporaryPath });
-      }
-      for (const entry of staged) {
-        await this.fileManager.ensureDirectory(entry.rename.to);
-        await this.app.fileManager.renameFile(entry.file, entry.rename.to);
-        this.renames.push({ ...entry.rename, file: entry.file });
-      }
-    } catch (error) {
-      for (const entry of staged.reverse()) {
-        try {
-          await this.app.fileManager.renameFile(entry.file, entry.rename.from);
-        } catch (e) {
-        }
-      }
-      throw error;
-    }
-  }
-  async createOrUpdateFile(path, content, options) {
-    const existing = await this.fileManager.assertPathOwnership(path, options.subjectId);
-    if (existing && !this.updatedContents.has(existing)) {
-      this.updatedContents.set(existing, await this.app.vault.read(existing));
-    }
-    const result = await this.fileManager.createOrUpdateFile(path, content, options);
-    if (result.status === "created") {
-      this.createdFiles.push(result.file);
-    }
-    if (result.status !== "updated" && existing) {
-      this.updatedContents.delete(existing);
-    }
-    return result;
-  }
-  async rollback() {
-    const result = { deleted: 0, restored: 0, failed: 0 };
-    for (const file of [...this.createdFiles].reverse()) {
-      try {
-        await this.app.fileManager.trashFile(file);
-        result.deleted++;
-      } catch (e) {
-        result.failed++;
-      }
-    }
-    for (const [file, content] of this.updatedContents) {
-      try {
-        await this.app.vault.process(file, () => content);
-        result.restored++;
-      } catch (e) {
-        result.failed++;
-      }
-    }
-    const staged = [];
-    for (let index = 0; index < this.renames.length; index++) {
-      const rename = this.renames[index];
-      try {
-        const temporaryPath = await this.findTemporaryPath(rename.to, rename.subjectId, index);
-        await this.app.fileManager.renameFile(rename.file, temporaryPath);
-        staged.push({ rename, temporaryPath });
-      } catch (e) {
-        result.failed++;
-      }
-    }
-    for (const { rename } of staged.reverse()) {
-      try {
-        await this.fileManager.ensureDirectory(rename.from);
-        await this.app.fileManager.renameFile(rename.file, rename.from);
-        result.restored++;
-      } catch (e) {
-        result.failed++;
-      }
-    }
-    return result;
-  }
-  async findTemporaryPath(sourcePath, subjectId, index) {
-    const slash = sourcePath.lastIndexOf("/");
-    const directory = slash >= 0 ? sourcePath.slice(0, slash + 1) : "";
-    let attempt = 0;
-    while (true) {
-      const path = (0, import_obsidian13.normalizePath)(`${directory}.bangumi-sync-${subjectId}-${index}-${attempt}.tmp.md`);
-      if (!await this.fileManager.fileExists(path)) {
-        return path;
-      }
-      attempt++;
-    }
-  }
-};
-
-// src/sync/pathDiagnostics.ts
-function formatDiagnosticReport(report) {
-  var _a;
-  const lines = [
-    "# Bangumi Sync local subject diagnostic",
-    "",
-    `- Generated: ${report.generatedAt}`,
-    `- Scan root: ${report.scanRoot}`,
-    `- Valid subjects: ${report.validSubjects}`,
-    `- Issues: ${report.issues.length}`,
-    "",
-    "## Issues",
-    ""
-  ];
-  if (report.issues.length === 0) {
-    lines.push("No issues found.");
-  } else {
-    for (const issue of report.issues) {
-      const identity = issue.subjectId ? ` subject=${issue.subjectId}` : "";
-      const path = issue.path ? ` path=${issue.path}` : "";
-      lines.push(`- **${issue.severity} / ${issue.code}**${identity}${path}: ${issue.message}`);
-      if ((_a = issue.relatedPaths) == null ? void 0 : _a.length) {
-        for (const relatedPath of issue.relatedPaths)
-          lines.push(`  - ${relatedPath}`);
-      }
-    }
-  }
-  return `${lines.join("\n")}
-`;
-}
-
-// src/sync/syncManager.ts
-var SyncManager = class {
-  constructor(app, config) {
-    this.cancellationSignal = null;
-    this.pathResolver = new SubjectPathResolver();
-    this.activeTransaction = null;
-    var _a;
-    this.app = app;
-    this.config = config;
-    this.client = new BangumiClient(config.accessToken);
-    this.fileManager = new FileManager(app);
-    this.imageHandler = new ImageHandler(app, this.fileManager);
-    this.imageHandler.setDownloadEnabled(config.downloadImages);
-    this.incrementalSync = new IncrementalSync(app);
-    this.incrementalSync.setPathStates((_a = config.subjectPathStates) != null ? _a : {});
-    this.userDataExtractor = new UserDataExtractor(app);
-    this.userDataMerger = new UserDataMerger(app);
-  }
-  /**
-   * 设置进度回调
-   */
-  setProgressCallback(callback) {
-    this.onProgress = callback;
-  }
-  /**
-   * 设置取消信号
-   */
-  setCancellationSignal(signal) {
-    this.cancellationSignal = signal;
-  }
-  /**
-   * 回滚本次批次新建的文件
-   */
-  async rollbackBatch() {
-    if (this.activeTransaction) {
-      const result = await this.activeTransaction.rollback();
-      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
-      await this.persistPathStates();
-      this.activeTransaction = null;
-      return result;
-    }
-    return this.incrementalSync.rollbackBatch();
-  }
-  /**
-   * 更新配置
-   */
-  updateConfig(config) {
-    var _a;
-    this.config = { ...this.config, ...config };
-    this.client.setAccessToken(config.accessToken || "");
-    this.imageHandler.setDownloadEnabled((_a = config.downloadImages) != null ? _a : true);
-    if (config.subjectPathStates) {
-      this.incrementalSync.setPathStates(config.subjectPathStates);
-    }
-  }
-  async persistPathStates() {
-    var _a, _b;
-    const states = this.incrementalSync.exportPathStates();
-    this.config.subjectPathStates = states;
-    await ((_b = (_a = this.config).onPathStatesChanged) == null ? void 0 : _b.call(_a, states));
-  }
-  async diagnoseLocalSubjects() {
-    const scanRoot = this.config.scanFolderPath || "ACGN";
-    await this.incrementalSync.scanLocalFolder(scanRoot);
-    const registry = this.incrementalSync.getRegistry();
-    const issues = registry.invalidFiles.map((problem) => ({ ...problem }));
-    const preferredGroups = /* @__PURE__ */ new Map();
-    await this.processConcurrently(Array.from(registry.idToRecord.values()), 3, async (record) => {
-      var _a;
-      if (record.namingState !== "managed") {
-        issues.push({
-          severity: "needs-user-decision",
-          code: record.namingState === "user-renamed" ? "user-renamed" : "unknown-path-state",
-          message: record.namingState === "user-renamed" ? "The current filename is user-managed and will not be renamed automatically." : "No previous managed-path state exists; automatic rename is disabled.",
-          subjectId: record.subjectId,
-          path: record.path
-        });
-      }
-      try {
-        const subject = await this.client.getSubject(record.subjectId);
-        const preferredPath = this.generatePreferredPath(subject);
-        const key = normalizePathCollisionKey(preferredPath);
-        const group = (_a = preferredGroups.get(key)) != null ? _a : [];
-        group.push({ subjectId: record.subjectId, path: preferredPath });
-        preferredGroups.set(key, group);
-      } catch (error) {
-        issues.push({
-          severity: "needs-user-decision",
-          code: "subject-lookup-failed",
-          message: error instanceof Error ? error.message : String(error),
-          subjectId: record.subjectId,
-          path: record.path
-        });
-      }
-    });
-    for (const group of preferredGroups.values()) {
-      if (group.length < 2)
-        continue;
-      issues.push({
-        severity: "needs-user-decision",
-        code: "template-path-collision",
-        message: `The current template maps ${group.length} subjects to the same normalized path.`,
-        subjectId: group[0].subjectId,
-        path: group[0].path,
-        relatedPaths: group.map((item) => `${item.subjectId}: ${item.path}`)
-      });
-    }
-    return {
-      generatedAt: new Date().toISOString(),
-      scanRoot,
-      validSubjects: registry.idToRecord.size,
-      issues
-    };
-  }
-  async exportDiagnosticReport(report) {
-    const actualReport = report != null ? report : await this.diagnoseLocalSubjects();
-    const stamp = actualReport.generatedAt.replace(/[:.]/g, "-");
-    const path = `Bangumi Sync/Diagnostics/diagnostic-${stamp}.md`;
-    await this.fileManager.ensureDirectory(path);
-    await this.app.vault.create(path, formatDiagnosticReport(actualReport));
-    return path;
-  }
-  async previewPathMigration(options = {}) {
-    await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
-    const registry = this.incrementalSync.getRegistry();
-    const selected = Array.from(registry.idToRecord.values()).filter(
-      (record) => record.namingState === "managed" || record.namingState === "unknown" && options.includeUnknown || record.namingState === "user-renamed" && options.includeUserRenamed
-    );
-    const selectedIds = new Set(selected.map((record) => record.subjectId));
-    const occupied = new Map(registry.pathToId);
-    for (const record of selected)
-      occupied.delete(normalizePathCollisionKey(record.path));
-    const details = /* @__PURE__ */ new Map();
-    const failures = /* @__PURE__ */ new Map();
-    await this.processConcurrently(selected, 3, async (record) => {
-      try {
-        details.set(record.subjectId, await this.client.getSubject(record.subjectId));
-      } catch (error) {
-        failures.set(record.subjectId, error instanceof Error ? error.message : String(error));
-      }
-    });
-    const candidates = selected.flatMap((record) => {
-      const subject = details.get(record.subjectId);
-      if (!subject)
-        return [];
-      return [{
-        subjectId: record.subjectId,
-        preferredPath: this.generatePreferredPath(subject),
-        year: extractPathVars(subject).year,
-        namingState: "managed"
-      }];
-    });
-    const plan = this.pathResolver.plan(candidates, occupied);
-    const entries = Array.from(registry.idToRecord.values()).map((record) => {
-      var _a;
-      if (!selectedIds.has(record.subjectId)) {
-        return {
-          subjectId: record.subjectId,
-          name: record.nameCn,
-          from: record.path,
-          to: record.path,
-          namingState: record.namingState,
-          status: "protected",
-          reason: "User-renamed or unknown paths require explicit inclusion."
-        };
-      }
-      const error = failures.get(record.subjectId);
-      if (error) {
-        return { subjectId: record.subjectId, name: record.nameCn, from: record.path, to: record.path, namingState: record.namingState, status: "failed", reason: error };
-      }
-      const allocation = plan.allocations.get(record.subjectId);
-      const to = (_a = allocation == null ? void 0 : allocation.finalPath) != null ? _a : record.path;
-      return {
-        subjectId: record.subjectId,
-        name: record.nameCn,
-        from: record.path,
-        to,
-        namingState: record.namingState,
-        status: normalizePathCollisionKey(record.path) === normalizePathCollisionKey(to) ? "unchanged" : "rename"
-      };
-    });
-    return { generatedAt: new Date().toISOString(), entries };
-  }
-  async applyPathMigration(preview) {
-    const renames = preview.entries.filter((entry) => entry.status === "rename").map((entry) => ({ subjectId: entry.subjectId, from: entry.from, to: entry.to }));
-    const transaction = new SyncTransaction(this.app, this.fileManager);
-    this.activeTransaction = transaction;
-    try {
-      await transaction.executeRenames(renames);
-      for (const rename of renames)
-        this.incrementalSync.renameLocalSubject(rename.subjectId, rename.to);
-      await this.persistPathStates();
-      return { renamed: renames.length, failed: 0 };
-    } catch (e) {
-      await transaction.rollback();
-      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
-      return { renamed: 0, failed: renames.length };
-    }
-  }
-  /**
-   * 检查取消/暂停信号
-   * @returns true 如果已取消
-   */
-  async checkCancellation() {
-    var _a, _b, _c, _d;
-    if ((_a = this.cancellationSignal) == null ? void 0 : _a.cancelled) {
-      return true;
-    }
-    while ((_b = this.cancellationSignal) == null ? void 0 : _b.paused) {
-      await new Promise((resolve) => activeWindow.setTimeout(resolve, 200));
-    }
-    return (_d = (_c = this.cancellationSignal) == null ? void 0 : _c.cancelled) != null ? _d : false;
-  }
-  /**
-   * 创建带回滚能力的同步结果
-   */
-  createSyncResultWithRollback(base, wasCancelled) {
-    var _a;
-    const batchFiles = this.incrementalSync.getBatchSyncedFiles();
-    return {
-      ...base,
-      batchFiles,
-      wasCancelled,
-      canRollback: Boolean((_a = this.activeTransaction) == null ? void 0 : _a.hasChanges()) || batchFiles.some((file) => file.wasNewlyCreated)
-    };
-  }
-  createSyncResult(total = 0) {
-    return {
-      success: false,
-      completion: "failed",
-      total,
-      added: 0,
-      skipped: 0,
-      errors: 0,
-      created: 0,
-      updated: 0,
-      unchanged: 0,
-      renamed: 0,
-      collisionResolved: 0,
-      failed: 0,
-      duration: 0,
-      errorDetails: [],
-      outcomes: []
-    };
-  }
-  recordPreparedFailure(result, failure) {
-    const name = failure.collection.subject.name_cn || failure.collection.subject.name || String(failure.collection.subject_id);
-    result.failed++;
-    result.errorDetails.push(`[${failure.collection.subject_id}] ${name}: ${failure.error}`);
-    result.outcomes.push({
-      status: "failed",
-      subjectId: failure.collection.subject_id,
-      name,
-      error: failure.error
-    });
-  }
-  recordWriteOutcome(result, prepared, writeStatus) {
-    result.added++;
-    result[writeStatus]++;
-    if (prepared.allocation.renameFrom) {
-      result.outcomes.push({
-        status: "renamed-and-updated",
-        subjectId: prepared.collection.subject_id,
-        oldPath: prepared.allocation.renameFrom,
-        newPath: prepared.allocation.finalPath
-      });
-      return;
-    }
-    if (prepared.allocation.collisionResolved) {
-      result.collisionResolved++;
-      result.outcomes.push({
-        status: "collision-resolved",
-        subjectId: prepared.collection.subject_id,
-        preferredPath: prepared.allocation.preferredPath,
-        finalPath: prepared.allocation.finalPath
-      });
-      return;
-    }
-    result.outcomes.push({ status: writeStatus, subjectId: prepared.collection.subject_id, path: prepared.allocation.finalPath });
-  }
-  recordProcessingFailure(result, prepared, error) {
-    const collection = prepared.collection;
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
-    result.failed++;
-    result.errorDetails.push(`[${collection.subject_id}] ${name}: ${errorMessage}`);
-    result.outcomes.push({
-      status: "failed",
-      subjectId: collection.subject_id,
-      name,
-      preferredPath: prepared.allocation.preferredPath,
-      actualPath: prepared.allocation.finalPath,
-      error: errorMessage
-    });
-  }
-  finalizeSyncResult(result, wasCancelled) {
-    result.errors = result.failed;
-    result.completion = determineSyncCompletion(result.added, result.failed, wasCancelled);
-    result.success = result.completion === "success";
-  }
-  /**
-   * 执行同步
-   * 优化：支持并发处理多个条目，提高同步速度
-   */
-  async sync(options, concurrency = 3) {
-    var _a, _b;
-    const startTime = Date.now();
-    let wasCancelled = false;
-    const result = this.createSyncResult();
-    try {
-      const { diff } = await this.prepareSyncData(options);
-      result.total = diff.toAdd.length;
-      result.skipped = diff.toSkip.length;
-      this.incrementalSync.startBatch();
-      const batch = await this.prepareCollectionBatch(diff.toAdd, concurrency);
-      result.renamed = (_b = (_a = this.activeTransaction) == null ? void 0 : _a.getRenameCount()) != null ? _b : 0;
-      for (const failure of batch.failures) {
-        this.recordPreparedFailure(result, failure);
-      }
-      await this.processConcurrently(
-        batch.prepared,
-        concurrency,
-        async (prepared, index) => {
-          const collection = prepared.collection;
-          if (wasCancelled)
-            return;
-          if (await this.checkCancellation()) {
-            wasCancelled = true;
-            return;
-          }
-          this.reportProgress({
-            status: "processing",
-            current: index + 1,
-            total: diff.toAdd.length,
-            currentItem: collection.subject.name_cn || collection.subject.name,
-            message: `\u5904\u7406\u6761\u76EE... (${index + 1}/${diff.toAdd.length})`
-          });
-          try {
-            const processResult = await this.processCollection(
-              collection,
-              { overwrite: false, preserveUserDataOnOverwrite: false },
-              prepared
-            );
-            if (processResult) {
-              this.recordWriteOutcome(result, prepared, processResult.writeStatus);
-            }
-          } catch (error) {
-            const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
-            console.error(`[Bangumi Sync] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${name}`, error);
-            this.recordProcessingFailure(result, prepared, error);
-          }
-        }
-      );
-      this.finalizeSyncResult(result, wasCancelled);
-      await this.persistPathStates();
-      if (!wasCancelled) {
-        this.reportProgress({ status: "completed", message: tn("notices", "syncComplete") });
-      } else {
-        this.reportProgress({ status: "error", message: tn("notices", "syncCancelled") });
-      }
-    } catch (error) {
-      console.error("[Bangumi Sync] \u540C\u6B65\u5931\u8D25:", error);
-      this.reportProgress({ status: "error", message: error instanceof Error ? error.message : String(error) });
-      new import_obsidian14.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    result.duration = Date.now() - startTime;
-    return this.createSyncResultWithRollback(result, wasCancelled);
-  }
-  /**
-   * 并发处理数组中的元素
-   * @param items 要处理的数组
-   * @param concurrency 并发数
-   * @param processor 处理函数
-   */
-  async processConcurrently(items, concurrency, processor) {
-    const queue = [...items.map((item, index) => ({ item, index }))];
-    const workers = [];
-    for (let i = 0; i < Math.min(concurrency, items.length); i++) {
-      workers.push(this.processQueue(queue, processor));
-    }
-    await Promise.all(workers);
-  }
-  /**
-   * 处理队列中的任务
-   */
-  async processQueue(queue, processor) {
-    while (queue.length > 0) {
-      const task = queue.shift();
-      if (!task)
-        break;
-      await processor(task.item, task.index);
-    }
-  }
-  async prepareCollectionBatch(collections, concurrency) {
-    await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
-    const registry = this.incrementalSync.getRegistry();
-    const details = /* @__PURE__ */ new Map();
-    const failures = [];
-    await this.processConcurrently(collections, concurrency, async (collection) => {
-      if (registry.duplicateIds.has(collection.subject_id)) {
-        failures.push({
-          collection,
-          error: `Subject ${collection.subject_id} appears in multiple local files.`
-        });
-        return;
-      }
-      try {
-        details.set(collection.subject_id, await this.client.getFullSubjectInfo(collection.subject_id));
-      } catch (error) {
-        failures.push({
-          collection,
-          error: error instanceof Error ? error.message : String(error)
-        });
-      }
-    });
-    const candidates = collections.flatMap((collection) => {
-      var _a;
-      const fullInfo = details.get(collection.subject_id);
-      if (!fullInfo)
-        return [];
-      const existing = registry.getById(collection.subject_id);
-      return [{
-        subjectId: collection.subject_id,
-        preferredPath: this.generatePreferredPath(fullInfo.subject, collection),
-        year: extractPathVars(fullInfo.subject, collection).year,
-        currentPath: existing == null ? void 0 : existing.path,
-        namingState: (_a = existing == null ? void 0 : existing.namingState) != null ? _a : "managed"
-      }];
-    });
-    const incomingTitleKeys = new Set(Array.from(details.values()).map(
-      ({ subject }) => normalizePathCollisionKey(subject.name_cn || subject.name || String(subject.id))
-    ));
-    const contextRecords = Array.from(registry.idToRecord.values()).filter(
-      (record) => !details.has(record.subjectId) && incomingTitleKeys.has(normalizePathCollisionKey(record.nameCn))
-    );
-    await this.processConcurrently(contextRecords, concurrency, async (record) => {
-      try {
-        const subject = await this.client.getSubject(record.subjectId);
-        candidates.push({
-          subjectId: record.subjectId,
-          preferredPath: this.generatePreferredPath(subject),
-          year: extractPathVars(subject).year,
-          currentPath: record.path,
-          namingState: record.namingState
-        });
-      } catch (e) {
-      }
-    });
-    const pathPlan = this.pathResolver.plan(candidates, registry.pathToId);
-    this.activeTransaction = new SyncTransaction(this.app, this.fileManager);
-    await this.activeTransaction.executeRenames(pathPlan.renamed);
-    for (const rename of pathPlan.renamed) {
-      this.incrementalSync.renameLocalSubject(rename.subjectId, rename.to);
-    }
-    await this.persistPathStates();
-    const prepared = [];
-    for (const collection of collections) {
-      const fullInfo = details.get(collection.subject_id);
-      const allocation = pathPlan.allocations.get(collection.subject_id);
-      if (fullInfo && allocation) {
-        prepared.push({ collection, fullInfo, allocation });
-      }
-    }
-    return { prepared, failures };
-  }
-  /**
-   * 准备同步数据：验证 Token、获取收藏、扫描本地、计算差异
-   * sync() 和 prepareSync() 的共享逻辑
-   */
-  async prepareSyncData(options) {
-    if (!this.config.accessToken) {
-      throw new Error(tn("notices", "configureTokenFirst"));
-    }
-    this.reportProgress({ status: "preparing", message: tn("syncModal", "validatingToken") });
-    const tokenResult = await this.client.validateToken();
-    if (!tokenResult.valid) {
-      throw new Error(tnFormat("notices", "tokenInvalid", { error: tokenResult.error || "" }));
-    }
-    const username = tokenResult.username;
-    if (!username) {
-      throw new Error(tn("notices", "usernameNotFound"));
-    }
-    console.debug(`[Bangumi Sync] \u7528\u6237: ${username}`);
-    this.reportProgress({ status: "fetching", message: tn("syncModal", "fetchingCollections") });
-    const collections = await this.client.getAllUserCollections(username, {
-      subjectType: options.subjectTypes.length === 1 ? options.subjectTypes[0] : void 0,
-      collectionType: options.collectionTypes.length === 1 ? options.collectionTypes[0] : void 0,
-      onProgress: (current, total) => {
-        this.reportProgress({
-          status: "fetching",
-          current,
-          total,
-          message: `${tn("syncModal", "fetchingCollections")} (${current}/${total})`
-        });
-      }
-    });
-    console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
-    this.reportProgress({ status: "scanning", message: tn("syncModal", "scanningLocal") });
-    const scanPath = this.config.scanFolderPath || "ACGN";
-    console.debug(`[Bangumi Sync] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
-    await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
-      this.reportProgress({
-        status: "scanning",
-        current,
-        total,
-        message: `${tn("syncModal", "scanningLocal")} (${current}/${total})`
-      });
-    });
-    this.reportProgress({ status: "preparing", message: tn("syncModal", "computingDiff") });
-    const filteredCollections = this.filterCollections(collections, options);
-    console.debug(`[Bangumi Sync] \u7B26\u5408\u6761\u4EF6\u7684\u6536\u85CF: ${filteredCollections.length}`);
-    const diff = this.incrementalSync.computeDiff(filteredCollections, {
-      limit: options.limit,
-      force: options.force
-    });
-    console.debug(`[Bangumi Sync] \u9700\u8981\u540C\u6B65: ${diff.toAdd.length}\uFF0C\u5DF2\u5B58\u5728\u8DF3\u8FC7: ${diff.toSkip.length}`);
-    return { username, collections, diff };
-  }
-  /**
-   * 过滤符合条件的收藏
-   */
-  filterCollections(collections, options) {
-    return collections.filter((c) => {
-      if (options.subjectTypes.length > 0 && !options.subjectTypes.includes(c.subject_type)) {
-        return false;
-      }
-      if (options.collectionTypes.length > 0 && !options.collectionTypes.includes(c.type)) {
-        return false;
-      }
-      return true;
-    });
-  }
-  /**
-   * 从路径模板提取基础路径
-   * 例如: "ACGN/{{type}}/{{name_cn}}.md" -> "ACGN"
-   */
-  extractBasePath(pathTemplate) {
-    const match = pathTemplate.match(/^([^/{}]+)/);
-    return match ? match[1] : "";
-  }
-  /**
-   * 根据条目类型解析路径模板
-   * 优先使用类型独立模板，回退到默认模板
-   */
-  resolvePathTemplate(subject) {
-    if (this.config.pathTemplateByType) {
-      const vars = extractPathVars(subject);
-      const typeTemplate = this.config.pathTemplateByType[vars.type];
-      if (typeTemplate)
-        return typeTemplate;
-    }
-    return this.config.pathTemplate;
-  }
-  generatePreferredPath(subject, collection) {
-    var _a;
-    const basePath = generateFilePath(this.resolvePathTemplate(subject), subject, collection);
-    const strategy = (_a = this.config.pathNamingStrategy) != null ? _a : "simple-until-collision";
-    if (strategy === "always-id") {
-      return this.appendPathSuffix(basePath, `[bgm-${subject.id}]`);
-    }
-    if (strategy === "always-year") {
-      const year = extractPathVars(subject, collection).year;
-      return this.appendPathSuffix(basePath, year ? `\uFF08${year}\uFF09` : `[bgm-${subject.id}]`);
-    }
-    return basePath;
-  }
-  appendPathSuffix(path, suffix) {
-    return path.toLocaleLowerCase("en-US").endsWith(".md") ? `${path.slice(0, -3)}${suffix}.md` : `${path}${suffix}.md`;
-  }
-  /**
-   * V4: 获取章节数据
-   * 仅对动画、小说、漫画类型获取
-   */
-  async fetchEpisodeData(subject) {
-    if (subject.type !== 2 /* Anime */ && subject.type !== 1 /* Book */ && subject.type !== 6 /* Real */) {
-      return null;
-    }
-    try {
-      console.debug(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F: ${subject.name_cn}`);
-      const episodesData = await this.client.getEpisodes(subject.id);
-      const episodes = episodesData.data;
-      if (!episodes || episodes.length === 0) {
-        console.debug(`[Bangumi Sync] \u65E0\u7AE0\u8282\u4FE1\u606F`);
-        return null;
-      }
-      let userStatus = [];
-      try {
-        userStatus = await this.client.getUserEpisodeStatus(subject.id);
-      } catch (e) {
-        console.debug(`[Bangumi Sync] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001\u5931\u8D25\uFF0C\u53EF\u80FD\u672A\u6536\u85CF\u6B64\u6761\u76EE`);
-      }
-      return { episodes, userStatus };
-    } catch (error) {
-      console.error(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F\u5931\u8D25:`, error);
-      return null;
-    }
-  }
-  /**
-   * 从文件路径提取显示名称（不含扩展名）
-   * 例如: "ACGN/anime/金牌得主(动画).md" -> "金牌得主(动画)"
-   */
-  extractDisplayNameFromPath(path) {
-    const fileName = path.split("/").pop() || path;
-    return fileName.replace(/\.md$/, "");
-  }
-  getCustomTemplates() {
-    return this.config.customTemplates;
-  }
-  /**
-   * 下载并解析本地封面路径
-   */
-  async resolveLocalCoverPath(subject, typeLabel) {
-    var _a, _b;
-    const coverUrl = ((_a = subject.images) == null ? void 0 : _a.large) || ((_b = subject.images) == null ? void 0 : _b.common) || "";
-    if (!this.config.downloadImages || !coverUrl) {
-      return "";
-    }
-    console.debug(`[Bangumi Sync] \u4E0B\u8F7D\u5C01\u9762: ${coverUrl}`);
-    const localPath = await this.imageHandler.downloadCover(
-      coverUrl,
-      subject.id,
-      this.config.imagePathTemplate,
-      {
-        name_cn: subject.name_cn,
-        name: subject.name,
-        typeLabel
-      }
-    );
-    return localPath && !localPath.startsWith("http") ? localPath : "";
-  }
-  /**
-   * 生成相关条目链接
-   * 返回已同步条目的链接（包括本批次已同步的）
-   * 显示名称使用文件名（带类型后缀）
-   */
-  generateRelatedLinks(relations) {
-    console.debug(`[Bangumi Sync] \u5904\u7406 ${(relations == null ? void 0 : relations.length) || 0} \u4E2A\u76F8\u5173\u6761\u76EE`);
-    if (!relations || relations.length === 0) {
-      console.debug(`[Bangumi Sync] \u65E0\u76F8\u5173\u6761\u76EE\u6570\u636E`);
-      return [];
-    }
-    const links = [];
-    for (const relation of relations) {
-      console.debug(`[Bangumi Sync] \u68C0\u67E5\u76F8\u5173\u6761\u76EE: ${relation.name_cn || relation.name} (ID: ${relation.id})`);
-      const localPath = this.resolveRelatedLocalPath(relation.id);
-      console.debug(`[Bangumi Sync] \u672C\u5730\u8DEF\u5F84: ${localPath || "\u672A\u540C\u6B65"}`);
-      if (localPath) {
-        const displayName = this.extractDisplayNameFromPath(localPath);
-        const link = `[[${localPath}|${displayName}]]`;
-        links.push(link);
-        console.debug(`[Bangumi Sync] \u76F8\u5173\u6761\u76EE\u5DF2\u540C\u6B65: ${relation.name_cn} -> ${link}`);
-      }
-    }
-    console.debug(`[Bangumi Sync] \u751F\u6210\u4E86 ${links.length} \u4E2A\u76F8\u5173\u94FE\u63A5`);
-    return links;
-  }
-  resolveRelatedLocalPath(subjectId) {
-    const indexedPath = this.incrementalSync.getLocalPath(subjectId);
-    if (indexedPath) {
-      return indexedPath;
-    }
-    const scanRoot = this.config.scanFolderPath || "";
-    return this.incrementalSync.resolvePathByMetadataCache(subjectId, scanRoot);
-  }
-  /**
-   * 报告进度
-   */
-  reportProgress(progress) {
-    if (this.onProgress) {
-      this.onProgress({
-        current: 0,
-        total: 0,
-        status: "preparing",
-        ...progress
-      });
-    }
-  }
-  /**
-   * 按 UserCollection 列表同步条目
-   * 用于控制面板选中同步功能，保留用户数据（评分、状态、短评等）
-   */
-  async syncByCollections(collections, options, onProgress) {
-    var _a, _b, _c, _d;
-    const startTime = Date.now();
-    let wasCancelled = false;
-    const result = this.createSyncResult(collections.length);
-    const overwrite = (_a = options == null ? void 0 : options.overwrite) != null ? _a : false;
-    const localPropertyValuesBySubjectId = options == null ? void 0 : options.localPropertyValuesBySubjectId;
-    const concurrency = (_b = options == null ? void 0 : options.concurrency) != null ? _b : 3;
-    try {
-      console.debug(`[Bangumi Sync] \u5F00\u59CB\u6309\u6536\u85CF\u5217\u8868\u540C\u6B65 ${collections.length} \u4E2A\u6761\u76EE\uFF0C\u8986\u76D6\u6A21\u5F0F: ${overwrite}\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
-      this.incrementalSync.startBatch();
-      const batch = await this.prepareCollectionBatch(collections, concurrency);
-      result.renamed = (_d = (_c = this.activeTransaction) == null ? void 0 : _c.getRenameCount()) != null ? _d : 0;
-      for (const failure of batch.failures) {
-        this.recordPreparedFailure(result, failure);
-      }
-      const batchRelations = [];
-      await this.processConcurrently(
-        batch.prepared,
-        concurrency,
-        async (prepared, i) => {
-          const collection = prepared.collection;
-          if (await this.checkCancellation()) {
-            wasCancelled = true;
-            return;
-          }
-          if (onProgress) {
-            onProgress(i + 1, collections.length, `\u6B63\u5728\u540C\u6B65\u6761\u76EE ${i + 1}/${collections.length}`);
-          }
-          this.reportProgress({
-            status: "processing",
-            current: i + 1,
-            total: collections.length,
-            message: `\u540C\u6B65\u6761\u76EE... (${i + 1}/${collections.length})`
-          });
-          try {
-            const processResult = await this.processCollection(collection, {
-              overwrite,
-              preserveUserDataOnOverwrite: true,
-              localPropertyValues: localPropertyValuesBySubjectId == null ? void 0 : localPropertyValuesBySubjectId.get(collection.subject_id)
-            }, prepared);
-            if (processResult) {
-              batchRelations.push(processResult);
-              this.recordWriteOutcome(result, prepared, processResult.writeStatus);
-            }
-          } catch (error) {
-            console.error(`[Bangumi Sync] \u540C\u6B65\u6761\u76EE\u5931\u8D25 (ID: ${collection.subject_id}):`, error);
-            this.recordProcessingFailure(result, prepared, error);
-          }
-        }
-      );
-      if (batchRelations.length > 1) {
-        await this.postProcessBatchRelations(batchRelations);
-      }
-      this.finalizeSyncResult(result, wasCancelled);
-      await this.persistPathStates();
-      if (!wasCancelled) {
-        this.reportProgress({ status: "completed", message: tn("notices", "syncComplete") });
-      } else {
-        this.reportProgress({ status: "error", message: tn("notices", "syncCancelled") });
-      }
-    } catch (error) {
-      console.error("[Bangumi Sync] \u6309\u6536\u85CF\u5217\u8868\u540C\u6B65\u5931\u8D25:", error);
-      this.reportProgress({ status: "error", message: String(error) });
-    }
-    result.duration = Date.now() - startTime;
-    return this.createSyncResultWithRollback(result, wasCancelled);
-  }
-  /**
-   * 重置同步状态
-   */
-  resetSyncState() {
-    this.incrementalSync.clear();
-  }
-  /**
-   * 准备同步：获取数据并计算差异，返回预览数据
-   * 用于手动同步模式，在显示预览弹窗前调用
-   */
-  async prepareSync(options) {
-    try {
-      const { diff } = await this.prepareSyncData(options);
-      const previewItems = diff.toAdd.map((collection) => ({
-        id: collection.subject_id,
-        name_cn: collection.subject.name_cn || "",
-        name: collection.subject.name || "",
-        type: collection.subject_type,
-        typeLabel: getTypeLabel(collection.subject_type),
-        rating: collection.subject.score || 0,
-        my_rate: collection.rate,
-        collection,
-        selected: true
-      }));
-      return {
-        success: true,
-        previewItems,
-        skipped: diff.toSkip.length
-      };
-    } catch (error) {
-      console.error("[Bangumi Sync] \u51C6\u5907\u540C\u6B65\u5931\u8D25:", error);
-      this.reportProgress({ status: "error", message: String(error) });
-      return {
-        success: false,
-        skipped: 0,
-        error: String(error)
-      };
-    }
-  }
-  /**
-   * 执行同步：根据预览数据执行实际导入
-   * 用于手动同步模式，在用户确认后调用
-   */
-  async executeSync(previewItems, action, localPropertyResult, concurrency = 3) {
-    var _a, _b;
-    const startTime = Date.now();
-    let wasCancelled = false;
-    const result = this.createSyncResult();
-    try {
-      let itemsToSync;
-      if (action === "all") {
-        itemsToSync = previewItems;
-      } else if (action === "selected") {
-        itemsToSync = previewItems.filter((item) => item.selected);
-      } else {
-        itemsToSync = previewItems.filter((item) => !item.selected);
-      }
-      result.total = itemsToSync.length;
-      console.debug(`[Bangumi Sync] \u5F00\u59CB\u540C\u6B65 ${itemsToSync.length} \u4E2A\u6761\u76EE\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
-      this.incrementalSync.startBatch();
-      const batch = await this.prepareCollectionBatch(
-        itemsToSync.map((item) => item.collection),
-        concurrency
-      );
-      result.renamed = (_b = (_a = this.activeTransaction) == null ? void 0 : _a.getRenameCount()) != null ? _b : 0;
-      for (const failure of batch.failures) {
-        this.recordPreparedFailure(result, failure);
-      }
-      const batchRelations = [];
-      await this.processConcurrently(
-        batch.prepared,
-        concurrency,
-        async (prepared, i) => {
-          var _a2;
-          const item = itemsToSync.find((candidate) => candidate.collection.subject_id === prepared.collection.subject_id);
-          if (!item)
-            return;
-          if (await this.checkCancellation()) {
-            wasCancelled = true;
-            return;
-          }
-          this.reportProgress({
-            status: "processing",
-            current: i + 1,
-            total: itemsToSync.length,
-            currentItem: item.name_cn || item.name,
-            message: `\u5904\u7406\u6761\u76EE... (${i + 1}/${itemsToSync.length})`
-          });
-          try {
-            const processResult = await this.processCollection(item.collection, {
-              overwrite: false,
-              preserveUserDataOnOverwrite: false,
-              localPropertyValues: (_a2 = localPropertyResult == null ? void 0 : localPropertyResult.propertyValuesBySubjectId) == null ? void 0 : _a2.get(item.collection.subject_id)
-            }, prepared);
-            if (processResult) {
-              batchRelations.push(processResult);
-              this.recordWriteOutcome(result, prepared, processResult.writeStatus);
-            }
-          } catch (error) {
-            console.error(`[Bangumi Sync] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${item.name_cn || item.name}`, error);
-            this.recordProcessingFailure(result, prepared, error);
-          }
-        }
-      );
-      if (batchRelations.length > 1) {
-        await this.postProcessBatchRelations(batchRelations);
-      }
-      this.finalizeSyncResult(result, wasCancelled);
-      await this.persistPathStates();
-      if (!wasCancelled) {
-        this.reportProgress({ status: "completed", message: tn("notices", "syncComplete") });
-      } else {
-        this.reportProgress({ status: "error", message: tn("notices", "syncCancelled") });
-      }
-    } catch (error) {
-      console.error("[Bangumi Sync] \u6267\u884C\u540C\u6B65\u5931\u8D25:", error);
-      this.reportProgress({ status: "error", message: error instanceof Error ? error.message : String(error) });
-      new import_obsidian14.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    result.duration = Date.now() - startTime;
-    return this.createSyncResultWithRollback(result, wasCancelled);
-  }
-  /**
-   * 处理单个收藏条目
-   * 统一处理：获取详情、生成内容、写入文件、更新双向链接
-   */
-  async processCollection(collection, options, prepared) {
-    var _a, _b, _c;
-    console.debug(`[Bangumi Sync] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
-    const { subject, characters: relatedCharacters, relations, persons } = (_a = prepared == null ? void 0 : prepared.fullInfo) != null ? _a : await this.client.getFullSubjectInfo(collection.subject_id);
-    console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
-    const characters = parseCharacters(relatedCharacters, 9);
-    const typeLabel = getTypeLabel(subject.type);
-    const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
-    const filePath = (_c = (_b = prepared == null ? void 0 : prepared.allocation.finalPath) != null ? _b : this.incrementalSync.getLocalPath(subject.id)) != null ? _c : this.generatePreferredPath(subject, collection);
-    const episodeData = await this.fetchEpisodeData(subject);
-    let extraTemplateVars;
-    if (options.localPropertyValues || options.overwrite) {
-      const templateProperties = getTemplatePropertyGroupsForSubject(subject, this.config.customTemplates).customProperties;
-      extraTemplateVars = buildExtraTemplateVarsFromPropertyValues(templateProperties, options.localPropertyValues);
-    }
-    const relatedLinks = this.config.enableRelatedLinks !== false ? this.generateRelatedLinks(relations) : [];
-    let content = generateContentByType(
-      subject,
-      collection,
-      characters,
-      this.config.customTemplates,
-      void 0,
-      episodeData == null ? void 0 : episodeData.episodes,
-      episodeData == null ? void 0 : episodeData.userStatus,
-      this.config.notePathTemplate,
-      this.config.coverLinkType,
-      localCoverPath,
-      relatedLinks,
-      extraTemplateVars,
-      persons
-    );
-    const explicitLocalPropertyValues = options.localPropertyValues && Object.keys(options.localPropertyValues).length > 0 ? options.localPropertyValues : void 0;
-    if (explicitLocalPropertyValues) {
-      content = applyNamedPropertyValuesToContent(content, explicitLocalPropertyValues);
-    }
-    if (options.preserveUserDataOnOverwrite) {
-      const existingFile = await this.fileManager.assertPathOwnership(filePath, subject.id);
-      if (existingFile) {
-        const localUserData = await this.userDataExtractor.extractFromFileAsync(existingFile);
-        if (localUserData) {
-          const dataProtection = this.config.dataProtection || DEFAULT_DATA_PROTECTION_SETTINGS;
-          content = this.userDataMerger.mergeUserData(existingFile, content, localUserData, dataProtection);
-          console.debug(`[Bangumi Sync] \u5DF2\u4FDD\u62A4\u7528\u6237\u6570\u636E: ${localUserData.identifier.name_cn}`);
-        }
-      }
-      if (explicitLocalPropertyValues) {
-        content = applyNamedPropertyValuesToContent(content, explicitLocalPropertyValues);
-      }
-    }
-    const fileExisted = this.fileManager.getFile(filePath) !== null;
-    const shouldOverwrite = options.overwrite || options.preserveUserDataOnOverwrite && fileExisted;
-    const writeOptions = { overwrite: shouldOverwrite, subjectId: subject.id };
-    const writeResult = this.activeTransaction ? await this.activeTransaction.createOrUpdateFile(filePath, content, writeOptions) : await this.fileManager.createOrUpdateFile(filePath, content, writeOptions);
-    console.debug(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
-    this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name, !fileExisted);
-    if (this.config.enableRelatedLinks !== false && relations && relations.length > 0) {
-      await this.updateRelatedItemsBidirectional(subject.id, filePath, subject.name_cn || subject.name, relations);
-    }
-    return { subjectId: subject.id, filePath, relations, writeStatus: writeResult.status };
-  }
-  /**
-   * 更新已同步相关条目的链接（双向链接）
-   * 批量处理：先收集所有需要更新的关联关系，按目标文件分组，每个文件只读写一次
-   */
-  async updateRelatedItemsBidirectional(currentId, currentPath, currentName, relations) {
-    var _a;
-    const displayName = this.extractDisplayNameFromPath(currentPath);
-    const currentLink = `[[${currentPath}|${displayName}]]`;
-    const updatesByFile = /* @__PURE__ */ new Map();
-    for (const relation of relations) {
-      const relatedPath = this.resolveRelatedLocalPath(relation.id);
-      if (relatedPath) {
-        const existing = (_a = updatesByFile.get(relatedPath)) != null ? _a : { subjectId: relation.id, links: [] };
-        existing.links.push(currentLink);
-        updatesByFile.set(relatedPath, existing);
-      }
-    }
-    for (const [path, update] of updatesByFile) {
-      try {
-        await this.updateRelatedFile(path, update.subjectId, update.links);
-      } catch (error) {
-        console.error(`[Bangumi Sync] \u66F4\u65B0\u76F8\u5173\u6761\u76EE\u94FE\u63A5\u5931\u8D25: ${path}`, error);
-      }
-    }
-  }
-  /**
-   * 后处理同批次相关条目的双向链接
-   * 解决并发同步时相关条目互相检测不到的问题
-   * 按目标文件分组，每个文件只读写一次
-   */
-  async postProcessBatchRelations(batchItems) {
-    var _a, _b;
-    if (this.config.enableRelatedLinks === false)
-      return;
-    const batchSubjectIds = new Set(batchItems.map((item) => item.subjectId));
-    const updatesByFile = /* @__PURE__ */ new Map();
-    for (const item of batchItems) {
-      const batchRelations = item.relations.filter((r) => batchSubjectIds.has(r.id));
-      if (batchRelations.length === 0)
-        continue;
-      const currentDisplayName = this.extractDisplayNameFromPath(item.filePath);
-      const currentLink = `[[${item.filePath}|${currentDisplayName}]]`;
-      for (const relation of batchRelations) {
-        const relatedPath = this.resolveRelatedLocalPath(relation.id);
-        if (!relatedPath)
-          continue;
-        const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
-        const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
-        const existing1 = (_a = updatesByFile.get(item.filePath)) != null ? _a : { subjectId: item.subjectId, links: [] };
-        existing1.links.push(relatedLink);
-        updatesByFile.set(item.filePath, existing1);
-        const existing2 = (_b = updatesByFile.get(relatedPath)) != null ? _b : { subjectId: relation.id, links: [] };
-        existing2.links.push(currentLink);
-        updatesByFile.set(relatedPath, existing2);
-      }
-    }
-    if (updatesByFile.size === 0)
-      return;
-    console.debug(`[Bangumi Sync] \u540E\u5904\u7406\u540C\u6279\u6B21\u76F8\u5173\u94FE\u63A5: ${updatesByFile.size} \u4E2A\u6587\u4EF6\u9700\u8981\u66F4\u65B0`);
-    for (const [path, update] of updatesByFile) {
-      try {
-        await this.updateRelatedFile(path, update.subjectId, update.links);
-      } catch (error) {
-        console.error(`[Bangumi Sync] \u540E\u5904\u7406\u66F4\u65B0\u76F8\u5173\u94FE\u63A5\u5931\u8D25: ${path}`, error);
-      }
-    }
-  }
-  async updateRelatedFile(path, subjectId, links) {
-    const file = await this.fileManager.assertPathOwnership(path, subjectId);
-    if (!file)
-      return;
-    const content = await this.app.vault.read(file);
-    const updatedContent = this.incrementalSync.updateRelated(content, links);
-    if (updatedContent === content)
-      return;
-    if (this.activeTransaction) {
-      await this.activeTransaction.createOrUpdateFile(path, updatedContent, { overwrite: true, subjectId });
-    } else {
-      await this.app.vault.process(file, () => updatedContent);
-    }
-    console.debug(`[Bangumi Sync] \u5DF2\u66F4\u65B0\u76F8\u5173\u94FE\u63A5: ${path} (+${links.length})`);
-  }
-  /**
-   * 同步单个条目（用于搜索功能）
-   * @param subjectId 条目 ID
-   * @param input 用户输入的收藏信息
-   * @returns 是否成功
-   */
-  async syncSingleSubject(subjectId, input) {
-    var _a, _b, _c, _d, _e;
-    try {
-      if (input.syncToCloud) {
-        await this.client.createOrUpdateCollection(subjectId, {
-          type: input.type,
-          rate: input.rate,
-          comment: input.comment,
-          tags: input.tags,
-          private: input.private
-        });
-        console.debug(`[Bangumi Sync] \u5DF2\u540C\u6B65\u5230\u4E91\u7AEF: ${subjectId}`);
-      }
-      if (input.createLocal) {
-        await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
-        const { subject, characters: relatedCharacters, relations, persons } = await this.client.getFullSubjectInfo(subjectId);
-        const characters = parseCharacters(relatedCharacters, 9);
-        const typeLabel = getTypeLabel(subject.type);
-        const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
-        const collection = {
-          subject_id: subject.id,
-          subject_type: subject.type,
-          type: input.type,
-          rate: input.rate,
-          comment: input.comment,
-          tags: input.tags,
-          private: input.private,
-          ep_status: 0,
-          vol_status: 0,
-          updated_at: new Date().toISOString(),
-          subject: {
-            id: subject.id,
-            type: subject.type,
-            name: subject.name,
-            name_cn: subject.name_cn,
-            short_summary: ((_a = subject.summary) == null ? void 0 : _a.substring(0, 100)) || "",
-            date: subject.date,
-            images: subject.images,
-            volumes: subject.volumes,
-            eps: subject.eps,
-            collection_total: ((_b = subject.collection) == null ? void 0 : _b.collect) || 0,
-            score: ((_c = subject.rating) == null ? void 0 : _c.score) || 0,
-            rank: ((_d = subject.rating) == null ? void 0 : _d.rank) || 0,
-            tags: subject.tags
-          }
-        };
-        const filePath = (_e = this.incrementalSync.getLocalPath(subject.id)) != null ? _e : this.generatePreferredPath(subject, collection);
-        const episodeData = await this.fetchEpisodeData(subject);
-        const templateProperties = getTemplatePropertyGroupsForSubject(subject, this.config.customTemplates).customProperties;
-        const extraTemplateVars = buildExtraTemplateVarsFromPropertyValues(templateProperties, input.localPropertyValues);
-        const relatedLinks = this.config.enableRelatedLinks !== false ? this.generateRelatedLinks(relations) : [];
-        const content = generateContentByType(
-          subject,
-          collection,
-          characters,
-          this.config.customTemplates,
-          void 0,
-          episodeData == null ? void 0 : episodeData.episodes,
-          episodeData == null ? void 0 : episodeData.userStatus,
-          this.config.notePathTemplate,
-          this.config.coverLinkType,
-          localCoverPath,
-          relatedLinks,
-          extraTemplateVars,
-          persons
-        );
-        const finalContent = input.localPropertyValues && Object.keys(input.localPropertyValues).length > 0 ? applyNamedPropertyValuesToContent(content, input.localPropertyValues) : content;
-        const writeResult = await this.fileManager.createOrUpdateFile(filePath, finalContent, {
-          overwrite: false,
-          subjectId: subject.id
-        });
-        console.debug(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
-        this.incrementalSync.addBatchSyncedItem(
-          subject.id,
-          filePath,
-          subject.name_cn || subject.name,
-          writeResult.status === "created"
-        );
-        await this.persistPathStates();
-        return { success: true, filePath, writeStatus: writeResult.status };
-      }
-      return { success: true };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error(`[Bangumi Sync] \u540C\u6B65\u5355\u4E2A\u6761\u76EE\u5931\u8D25:`, error);
-      return { success: false, error: errorMsg };
-    }
-  }
-  /**
-   * 批量下载封面图片并替换链接
-   * 扫描所有本地条目，将网络封面下载到本地，并替换 frontmatter 和正文中的链接
-   */
-  async batchDownloadCovers() {
-    const scanPath = this.config.scanFolderPath || "ACGN";
-    await this.incrementalSync.scanLocalFolder(scanPath);
-    const localSubjects = this.incrementalSync.getLocalSubjects();
-    const result = { downloaded: 0, skipped: 0, failed: 0 };
-    let processed = 0;
-    for (const [subjectId, info] of localSubjects) {
-      processed++;
-      this.reportProgress({
-        status: "processing",
-        current: processed,
-        total: localSubjects.size,
-        currentItem: info.name_cn || String(subjectId)
-      });
-      try {
-        const file = this.app.vault.getAbstractFileByPath(info.path);
-        if (!(file instanceof import_obsidian14.TFile)) {
-          result.skipped++;
-          continue;
-        }
-        const content = await this.app.vault.read(file);
-        const coverValue = this.extractCoverValue(content);
-        if (!coverValue || !coverValue.startsWith("http")) {
-          result.skipped++;
-          continue;
-        }
-        const name_cn = this.extractFrontmatterString(content, "\u4E2D\u6587\u540D") || info.name_cn;
-        const name = this.extractFrontmatterString(content, "\u539F\u540D") || "";
-        const typeLabel = this.extractFrontmatterString(content, "\u4F5C\u54C1\u5927\u7C7B") || "";
-        const localPath = await this.imageHandler.downloadCover(
-          coverValue,
-          subjectId,
-          this.config.imagePathTemplate,
-          { name_cn, name, typeLabel }
-        );
-        if (!localPath || localPath.startsWith("http")) {
-          result.failed++;
-          continue;
-        }
-        let updatedContent = this.replaceCoverInFrontmatter(content, localPath);
-        updatedContent = this.replaceCoverInBody(updatedContent, localPath);
-        await this.app.vault.process(file, () => updatedContent);
-        result.downloaded++;
-        console.debug(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5B8C\u6210: ${info.name_cn} -> ${localPath}`);
-      } catch (error) {
-        console.error(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5931\u8D25: ${info.name_cn}`, error);
-        result.failed++;
-      }
-    }
-    this.reportProgress({
-      status: "completed",
-      message: tnFormat("notices", "coverDownloadComplete", {
-        downloaded: result.downloaded,
-        skipped: result.skipped,
-        failed: result.failed
-      })
-    });
-    return result;
-  }
-  /**
-   * 扫描所有本地已同步条目，为相关条目补充双向链接
-   * 使用并查集查找连通分量，确保同系列所有条目互相关联
-   */
-  async scanAndLinkRelated() {
-    const scanPath = this.config.scanFolderPath || "ACGN";
-    console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u6761\u76EE\uFF0CscanFolderPath: "${this.config.scanFolderPath}"\uFF0C\u5B9E\u9645\u626B\u63CF\u8DEF\u5F84: "${scanPath}"\uFF0CpathTemplate: "${this.config.pathTemplate}"`);
-    await this.incrementalSync.scanLocalFolder(scanPath);
-    const localSubjects = this.incrementalSync.getLocalSubjects();
-    console.debug(`[Bangumi Sync] \u626B\u63CF\u5230 ${localSubjects.size} \u4E2A\u672C\u5730\u6761\u76EE`);
-    if (localSubjects.size === 0) {
-      console.warn(`[Bangumi Sync] \u672A\u626B\u63CF\u5230\u4EFB\u4F55\u672C\u5730\u6761\u76EE\uFF0C\u626B\u63CF\u8DEF\u5F84: "${scanPath}"`);
-    }
-    const allIds = [...localSubjects.keys()];
-    console.debug(`[Bangumi Sync] \u672C\u5730\u6761\u76EE ID: ${allIds.join(", ")}`);
-    const result = { checked: localSubjects.size, linked: 0, skipped: 0, failed: 0, details: [] };
-    let processed = 0;
-    const localPathMap = /* @__PURE__ */ new Map();
-    for (const [id, info] of localSubjects) {
-      if (info.path) {
-        localPathMap.set(id, info.path);
-      }
-    }
-    const parent = /* @__PURE__ */ new Map();
-    const find = (x) => {
-      if (!parent.has(x))
-        parent.set(x, x);
-      if (parent.get(x) !== x)
-        parent.set(x, find(parent.get(x)));
-      return parent.get(x);
-    };
-    const union = (a, b) => {
-      const ra = find(a), rb = find(b);
-      if (ra !== rb)
-        parent.set(ra, rb);
-    };
-    const localRelationMap = /* @__PURE__ */ new Map();
-    for (const [subjectId, info] of localSubjects) {
-      processed++;
-      this.reportProgress({
-        status: "scanning",
-        current: processed,
-        total: localSubjects.size,
-        currentItem: info.name_cn || String(subjectId)
-      });
-      try {
-        const relations = await this.client.getSubjectRelations(subjectId);
-        console.debug(`[Bangumi Sync] [${processed}/${localSubjects.size}] ${info.name_cn || subjectId} (ID:${subjectId}): ${relations.length} \u4E2A\u5173\u8054`);
-        const localRelatedIds = [];
-        for (const relation of relations) {
-          if (!localPathMap.has(relation.id) || relation.id === subjectId)
-            continue;
-          localRelatedIds.push(relation.id);
-          union(subjectId, relation.id);
-        }
-        localRelationMap.set(subjectId, localRelatedIds);
-        if (localRelatedIds.length > 0) {
-          console.debug(`[Bangumi Sync]   \u672C\u5730\u5173\u8054: ${localRelatedIds.join(", ")}`);
-        }
-      } catch (error) {
-        console.warn(`[Bangumi Sync] \u83B7\u53D6\u5173\u8054\u5173\u7CFB\u5931\u8D25: ${info.name_cn} (${subjectId})`, error);
-        result.failed++;
-        localRelationMap.set(subjectId, []);
-      }
-    }
-    const components = /* @__PURE__ */ new Map();
-    for (const subjectId of localSubjects.keys()) {
-      const root = find(subjectId);
-      if (!components.has(root))
-        components.set(root, []);
-      components.get(root).push(subjectId);
-    }
-    const multiComponents = [...components.entries()].filter(([, ids]) => ids.length >= 2);
-    console.debug(`[Bangumi Sync] \u8FDE\u901A\u5206\u91CF: ${components.size} \u7EC4\uFF0C\u5176\u4E2D ${multiComponents.length} \u7EC4\u542B 2+ \u6761\u76EE`);
-    for (const [root, ids] of multiComponents) {
-      console.debug(`[Bangumi Sync] \u5206\u91CF (root:${root}): ${ids.map((id) => {
-        var _a;
-        return `${((_a = localSubjects.get(id)) == null ? void 0 : _a.name_cn) || id}(${id})`;
-      }).join(", ")}`);
-    }
-    const updatesByFile = /* @__PURE__ */ new Map();
-    let alreadyCorrect = 0;
-    for (const [, componentIds] of multiComponents) {
-      const allLinks = [];
-      for (const id of componentIds) {
-        const info = localSubjects.get(id);
-        if (!(info == null ? void 0 : info.path))
-          continue;
-        const displayName = this.extractDisplayNameFromPath(info.path);
-        allLinks.push({ subjectId: id, link: `[[${info.path}|${displayName}]]` });
-      }
-      for (const id of componentIds) {
-        const info = localSubjects.get(id);
-        if (!(info == null ? void 0 : info.path))
-          continue;
-        const existingRelated = localRelationMap.get(id) || [];
-        const existingSet = new Set(existingRelated);
-        const missingLinks = [];
-        for (const { subjectId: otherId, link } of allLinks) {
-          if (otherId === id)
-            continue;
-          if (!existingSet.has(otherId)) {
-            missingLinks.push(link);
-          }
-        }
-        if (missingLinks.length > 0) {
-          updatesByFile.set(info.path, missingLinks);
-          console.debug(`[Bangumi Sync] ${info.name_cn || id}: \u8865\u5145 ${missingLinks.length} \u4E2A\u94FE\u63A5`);
-        } else {
-          alreadyCorrect++;
-        }
-      }
-    }
-    result.skipped = alreadyCorrect;
-    console.debug(`[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u9700\u8981\u66F4\u65B0 ${updatesByFile.size} \u4E2A\u6587\u4EF6`);
-    for (const [path, links] of updatesByFile) {
-      try {
-        const file = this.app.vault.getAbstractFileByPath(path);
-        if (!(file instanceof import_obsidian14.TFile)) {
-          console.warn(`[Bangumi Sync] \u6587\u4EF6\u4E0D\u5B58\u5728\u6216\u975E TFile: ${path}`);
-          result.failed++;
-          continue;
-        }
-        const content = await this.app.vault.read(file);
-        const updatedContent = this.incrementalSync.updateRelated(content, links);
-        if (updatedContent !== content) {
-          await this.app.vault.process(file, () => updatedContent);
-          result.linked++;
-          const name = this.extractFrontmatterString(content, "\u4E2D\u6587\u540D") || file.basename;
-          const addedNames = links.map((link) => {
-            const match = link.match(/\[\[.*?\|(.+?)\]\]/);
-            return match ? match[1] : link;
-          });
-          result.details.push({ name, addedLinks: addedNames });
-          console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u66F4\u65B0: ${path} (+${links.length})`);
-        } else {
-          console.debug(`[Bangumi Sync] \u6587\u4EF6\u65E0\u9700\u66F4\u65B0\uFF08\u94FE\u63A5\u5DF2\u5B58\u5728\uFF09: ${path}`);
-          result.skipped++;
-        }
-      } catch (error) {
-        console.error(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u66F4\u65B0\u5931\u8D25: ${path}`, error);
-        result.failed++;
-      }
-    }
-    this.reportProgress({
-      status: "completed",
-      message: `\u5173\u8054\u5B8C\u6210: \u68C0\u67E5 ${result.checked} \u4E2A\u6761\u76EE\uFF0C\u66F4\u65B0 ${result.linked} \u4E2A\uFF0C\u8DF3\u8FC7 ${result.skipped} \u4E2A\uFF0C\u5931\u8D25 ${result.failed} \u4E2A`
-    });
-    return result;
-  }
-  /**
-   * 从 frontmatter 提取封面值
-   */
-  extractCoverValue(content) {
-    const match = content.match(/^---\n[\s\S]*?\n封面:\s*"?([^"\n]+)"?/);
-    return match ? match[1].trim() : "";
-  }
-  /**
-   * 从 frontmatter 提取字符串值
-   */
-  extractFrontmatterString(content, key) {
-    const regex = new RegExp(`^---\\n[\\s\\S]*?\\n${key}:\\s*"?([^"\\n]+)"?`);
-    const match = content.match(regex);
-    return match ? match[1].trim() : "";
-  }
-  /**
-   * 替换 frontmatter 中的封面值
-   */
-  replaceCoverInFrontmatter(content, localPath) {
-    const coverRegex = /^(---\n[\s\S]*?\n封面:\s*)"?[^"\n]+"?/m;
-    return content.replace(coverRegex, `$1"${localPath}"`);
-  }
-  /**
-   * 替换正文中的封面图片链接
-   */
-  replaceCoverInBody(content, localPath) {
-    const imgRegex = /!\[cover\|[^\]]*\]\(https?:\/\/[^)]+\)/g;
-    return content.replace(imgRegex, `![cover|400](${localPath})`);
-  }
-};
-
-// src/ui/syncModal.ts
-var import_obsidian15 = require("obsidian");
-var SyncModal = class extends import_obsidian15.Modal {
-  constructor(app, cancellationSignal) {
-    super(app);
-    this.progressBar = null;
-    this.statusText = null;
-    this.actionsEl = null;
-    this.pauseBtn = null;
-    this.cancelBtn = null;
-    this.completedEl = null;
-    this.onCancelled = null;
-    this.isCompleted = false;
-    this.cancellationSignal = cancellationSignal;
-    this.progress = {
-      current: 0,
-      total: 0,
-      status: "preparing"
-    };
-  }
-  onOpen() {
-    const { contentEl } = this;
-    new import_obsidian15.Setting(contentEl).setName(tn("syncModal", "title")).setHeading();
-    this.progressBar = contentEl.createDiv({ cls: "bangumi-progress-bar" });
-    this.progressBar.createEl("div", { cls: "bangumi-progress-fill" });
-    this.statusText = contentEl.createDiv({ cls: "bangumi-sync-status" });
-    this.updateStatus(tn("syncModal", "preparing"));
-    this.actionsEl = contentEl.createDiv({ cls: "bangumi-sync-actions" });
-    this.pauseBtn = this.actionsEl.createEl("button", {
-      cls: "bangumi-sync-pause-btn bangumi-action-btn",
-      text: tn("syncModal", "pause")
-    });
-    this.pauseBtn.addEventListener("click", () => this.togglePause());
-    this.cancelBtn = this.actionsEl.createEl("button", {
-      cls: "bangumi-sync-cancel-btn bangumi-action-btn",
-      text: tn("syncModal", "cancel")
-    });
-    this.cancelBtn.addEventListener("click", () => void this.handleCancel());
-    this.completedEl = contentEl.createDiv({ cls: "bangumi-sync-completed bangumi-hidden" });
-  }
-  onClose() {
-    if (!this.isCompleted) {
-      this.contentEl.empty();
-    }
-  }
-  /**
-   * 切换暂停/恢复
-   */
-  togglePause() {
-    var _a, _b;
-    if (this.cancellationSignal.paused) {
-      this.cancellationSignal.resume();
-      if (this.pauseBtn) {
-        this.pauseBtn.setText(tn("syncModal", "pause"));
-      }
-      (_a = this.progressBar) == null ? void 0 : _a.removeClass("bangumi-sync-paused");
-      this.updateStatus(tn("syncModal", "processing"));
-    } else {
-      this.cancellationSignal.pause();
-      if (this.pauseBtn) {
-        this.pauseBtn.setText(tn("syncModal", "resume"));
-      }
-      (_b = this.progressBar) == null ? void 0 : _b.addClass("bangumi-sync-paused");
-      this.updateStatus(tn("syncModal", "paused"));
-    }
-  }
-  /**
-   * 处理取消
-   */
-  handleCancel() {
-    this.cancellationSignal.cancel();
-    if (this.pauseBtn) {
-      this.pauseBtn.disabled = true;
-    }
-    if (this.cancelBtn) {
-      this.cancelBtn.disabled = true;
-      this.cancelBtn.setText(tn("syncModal", "cancel") + "...");
-    }
-    this.updateStatus(tn("notices", "syncCancelled"));
-  }
-  /**
-   * 设置回滚回调
-   */
-  setRollbackHandler(handler) {
-    this.onCancelled = handler;
-  }
-  /**
-   * 更新进度
-   */
-  updateProgress(progress) {
-    if (this.isCompleted)
-      return;
-    this.progress = progress;
-    if (this.progressBar && progress.total > 0) {
-      const percent = Math.floor(progress.current / progress.total * 100);
-      const fill = this.progressBar.querySelector(".bangumi-progress-fill");
-      if (fill) {
-        fill.setCssProps({ "--bangumi-progress-width": `${percent}%` });
-      }
-    }
-    if (!this.cancellationSignal.paused && progress.message) {
-      this.updateStatus(progress.message);
-    }
-  }
-  /**
-   * 显示同步完成状态
-   */
-  showCompleted(result) {
-    this.isCompleted = true;
-    if (this.actionsEl) {
-      this.actionsEl.addClass("bangumi-hidden");
-    }
-    if (this.completedEl) {
-      this.completedEl.removeClass("bangumi-hidden");
-      this.completedEl.empty();
-      const statsText = tnFormat("syncModal", "detailedStats", {
-        created: result.created,
-        updated: result.updated,
-        unchanged: result.unchanged,
-        renamed: result.renamed,
-        collisionResolved: result.collisionResolved,
-        skipped: result.skipped,
-        failed: result.failed
-      });
-      this.completedEl.createEl("p", { text: statsText, cls: "bangumi-sync-stats" });
-      if (result.errorDetails.length > 0) {
-        const detailsEl = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details" });
-        detailsEl.createEl("summary", {
-          text: `${tn("syncModal", "errorDetails")} (${result.errorDetails.length})`
-        });
-        const listEl = detailsEl.createEl("ul", { cls: "bangumi-sync-error-list" });
-        for (const detail of result.errorDetails) {
-          listEl.createEl("li", { text: detail });
-        }
-      }
-      if (result.wasCancelled && result.canRollback) {
-        this.completedEl.createEl("p", {
-          text: tn("syncModal", "rollbackAvailable"),
-          cls: "bangumi-sync-cancelled-info"
-        });
-        const rollbackBtn = this.completedEl.createEl("button", {
-          cls: "bangumi-rollback-btn mod-warning",
-          text: tn("syncModal", "rollback")
-        });
-        rollbackBtn.addEventListener("click", () => void (async () => {
-          rollbackBtn.disabled = true;
-          rollbackBtn.setText("...");
-          if (this.onCancelled) {
-            const rollbackResult = await this.onCancelled();
-            rollbackBtn.setText(tnFormat("syncModal", "rollbackComplete", {
-              deleted: rollbackResult.deleted,
-              failed: rollbackResult.failed
-            }));
-          }
-        })());
-      }
-      const closeBtn = this.completedEl.createEl("button", {
-        cls: "bangumi-sync-close-btn mod-cta",
-        text: tn("syncModal", "completed")
-      });
-      closeBtn.addEventListener("click", () => this.close());
-    }
-    if (this.progressBar) {
-      this.progressBar.addClass("bangumi-progress-complete");
-    }
-    if (this.statusText) {
-      if (result.wasCancelled) {
-        this.updateStatus(tn("notices", "syncCancelled"));
-      } else if (result.completion === "partial-success") {
-        this.updateStatus(tn("syncModal", "partialSuccess"));
-      } else if (result.completion === "failed") {
-        this.updateStatus(tn("notices", "syncFailed"));
-      } else {
-        this.updateStatus(tn("syncModal", "completed"));
-      }
-    }
-  }
-  /**
-   * 显示扫描完成状态
-   */
-  showScanCompleted(checked, linked, skipped, failed, details) {
-    this.isCompleted = true;
-    if (this.actionsEl) {
-      this.actionsEl.addClass("bangumi-hidden");
-    }
-    if (this.completedEl) {
-      this.completedEl.removeClass("bangumi-hidden");
-      this.completedEl.empty();
-      this.completedEl.createEl("p", {
-        text: tnFormat("syncModal", "scanCompletedStats", {
-          checked,
-          linked,
-          skipped,
-          failed
-        }),
-        cls: "bangumi-sync-stats"
-      });
-      if (details && details.length > 0) {
-        const detailsEl = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details" });
-        detailsEl.createEl("summary", { text: `${tn("syncModal", "updateDetails")} (${details.length})` });
-        const listEl = detailsEl.createEl("ul", { cls: "bangumi-sync-error-list" });
-        for (const item of details) {
-          listEl.createEl("li", {
-            text: `${item.name} \u2192 \u65B0\u589E: ${item.addedLinks.join("\u3001")}`
-          });
-        }
-      }
-      const closeBtn = this.completedEl.createEl("button", {
-        cls: "bangumi-sync-close-btn mod-cta",
-        text: tn("syncModal", "completed")
-      });
-      closeBtn.addEventListener("click", () => this.close());
-    }
-    if (this.progressBar) {
-      this.progressBar.addClass("bangumi-progress-complete");
-    }
-    if (this.statusText) {
-      this.updateStatus(tn("syncModal", "scanCompleted"));
-    }
-  }
-  /**
-   * 更新状态文本
-   */
-  updateStatus(text) {
-    if (this.statusText) {
-      this.statusText.setText(text);
-    }
-  }
-};
-
-// src/ui/syncOptionsModal.ts
-var import_obsidian16 = require("obsidian");
-var SyncOptionsModal = class extends import_obsidian16.Modal {
-  constructor(app, defaultOptions, onSave) {
-    super(app);
-    this.options = defaultOptions;
-    this.onSave = onSave;
-    this.selectedSubjectTypes = new Set(defaultOptions.subjectTypes);
-    this.selectedCollectionTypes = new Set(defaultOptions.collectionTypes);
-    this.limitValue = defaultOptions.limit;
-    this.forceValue = defaultOptions.force;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    new import_obsidian16.Setting(contentEl).setName(tn("syncOptions", "title")).setHeading();
-    new import_obsidian16.Setting(contentEl).setName(tn("syncOptions", "subjectTypes")).setHeading();
-    const subjectTypesDiv = contentEl.createDiv({ cls: "bangumi-checkbox-group" });
-    const subjectTypes = [
-      2 /* Anime */,
-      4 /* Game */,
-      1 /* Book */,
-      3 /* Music */,
-      6 /* Real */
-    ];
-    subjectTypes.forEach((type) => {
-      const label = subjectTypesDiv.createEl("label", { cls: "bangumi-checkbox-label" });
-      const checkbox = label.createEl("input", { type: "checkbox" });
-      checkbox.checked = this.selectedSubjectTypes.has(type);
-      checkbox.addEventListener("change", () => {
-        if (checkbox.checked) {
-          this.selectedSubjectTypes.add(type);
-        } else {
-          this.selectedSubjectTypes.delete(type);
-        }
-      });
-      label.createSpan({ text: getSubjectTypeName(type) });
-    });
-    const subjectQuickDiv = contentEl.createDiv({ cls: "bangumi-quick-select" });
-    subjectQuickDiv.createEl("button", { text: tn("syncOptions", "selectAll"), cls: "bangumi-quick-btn" }, (btn) => {
-      btn.addEventListener("click", () => {
-        subjectTypes.forEach((t2) => this.selectedSubjectTypes.add(t2));
-        this.redraw();
-      });
-    });
-    subjectQuickDiv.createEl("button", { text: tn("syncOptions", "deselectAll"), cls: "bangumi-quick-btn" }, (btn) => {
-      btn.addEventListener("click", () => {
-        this.selectedSubjectTypes.clear();
-        this.redraw();
-      });
-    });
-    new import_obsidian16.Setting(contentEl).setName(tn("syncOptions", "collectionTypes")).setHeading();
-    const collectionTypesDiv = contentEl.createDiv({ cls: "bangumi-checkbox-group" });
-    const collectionTypes = [
-      1 /* Wish */,
-      3 /* Doing */,
-      2 /* Done */,
-      4 /* OnHold */,
-      5 /* Dropped */
-    ];
-    collectionTypes.forEach((type) => {
-      const label = collectionTypesDiv.createEl("label", { cls: "bangumi-checkbox-label" });
-      const checkbox = label.createEl("input", { type: "checkbox" });
-      checkbox.checked = this.selectedCollectionTypes.has(type);
-      checkbox.addEventListener("change", () => {
-        if (checkbox.checked) {
-          this.selectedCollectionTypes.add(type);
-        } else {
-          this.selectedCollectionTypes.delete(type);
-        }
-      });
-      label.createSpan({ text: getCollectionTypeName(type) });
-    });
-    const collectionQuickDiv = contentEl.createDiv({ cls: "bangumi-quick-select" });
-    collectionQuickDiv.createEl("button", { text: tn("syncOptions", "selectAll"), cls: "bangumi-quick-btn" }, (btn) => {
-      btn.addEventListener("click", () => {
-        collectionTypes.forEach((t2) => this.selectedCollectionTypes.add(t2));
-        this.redraw();
-      });
-    });
-    collectionQuickDiv.createEl("button", { text: tn("syncOptions", "deselectAll"), cls: "bangumi-quick-btn" }, (btn) => {
-      btn.addEventListener("click", () => {
-        this.selectedCollectionTypes.clear();
-        this.redraw();
-      });
-    });
-    new import_obsidian16.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setHeading();
-    const limitSetting = new import_obsidian16.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setDesc(tn("syncOptions", "syncLimitDesc")).addText((text) => {
-      text.setPlaceholder("50").setValue(this.limitValue === 0 ? "" : String(this.limitValue)).onChange((value) => {
-        const num = parseInt(value, 10);
-        if (!isNaN(num) && num >= 0) {
-          this.limitValue = num;
-        }
-      });
-    }).addButton((btn) => btn.setButtonText(tn("syncOptions", "syncAll")).onClick(() => {
-      this.limitValue = 0;
-      const input = limitSetting.controlEl.querySelector("input");
-      if (input) {
-        input.value = "";
-      }
-    }));
-    new import_obsidian16.Setting(contentEl).setName(tn("syncOptions", "forceSync")).setDesc(tn("syncOptions", "forceSyncDesc")).addToggle((toggle) => toggle.setValue(this.forceValue).onChange((value) => {
-      this.forceValue = value;
-    }));
-    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-    const syncBtn = buttonDiv.createEl("button", { text: tn("syncOptions", "startSync"), cls: "mod-cta" });
-    syncBtn.addEventListener("click", () => {
-      this.onSave({
-        subjectTypes: Array.from(this.selectedSubjectTypes),
-        collectionTypes: Array.from(this.selectedCollectionTypes),
-        limit: this.limitValue,
-        force: this.forceValue
-      });
-      this.close();
-    });
-    const cancelBtn = buttonDiv.createEl("button", { text: tn("syncOptions", "cancel") });
-    cancelBtn.addEventListener("click", () => {
-      this.close();
-    });
-  }
-  /**
-   * 重绘弹窗
-   */
-  redraw() {
-    const { contentEl } = this;
-    contentEl.empty();
-    this.onOpen();
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-};
-
-// src/ui/syncPreviewModal.ts
-var import_obsidian17 = require("obsidian");
-var SyncPreviewModal = class extends import_obsidian17.Modal {
-  constructor(app, items, onConfirm) {
-    super(app);
-    this.itemElements = /* @__PURE__ */ new Map();
-    this.items = items;
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    new import_obsidian17.Setting(contentEl).setName(tn("syncPreview", "title")).setHeading();
-    contentEl.createEl("p", {
-      text: `${this.items.length} ${tn("syncPreview", "itemsToSync")}`,
-      cls: "bangumi-preview-info"
-    });
-    const listContainer = contentEl.createDiv({ cls: "bangumi-preview-list" });
-    this.items.forEach((item) => {
-      this.renderItem(listContainer, item);
-    });
-    const quickDiv = contentEl.createDiv({ cls: "bangumi-preview-quick" });
-    quickDiv.createEl("button", { text: tn("syncPreview", "selectAll"), cls: "bangumi-quick-btn" }, (btn) => {
-      btn.addEventListener("click", () => this.selectAll(true));
-    });
-    quickDiv.createEl("button", { text: tn("syncPreview", "deselectAll"), cls: "bangumi-quick-btn" }, (btn) => {
-      btn.addEventListener("click", () => this.selectAll(false));
-    });
-    quickDiv.createEl("button", { text: tn("syncPreview", "invert"), cls: "bangumi-quick-btn" }, (btn) => {
-      btn.addEventListener("click", () => this.invertSelection());
-    });
-    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-    buttonDiv.createEl("button", { text: tn("syncPreview", "importAll"), cls: "mod-cta" }, (btn) => {
-      btn.addEventListener("click", () => this.confirm("all"));
-    });
-    buttonDiv.createEl("button", { text: tn("syncPreview", "importSelected"), cls: "mod-cta" }, (btn) => {
-      btn.addEventListener("click", () => this.confirm("selected"));
-    });
-    buttonDiv.createEl("button", { text: tn("syncPreview", "importUnselected") }, (btn) => {
-      btn.addEventListener("click", () => this.confirm("unselected"));
-    });
-    buttonDiv.createEl("button", { text: tn("syncPreview", "cancel") }, (btn) => {
-      btn.addEventListener("click", () => this.confirm("cancel"));
-    });
-  }
-  /**
-   * 渲染单个条目
-   */
-  renderItem(container, item) {
-    const itemDiv = container.createDiv({ cls: "bangumi-preview-item" });
-    const headerDiv = itemDiv.createDiv({ cls: "bangumi-preview-item-header" });
-    const checkbox = headerDiv.createEl("input", { type: "checkbox" });
-    checkbox.checked = item.selected;
-    checkbox.addClass("bangumi-preview-checkbox");
-    const nameSpan = headerDiv.createSpan({ cls: "bangumi-preview-name" });
-    nameSpan.setText(item.name_cn || item.name);
-    const typeSpan = headerDiv.createSpan({ cls: "bangumi-preview-type" });
-    typeSpan.setText(`(${item.typeLabel})`);
-    const ratingSpan = headerDiv.createSpan({ cls: "bangumi-preview-rating" });
-    ratingSpan.setText(`\u2605${item.rating.toFixed(1)}`);
-    if (item.my_rate) {
-      const myRateSpan = headerDiv.createSpan({ cls: "bangumi-preview-my-rate" });
-      myRateSpan.setText(`[${tn("syncPreview", "myRating")}: ${item.my_rate}]`);
-    }
-    this.itemElements.set(item.id, { checkbox });
-  }
-  /**
-   * 全选/全不选
-   */
-  selectAll(selected) {
-    this.itemElements.forEach(({ checkbox }) => {
-      checkbox.checked = selected;
-    });
-  }
-  /**
-   * 反选
-   */
-  invertSelection() {
-    this.itemElements.forEach(({ checkbox }) => {
-      checkbox.checked = !checkbox.checked;
-    });
-  }
-  /**
-   * 确认
-   */
-  confirm(action) {
-    if (action === "cancel") {
-      this.onConfirm({ items: this.items, action: "cancel" });
-      this.close();
-      return;
-    }
-    this.items.forEach((item) => {
-      const elements = this.itemElements.get(item.id);
-      if (elements) {
-        item.selected = elements.checkbox.checked;
-      }
-    });
-    this.onConfirm({ items: this.items, action });
-    this.close();
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-    this.itemElements.clear();
-  }
-};
-
-// src/ui/searchModal.ts
-var import_obsidian19 = require("obsidian");
-
-// src/ui/addToCollectionModal.ts
-var import_obsidian18 = require("obsidian");
-var COLLECTION_TYPE_OPTIONS = [
-  { value: 1, labelKey: "wish" },
-  { value: 2, labelKey: "done" },
-  { value: 3, labelKey: "doing" },
-  { value: 4, labelKey: "onHold" },
-  { value: 5, labelKey: "dropped" }
-];
-var AddToCollectionModal = class extends import_obsidian18.Modal {
-  constructor(app, client, settings, syncManager, subject, onComplete, existingCollection) {
-    super(app);
-    // 输入状态
-    this.collectionType = 3;
-    // 默认"在看"
-    this.rate = 0;
-    this.comment = "";
-    this.tags = [];
-    this.isPrivate = false;
-    this.localPropertyValues = {};
-    this.syncToCloud = true;
-    this.createLocal = true;
-    this.customFields = [];
-    this.client = client;
-    this.settings = settings;
-    this.syncManager = syncManager;
-    this.subject = subject;
-    this.onComplete = onComplete;
-    this.existingCollection = existingCollection;
-    this.customFields = getTemplatePropertyGroupsForSubject(subject, this.syncManager.getCustomTemplates()).customProperties;
-    this.initializeDefaultLocalPropertyValues();
-    if (existingCollection) {
-      this.collectionType = existingCollection.type || 3;
-      this.rate = existingCollection.rate || 0;
-      this.comment = existingCollection.comment || "";
-      this.tags = existingCollection.tags || [];
-      this.isPrivate = existingCollection.private || false;
-    }
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("bangumi-add-collection-modal");
-    const title = `${tn("addToCollection", "title")} - ${this.subject.name_cn || this.subject.name}`;
-    new import_obsidian18.Setting(contentEl).setName(title).setHeading();
-    contentEl.createEl("h3", { text: tn("addToCollection", "bangumiProperties"), cls: "bangumi-add-collection-section" });
-    const typeDiv = contentEl.createDiv({ cls: "bangumi-add-collection-type" });
-    typeDiv.createSpan({ text: `${tn("addToCollection", "collectionType")}: ` });
-    COLLECTION_TYPE_OPTIONS.forEach((opt) => {
-      const btn = typeDiv.createEl("button", {
-        text: tn("collectionTypes", opt.labelKey),
-        cls: "bangumi-add-collection-type-btn"
-      });
-      if (opt.value === this.collectionType) {
-        btn.addClass("bangumi-add-collection-type-btn-active");
-      }
-      btn.addEventListener("click", () => {
-        this.collectionType = opt.value;
-        typeDiv.querySelectorAll("button").forEach((b) => b.removeClass("bangumi-add-collection-type-btn-active"));
-        btn.addClass("bangumi-add-collection-type-btn-active");
-      });
-    });
-    const rateSetting = new import_obsidian18.Setting(contentEl).setName(tn("addToCollection", "rating")).addSlider((slider) => {
-      slider.setLimits(0, 10, 1).setValue(this.rate).onChange((value) => {
-        this.rate = value;
-        rateValueEl.setText(String(value));
-      });
-    });
-    const rateValueEl = rateSetting.controlEl.createSpan({ cls: "bangumi-add-collection-rate-value", text: "0" });
-    const tagsSetting = new import_obsidian18.Setting(contentEl).setName(tn("addToCollection", "tags")).addText((text) => {
-      text.setPlaceholder(tn("addToCollection", "tagsPlaceholder"));
-      this.tagInputEl = text.inputEl;
-      text.inputEl.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          const tag = text.inputEl.value.trim();
-          if (tag && !this.tags.includes(tag)) {
-            this.tags.push(tag);
-            this.renderTags();
-            text.inputEl.value = "";
-          }
-        }
-      });
-    });
-    this.tagsContainer = tagsSetting.controlEl.createDiv({ cls: "bangumi-add-collection-tags" });
-    if (this.tags.length > 0) {
-      this.renderTags();
-    }
-    new import_obsidian18.Setting(contentEl).setName(tn("addToCollection", "comment")).addTextArea((text) => {
-      text.setPlaceholder(tn("addToCollection", "commentPlaceholder"));
-      text.setValue(this.comment);
-      text.onChange((value) => {
-        this.comment = value;
-      });
-      text.inputEl.rows = 3;
-    });
-    if (this.customFields.length > 0) {
-      contentEl.createEl("h3", { text: tn("controlPanel", "localPropertyTitle"), cls: "bangumi-add-collection-section" });
-      const gridEl = contentEl.createDiv({ cls: "bangumi-local-property-grid" });
-      this.customFields.forEach((field) => {
-        this.renderCustomField(gridEl, field);
-      });
-    }
-    contentEl.createEl("h3", { text: tn("addToCollection", "syncOptions"), cls: "bangumi-add-collection-section" });
-    new import_obsidian18.Setting(contentEl).setName(tn("addToCollection", "syncToCloud")).addToggle((toggle) => {
-      toggle.setValue(this.syncToCloud).onChange((value) => {
-        this.syncToCloud = value;
-      });
-    });
-    new import_obsidian18.Setting(contentEl).setName(tn("addToCollection", "createLocal")).addToggle((toggle) => {
-      toggle.setValue(this.createLocal).onChange((value) => {
-        this.createLocal = value;
-      });
-    });
-    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-    buttonDiv.createEl("button", { text: tn("addToCollection", "confirm"), cls: "mod-cta" }, (btn) => {
-      btn.addEventListener("click", () => {
-        void this.confirm();
-      });
-    });
-    buttonDiv.createEl("button", { text: tn("addToCollection", "cancel") }, (btn) => {
-      btn.addEventListener("click", () => {
-        this.close();
-      });
-    });
-  }
-  /**
-   * 渲染标签
-   */
-  renderTags() {
-    this.tagsContainer.empty();
-    this.tags.forEach((tag, index) => {
-      const tagEl = this.tagsContainer.createSpan({ cls: "bangumi-add-collection-tag" });
-      tagEl.createSpan({ text: tag });
-      tagEl.createEl("button", { text: "\xD7", cls: "bangumi-add-collection-tag-remove" }, (btn) => {
-        btn.addEventListener("click", () => {
-          this.tags.splice(index, 1);
-          this.renderTags();
-        });
-      });
-    });
-  }
-  /**
-   * 确认添加
-   */
-  async confirm() {
-    const input = {
-      subjectId: this.subject.id,
-      subjectName: this.subject.name_cn || this.subject.name,
-      type: this.collectionType,
-      rate: this.rate,
-      comment: this.comment,
-      tags: this.tags,
-      private: this.isPrivate,
-      localPropertyValues: { ...this.localPropertyValues },
-      syncToCloud: this.syncToCloud,
-      createLocal: this.createLocal
-    };
-    try {
-      const result = await this.syncManager.syncSingleSubject(this.subject.id, {
-        type: input.type,
-        rate: input.rate,
-        comment: input.comment,
-        tags: input.tags,
-        private: input.private,
-        localPropertyValues: input.localPropertyValues,
-        syncToCloud: input.syncToCloud,
-        createLocal: input.createLocal
-      });
-      if (result.success) {
-        this.onComplete(input);
-        this.close();
-      } else {
-        new import_obsidian18.Notice(`${tn("addToCollection", "addError")}: ${result.error}`);
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian18.Notice(`${tn("addToCollection", "addError")}: ${errorMsg}`);
-    }
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-  initializeDefaultLocalPropertyValues() {
-    for (const field of this.customFields) {
-      if (field.initialValue !== void 0) {
-        this.localPropertyValues[field.name] = field.initialValue;
-      }
-    }
-  }
-  renderCustomField(container, field) {
-    const fieldEl = container.createDiv({ cls: `bangumi-local-property-field bangumi-local-property-field-${field.type}` });
-    fieldEl.createEl("label", { text: field.label, cls: "bangumi-local-property-label" });
-    if (field.type === "toggle") {
-      const toggleWrap = fieldEl.createDiv({ cls: "bangumi-local-property-toggle" });
-      const toggle = toggleWrap.createEl("input", { type: "checkbox" });
-      const initialValue2 = this.localPropertyValues[field.name];
-      toggle.checked = typeof initialValue2 === "boolean" ? initialValue2 : false;
-      toggle.addEventListener("change", () => {
-        this.localPropertyValues[field.name] = toggle.checked;
-      });
-      return;
-    }
-    if (field.type === "list") {
-      const input2 = fieldEl.createEl("input", { type: "text", cls: "bangumi-local-property-input" });
-      input2.placeholder = field.placeholder || "";
-      const initialValue2 = this.localPropertyValues[field.name];
-      if (Array.isArray(initialValue2)) {
-        input2.value = initialValue2.join(", ");
-      }
-      input2.addEventListener("input", () => {
-        const parsed = parseListInput(input2.value);
-        if (parsed && parsed.length > 0) {
-          this.localPropertyValues[field.name] = parsed;
-        } else {
-          delete this.localPropertyValues[field.name];
-        }
-      });
-      return;
-    }
-    const input = fieldEl.createEl("input", { type: "text", cls: "bangumi-local-property-input" });
-    input.placeholder = field.placeholder || "";
-    const initialValue = this.localPropertyValues[field.name];
-    if (typeof initialValue === "string") {
-      input.value = initialValue;
-    }
-    input.addEventListener("input", () => {
-      const trimmed = input.value.trim();
-      if (trimmed) {
-        this.localPropertyValues[field.name] = trimmed;
-      } else {
-        delete this.localPropertyValues[field.name];
-      }
-    });
-  }
-};
-function parseListInput(value) {
-  const items = value.split(",").map((item) => item.trim()).filter(Boolean);
-  return items.length > 0 ? items : void 0;
-}
-
-// src/ui/searchModal.ts
-var SUBJECT_TYPE_OPTIONS = [
-  { value: 0, labelKey: "all" },
-  { value: 2 /* Anime */, labelKey: "anime" },
-  { value: 4 /* Game */, labelKey: "game" },
-  { value: 1 /* Book */, labelKey: "book" },
-  { value: 3 /* Music */, labelKey: "music" },
-  { value: 6 /* Real */, labelKey: "real" }
-];
-var SORT_OPTIONS = [
-  { value: "match", labelKey: "sort_match" },
-  { value: "heat", labelKey: "sort_heat" },
-  { value: "rank", labelKey: "sort_rank" },
-  { value: "score", labelKey: "sort_score" }
-];
-var SEARCH_SHORT_LABELS = getLocale() === "zh-CN" ? {
-  search: "\u641C\u7D22",
-  clear: "\u6E05\u7A7A",
-  add: "\u6DFB\u52A0",
-  edit: "\u7F16\u8F91"
-} : {
-  search: "Search",
-  clear: "Clear",
-  add: "Add",
-  edit: "Edit"
-};
-var SearchModal = class extends import_obsidian19.Modal {
-  constructor(app, client, settings, syncManager, onComplete) {
-    super(app);
-    // 搜索状态
-    this.currentKeyword = "";
-    this.currentType = 0;
-    this.currentSort = "match";
-    this.currentOffset = 0;
-    this.totalResults = 0;
-    this.searchResults = [];
-    this.isLoading = false;
-    // 状态缓存
-    this.syncedSubjectIds = /* @__PURE__ */ new Set();
-    this.collectionStatuses = /* @__PURE__ */ new Map();
-    this.client = client;
-    this.settings = settings;
-    this.syncManager = syncManager;
-    this.onComplete = onComplete;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("bangumi-search-modal");
-    new import_obsidian19.Setting(contentEl).setName(tn("searchModal", "title")).setHeading();
-    const searchDiv = contentEl.createDiv({ cls: "bangumi-search-input-container" });
-    const inputEl = searchDiv.createEl("input", {
-      type: "text",
-      placeholder: tn("searchModal", "searchPlaceholder"),
-      cls: "bangumi-search-input"
-    });
-    const searchBtn = searchDiv.createEl("button", {
-      text: tn("searchModal", "search"),
-      cls: "bangumi-search-btn"
-    });
-    this.decorateMobileButton(searchBtn, SEARCH_SHORT_LABELS.search, tn("searchModal", "search"));
-    const clearBtn = searchDiv.createEl("button", {
-      text: tn("searchModal", "clear"),
-      cls: "bangumi-search-btn"
-    });
-    this.decorateMobileButton(clearBtn, SEARCH_SHORT_LABELS.clear, tn("searchModal", "clear"));
-    const selectorsDiv = searchDiv.createDiv({ cls: "bangumi-search-selectors-container" });
-    const typeSelect = selectorsDiv.createEl("select", { cls: "bangumi-search-select" });
-    SUBJECT_TYPE_OPTIONS.forEach((opt) => {
-      typeSelect.createEl("option", {
-        value: String(opt.value),
-        text: tn("subjectTypes", opt.labelKey)
-      });
-    });
-    const sortSelect = selectorsDiv.createEl("select", { cls: "bangumi-search-select" });
-    SORT_OPTIONS.forEach((opt) => {
-      sortSelect.createEl("option", {
-        value: opt.value,
-        text: tn("searchModal", opt.labelKey)
-      });
-    });
-    this.statusEl = contentEl.createDiv({ cls: "bangumi-search-status" });
-    this.resultsContainer = contentEl.createDiv({ cls: "bangumi-search-results" });
-    this.loadMoreBtn = contentEl.createEl("button", {
-      text: tn("searchModal", "loadMore"),
-      cls: "bangumi-search-load-more"
-    });
-    this.loadMoreBtn.addEventListener("click", () => {
-      void this.loadMore();
-    });
-    const performSearch = () => {
-      const keyword = inputEl.value.trim();
-      if (keyword) {
-        this.currentKeyword = keyword;
-        this.currentType = Number(typeSelect.value);
-        this.currentSort = sortSelect.value;
-        void this.search(true);
-      }
-    };
-    searchBtn.addEventListener("click", performSearch);
-    inputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        performSearch();
-      }
-    });
-    clearBtn.addEventListener("click", () => {
-      inputEl.value = "";
-      this.currentKeyword = "";
-      this.searchResults = [];
-      this.totalResults = 0;
-      this.resultsContainer.empty();
-      this.statusEl.setText("");
-      this.loadMoreBtn.removeClass("visible");
-    });
-    typeSelect.addEventListener("change", () => {
-      this.currentType = Number(typeSelect.value);
-    });
-    sortSelect.addEventListener("change", () => {
-      this.currentSort = sortSelect.value;
-    });
-  }
-  /**
-   * 执行搜索
-   */
-  async search(isNew) {
-    if (this.isLoading)
-      return;
-    if (isNew) {
-      this.currentOffset = 0;
-      this.searchResults = [];
-      this.resultsContainer.empty();
-      this.syncedSubjectIds.clear();
-      this.collectionStatuses.clear();
-    }
-    this.isLoading = true;
-    this.statusEl.setText(tn("searchModal", "searching"));
-    try {
-      const options = {
-        sort: this.currentSort,
-        limit: 20,
-        offset: this.currentOffset
-      };
-      if (this.currentType !== 0) {
-        options.filter = { type: [this.currentType] };
-      }
-      const result = await this.client.searchSubjects(
-        this.currentKeyword,
-        options
-      );
-      this.totalResults = result.total;
-      this.searchResults.push(...result.data);
-      await this.checkStatuses(result.data);
-      this.statusEl.setText(
-        tnFormat("searchModal", "resultsCount", { count: String(this.searchResults.length), total: String(this.totalResults) })
-      );
-      result.data.forEach((subject) => {
-        this.renderResultItem(subject);
-      });
-      if (this.searchResults.length < this.totalResults) {
-        this.loadMoreBtn.addClass("visible");
-      } else {
-        this.loadMoreBtn.removeClass("visible");
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      this.statusEl.setText(`${tn("searchModal", "searchFailed")}: ${errorMsg}`);
-    } finally {
-      this.isLoading = false;
-    }
-  }
-  /**
-   * 检查条目的同步状态和收藏状态
-   */
-  async checkStatuses(subjects) {
-    for (const subject of subjects) {
-      const localPath = this.checkLocalSyncStatus(subject);
-      if (localPath) {
-        this.syncedSubjectIds.add(subject.id);
-      }
-    }
-    for (const subject of subjects) {
-      try {
-        const collection = await this.client.getCollectionStatus(subject.id);
-        if (collection) {
-          this.collectionStatuses.set(subject.id, collection);
-        }
-      } catch (e) {
-      }
-    }
-  }
-  /**
-   * 检查条目是否已同步到本地
-   */
-  checkLocalSyncStatus(subject) {
-    var _a;
-    try {
-      const typeLabel = extractPathVars(subject).type;
-      const template = ((_a = this.settings.pathTemplateByType) == null ? void 0 : _a[typeLabel]) || this.settings.syncPathTemplate;
-      const filePath = generateFilePath(
-        template,
-        subject
-      );
-      const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (file instanceof import_obsidian19.TFile) {
-        return filePath;
-      }
-    } catch (e) {
-    }
-    return null;
-  }
-  /**
-   * 加载更多
-   */
-  async loadMore() {
-    this.currentOffset += 20;
-    await this.search(false);
-  }
-  /**
-   * 渲染单个搜索结果
-   */
-  renderResultItem(subject) {
-    var _a, _b;
-    const itemEl = this.resultsContainer.createDiv({ cls: "bangumi-search-result-item" });
-    const imgContainer = itemEl.createDiv({ cls: "bangumi-search-result-cover" });
-    if ((_a = subject.images) == null ? void 0 : _a.medium) {
-      imgContainer.createEl("img", {
-        attr: {
-          src: subject.images.medium,
-          alt: subject.name_cn || subject.name
-        }
-      });
-    }
-    const infoEl = itemEl.createDiv({ cls: "bangumi-search-result-info" });
-    const nameEl = infoEl.createDiv({ cls: "bangumi-search-result-name" });
-    nameEl.createSpan({ text: subject.name_cn || subject.name, cls: "bangumi-search-result-name-cn" });
-    if (subject.name && subject.name_cn && subject.name !== subject.name_cn) {
-      nameEl.createSpan({ text: ` (${subject.name})`, cls: "bangumi-search-result-name-original" });
-    }
-    const metaRowEl = infoEl.createDiv({ cls: "bangumi-search-result-meta-row" });
-    const metaEl = metaRowEl.createDiv({ cls: "bangumi-search-result-meta" });
-    const typeLabel = getTypeLabel(subject.type);
-    metaEl.createSpan({ text: typeLabel, cls: "bangumi-search-result-type" });
-    if ((_b = subject.rating) == null ? void 0 : _b.score) {
-      metaEl.createSpan({ text: `\u2605${subject.rating.score.toFixed(1)}`, cls: "bangumi-search-result-rating" });
-    }
-    const isSynced = this.syncedSubjectIds.has(subject.id);
-    if (isSynced) {
-      metaEl.createSpan({ text: tn("searchModal", "synced"), cls: "bangumi-status-badge bangumi-status-synced" });
-    }
-    const collection = this.collectionStatuses.get(subject.id);
-    if (collection) {
-      const collectionTypeLabel = getCollectionStatusLabel(collection.type, subject.type);
-      metaEl.createSpan({ text: collectionTypeLabel, cls: "bangumi-status-badge bangumi-status-collected" });
-    } else {
-      metaEl.createSpan({ text: tn("searchModal", "notCollected"), cls: "bangumi-status-badge bangumi-status-not-collected" });
-    }
-    const addBtn = metaRowEl.createEl("button", {
-      text: collection ? tn("searchModal", "editCollection") : tn("searchModal", "addToCollection"),
-      cls: `bangumi-search-result-add-btn ${collection ? "is-editing" : "is-adding"}`
-    });
-    this.decorateMobileButton(
-      addBtn,
-      collection ? SEARCH_SHORT_LABELS.edit : SEARCH_SHORT_LABELS.add,
-      collection ? tn("searchModal", "editCollection") : tn("searchModal", "addToCollection")
-    );
-    addBtn.addEventListener("click", () => {
-      this.openAddModal(subject, collection);
-    });
-  }
-  /**
-   * 打开添加收藏弹窗
-   */
-  openAddModal(subject, existingCollection) {
-    const modal = new AddToCollectionModal(
-      this.app,
-      this.client,
-      this.settings,
-      this.syncManager,
-      subject,
-      (input) => {
-        void this.handleAddComplete(input);
-      },
-      existingCollection
-    );
-    modal.open();
-  }
-  /**
-   * 处理添加完成
-   */
-  handleAddComplete(input) {
-    new import_obsidian19.Notice(tnFormat("searchModal", "addedSuccess", { name: input.subjectName }));
-    this.onComplete();
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-  decorateMobileButton(button, shortLabel, fullLabel) {
-    button.dataset.mobileLabel = shortLabel;
-    button.setAttribute("aria-label", fullLabel);
-    button.setAttribute("title", fullLabel);
-  }
-};
-
-// src/ui/localPropertyModal.ts
-var import_obsidian20 = require("obsidian");
-var LocalPropertyModal = class extends import_obsidian20.Modal {
-  constructor(app, collections, subjectsById, customTemplates, onSubmit) {
-    super(app);
-    this.propertyValuesBySubjectId = /* @__PURE__ */ new Map();
-    this.items = collections.map((collection) => {
-      const subject = subjectsById.get(collection.subject_id);
-      return {
-        collection,
-        subject,
-        fields: subject ? getTemplatePropertyGroupsForSubject(subject, customTemplates).customProperties : []
-      };
-    }).filter((item) => Boolean(item.subject) && item.fields.length > 0);
-    this.onSubmit = onSubmit;
-    this.initializeDefaultValues();
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("bangumi-local-property-modal");
-    new import_obsidian20.Setting(contentEl).setName(tn("controlPanel", "localPropertyTitle")).setHeading();
-    contentEl.createEl("p", {
-      text: tn("controlPanel", "localPropertyDesc"),
-      cls: "bangumi-setting-desc"
-    });
-    for (const item of this.items) {
-      this.renderSubjectSection(contentEl, item);
-    }
-    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-    buttonDiv.createEl("button", { text: tn("addToCollection", "confirm"), cls: "mod-cta" }, (btn) => {
-      btn.addEventListener("click", () => {
-        this.onSubmit({ propertyValuesBySubjectId: this.propertyValuesBySubjectId }, "confirm");
-        this.close();
-      });
-    });
-    buttonDiv.createEl("button", { text: tn("controlPanel", "localPropertySkip") }, (btn) => {
-      btn.addEventListener("click", () => {
-        this.onSubmit({ propertyValuesBySubjectId: /* @__PURE__ */ new Map() }, "skip");
-        this.close();
-      });
-    });
-    buttonDiv.createEl("button", { text: tn("addToCollection", "cancel") }, (btn) => {
-      btn.addEventListener("click", () => this.close());
-    });
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-  initializeDefaultValues() {
-    for (const item of this.items) {
-      for (const field of item.fields) {
-        if (field.initialValue !== void 0) {
-          this.updatePropertyValue(item.collection.subject_id, field.name, field.initialValue);
-        }
-      }
-    }
-  }
-  renderSubjectSection(container, item) {
-    const subject = item.subject;
-    const sectionEl = container.createDiv({ cls: "bangumi-local-property-section" });
-    const heading = subject.name_cn || subject.name || String(item.collection.subject_id);
-    const typeLabel = getTypeLabel(subject.type);
-    sectionEl.createEl("h3", { text: `${heading} (${typeLabel})`, cls: "bangumi-add-collection-section" });
-    const gridEl = sectionEl.createDiv({ cls: "bangumi-local-property-grid" });
-    item.fields.forEach((field) => {
-      this.renderField(gridEl, item.collection.subject_id, field);
-    });
-  }
-  renderField(container, subjectId, field) {
-    var _a, _b, _c, _d, _e, _f;
-    const fieldEl = container.createDiv({ cls: `bangumi-local-property-field bangumi-local-property-field-${field.type}` });
-    fieldEl.createEl("label", { text: field.label, cls: "bangumi-local-property-label" });
-    if (field.type === "text") {
-      const input = fieldEl.createEl("input", { type: "text", cls: "bangumi-local-property-input" });
-      input.placeholder = field.placeholder || "";
-      const initialValue2 = (_b = (_a = this.propertyValuesBySubjectId.get(subjectId)) == null ? void 0 : _a[field.name]) != null ? _b : field.initialValue;
-      if (typeof initialValue2 === "string") {
-        input.value = initialValue2;
-      }
-      input.addEventListener("input", () => {
-        this.updatePropertyValue(subjectId, field.name, input.value.trim() || void 0);
-      });
-      return;
-    }
-    if (field.type === "list") {
-      const input = fieldEl.createEl("input", { type: "text", cls: "bangumi-local-property-input" });
-      input.placeholder = field.placeholder || "";
-      const initialValue2 = (_d = (_c = this.propertyValuesBySubjectId.get(subjectId)) == null ? void 0 : _c[field.name]) != null ? _d : field.initialValue;
-      if (Array.isArray(initialValue2)) {
-        input.value = initialValue2.join(", ");
-      }
-      input.addEventListener("input", () => {
-        this.updatePropertyValue(subjectId, field.name, parseListInput2(input.value));
-      });
-      return;
-    }
-    const toggleWrap = fieldEl.createDiv({ cls: "bangumi-local-property-toggle" });
-    const toggle = toggleWrap.createEl("input", { type: "checkbox" });
-    const initialValue = (_f = (_e = this.propertyValuesBySubjectId.get(subjectId)) == null ? void 0 : _e[field.name]) != null ? _f : field.initialValue;
-    toggle.checked = typeof initialValue === "boolean" ? initialValue : false;
-    toggle.addEventListener("change", () => {
-      this.updatePropertyValue(subjectId, field.name, toggle.checked);
-    });
-  }
-  updatePropertyValue(subjectId, propertyName, value) {
-    const current = { ...this.propertyValuesBySubjectId.get(subjectId) || {} };
-    if (value === void 0 || value === "" || Array.isArray(value) && value.length === 0) {
-      delete current[propertyName];
-    } else {
-      current[propertyName] = value;
-    }
-    if (Object.keys(current).length === 0) {
-      this.propertyValuesBySubjectId.delete(subjectId);
-      return;
-    }
-    this.propertyValuesBySubjectId.set(subjectId, current);
-  }
-};
-function hasLocalPropertyFieldsForCollections(collections, subjectsById, customTemplates) {
-  let totalCustom = 0;
-  const result = collections.some((collection) => {
-    const subject = subjectsById.get(collection.subject_id);
-    if (!subject) {
-      return false;
-    }
-    const groups = getTemplatePropertyGroupsForSubject(subject, customTemplates);
-    if (groups.customProperties.length > 0) {
-      totalCustom += groups.customProperties.length;
-      return true;
-    }
-    return false;
-  });
-  console.debug(`[Bangumi Sync] hasLocalPropertyFields: ${result}, custom property count across ${collections.length} collections: ${totalCustom}, customTemplates: ${customTemplates ? "configured" : "none"}`);
-  return result;
-}
-function parseListInput2(value) {
-  const items = value.split(",").map((item) => item.trim()).filter(Boolean);
-  return items.length > 0 ? items : void 0;
-}
-var SUBJECT_FETCH_TIMEOUT_MS = 15e3;
-async function loadSubjectsForCollections(collections, client, onWarning) {
-  const subjectsById = /* @__PURE__ */ new Map();
-  let warned = false;
-  for (const collection of collections) {
-    try {
-      const subject = await fetchSubjectWithTimeout(client, collection.subject_id, SUBJECT_FETCH_TIMEOUT_MS);
-      subjectsById.set(collection.subject_id, subject);
-    } catch (error) {
-      console.warn(`[Bangumi Sync] \u83B7\u53D6\u6761\u76EE\u8BE6\u60C5\u5931\u8D25\uFF0C\u4F7F\u7528\u6536\u85CF\u4E2D\u7684\u7B80\u7248\u4FE1\u606F\u56DE\u9000: ${collection.subject_id}`, error);
-      if (!warned) {
-        warned = true;
-        const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
-        onWarning == null ? void 0 : onWarning(`\u90E8\u5206\u6761\u76EE\u8BE6\u60C5\u83B7\u53D6\u5931\u8D25\uFF0C\u5DF2\u4F7F\u7528\u7B80\u7248\u4FE1\u606F\u7EE7\u7EED\uFF1A${name}`);
-      }
-      subjectsById.set(collection.subject_id, createFallbackSubject(collection));
-    }
-  }
-  return subjectsById;
-}
-function fetchSubjectWithTimeout(client, subjectId, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const timer = activeWindow.setTimeout(() => {
-      reject(new Error(`\u83B7\u53D6\u6761\u76EE ${subjectId} \u8D85\u65F6`));
-    }, timeoutMs);
-    client.getSubject(subjectId).then((subject) => {
-      activeWindow.clearTimeout(timer);
-      resolve(subject);
-    }).catch((error) => {
-      activeWindow.clearTimeout(timer);
-      reject(error instanceof Error ? error : new Error(String(error)));
-    });
-  });
-}
-function createFallbackSubject(collection) {
-  return {
-    id: collection.subject.id,
-    type: collection.subject.type,
-    name: collection.subject.name || "",
-    name_cn: collection.subject.name_cn || "",
-    summary: collection.subject.short_summary || "",
-    date: collection.subject.date,
-    platform: "",
-    images: collection.subject.images || {},
-    infobox: [],
-    rating: {
-      rank: collection.subject.rank || 0,
-      total: collection.subject.collection_total || 0,
-      count: {},
-      score: collection.subject.score || 0
-    },
-    collection: {
-      wish: 0,
-      collect: collection.subject.collection_total || 0,
-      doing: 0,
-      on_hold: 0,
-      dropped: 0
-    },
-    tags: collection.subject.tags || [],
-    nsfw: false,
-    locked: false,
-    series: false,
-    volumes: collection.subject.volumes || 0,
-    eps: collection.subject.eps || 0,
-    total_episodes: collection.subject.eps || 0,
-    meta_tags: []
-  };
-}
-
-// src/panel/controlPanel.ts
-var import_obsidian27 = require("obsidian");
-
-// src/panel/batchEditorModal.ts
-var import_obsidian21 = require("obsidian");
-var BatchEditorModal = class extends import_obsidian21.Modal {
-  constructor(app, items, onConfirm, documentService, getCachedSnapshot) {
-    super(app);
-    this.mode = "per_item";
-    this.operations = [];
-    this.editableItems = [];
-    this.availableProperties = [];
-    this.selectedProperties = [];
-    this.draftValues = /* @__PURE__ */ new Map();
-    this.loadingProperties = true;
-    this.items = items;
-    this.onConfirm = onConfirm;
-    this.documentService = documentService != null ? documentService : new SubjectDocumentService(app);
-    this.getCachedSnapshot = getCachedSnapshot != null ? getCachedSnapshot : null;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("bangumi-batch-editor");
-    const headerEl = contentEl.createDiv({ cls: "bangumi-batch-editor-header" });
-    headerEl.createEl("h2", { text: tn("batchEditor", "title") });
-    headerEl.createEl("p", {
-      text: tnFormat("batchEditor", "info", { count: this.items.length }),
-      cls: "bangumi-batch-editor-info"
-    });
-    const bodyEl = contentEl.createDiv({ cls: "bangumi-batch-editor-body" });
-    const modeCardEl = bodyEl.createDiv({
-      cls: "bangumi-batch-editor-card bangumi-batch-editor-mode-card"
-    });
-    this.renderModeSwitch(modeCardEl);
-    this.uniformPanelEl = bodyEl.createDiv({ cls: "bangumi-batch-editor-panel" });
-    this.renderUniformPanel();
-    this.perItemPanelEl = bodyEl.createDiv({ cls: "bangumi-batch-editor-panel" });
-    this.renderPerItemPanel();
-    this.updateModeVisibility();
-    const buttonDiv = contentEl.createDiv({
-      cls: "bangumi-modal-buttons bangumi-batch-editor-footer"
-    });
-    buttonDiv.createEl("button", { text: tn("batchEditor", "cancel") }, (btn) => {
-      btn.addEventListener("click", () => this.close());
-    });
-    buttonDiv.createEl("button", { text: tn("batchEditor", "execute"), cls: "mod-cta" }, (btn) => {
-      btn.addEventListener("click", () => void this.handleSubmit());
-    });
-    void this.loadEditableItems();
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-  renderModeSwitch(container) {
-    const switchEl = container.createDiv({ cls: "bangumi-batch-editor-mode-switch" });
-    switchEl.createSpan({
-      text: tn("batchEditor", "modeLabel"),
-      cls: "bangumi-batch-editor-mode-label"
-    });
-    const buttonGroup = switchEl.createDiv({ cls: "bangumi-batch-editor-mode-group" });
-    [
-      ["per_item", tn("batchEditor", "modePerItem")],
-      ["uniform", tn("batchEditor", "modeUniform")]
-    ].forEach(([mode, label]) => {
-      const button = buttonGroup.createEl("button", {
-        text: label,
-        cls: `bangumi-batch-editor-mode-btn${this.mode === mode ? " is-active" : ""}`
-      });
-      button.addEventListener("click", () => {
-        this.mode = mode;
-        for (const sibling of Array.from(buttonGroup.querySelectorAll(".bangumi-batch-editor-mode-btn"))) {
-          sibling.classList.remove("is-active");
-        }
-        button.classList.add("is-active");
-        this.updateModeVisibility();
-      });
-    });
-  }
-  renderUniformPanel() {
-    this.uniformPanelEl.empty();
-    const introCard = this.uniformPanelEl.createDiv({
-      cls: "bangumi-batch-editor-card bangumi-batch-editor-intro-card"
-    });
-    introCard.createEl("p", {
-      text: tn("batchEditor", "uniformDesc"),
-      cls: "bangumi-batch-editor-section-desc"
-    });
-    const listCard = this.uniformPanelEl.createDiv({
-      cls: "bangumi-batch-editor-card bangumi-batch-editor-list-card"
-    });
-    const listHeader = listCard.createDiv({ cls: "bangumi-batch-editor-card-header" });
-    listHeader.createEl("h3", {
-      text: tn("batchEditor", "modeUniform"),
-      cls: "bangumi-batch-editor-card-title"
-    });
-    listHeader.createEl("p", {
-      text: tn("batchEditor", "uniformDesc"),
-      cls: "bangumi-batch-editor-card-desc"
-    });
-    this.operationListEl = listCard.createDiv({ cls: "bangumi-operation-list" });
-    this.renderOperationList();
-    const addCard = this.uniformPanelEl.createDiv({
-      cls: "bangumi-batch-editor-card bangumi-batch-editor-composer-card"
-    });
-    const addHeader = addCard.createDiv({ cls: "bangumi-batch-editor-card-header" });
-    addHeader.createEl("h3", {
-      text: tn("batchEditor", "addOperation"),
-      cls: "bangumi-batch-editor-card-title"
-    });
-    const addOperationDiv = addCard.createDiv({ cls: "bangumi-add-operation" });
-    const typeWrap = addOperationDiv.createDiv({ cls: "bangumi-add-operation-field" });
-    const typeSelect = typeWrap.createEl("select");
-    typeSelect.createEl("option", { value: "add", text: tn("batchEditor", "typeAdd") });
-    typeSelect.createEl("option", { value: "modify", text: tn("batchEditor", "typeModify") });
-    typeSelect.createEl("option", { value: "delete", text: tn("batchEditor", "typeDelete") });
-    const propertyWrap = addOperationDiv.createDiv({ cls: "bangumi-add-operation-field" });
-    const propertyInput = propertyWrap.createEl("input", {
-      type: "text",
-      placeholder: tn("batchEditor", "propertyName"),
-      cls: "bangumi-property-input"
-    });
-    const valueWrap = addOperationDiv.createDiv({
-      cls: "bangumi-add-operation-field bangumi-add-operation-value-wrap"
-    });
-    const valueInput = valueWrap.createEl("input", {
-      type: "text",
-      placeholder: tn("batchEditor", "propertyValue"),
-      cls: "bangumi-value-input"
-    });
-    const updateValueInputState = () => {
-      const hidesValue = typeSelect.value === "delete";
-      valueWrap.classList.toggle("is-disabled", hidesValue);
-      valueInput.disabled = hidesValue;
-      valueInput.placeholder = hidesValue ? tn("batchEditor", "typeDelete") : tn("batchEditor", "propertyValue");
-      if (hidesValue) {
-        valueInput.value = "";
-      }
-    };
-    typeSelect.addEventListener("change", updateValueInputState);
-    updateValueInputState();
-    const addButtonWrap = addOperationDiv.createDiv({ cls: "bangumi-add-operation-action" });
-    addButtonWrap.createEl("button", { text: tn("batchEditor", "addOperation") }, (btn) => {
-      btn.addEventListener("click", () => {
-        const type = typeSelect.value;
-        const property = propertyInput.value.trim();
-        const value = valueInput.value.trim();
-        if (!property) {
-          new import_obsidian21.Notice(tn("batchEditor", "noticeProperty"));
-          return;
-        }
-        if ((type === "add" || type === "modify") && !value) {
-          new import_obsidian21.Notice(tn("batchEditor", "noticeValue"));
-          return;
-        }
-        this.operations.push({ type, property, value });
-        this.renderOperationList();
-        propertyInput.value = "";
-        valueInput.value = "";
-      });
-    });
-  }
-  renderPerItemPanel() {
-    this.perItemPanelEl.empty();
-    const introCard = this.perItemPanelEl.createDiv({
-      cls: "bangumi-batch-editor-card bangumi-batch-editor-intro-card"
-    });
-    introCard.createEl("p", {
-      text: tn("batchEditor", "perItemDesc"),
-      cls: "bangumi-batch-editor-section-desc"
-    });
-    const propertyPanel = this.perItemPanelEl.createDiv({
-      cls: "bangumi-batch-editor-card bangumi-batch-property-panel"
-    });
-    const propertyHeader = propertyPanel.createDiv({ cls: "bangumi-batch-property-header" });
-    propertyHeader.createEl("h3", {
-      text: tn("batchEditor", "propertySelectionTitle"),
-      cls: "bangumi-batch-editor-card-title"
-    });
-    propertyHeader.createEl("p", {
-      text: tn("batchEditor", "propertySelectionDesc"),
-      cls: "bangumi-batch-editor-card-desc"
-    });
-    this.propertySelectionEl = propertyPanel.createDiv({ cls: "bangumi-batch-property-selection" });
-    const customPropertyRow = propertyPanel.createDiv({ cls: "bangumi-batch-custom-property-row" });
-    const customPropertyInput = customPropertyRow.createEl("input", {
-      type: "text",
-      placeholder: tn("batchEditor", "customPropertyPlaceholder"),
-      cls: "bangumi-property-input"
-    });
-    customPropertyRow.createEl("button", { text: tn("batchEditor", "addSelectedProperty") }, (btn) => {
-      btn.addEventListener("click", () => {
-        const property = customPropertyInput.value.trim();
-        if (!property) {
-          new import_obsidian21.Notice(tn("batchEditor", "noticeProperty"));
-          return;
-        }
-        this.ensurePropertyExists(property);
-        this.toggleSelectedProperty(property, true);
-        customPropertyInput.value = "";
-      });
-    });
-    const selectedCard = this.perItemPanelEl.createDiv({
-      cls: "bangumi-batch-editor-card bangumi-batch-selected-card"
-    });
-    const selectedHeader = selectedCard.createDiv({ cls: "bangumi-batch-editor-card-header" });
-    selectedHeader.createEl("h3", {
-      text: tn("batchEditor", "selectedPropertyCount").replace("{count}", "0"),
-      cls: "bangumi-batch-editor-card-title bangumi-batch-selected-title"
-    });
-    this.selectedPropertyEl = selectedCard.createDiv({ cls: "bangumi-batch-selected-properties" });
-    const tableCard = this.perItemPanelEl.createDiv({
-      cls: "bangumi-batch-editor-card bangumi-batch-edit-card"
-    });
-    const tableHeader = tableCard.createDiv({ cls: "bangumi-batch-editor-card-header" });
-    tableHeader.createEl("h3", {
-      text: tn("batchEditor", "itemName"),
-      cls: "bangumi-batch-editor-card-title"
-    });
-    tableHeader.createEl("p", {
-      text: tn("batchEditor", "editTableDesc"),
-      cls: "bangumi-batch-editor-card-desc"
-    });
-    this.editTableEl = tableCard.createDiv({ cls: "bangumi-batch-edit-table-wrap" });
-    this.renderPropertySelection();
-    this.renderSelectedProperties();
-    this.renderPerItemTable();
-  }
-  updateModeVisibility() {
-    this.uniformPanelEl.classList.toggle("is-hidden", this.mode !== "uniform");
-    this.perItemPanelEl.classList.toggle("is-hidden", this.mode !== "per_item");
-  }
-  async loadEditableItems() {
-    var _a;
-    this.loadingProperties = true;
-    this.renderPropertySelection();
-    this.renderPerItemTable();
-    try {
-      const editableItems = [];
-      const propertySet = /* @__PURE__ */ new Set();
-      for (const item of this.items) {
-        const frontmatter = (_a = await this.readFrontmatter(item.filePath)) != null ? _a : {};
-        editableItems.push({
-          ...item,
-          frontmatter
-        });
-        for (const key of Object.keys(frontmatter)) {
-          propertySet.add(key);
-        }
-      }
-      this.editableItems = editableItems;
-      this.availableProperties = [...propertySet].sort((left, right) => left.localeCompare(right, "zh-CN"));
-      for (const item of this.editableItems) {
-        this.draftValues.set(item.filePath, this.createDraftValueRecord(item));
-      }
-    } catch (error) {
-      console.error("[Bangumi Sync] Failed to load batch editor properties", error);
-      new import_obsidian21.Notice(tn("batchEditor", "noticeLoadFailed"));
-    } finally {
-      this.loadingProperties = false;
-      this.renderPropertySelection();
-      this.renderSelectedProperties();
-      this.renderPerItemTable();
-    }
-  }
-  renderOperationList() {
-    this.operationListEl.empty();
-    if (this.operations.length === 0) {
-      this.operationListEl.createDiv({
-        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
-        text: tn("batchEditor", "emptyOperations")
-      });
-      return;
-    }
-    const list = this.operationListEl.createEl("ul", { cls: "bangumi-operation-items" });
-    this.operations.forEach((op, index) => {
-      const item = list.createEl("li", { cls: "bangumi-operation-item" });
-      const typeLabel = op.type === "add" ? tn("batchEditor", "typeAdd") : op.type === "modify" ? tn("batchEditor", "typeModify") : tn("batchEditor", "typeDelete");
-      item.createSpan({ cls: `bangumi-operation-type bangumi-operation-type-${op.type}`, text: typeLabel });
-      item.createSpan({ cls: "bangumi-operation-property", text: op.property });
-      if (op.value !== void 0) {
-        item.createSpan({ cls: "bangumi-operation-arrow", text: "\u2192" });
-        item.createSpan({ cls: "bangumi-operation-value", text: op.value });
-      }
-      item.createEl("button", {
-        text: "\xD7",
-        cls: "bangumi-operation-remove",
-        attr: { "aria-label": tn("batchEditor", "removeOperation") }
-      }, (btn) => {
-        btn.addEventListener("click", () => {
-          this.operations.splice(index, 1);
-          this.renderOperationList();
-        });
-      });
-    });
-  }
-  renderPropertySelection() {
-    this.propertySelectionEl.empty();
-    if (this.loadingProperties) {
-      this.propertySelectionEl.createDiv({
-        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
-        text: tn("batchEditor", "loadingProperties")
-      });
-      return;
-    }
-    if (this.availableProperties.length === 0) {
-      this.propertySelectionEl.createDiv({
-        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
-        text: tn("batchEditor", "emptyEditableProperties")
-      });
-      return;
-    }
-    const list = this.propertySelectionEl.createDiv({ cls: "bangumi-batch-property-list" });
-    for (const property of this.availableProperties) {
-      const label = list.createEl("label", { cls: "bangumi-batch-property-option" });
-      const checkbox = label.createEl("input", { type: "checkbox" });
-      checkbox.checked = this.selectedProperties.includes(property);
-      checkbox.addEventListener("change", () => {
-        this.toggleSelectedProperty(property, checkbox.checked);
-      });
-      label.createSpan({ text: property });
-    }
-  }
-  renderSelectedProperties() {
-    this.selectedPropertyEl.empty();
-    const selectedTitle = this.contentEl.querySelector(".bangumi-batch-selected-title");
-    if (selectedTitle instanceof HTMLElement) {
-      selectedTitle.setText(tnFormat("batchEditor", "selectedPropertyCount", {
-        count: this.selectedProperties.length
-      }));
-    }
-    if (this.selectedProperties.length === 0) {
-      this.selectedPropertyEl.createDiv({
-        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
-        text: tn("batchEditor", "emptySelectedProperties")
-      });
-      return;
-    }
-    const chipWrap = this.selectedPropertyEl.createDiv({ cls: "bangumi-batch-property-chip-wrap" });
-    for (const property of this.selectedProperties) {
-      const chip = chipWrap.createDiv({ cls: "bangumi-batch-property-chip" });
-      chip.createSpan({ text: property });
-      chip.createEl("button", {
-        text: "\xD7",
-        cls: "bangumi-batch-property-chip-remove",
-        attr: { "aria-label": tn("batchEditor", "removeSelectedProperty") }
-      }, (btn) => {
-        btn.addEventListener("click", () => {
-          this.toggleSelectedProperty(property, false);
-        });
-      });
-    }
-  }
-  renderPerItemTable() {
-    var _a, _b;
-    this.editTableEl.empty();
-    if (this.loadingProperties) {
-      this.editTableEl.createDiv({
-        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
-        text: tn("batchEditor", "loadingProperties")
-      });
-      return;
-    }
-    if (this.selectedProperties.length === 0) {
-      this.editTableEl.createDiv({
-        cls: "bangumi-operation-empty bangumi-batch-editor-empty-state",
-        text: tn("batchEditor", "emptyEditTable")
-      });
-      return;
-    }
-    const scroll = this.editTableEl.createDiv({ cls: "bangumi-batch-edit-table-scroll" });
-    const table = scroll.createEl("table", { cls: "bangumi-batch-edit-table" });
-    const thead = table.createEl("thead");
-    const headerRow = thead.createEl("tr");
-    headerRow.createEl("th", { text: tn("batchEditor", "itemName") });
-    for (const property of this.selectedProperties) {
-      headerRow.createEl("th", { text: property });
-    }
-    const tbody = table.createEl("tbody");
-    for (const item of this.editableItems) {
-      const row = tbody.createEl("tr");
-      row.createEl("td", { text: item.displayName, cls: "bangumi-batch-edit-name-cell" });
-      const rowDraft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
-      for (const property of this.selectedProperties) {
-        const cell = row.createEl("td");
-        const input = cell.createEl("input", {
-          type: "text",
-          value: (_b = rowDraft[property]) != null ? _b : "",
-          cls: "bangumi-batch-edit-input"
-        });
-        input.setAttribute("aria-label", `${item.displayName} - ${property}`);
-        input.addEventListener("input", () => {
-          var _a2;
-          const draft = (_a2 = this.draftValues.get(item.filePath)) != null ? _a2 : {};
-          draft[property] = input.value;
-          this.draftValues.set(item.filePath, draft);
-        });
-      }
-    }
-  }
-  async handleSubmit() {
-    if (this.mode === "uniform") {
-      if (this.operations.length === 0) {
-        new import_obsidian21.Notice(tn("batchEditor", "noticeNoOp"));
-        return;
-      }
-      await this.onConfirm({
-        mode: "uniform",
-        operations: this.operations
-      });
-      this.close();
-      return;
-    }
-    if (this.selectedProperties.length === 0) {
-      new import_obsidian21.Notice(tn("batchEditor", "noticeSelectProperty"));
-      return;
-    }
-    const perItemUpdates = this.buildPerItemUpdates();
-    if (perItemUpdates.length === 0) {
-      new import_obsidian21.Notice(tn("batchEditor", "noticeNothingChanged"));
-      return;
-    }
-    await this.onConfirm({
-      mode: "per_item",
-      perItemUpdates
-    });
-    this.close();
-  }
-  buildPerItemUpdates() {
-    var _a, _b;
-    const updates = [];
-    for (const item of this.editableItems) {
-      const draft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
-      const properties = {};
-      for (const property of this.selectedProperties) {
-        const originalValue = item.frontmatter[property];
-        const originalDisplay = formatFrontmatterValue2(originalValue);
-        const draftValue = (_b = draft[property]) != null ? _b : "";
-        if (draftValue === originalDisplay) {
-          continue;
-        }
-        if (draftValue === "" && originalValue === void 0) {
-          continue;
-        }
-        properties[property] = coerceDraftValue(draftValue, originalValue);
-      }
-      if (Object.keys(properties).length > 0) {
-        updates.push({
-          filePath: item.filePath,
-          properties
-        });
-      }
-    }
-    return updates;
-  }
-  toggleSelectedProperty(property, enabled) {
-    var _a;
-    if (enabled) {
-      if (!this.selectedProperties.includes(property)) {
-        this.selectedProperties.push(property);
-        this.selectedProperties.sort((left, right) => left.localeCompare(right, "zh-CN"));
-        for (const item of this.editableItems) {
-          const draft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
-          if (draft[property] === void 0) {
-            draft[property] = formatFrontmatterValue2(item.frontmatter[property]);
-            this.draftValues.set(item.filePath, draft);
-          }
-        }
-      }
-    } else {
-      this.selectedProperties = this.selectedProperties.filter((current) => current !== property);
-    }
-    this.renderPropertySelection();
-    this.renderSelectedProperties();
-    this.renderPerItemTable();
-  }
-  ensurePropertyExists(property) {
-    var _a;
-    if (!this.availableProperties.includes(property)) {
-      this.availableProperties.push(property);
-      this.availableProperties.sort((left, right) => left.localeCompare(right, "zh-CN"));
-    }
-    for (const item of this.editableItems) {
-      const draft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
-      if (draft[property] === void 0) {
-        draft[property] = formatFrontmatterValue2(item.frontmatter[property]);
-        this.draftValues.set(item.filePath, draft);
-      }
-    }
-  }
-  createDraftValueRecord(item) {
-    const record = {};
-    for (const property of this.availableProperties) {
-      record[property] = formatFrontmatterValue2(item.frontmatter[property]);
-    }
-    return record;
-  }
-  async readFrontmatter(filePath) {
-    var _a;
-    const cachedSnapshot = (_a = this.getCachedSnapshot) == null ? void 0 : _a.call(this, filePath);
-    if (cachedSnapshot) {
-      return this.documentService.extractFrontmatterRecord(cachedSnapshot.content);
-    }
-    const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof import_obsidian21.TFile)) {
-      return null;
-    }
-    const content = await this.app.vault.read(file);
-    return this.documentService.extractFrontmatterRecord(content);
-  }
-};
-var FrontmatterEditor = class {
-  constructor(app) {
-    this.history = [];
-    this.maxHistory = 10;
-    this.app = app;
-  }
-  async batchModify(filePaths, operations) {
-    const originalContents = await this.captureOriginalContents(filePaths);
-    const affectedFiles = [];
-    let success = 0;
-    let failed = 0;
-    for (const path of filePaths) {
-      const result = await this.applyUniformOperations(path, operations);
-      if (result) {
-        success++;
-        affectedFiles.push(path);
-      } else {
-        failed++;
-      }
-    }
-    this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
-    return { success, failed };
-  }
-  async batchApplyPerItemUpdates(updates) {
-    const filePaths = updates.map((update) => update.filePath);
-    const originalContents = await this.captureOriginalContents(filePaths);
-    const affectedFiles = [];
-    let success = 0;
-    let failed = 0;
-    for (const update of updates) {
-      const result = await this.applyPerItemUpdate(update);
-      if (result) {
-        success++;
-        affectedFiles.push(update.filePath);
-      } else {
-        failed++;
-      }
-    }
-    this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
-    return { success, failed };
-  }
-  async undo() {
-    if (this.history.length === 0) {
-      return false;
-    }
-    const lastOperation = this.history.pop();
-    if (!lastOperation) {
-      return false;
-    }
-    let restored = 0;
-    for (const [path, content] of lastOperation.originalContent) {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian21.TFile && lastOperation.affectedFiles.includes(path)) {
-        await this.app.vault.process(file, () => content);
-        restored++;
-      }
-    }
-    return restored > 0;
-  }
-  canUndo() {
-    return this.history.length > 0;
-  }
-  async applyUniformOperations(filePath, operations) {
-    const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof import_obsidian21.TFile)) {
-      return false;
-    }
-    try {
-      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-        var _a;
-        const frontmatterRecord = frontmatter;
-        for (const operation of operations) {
-          if (operation.type === "delete") {
-            delete frontmatterRecord[operation.property];
-            continue;
-          }
-          frontmatterRecord[operation.property] = (_a = operation.value) != null ? _a : "";
-        }
-      });
-      return true;
-    } catch (error) {
-      console.error(`[Bangumi Sync] Failed to batch modify frontmatter: ${filePath}`, error);
-      return false;
-    }
-  }
-  async applyPerItemUpdate(update) {
-    const file = this.app.vault.getAbstractFileByPath(update.filePath);
-    if (!(file instanceof import_obsidian21.TFile)) {
-      return false;
-    }
-    try {
-      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-        const frontmatterRecord = frontmatter;
-        for (const [property, value] of Object.entries(update.properties)) {
-          frontmatterRecord[property] = value;
-        }
-      });
-      return true;
-    } catch (error) {
-      console.error(`[Bangumi Sync] Failed to apply per-item batch update: ${update.filePath}`, error);
-      return false;
-    }
-  }
-  async captureOriginalContents(filePaths) {
-    const originalContents = /* @__PURE__ */ new Map();
-    for (const path of filePaths) {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian21.TFile) {
-        const content = await this.app.vault.read(file);
-        originalContents.set(path, content);
-      }
-    }
-    return originalContents;
-  }
-  pushHistoryIfNeeded(success, affectedFiles, originalContents) {
-    if (success <= 0) {
-      return;
-    }
-    this.history.push({
-      affectedFiles,
-      originalContent: originalContents,
-      timestamp: Date.now()
-    });
-    if (this.history.length > this.maxHistory) {
-      this.history.shift();
-    }
-  }
-};
-function formatFrontmatterValue2(value) {
-  return formatFrontmatterDisplayValue(value);
-}
-function coerceDraftValue(value, originalValue) {
-  return coerceFrontmatterDraftValue(value, originalValue);
-}
-
-// src/panel/statusSyncModal.ts
-var import_obsidian22 = require("obsidian");
-
-// src/sync/statusSyncTypes.ts
-var USER_STATUS_SYNC_FIELD_KEYS = [
-  "rate",
-  "comment",
-  "tags",
-  "status",
-  "episodeStatus"
-];
-var PLATFORM_STATUS_SYNC_FIELD_KEYS = [
-  "episodeCount",
-  "chapterCount",
-  "volumeCount",
-  "start",
-  "end",
-  "progress"
-];
-function createDefaultStatusSyncFieldSelection() {
-  return {
-    user: {
-      rate: true,
-      comment: true,
-      tags: true,
-      status: true,
-      episodeStatus: true
-    },
-    platform: {
-      episodeCount: false,
-      chapterCount: false,
-      volumeCount: false,
-      start: false,
-      end: false,
-      progress: false
-    }
-  };
-}
-function normalizeStatusSyncFieldSelection(selection) {
-  var _a, _b;
-  const defaults = createDefaultStatusSyncFieldSelection();
-  return {
-    user: {
-      ...defaults.user,
-      ...(_a = selection == null ? void 0 : selection.user) != null ? _a : {}
-    },
-    platform: {
-      ...defaults.platform,
-      ...(_b = selection == null ? void 0 : selection.platform) != null ? _b : {}
-    }
-  };
-}
-function cloneStatusSyncFieldSelection(selection) {
-  return normalizeStatusSyncFieldSelection(selection);
-}
-function hasSelectedUserFields(selection) {
-  return USER_STATUS_SYNC_FIELD_KEYS.some((key) => selection.user[key]);
-}
-function hasSelectedPlatformFields(selection) {
-  return PLATFORM_STATUS_SYNC_FIELD_KEYS.some((key) => selection.platform[key]);
-}
-function getStatusSyncScope(selection) {
-  const hasUser = hasSelectedUserFields(selection);
-  const hasPlatform = hasSelectedPlatformFields(selection);
-  if (hasUser && hasPlatform) {
-    return "mixed";
-  }
-  if (hasPlatform) {
-    return "platform";
-  }
-  return "user";
-}
-
-// src/panel/statusSyncModal.ts
-var StatusSyncModal = class extends import_obsidian22.Modal {
-  constructor(app, statusSyncService, selection, diffs, onComplete) {
-    super(app);
-    this.renderTimer = null;
-    this.isDisposedFlag = false;
-    this.backgroundCompleted = 0;
-    this.backgroundTotal = 0;
-    this.statusSyncService = statusSyncService;
-    this.selection = normalizeStatusSyncFieldSelection(selection);
-    this.diffs = diffs.map((diff) => this.normalizeDiff(diff));
-    this.diffIndexBySubjectId = new Map(diffs.map((diff, index) => [diff.subjectId, index]));
-    this.onComplete = onComplete;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    this.isDisposedFlag = false;
-    contentEl.empty();
-    contentEl.addClass("bangumi-status-sync-modal");
-    this.selection = normalizeStatusSyncFieldSelection(this.selection);
-    this.diffs = this.diffs.map((diff) => this.normalizeDiff(diff));
-    this.diffIndexBySubjectId = new Map(this.diffs.map((diff, index) => [diff.subjectId, index]));
-    try {
-      contentEl.createEl("h2", { text: this.getTitle() });
-      contentEl.createEl("p", {
-        text: this.getDescription().replace("{count}", String(this.diffs.length)),
-        cls: "bangumi-sync-description"
-      });
-      const actionBar = contentEl.createDiv({ cls: "bangumi-status-sync-actions" });
-      actionBar.createEl("button", { text: tn("statusSyncModal", "allCloud") }, (button) => {
-        button.addEventListener("click", () => this.selectAll("cloud"));
-      });
-      if (hasSelectedUserFields(this.selection)) {
-        actionBar.createEl("button", { text: tn("statusSyncModal", "allLocal") }, (button) => {
-          button.addEventListener("click", () => this.selectAll("local"));
-        });
-        actionBar.createEl("button", { text: tn("statusSyncModal", "smartMerge") }, (button) => {
-          button.addEventListener("click", () => this.smartMerge());
-        });
-      }
-      actionBar.createEl("button", { text: tn("statusSyncModal", "allSkip") }, (button) => {
-        button.addEventListener("click", () => this.selectAll("skip"));
-      });
-      this.statusEl = contentEl.createDiv({ cls: "bangumi-status-sync-status" });
-      this.updateStatusSummary();
-      this.tableEl = contentEl.createDiv({ cls: "bangumi-status-sync-table" });
-      this.renderTable();
-      const footer = contentEl.createDiv({ cls: "bangumi-status-sync-footer" });
-      footer.createEl("button", { text: tn("statusSyncModal", "execute"), cls: "mod-cta" }, (button) => {
-        button.addEventListener("click", () => {
-          void this.executeSync();
-        });
-      });
-      footer.createEl("button", { text: tn("statusSyncModal", "cancel") }, (button) => {
-        button.addEventListener("click", () => this.close());
-      });
-    } catch (error) {
-      console.error("[Bangumi Sync] \u72B6\u6001\u540C\u6B65\u5F39\u7A97\u6E32\u67D3\u5931\u8D25:", error, {
-        selection: this.selection,
-        diffCount: this.diffs.length,
-        sampleDiff: this.diffs[0]
-      });
-      this.renderErrorState(error);
-    }
-  }
-  onClose() {
-    this.isDisposedFlag = true;
-    if (this.renderTimer !== null) {
-      this.getOwnerWindow().clearTimeout(this.renderTimer);
-      this.renderTimer = null;
-    }
-    this.contentEl.empty();
-  }
-  isDisposed() {
-    return this.isDisposedFlag;
-  }
-  updateBackgroundProgress(completed, total) {
-    if (this.isDisposedFlag) {
-      return;
-    }
-    this.backgroundCompleted = completed;
-    this.backgroundTotal = total;
-    this.updateStatusSummary();
-  }
-  updateDiff(subjectId, patch) {
-    if (this.isDisposedFlag) {
-      return;
-    }
-    const diffIndex = this.diffIndexBySubjectId.get(subjectId);
-    if (diffIndex === void 0) {
-      return;
-    }
-    const diff = this.diffs[diffIndex];
-    this.diffs[diffIndex] = this.normalizeDiff({
-      ...diff,
-      ...patch
-    });
-    this.recalculateDiffState(this.diffs[diffIndex]);
-    this.updateStatusSummary();
-    this.scheduleRender();
-  }
-  renderTable() {
-    this.tableEl.empty();
-    const visibleDiffs = this.getVisibleDiffs();
-    if (visibleDiffs.length === 0) {
-      this.tableEl.createDiv({ text: tn("statusSyncModal", "noDiff"), cls: "bangumi-empty-message" });
-      return;
-    }
-    const table = this.tableEl.createEl("table");
-    const thead = table.createEl("thead");
-    const headerRow = thead.createEl("tr");
-    headerRow.createEl("th", { text: tn("statusSyncModal", "subjectName") });
-    headerRow.createEl("th", { text: tn("statusSyncModal", "diffFields") });
-    headerRow.createEl("th", { text: tn("statusSyncModal", "action") });
-    const tbody = table.createEl("tbody");
-    visibleDiffs.forEach((diff) => {
-      const index = this.diffIndexBySubjectId.get(diff.subjectId);
-      if (index === void 0) {
-        return;
-      }
-      const row = tbody.createEl("tr", { cls: "bangumi-status-row" });
-      const nameCell = row.createEl("td", { cls: "bangumi-name-cell" });
-      nameCell.createSpan({ text: diff.name_cn || diff.name || "Unknown" });
-      this.appendDiffIcons(nameCell, diff);
-      const fieldsCell = row.createEl("td", { cls: "bangumi-fields-cell" });
-      const diffFields = this.getDiffFields(diff);
-      fieldsCell.setText(diffFields.length > 0 ? diffFields.join("/") : this.getLoadingHint(diff));
-      const actionCell = row.createEl("td", { cls: "bangumi-action-cell" });
-      actionCell.createEl("button", {
-        text: diff.expanded ? tn("statusSyncModal", "collapse") : tn("statusSyncModal", "expand"),
-        cls: "bangumi-expand-btn"
-      }, (button) => {
-        button.addEventListener("click", () => {
-          this.diffs[index].expanded = !this.diffs[index].expanded;
-          this.renderTable();
-        });
-      });
-      if (diff.expanded) {
-        const detailRow = tbody.createEl("tr", { cls: "bangumi-detail-row" });
-        const detailCell = detailRow.createEl("td", { attr: { colspan: "3" } });
-        this.renderDetailTable(detailCell, diff, index);
-      }
-    });
-  }
-  appendDiffIcons(el, diff) {
-    const icons = [];
-    if (this.isUserFieldEnabled("rate") && diff.rate.hasDiff)
-      icons.push("\u2B50");
-    if (this.isUserFieldEnabled("comment") && diff.comment.hasDiff)
-      icons.push("\u{1F4DD}");
-    if (this.isUserFieldEnabled("tags") && diff.tags.hasDiff)
-      icons.push("\u{1F3F7}\uFE0F");
-    if (this.isUserFieldEnabled("status") && diff.status.hasDiff)
-      icons.push("\u{1F4CA}");
-    if (this.isUserFieldEnabled("episodeStatus") && diff.episodeStatus.hasDiff)
-      icons.push("\u{1F39E}\uFE0F");
-    if (diff.hasPlatformDiff)
-      icons.push("\u{1F4DA}");
-    if (icons.length > 0) {
-      el.createSpan({ text: ` ${icons.join("")}`, cls: "bangumi-diff-icons" });
-    }
-  }
-  getDiffFields(diff) {
-    const fields = [];
-    if (this.isUserFieldEnabled("rate") && diff.rate.hasDiff)
-      fields.push(tn("statusSyncModal", "fieldRate"));
-    if (this.isUserFieldEnabled("comment") && diff.comment.hasDiff)
-      fields.push(tn("statusSyncModal", "fieldComment"));
-    if (this.isUserFieldEnabled("tags") && diff.tags.hasDiff)
-      fields.push(tn("statusSyncModal", "fieldTags"));
-    if (this.isUserFieldEnabled("status") && diff.status.hasDiff)
-      fields.push(tn("statusSyncModal", "fieldStatus"));
-    if (this.isUserFieldEnabled("episodeStatus") && diff.episodeStatus.hasDiff)
-      fields.push(tn("statusSyncModal", "fieldEpisodeStatus"));
-    for (const platformField of diff.platformFields) {
-      if (platformField.hasDiff) {
-        fields.push(platformField.label);
-      }
-    }
-    return fields;
-  }
-  getVisibleDiffs() {
-    return this.diffs.filter((diff) => diff.hasAnyDiff || this.isDiffLoading(diff));
-  }
-  isDiffLoading(diff) {
-    return diff.episodeStatusLoadState !== "ready" || diff.platformLoadState !== "ready";
-  }
-  getLoadingHint(diff) {
-    if (diff.backgroundError) {
-      return this.getLoadStateText("failed");
-    }
-    if (diff.episodeStatusLoadState === "loading" || diff.platformLoadState === "loading") {
-      return this.getLoadStateText("loading");
-    }
-    if (this.isDiffLoading(diff)) {
-      return this.getLoadStateText("pending");
-    }
-    return tn("statusSyncModal", "noDiff");
-  }
-  renderDetailTable(el, diff, index) {
-    const detailTable = el.createEl("table", { cls: "bangumi-detail-table" });
-    const thead = detailTable.createEl("thead");
-    const headerRow = thead.createEl("tr");
-    headerRow.createEl("th", { text: tn("statusSyncModal", "field") });
-    headerRow.createEl("th", { text: tn("statusSyncModal", "local") });
-    headerRow.createEl("th", { text: tn("statusSyncModal", "cloud") });
-    headerRow.createEl("th", { text: tn("statusSyncModal", "decision") });
-    const tbody = detailTable.createEl("tbody");
-    if (diff.hasUserDiff) {
-      this.renderSectionHeader(tbody, tn("statusSyncModal", "userDataGroup"));
-    }
-    if (this.isUserFieldEnabled("rate") && diff.rate.hasDiff) {
-      this.renderFieldRow(
-        tbody,
-        tn("statusSyncModal", "fieldRate"),
-        diff.rate.localValue ? String(diff.rate.localValue) : tn("statusSyncModal", "empty"),
-        diff.rate.cloudValue ? String(diff.rate.cloudValue) : tn("statusSyncModal", "empty"),
-        "rate",
-        index,
-        false
-      );
-    }
-    if (this.isUserFieldEnabled("comment") && diff.comment.hasDiff) {
-      this.renderFieldRow(
-        tbody,
-        tn("statusSyncModal", "fieldComment"),
-        diff.comment.localValue || tn("statusSyncModal", "empty"),
-        diff.comment.cloudValue || tn("statusSyncModal", "empty"),
-        "comment",
-        index,
-        false
-      );
-    }
-    if (this.isUserFieldEnabled("tags") && diff.tags.hasDiff) {
-      this.renderFieldRow(
-        tbody,
-        tn("statusSyncModal", "fieldTags"),
-        diff.tags.localValue ? diff.tags.localValue.join(", ") : tn("statusSyncModal", "empty"),
-        diff.tags.cloudValue ? diff.tags.cloudValue.join(", ") : tn("statusSyncModal", "empty"),
-        "tags",
-        index,
-        true
-      );
-    }
-    if (this.isUserFieldEnabled("status") && diff.status.hasDiff) {
-      this.renderFieldRow(
-        tbody,
-        tn("statusSyncModal", "fieldStatus"),
-        this.getStatusText(diff.status.localValue, diff.collection.subject_type),
-        this.getStatusText(diff.status.cloudValue, diff.collection.subject_type),
-        "status",
-        index,
-        false
-      );
-    }
-    if (this.isUserFieldEnabled("episodeStatus") && diff.episodeStatus.hasDiff) {
-      this.renderFieldRow(
-        tbody,
-        tn("statusSyncModal", "fieldEpisodeStatus"),
-        diff.episodeStatus.localValue || tn("statusSyncModal", "empty"),
-        diff.episodeStatus.cloudValue || tn("statusSyncModal", "empty"),
-        "episodeStatus",
-        index,
-        false
-      );
-    } else if (this.isUserFieldEnabled("episodeStatus") && diff.episodeStatusLoadState !== "ready") {
-      this.renderLoadingRow(tbody, tn("statusSyncModal", "fieldEpisodeStatus"), diff.episodeStatusLoadState);
-    }
-    if (diff.hasPlatformDiff) {
-      this.renderSectionHeader(tbody, tn("statusSyncModal", "platformDataGroup"));
-      diff.platformFields.filter((field) => field.hasDiff).forEach((field) => this.renderPlatformFieldRow(tbody, field, index));
-    } else if (hasSelectedPlatformFields(this.selection) && diff.platformLoadState !== "ready") {
-      this.renderSectionHeader(tbody, tn("statusSyncModal", "platformDataGroup"));
-      this.renderLoadingRow(tbody, tn("statusSyncModal", "platformDataGroup"), diff.platformLoadState);
-    }
-    if (diff.backgroundError) {
-      const row = tbody.createEl("tr");
-      row.createEl("td", { text: tn("statusSyncModal", "backgroundLoading"), cls: "bangumi-field-name" });
-      row.createEl("td", { text: diff.backgroundError, attr: { colspan: "3" } });
-    }
-  }
-  renderSectionHeader(tbody, text) {
-    const row = tbody.createEl("tr", { cls: "bangumi-detail-section-row" });
-    row.createEl("td", { text, attr: { colspan: "4" }, cls: "bangumi-field-name" });
-  }
-  renderFieldRow(tbody, fieldName, localValue, cloudValue, fieldKey, diffIndex, supportMerge) {
-    const fieldDiff = this.getUserDecisionField(this.diffs[diffIndex], fieldKey);
-    const row = tbody.createEl("tr");
-    row.createEl("td", { text: fieldName, cls: "bangumi-field-name" });
-    row.createEl("td", { text: localValue, cls: "bangumi-local-value bangumi-sync-value" });
-    row.createEl("td", { text: cloudValue, cls: "bangumi-cloud-value bangumi-sync-value" });
-    const decisionCell = row.createEl("td");
-    const select = decisionCell.createEl("select", { cls: "bangumi-sync-decision-select" });
-    select.createEl("option", { value: "skip", text: tn("statusSyncModal", "skip") });
-    select.createEl("option", { value: "local", text: tn("statusSyncModal", "keepLocal") });
-    select.createEl("option", { value: "cloud", text: tn("statusSyncModal", "keepCloud") });
-    if (supportMerge) {
-      select.createEl("option", { value: "merge", text: tn("statusSyncModal", "merge") });
-    }
-    select.value = fieldDiff.decision;
-    select.addEventListener("change", () => {
-      fieldDiff.decision = select.value;
-    });
-  }
-  renderPlatformFieldRow(tbody, field, diffIndex) {
-    const row = tbody.createEl("tr");
-    row.createEl("td", { text: field.label, cls: "bangumi-field-name" });
-    row.createEl("td", { text: field.localValue || tn("statusSyncModal", "empty"), cls: "bangumi-local-value bangumi-sync-value" });
-    row.createEl("td", { text: field.cloudValue || tn("statusSyncModal", "empty"), cls: "bangumi-cloud-value bangumi-sync-value" });
-    const decisionCell = row.createEl("td");
-    const select = decisionCell.createEl("select", { cls: "bangumi-sync-decision-select" });
-    select.createEl("option", { value: "skip", text: tn("statusSyncModal", "skip") });
-    select.createEl("option", { value: "cloud", text: tn("statusSyncModal", "keepCloudOnly") });
-    select.value = field.decision;
-    select.addEventListener("change", () => {
-      const platformField = this.diffs[diffIndex].platformFields.find((item) => item.key === field.key);
-      if (platformField) {
-        platformField.decision = select.value;
-      }
-    });
-  }
-  renderLoadingRow(tbody, fieldName, state) {
-    const row = tbody.createEl("tr");
-    row.createEl("td", { text: fieldName, cls: "bangumi-field-name" });
-    row.createEl("td", { text: this.getLoadStateText(state), attr: { colspan: "3" } });
-  }
-  getStatusText(status, subjectType) {
-    if (status === null)
-      return tn("statusSyncModal", "empty");
-    const validStatus = this.toValidCollectionType(status);
-    if (validStatus === null) {
-      return tn("statusSyncModal", "empty");
-    }
-    return getCollectionStatusLabel(validStatus, subjectType, true) || tn("statusSyncModal", "empty");
-  }
-  getUserDecisionField(diff, fieldKey) {
-    switch (fieldKey) {
-      case "rate":
-        return diff.rate;
-      case "comment":
-        return diff.comment;
-      case "tags":
-        return diff.tags;
-      case "status":
-        return diff.status;
-      case "episodeStatus":
-        return diff.episodeStatus;
-    }
-  }
-  toValidCollectionType(value) {
-    switch (value) {
-      case 1:
-        return 1 /* Wish */;
-      case 2:
-        return 2 /* Done */;
-      case 3:
-        return 3 /* Doing */;
-      case 4:
-        return 4 /* OnHold */;
-      case 5:
-        return 5 /* Dropped */;
-      default:
-        return null;
-    }
-  }
-  selectAll(decision) {
-    if (!hasSelectedUserFields(this.selection) && hasSelectedPlatformFields(this.selection)) {
-      this.diffs.forEach((diff) => {
-        diff.platformFields.forEach((field) => {
-          field.decision = decision === "cloud" ? "cloud" : "skip";
-        });
-      });
-    } else {
-      this.statusSyncService.applyDecisionPreset(this.diffs, decision);
-    }
-    this.updateStatusSummary();
-    this.renderTable();
-  }
-  smartMerge() {
-    if (!hasSelectedUserFields(this.selection)) {
-      return;
-    }
-    this.statusSyncService.applyDecisionPreset(this.diffs, "smart");
-    this.updateStatusSummary();
-    this.renderTable();
-  }
-  async executeSync() {
-    this.statusEl.setText(tn("statusSyncModal", "syncProgress"));
-    const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
-    const summary = tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount));
-    const message = successCount > 0 && failCount > 0 ? `${tn("syncModal", "partialSuccess")}: ${summary}` : summary;
-    this.statusEl.setText(message);
-    if (successCount > 0) {
-      new import_obsidian22.Notice(message);
-      this.onComplete();
-      this.close();
-      return;
-    }
-    new import_obsidian22.Notice(tn("statusSyncModal", "syncFailed"));
-  }
-  scheduleRender() {
-    if (this.renderTimer !== null || this.isDisposedFlag) {
-      return;
-    }
-    this.renderTimer = this.getOwnerWindow().setTimeout(() => {
-      this.renderTimer = null;
-      if (!this.isDisposedFlag) {
-        this.renderTable();
-      }
-    }, 200);
-  }
-  getOwnerWindow() {
-    const ownerWindow = this.containerEl.ownerDocument.defaultView;
-    return ownerWindow != null ? ownerWindow : activeWindow;
-  }
-  updateStatusSummary() {
-    if (!this.statusEl) {
-      return;
-    }
-    const visibleCount = this.getVisibleDiffs().length;
-    if (this.backgroundTotal > 0 && this.backgroundCompleted < this.backgroundTotal) {
-      this.statusEl.setText(
-        tn("statusSyncModal", "progressSummaryLoading").replace("{completed}", String(this.backgroundCompleted)).replace("{total}", String(this.backgroundTotal)).replace("{visible}", String(visibleCount))
-      );
-      return;
-    }
-    if (this.backgroundTotal > 0) {
-      this.statusEl.setText(
-        tn("statusSyncModal", "progressSummaryDone").replace("{completed}", String(this.backgroundCompleted)).replace("{total}", String(this.backgroundTotal)).replace("{visible}", String(visibleCount))
-      );
-      return;
-    }
-    this.statusEl.setText(
-      tn("statusSyncModal", "progressSummaryVisible").replace("{visible}", String(visibleCount))
-    );
-  }
-  recalculateDiffState(diff) {
-    diff.hasUserDiff = hasSelectedUserFields(this.selection) && (this.isUserFieldEnabled("rate") && diff.rate.hasDiff || this.isUserFieldEnabled("comment") && diff.comment.hasDiff || this.isUserFieldEnabled("tags") && diff.tags.hasDiff || this.isUserFieldEnabled("status") && diff.status.hasDiff || this.isUserFieldEnabled("episodeStatus") && diff.episodeStatus.hasDiff);
-    diff.hasPlatformDiff = diff.platformFields.some((field) => field.hasDiff);
-    diff.hasAnyDiff = diff.hasUserDiff || diff.hasPlatformDiff;
-  }
-  isUserFieldEnabled(key) {
-    var _a;
-    return Boolean((_a = this.selection.user) == null ? void 0 : _a[key]);
-  }
-  normalizeDiff(diff) {
-    var _a, _b, _c;
-    const normalized = {
-      ...diff,
-      rate: this.normalizeFieldDiff(diff.rate),
-      comment: this.normalizeFieldDiff(diff.comment),
-      tags: this.normalizeFieldDiff(diff.tags),
-      status: this.normalizeFieldDiff(diff.status),
-      episodeStatus: this.normalizeFieldDiff(diff.episodeStatus),
-      platformFields: Array.isArray(diff.platformFields) ? diff.platformFields.map((field) => {
-        var _a2, _b2, _c2;
-        return {
-          ...field,
-          localValue: (_a2 = field.localValue) != null ? _a2 : null,
-          cloudValue: (_b2 = field.cloudValue) != null ? _b2 : null,
-          hasDiff: Boolean(field.hasDiff),
-          decision: (_c2 = field.decision) != null ? _c2 : "skip"
-        };
-      }) : [],
-      expanded: Boolean(diff.expanded),
-      episodeStatusLoadState: (_a = diff.episodeStatusLoadState) != null ? _a : "ready",
-      platformLoadState: (_b = diff.platformLoadState) != null ? _b : "ready",
-      backgroundError: (_c = diff.backgroundError) != null ? _c : null
-    };
-    this.recalculateDiffState(normalized);
-    return normalized;
-  }
-  normalizeFieldDiff(fieldDiff) {
-    var _a, _b, _c;
-    return {
-      localValue: (_a = fieldDiff == null ? void 0 : fieldDiff.localValue) != null ? _a : null,
-      cloudValue: (_b = fieldDiff == null ? void 0 : fieldDiff.cloudValue) != null ? _b : null,
-      hasDiff: Boolean(fieldDiff == null ? void 0 : fieldDiff.hasDiff),
-      decision: (_c = fieldDiff == null ? void 0 : fieldDiff.decision) != null ? _c : "skip"
-    };
-  }
-  renderErrorState(error) {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("bangumi-status-sync-modal");
-    contentEl.createEl("h2", { text: this.getTitle() });
-    contentEl.createEl("p", {
-      text: `${tn("controlPanel", "compareStatusFailed")}: ${error instanceof Error ? error.message : String(error)}`,
-      cls: "bangumi-sync-description"
-    });
-    const footer = contentEl.createDiv({ cls: "bangumi-status-sync-footer" });
-    footer.createEl("button", { text: tn("statusSyncModal", "cancel") }, (button) => {
-      button.addEventListener("click", () => this.close());
-    });
-  }
-  getLoadStateText(state) {
-    switch (state) {
-      case "failed":
-        return tn("statusSyncModal", "backgroundLoadFailed");
-      case "loading":
-        return tn("statusSyncModal", "loadInProgress");
-      case "pending":
-        return tn("statusSyncModal", "loadPending");
-      case "ready":
-      default:
-        return tn("statusSyncModal", "noDiff");
-    }
-  }
-  getTitle() {
-    if (hasSelectedUserFields(this.selection) && hasSelectedPlatformFields(this.selection)) {
-      return tn("statusSyncModal", "title");
-    }
-    return hasSelectedUserFields(this.selection) ? tn("statusSyncModal", "userTitle") : tn("statusSyncModal", "platformTitle");
-  }
-  getDescription() {
-    if (hasSelectedUserFields(this.selection) && hasSelectedPlatformFields(this.selection)) {
-      return tn("statusSyncModal", "description");
-    }
-    return hasSelectedUserFields(this.selection) ? tn("statusSyncModal", "userDescription") : tn("statusSyncModal", "platformDescription");
-  }
-};
-
-// src/panel/statusSyncScopeModal.ts
-var import_obsidian23 = require("obsidian");
-var StatusSyncScopeModal = class extends import_obsidian23.Modal {
-  constructor(app, initialSelection, onConfirm) {
-    super(app);
-    this.selection = normalizeStatusSyncFieldSelection(initialSelection);
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    this.modalEl.addClass("bangumi-status-sync-scope-window");
-    this.render();
-  }
-  onClose() {
-    this.modalEl.removeClass("bangumi-status-sync-scope-window");
-    this.contentEl.empty();
-  }
-  render() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("bangumi-status-sync-scope-modal");
-    this.selection = normalizeStatusSyncFieldSelection(this.selection);
-    const header = contentEl.createDiv({ cls: "bangumi-status-sync-scope-header" });
-    header.createEl("h2", {
-      text: tn("statusSyncModal", "scopeTitle"),
-      cls: "bangumi-status-sync-scope-heading"
-    });
-    header.createEl("p", {
-      text: tn("statusSyncModal", "scopeDescription"),
-      cls: "bangumi-status-sync-scope-subtitle"
-    });
-    const body = contentEl.createDiv({ cls: "bangumi-status-sync-scope-body" });
-    const grid = body.createDiv({ cls: "bangumi-status-sync-scope-grid" });
-    this.renderSectionSafely(grid, "user");
-    this.renderSectionSafely(grid, "platform");
-    const footer = contentEl.createDiv({ cls: "bangumi-status-sync-scope-footer" });
-    footer.createDiv({
-      text: tn("statusSyncModal", "scopeFooterHint"),
-      cls: "bangumi-status-sync-scope-hint"
-    });
-    const actions = footer.createDiv({ cls: "bangumi-status-sync-scope-actions" });
-    actions.createEl("button", {
-      text: tn("syncOptions", "cancel"),
-      cls: "bangumi-status-sync-scope-cancel"
-    }, (button) => {
-      button.type = "button";
-      button.addEventListener("click", () => this.close());
-    });
-    actions.createEl("button", {
-      text: tn("statusSyncModal", "startCompare"),
-      cls: "mod-cta bangumi-status-sync-scope-submit"
-    }, (button) => {
-      button.type = "button";
-      button.addEventListener("click", () => {
-        if (!hasSelectedUserFields(this.selection) && !hasSelectedPlatformFields(this.selection)) {
-          new import_obsidian23.Notice(tn("statusSyncModal", "selectAtLeastOne"));
-          return;
-        }
-        this.onConfirm(cloneStatusSyncFieldSelection(this.selection));
-        this.close();
-      });
-    });
-  }
-  renderSectionSafely(container, section) {
-    try {
-      this.renderSection(container, section);
-    } catch (error) {
-      console.error("[Bangumi Sync] \u72B6\u6001\u540C\u6B65\u8303\u56F4\u9009\u62E9\u5F39\u7A97\u6E32\u67D3\u5931\u8D25:", section, error);
-      this.renderSectionFallback(container, section);
-    }
-  }
-  renderSection(container, section) {
-    const card = container.createDiv({
-      cls: `bangumi-status-sync-scope-card ${section === "user" ? "is-default" : ""}`
-    });
-    const fieldDescriptors = section === "user" ? this.getUserFieldDescriptors() : this.getPlatformFieldDescriptors();
-    const header = card.createDiv({ cls: "bangumi-status-sync-scope-head" });
-    const topLine = header.createDiv({ cls: "bangumi-status-sync-scope-topline" });
-    const titleWrap = topLine.createDiv({ cls: "bangumi-status-sync-scope-title-wrap" });
-    const masterLabel = titleWrap.createEl("label", { cls: "bangumi-status-sync-scope-master" });
-    const masterCheckbox = masterLabel.createEl("input", { type: "checkbox" });
-    masterLabel.createSpan({
-      text: section === "user" ? tn("statusSyncModal", "userDataGroup") : tn("statusSyncModal", "platformDataGroup"),
-      cls: "bangumi-status-sync-scope-title"
-    });
-    titleWrap.createSpan({
-      text: section === "user" ? tn("statusSyncModal", "scopeDefaultUser") : tn("statusSyncModal", "scopeDefaultPlatform"),
-      cls: "bangumi-status-sync-scope-badge"
-    });
-    const tools = topLine.createDiv({ cls: "bangumi-status-sync-scope-tools" });
-    tools.createEl("button", { text: tn("statusSyncModal", "selectAll") }, (button) => {
-      button.type = "button";
-      button.addEventListener("click", () => {
-        this.setSectionSelection(section, true);
-        this.render();
-      });
-    });
-    tools.createEl("button", { text: tn("statusSyncModal", "deselectAll") }, (button) => {
-      button.type = "button";
-      button.addEventListener("click", () => {
-        this.setSectionSelection(section, false);
-        this.render();
-      });
-    });
-    header.createEl("p", {
-      text: section === "user" ? tn("statusSyncModal", "scopeUserDescription") : tn("statusSyncModal", "scopePlatformDescription"),
-      cls: "bangumi-status-sync-scope-desc"
-    });
-    const items = card.createDiv({ cls: "bangumi-status-sync-scope-items" });
-    for (const field of fieldDescriptors) {
-      const isChecked = this.getFieldChecked(section, field.key);
-      const item = items.createEl("label", {
-        cls: `bangumi-status-sync-scope-item ${isChecked ? "is-checked" : ""}`
-      });
-      const checkbox = item.createEl("input", { type: "checkbox" });
-      checkbox.checked = isChecked;
-      checkbox.addEventListener("change", () => {
-        this.setFieldChecked(section, field.key, checkbox.checked);
-        this.render();
-      });
-      const content = item.createDiv({ cls: "bangumi-status-sync-scope-item-content" });
-      content.createDiv({ text: field.label, cls: "bangumi-status-sync-scope-item-name" });
-      content.createDiv({ text: field.description, cls: "bangumi-status-sync-scope-item-meta" });
-    }
-    const selectedCount = fieldDescriptors.filter((field) => this.getFieldChecked(section, field.key)).length;
-    masterCheckbox.checked = selectedCount === fieldDescriptors.length && fieldDescriptors.length > 0;
-    masterCheckbox.indeterminate = selectedCount > 0 && selectedCount < fieldDescriptors.length;
-    masterCheckbox.addEventListener("change", () => {
-      this.setSectionSelection(section, masterCheckbox.checked);
-      this.render();
-    });
-  }
-  renderSectionFallback(container, section) {
-    const card = container.createDiv({ cls: "bangumi-status-sync-scope-card" });
-    const header = card.createDiv({ cls: "bangumi-status-sync-scope-head" });
-    header.createEl("div", {
-      text: section === "user" ? tn("statusSyncModal", "userDataGroup") : tn("statusSyncModal", "platformDataGroup"),
-      cls: "bangumi-status-sync-scope-title"
-    });
-    card.createDiv({
-      text: tn("statusSyncModal", "backgroundLoadFailed"),
-      cls: "bangumi-status-sync-scope-desc"
-    });
-  }
-  getFieldChecked(section, key) {
-    if (section === "user") {
-      return Boolean(this.selection.user[key]);
-    }
-    return Boolean(this.selection.platform[key]);
-  }
-  setFieldChecked(section, key, checked) {
-    if (section === "user") {
-      this.selection.user[key] = checked;
-      return;
-    }
-    this.selection.platform[key] = checked;
-  }
-  setSectionSelection(section, checked) {
-    if (section === "user") {
-      for (const key of USER_STATUS_SYNC_FIELD_KEYS) {
-        this.selection.user[key] = checked;
-      }
-      return;
-    }
-    for (const key of PLATFORM_STATUS_SYNC_FIELD_KEYS) {
-      this.selection.platform[key] = checked;
-    }
-  }
-  getUserFieldDescriptors() {
-    return [
-      { key: "rate", label: tn("statusSyncModal", "fieldRate"), description: tn("statusSyncModal", "scopeFieldRate") },
-      { key: "comment", label: tn("statusSyncModal", "fieldComment"), description: tn("statusSyncModal", "scopeFieldComment") },
-      { key: "tags", label: tn("statusSyncModal", "fieldTags"), description: tn("statusSyncModal", "scopeFieldTags") },
-      { key: "status", label: tn("statusSyncModal", "fieldStatus"), description: tn("statusSyncModal", "scopeFieldStatus") },
-      { key: "episodeStatus", label: tn("statusSyncModal", "fieldEpisodeStatus"), description: tn("statusSyncModal", "scopeFieldEpisodeStatus") }
-    ];
-  }
-  getPlatformFieldDescriptors() {
-    return [
-      { key: "episodeCount", label: tn("statusSyncModal", "fieldEpisodeCount"), description: tn("statusSyncModal", "scopeFieldEpisodeCount") },
-      { key: "chapterCount", label: tn("statusSyncModal", "fieldChapterCount"), description: tn("statusSyncModal", "scopeFieldChapterCount") },
-      { key: "volumeCount", label: tn("statusSyncModal", "fieldVolumeCount"), description: tn("statusSyncModal", "scopeFieldVolumeCount") },
-      { key: "start", label: tn("statusSyncModal", "fieldStart"), description: tn("statusSyncModal", "scopeFieldStart") },
-      { key: "end", label: tn("statusSyncModal", "fieldEnd"), description: tn("statusSyncModal", "scopeFieldEnd") },
-      { key: "progress", label: tn("statusSyncModal", "fieldProgress"), description: tn("statusSyncModal", "scopeFieldProgress") }
-    ];
-  }
-};
-
-// src/panel/conflictResolver.ts
-var ConflictDetector = class {
-  constructor(app) {
-    this.app = app;
-  }
-  /**
-   * 检测冲突
-   * @param localItems 本地条目映射
-   * @param cloudItems 云端收藏列表
-   * @param localModifiedTime 本地修改时间映射
-   */
-  detectConflicts(localItems, cloudItems, localModifiedTime) {
-    const conflicts = [];
-    for (const cloudItem of cloudItems) {
-      const subjectId = cloudItem.subject_id;
-      const localData = localItems.get(subjectId);
-      if (!localData)
-        continue;
-      const localModified = localModifiedTime.get(subjectId) || "";
-      const cloudModified = cloudItem.updated_at || "";
-      const diff = this.computeDiff(localData, cloudItem);
-      if (this.hasDiff(diff) && localModified) {
-        conflicts.push({
-          subjectId,
-          name_cn: cloudItem.subject.name_cn || "",
-          name: cloudItem.subject.name || "",
-          localModified,
-          cloudModified,
-          localData,
-          cloudData: cloudItem,
-          diff,
-          decision: "skip"
-        });
-      }
-    }
-    return conflicts;
-  }
-  /**
-   * 计算差异
-   */
-  computeDiff(local, cloud) {
-    return {
-      rateChanged: local.rate !== cloud.rate,
-      commentChanged: (local.comment || "") !== (cloud.comment || ""),
-      tagsChanged: !this.arraysEqual(local.tags || [], cloud.tags || []),
-      statusChanged: local.type !== cloud.type,
-      localRate: local.rate,
-      cloudRate: cloud.rate,
-      localComment: local.comment,
-      cloudComment: cloud.comment,
-      localTags: local.tags,
-      cloudTags: cloud.tags,
-      localStatus: local.type,
-      cloudStatus: cloud.type
-    };
-  }
-  /**
-   * 检查是否有差异
-   */
-  hasDiff(diff) {
-    return diff.rateChanged || diff.commentChanged || diff.tagsChanged || diff.statusChanged;
-  }
-  /**
-   * 比较数组是否相等
-   */
-  arraysEqual(a, b) {
-    if (a.length !== b.length)
-      return false;
-    return a.every((val, index) => val === b[index]);
-  }
-  /**
-   * 从本地文件提取数据
-   */
-  extractLocalData(file) {
-    var _a;
-    try {
-      const frontmatter = getFrontmatterRecord((_a = this.app.metadataCache.getFileCache(file)) == null ? void 0 : _a.frontmatter);
-      if (!frontmatter)
-        return null;
-      const title = getFrontmatterString(frontmatter, "title") || "";
-      const nameCn = getFrontmatterString(frontmatter, "name_cn") || "";
-      const rate = getFrontmatterNumber(frontmatter, "my_rate");
-      const comment = getFrontmatterString(frontmatter, "comment");
-      const status = getFrontmatterNumber(frontmatter, "status");
-      const updatedAt = getFrontmatterString(frontmatter, "updated_at") || file.stat.mtime.toString();
-      const tags = getFrontmatterStringArray(frontmatter, "tags");
-      return {
-        path: file.path,
-        name_cn: title || nameCn,
-        rate,
-        comment,
-        tags,
-        type: status,
-        updated_at: updatedAt
-      };
-    } catch (error) {
-      console.error("[ConflictDetector] \u63D0\u53D6\u672C\u5730\u6570\u636E\u5931\u8D25:", error);
-      return null;
-    }
-  }
-};
-
-// src/utils/mobile.ts
-function isMobile() {
-  return activeWindow.matchMedia("(max-width: 767px)").matches;
-}
-
-// src/document/localSubjectSnapshotSession.ts
-var import_obsidian24 = require("obsidian");
-var LocalSubjectSnapshotSession = class {
-  constructor(app, documentService) {
-    this.snapshotsById = /* @__PURE__ */ new Map();
-    this.subjectIdByPath = /* @__PURE__ */ new Map();
-    this.warmupGeneration = 0;
-    this.warmupPromise = null;
-    this.app = app;
-    this.documentService = documentService;
-  }
-  get currentWarmup() {
-    return this.warmupPromise;
-  }
-  cancelWarmup() {
-    this.warmupGeneration++;
-    this.warmupPromise = null;
-  }
-  clear() {
-    this.snapshotsById.clear();
-    this.subjectIdByPath.clear();
-  }
-  warm(collections, localSubjects, options = {}) {
-    var _a;
-    const generation = ++this.warmupGeneration;
-    this.clear();
-    if (collections.length === 0) {
-      this.warmupPromise = null;
-      return null;
-    }
-    this.warmupPromise = this.mapWithConcurrency(collections, (_a = options.concurrency) != null ? _a : 4, async (collection) => {
-      if (generation !== this.warmupGeneration) {
-        return;
-      }
-      const localInfo = localSubjects.get(collection.subject_id);
-      if (!localInfo) {
-        return;
-      }
-      const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-      if (!(file instanceof import_obsidian24.TFile)) {
-        return;
-      }
-      const snapshot = await this.documentService.readSnapshot(file, collection.subject_type);
-      if (generation !== this.warmupGeneration) {
-        return;
-      }
-      this.set(collection.subject_id, {
-        ...snapshot,
-        file,
-        path: localInfo.path,
-        mtime: file.stat.mtime
-      });
-    }).then(() => {
-      var _a2;
-      if (generation === this.warmupGeneration) {
-        (_a2 = options.onComplete) == null ? void 0 : _a2.call(options, this.snapshotsById.size);
-      }
-    }).catch((error) => {
-      var _a2;
-      if (generation === this.warmupGeneration) {
-        (_a2 = options.onError) == null ? void 0 : _a2.call(options, error);
-      }
-    });
-    return this.warmupPromise;
-  }
-  get(subjectId, path, mtime) {
-    const snapshot = this.snapshotsById.get(subjectId);
-    if (!snapshot) {
-      return null;
-    }
-    if (snapshot.path !== path || snapshot.mtime !== mtime) {
-      this.delete(subjectId);
-      return null;
-    }
-    return snapshot;
-  }
-  getByPath(path) {
-    const subjectId = this.subjectIdByPath.get(path);
-    if (subjectId === void 0) {
-      return null;
-    }
-    const snapshot = this.snapshotsById.get(subjectId);
-    if (!snapshot || snapshot.path !== path) {
-      this.delete(subjectId);
-      return null;
-    }
-    const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian24.TFile) || snapshot.mtime !== file.stat.mtime) {
-      this.delete(subjectId);
-      return null;
-    }
-    return snapshot;
-  }
-  invalidatePath(path) {
-    const subjectId = this.subjectIdByPath.get(path);
-    if (subjectId !== void 0) {
-      this.delete(subjectId);
-    }
-  }
-  set(subjectId, snapshot) {
-    this.snapshotsById.set(subjectId, snapshot);
-    if (snapshot.path) {
-      this.subjectIdByPath.set(snapshot.path, subjectId);
-    }
-  }
-  delete(subjectId) {
-    const snapshot = this.snapshotsById.get(subjectId);
-    if (snapshot == null ? void 0 : snapshot.path) {
-      this.subjectIdByPath.delete(snapshot.path);
-    }
-    this.snapshotsById.delete(subjectId);
-  }
-  async mapWithConcurrency(items, concurrency, task) {
-    const results = new Array(items.length);
-    let nextIndex = 0;
-    const workerCount = Math.max(1, Math.min(concurrency, items.length));
-    const workers = Array.from({ length: workerCount }, async () => {
-      while (nextIndex < items.length) {
-        const currentIndex = nextIndex++;
-        results[currentIndex] = await task(items[currentIndex], currentIndex);
-      }
-    });
-    await Promise.all(workers);
-    return results;
-  }
-};
-
-// src/sync/platformSyncLogic.ts
-function createCloudPlatformFieldDiff(key, label, localValue, cloudValue) {
-  return {
-    key,
-    label,
-    localValue,
-    cloudValue,
-    hasDiff: true,
-    decision: "cloud"
-  };
-}
-
-// src/sync/statusSyncBackgroundLoader.ts
-var StatusSyncBackgroundLoader = class {
-  constructor(client, episodeStatusManager) {
-    this.client = client;
-    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
-  }
-  async loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency = 4) {
-    const context = {
-      subjectCache: /* @__PURE__ */ new Map(),
-      cloudEpisodeStatusCache: /* @__PURE__ */ new Map(),
-      platformDiffCache: /* @__PURE__ */ new Map()
-    };
-    const candidates = snapshots.filter(
-      (snapshot) => selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus || hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData
-    );
-    let completed = 0;
-    callbacks.updateBackgroundProgress(completed, candidates.length);
-    await this.mapWithConcurrency(candidates, concurrency, async (snapshot) => {
-      if (callbacks.isDisposed()) {
-        return;
-      }
-      const loadingPatch = {};
-      if (selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus) {
-        loadingPatch.episodeStatusLoadState = "loading";
-      }
-      if (hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData) {
-        loadingPatch.platformLoadState = "loading";
-      }
-      callbacks.updateDiff(snapshot.subjectId, loadingPatch);
-      try {
-        const [episodeStatus, platformResult] = await Promise.all([
-          selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? this.buildEpisodeStatusDiff(snapshot, context) : Promise.resolve(null),
-          hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? this.buildPlatformFieldDiffs(snapshot, context, selection) : Promise.resolve(null)
-        ]);
-        if (callbacks.isDisposed()) {
-          return;
-        }
-        const patch = { backgroundError: null };
-        if (episodeStatus) {
-          patch.episodeStatus = episodeStatus;
-          patch.episodeStatusLoadState = "ready";
-        }
-        if (platformResult) {
-          patch.platformFields = platformResult.fields;
-          patch.platformSyncPayload = platformResult.payload;
-          patch.platformLoadState = "ready";
-        }
-        callbacks.updateDiff(snapshot.subjectId, patch);
-      } catch (error) {
-        if (callbacks.isDisposed()) {
-          return;
-        }
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        callbacks.updateDiff(snapshot.subjectId, {
-          episodeStatusLoadState: selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? "failed" : "ready",
-          platformLoadState: hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? "failed" : "ready",
-          backgroundError: errorMessage
-        });
-      } finally {
-        completed++;
-        callbacks.updateBackgroundProgress(completed, candidates.length);
-        onProgress == null ? void 0 : onProgress(completed, candidates.length);
-      }
-    });
-  }
-  async buildPlatformFieldDiffs(snapshot, context, selection) {
-    return this.getOrCreateCachedPromise(
-      context.platformDiffCache,
-      snapshot.subjectId,
-      async () => {
-        const collection = snapshot.collection;
-        if (collection.subject_type !== 2 /* Anime */ && collection.subject_type !== 6 /* Real */ && collection.subject_type !== 1 /* Book */) {
-          return { fields: [] };
-        }
-        if (!snapshot.localSnapshot.shouldLoadPlatformData) {
-          return { fields: [] };
-        }
-        const subject = await this.getOrCreateCachedPromise(
-          context.subjectCache,
-          snapshot.subjectId,
-          () => this.client.getSubject(snapshot.subjectId)
-        );
-        const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
-        const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
-        const fields = [];
-        const localContext = snapshot.localSnapshot.platform;
-        if (collection.subject_type === 2 /* Anime */ || collection.subject_type === 6 /* Real */) {
-          const cloudValue = cloudPayload.episodeCount;
-          if (selection.platform.episodeCount && cloudValue !== void 0 && cloudValue !== null && localContext.episodeCount !== cloudValue) {
-            fields.push(createCloudPlatformFieldDiff(
-              "episodeCount",
-              tn("statusSyncModal", "fieldEpisodeCount"),
-              localContext.episodeCount !== null ? String(localContext.episodeCount) : null,
-              String(cloudValue)
-            ));
-          }
-        }
-        if (collection.subject_type === 1 /* Book */) {
-          const isComic = (parsedInfo.category || "").includes("\u6F2B\u753B") || localContext.chapterCount !== null;
-          if (isComic) {
-            if (selection.platform.chapterCount && cloudPayload.chapterCount !== void 0 && cloudPayload.chapterCount !== null && localContext.chapterCount !== cloudPayload.chapterCount) {
-              fields.push(createCloudPlatformFieldDiff(
-                "chapterCount",
-                tn("statusSyncModal", "fieldChapterCount"),
-                localContext.chapterCount !== null ? String(localContext.chapterCount) : null,
-                String(cloudPayload.chapterCount)
-              ));
-            }
-            if (selection.platform.volumeCount && cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-              fields.push(createCloudPlatformFieldDiff(
-                "volumeCount",
-                tn("statusSyncModal", "fieldVolumeCount"),
-                localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
-                String(cloudPayload.volumeCount)
-              ));
-            }
-          } else if (selection.platform.volumeCount && cloudPayload.volumeCount !== void 0 && cloudPayload.volumeCount !== null && localContext.volumeCount !== cloudPayload.volumeCount) {
-            fields.push(createCloudPlatformFieldDiff(
-              "volumeCount",
-              tn("statusSyncModal", "fieldVolumeCount"),
-              localContext.volumeCount !== null ? String(localContext.volumeCount) : null,
-              String(cloudPayload.volumeCount)
-            ));
-          }
-        }
-        this.appendTextPlatformFieldDiff(
-          fields,
-          selection.platform.start,
-          "start",
-          tn("statusSyncModal", "fieldStart"),
-          localContext.start,
-          cloudPayload.start
-        );
-        this.appendTextPlatformFieldDiff(
-          fields,
-          selection.platform.end,
-          "end",
-          tn("statusSyncModal", "fieldEnd"),
-          localContext.end,
-          cloudPayload.end
-        );
-        this.appendTextPlatformFieldDiff(
-          fields,
-          selection.platform.progress,
-          "progress",
-          tn("statusSyncModal", "fieldProgress"),
-          localContext.progress,
-          cloudPayload.progress
-        );
-        return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
-      }
-    );
-  }
-  buildPlatformSyncPayload(subject, parsedInfo) {
-    const episodeCount = subject.total_episodes || subject.eps || parsedInfo.episode || null;
-    const volumeCount = subject.volumes || parsedInfo.volumes || null;
-    const start = parsedInfo.start || null;
-    const end = parsedInfo.end || null;
-    const progress = parsedInfo.progress || null;
-    return {
-      progress,
-      start,
-      end,
-      episodeCount,
-      chapterCount: parsedInfo.episode || null,
-      volumeCount
-    };
-  }
-  async buildEpisodeStatusDiff(snapshot, context) {
-    if (!this.episodeStatusManager || !snapshot.localSnapshot.shouldLoadEpisodeStatus) {
-      return {
-        localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) : null,
-        cloudValue: null,
-        hasDiff: false,
-        decision: "skip"
-      };
-    }
-    const cloudMap = await this.getOrCreateCachedPromise(
-      context.cloudEpisodeStatusCache,
-      snapshot.subjectId,
-      () => this.episodeStatusManager.getCloudEpisodeStatusMap(snapshot.subjectId)
-    );
-    const localValue = this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap);
-    const cloudValue = this.episodeStatusManager.summarizeEpisodeStatuses(cloudMap);
-    const hasDiff = this.episodeStatusManager.serializeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) !== this.episodeStatusManager.serializeEpisodeStatuses(cloudMap);
-    return {
-      localValue,
-      cloudValue,
-      hasDiff,
-      decision: "skip"
-    };
-  }
-  appendTextPlatformFieldDiff(fields, enabled, key, label, localValue, cloudValue) {
-    if (!enabled) {
-      return;
-    }
-    const normalizedCloudValue = cloudValue != null ? cloudValue : null;
-    if ((localValue != null ? localValue : null) === normalizedCloudValue) {
-      return;
-    }
-    fields.push(createCloudPlatformFieldDiff(
-      key,
-      label,
-      localValue,
-      normalizedCloudValue
-    ));
-  }
-  async mapWithConcurrency(items, concurrency, task) {
-    const results = new Array(items.length);
-    let nextIndex = 0;
-    const workerCount = Math.max(1, Math.min(concurrency, items.length));
-    const workers = Array.from({ length: workerCount }, async () => {
-      while (nextIndex < items.length) {
-        const currentIndex = nextIndex++;
-        results[currentIndex] = await task(items[currentIndex], currentIndex);
-      }
-    });
-    await Promise.all(workers);
-    return results;
-  }
-  getOrCreateCachedPromise(cache, key, factory) {
-    const existing = cache.get(key);
-    if (existing) {
-      return existing;
-    }
-    const promise = factory().catch((error) => {
-      cache.delete(key);
-      throw error;
-    });
-    cache.set(key, promise);
-    return promise;
-  }
-};
-
-// src/sync/statusSyncExecutor.ts
-var import_obsidian25 = require("obsidian");
-var StatusSyncExecutor = class {
-  constructor(app, client, documentService, episodeStatusManager) {
-    this.app = app;
-    this.client = client;
-    this.documentService = documentService;
-    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
-  }
-  async executeSync(diffs) {
-    let successCount = 0;
-    let failCount = 0;
-    const actionableDiffs = diffs.filter((diff) => diff.hasAnyDiff);
-    for (const diff of actionableDiffs) {
-      try {
-        await this.syncItem(diff);
-        successCount++;
-      } catch (error) {
-        failCount++;
-        console.error(`[Bangumi Sync] \u540C\u6B65\u5931\u8D25: ${diff.name_cn}`, error);
-      }
-    }
-    return { successCount, failCount };
-  }
-  async syncItem(diff) {
-    var _a, _b, _c, _d;
-    const file = this.app.vault.getAbstractFileByPath(diff.localPath);
-    if (!(file instanceof import_obsidian25.TFile)) {
-      throw new Error("File not found");
-    }
-    const originalContent = await this.app.vault.read(file);
-    let content = originalContent;
-    const cloudUpdates = {};
-    if (diff.rate.hasDiff && diff.rate.decision !== "skip") {
-      if (diff.rate.decision === "local") {
-        cloudUpdates.rate = diff.rate.localValue || void 0;
-      } else if (diff.rate.decision === "cloud") {
-        content = diff.rate.cloudValue ? this.documentService.updateRate(content, diff.rate.cloudValue) : this.documentService.removeRate(content);
-      }
-    }
-    if (diff.comment.hasDiff && diff.comment.decision !== "skip") {
-      if (diff.comment.decision === "local") {
-        cloudUpdates.comment = diff.comment.localValue || "";
-      } else if (diff.comment.decision === "cloud") {
-        content = diff.comment.cloudValue ? this.documentService.updateComment(content, diff.comment.cloudValue) : this.documentService.removeComment(content);
-      }
-    }
-    if (diff.tags.hasDiff && diff.tags.decision !== "skip") {
-      if (diff.tags.decision === "local") {
-        cloudUpdates.tags = this.documentService.normalizeTags(diff.tags.localValue);
-      } else if (diff.tags.decision === "cloud") {
-        content = diff.tags.cloudValue && diff.tags.cloudValue.length > 0 ? this.documentService.updateTags(content, this.documentService.normalizeTags(diff.tags.cloudValue)) : this.documentService.removeTags(content);
-      } else if (diff.tags.decision === "merge") {
-        const mergedTags = /* @__PURE__ */ new Set();
-        (_a = diff.tags.localValue) == null ? void 0 : _a.forEach((tag) => mergedTags.add(tag));
-        (_b = diff.tags.cloudValue) == null ? void 0 : _b.forEach((tag) => mergedTags.add(tag));
-        const mergedArray = this.documentService.normalizeTags(Array.from(mergedTags));
-        content = this.documentService.updateTags(content, mergedArray);
-        cloudUpdates.tags = mergedArray;
-      }
-    }
-    if (diff.status.hasDiff && diff.status.decision !== "skip") {
-      if (diff.status.decision === "local") {
-        const localStatus = this.toValidCollectionType(diff.status.localValue);
-        if (localStatus !== null) {
-          cloudUpdates.type = localStatus;
-        }
-      } else if (diff.status.decision === "cloud") {
-        content = this.documentService.updateStatus(content, diff.status.cloudValue, diff.statusFieldName);
-      }
-    }
-    if (Object.keys(cloudUpdates).length > 0) {
-      const fallbackType = this.toValidCollectionType(diff.collection.type);
-      const finalUpdates = {
-        ...cloudUpdates,
-        type: (_d = (_c = cloudUpdates.type) != null ? _c : fallbackType) != null ? _d : void 0
-      };
-      await this.syncCloudUpdates(diff.subjectId, finalUpdates);
-    }
-    if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== "skip" && this.episodeStatusManager) {
-      if (content !== originalContent) {
-        await this.app.vault.process(file, () => content);
-        content = await this.app.vault.read(file);
-      }
-      if (diff.episodeStatus.decision === "local") {
-        const result = await this.episodeStatusManager.syncStatusToCloud(file);
-        if (result.failed > 0 && result.success === 0) {
-          throw new Error(`\u5355\u96C6\u72B6\u6001\u540C\u6B65\u5230\u4E91\u7AEF\u5168\u90E8\u5931\u8D25 (${result.failed}\u96C6)`);
-        }
-      } else if (diff.episodeStatus.decision === "cloud") {
-        const synced = await this.episodeStatusManager.syncStatusFromCloud(file, diff.subjectId);
-        if (!synced) {
-          throw new Error("\u5355\u96C6\u72B6\u6001\u4ECE\u4E91\u7AEF\u540C\u6B65\u5931\u8D25");
-        }
-        content = await this.app.vault.read(file);
-      }
-    }
-    if (diff.hasPlatformDiff && diff.platformFields.some((field) => field.hasDiff && field.decision === "cloud")) {
-      content = await this.applyPlatformSync(diff, file, content);
-    }
-    if (content !== originalContent) {
-      await this.app.vault.process(file, () => content);
-    }
-  }
-  async applyPlatformSync(diff, file, content) {
-    var _a;
-    if (!diff.platformSyncPayload) {
-      return content;
-    }
-    const selectedPayload = this.buildSelectedPlatformSyncPayload(diff);
-    const nextContent = this.documentService.updatePlatformMetadata(content, selectedPayload);
-    if (diff.collection.subject_type !== 2 /* Anime */ && diff.collection.subject_type !== 6 /* Real */) {
-      return nextContent;
-    }
-    const shouldRefreshEpisodeSection = diff.platformFields.some(
-      (field) => field.decision === "cloud" && field.key === "episodeCount"
-    );
-    if (!shouldRefreshEpisodeSection) {
-      return nextContent;
-    }
-    const episodesResult = await this.client.getEpisodes(diff.subjectId);
-    const episodes = (_a = episodesResult == null ? void 0 : episodesResult.data) != null ? _a : [];
-    if (episodes.length === 0) {
-      return nextContent;
-    }
-    const statusMap = /* @__PURE__ */ new Map();
-    if (this.episodeStatusManager) {
-      const localStatuses = await this.episodeStatusManager.getEpisodeStatusMap(file);
-      for (const entry of localStatuses.values()) {
-        statusMap.set(entry.episodeId, entry.status);
-      }
-    }
-    const renderedEpisodes = parseEpisodes(episodes, statusMap);
-    if (!renderedEpisodes) {
-      return nextContent;
-    }
-    return this.documentService.updateEpisodeSection(nextContent, renderedEpisodes);
-  }
-  buildSelectedPlatformSyncPayload(diff) {
-    var _a, _b, _c, _d, _e, _f;
-    const payload = {};
-    for (const field of diff.platformFields) {
-      if (!field.hasDiff || field.decision !== "cloud" || !diff.platformSyncPayload) {
-        continue;
-      }
-      switch (field.key) {
-        case "episodeCount":
-          payload.episodeCount = (_a = diff.platformSyncPayload.episodeCount) != null ? _a : null;
-          break;
-        case "chapterCount":
-          payload.chapterCount = (_b = diff.platformSyncPayload.chapterCount) != null ? _b : null;
-          break;
-        case "volumeCount":
-          payload.volumeCount = (_c = diff.platformSyncPayload.volumeCount) != null ? _c : null;
-          break;
-        case "start":
-          payload.start = (_d = diff.platformSyncPayload.start) != null ? _d : null;
-          break;
-        case "end":
-          payload.end = (_e = diff.platformSyncPayload.end) != null ? _e : null;
-          break;
-        case "progress":
-          payload.progress = (_f = diff.platformSyncPayload.progress) != null ? _f : null;
-          break;
-      }
-    }
-    return payload;
-  }
-  toValidCollectionType(value) {
-    if (value === 1 /* Wish */ || value === 2 /* Done */ || value === 3 /* Doing */ || value === 4 /* OnHold */ || value === 5 /* Dropped */) {
-      return value;
-    }
-    return null;
-  }
-  async syncCloudUpdates(subjectId, updates) {
-    const hasUpdates = Object.values(updates).some((value) => value !== void 0);
-    if (!hasUpdates) {
-      return;
-    }
-    try {
-      await this.client.updateCollection(subjectId, updates);
-    } catch (error) {
-      console.error("[Bangumi Sync] \u4E91\u7AEF\u5B57\u6BB5\u540C\u6B65\u5931\u8D25:", {
-        subjectId,
-        payload: updates,
-        error
-      });
-      throw new Error("\u4E91\u7AEF\u7528\u6237\u6570\u636E\u66F4\u65B0\u5931\u8D25");
-    }
-  }
-};
-
-// src/sync/statusSyncSnapshotBuilder.ts
-var import_obsidian26 = require("obsidian");
-var StatusSyncSnapshotBuilder = class {
-  constructor(app, documentService, episodeStatusManager) {
-    this.app = app;
-    this.documentService = documentService;
-    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
-  }
-  async buildDiffSession(options) {
-    var _a;
-    const snapshots = (await this.mapWithConcurrency(
-      options.collections,
-      (_a = options.concurrency) != null ? _a : 6,
-      async (collection, index) => {
-        var _a2;
-        (_a2 = options.onProgress) == null ? void 0 : _a2.call(options, index + 1, options.collections.length);
-        return this.buildSnapshot(collection, options.localSubjects, options.getCachedSnapshot, options.onPrefetchHit, options.onPrefetchMiss);
-      }
-    )).filter((snapshot) => snapshot !== null);
-    const diffs = snapshots.map((snapshot) => this.buildStatusSyncDiff(snapshot, options.selection)).filter((diff) => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
-    return { snapshots, diffs };
-  }
-  async buildSnapshot(collection, localSubjects, getCachedSnapshot, onPrefetchHit, onPrefetchMiss) {
-    var _a;
-    const localInfo = localSubjects.get(collection.subject_id);
-    if (!localInfo) {
-      return null;
-    }
-    const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-    if (!(file instanceof import_obsidian26.TFile)) {
-      return null;
-    }
-    const cachedSnapshot = (_a = getCachedSnapshot == null ? void 0 : getCachedSnapshot(collection.subject_id, localInfo.path, file.stat.mtime)) != null ? _a : null;
-    if (cachedSnapshot) {
-      onPrefetchHit == null ? void 0 : onPrefetchHit();
-      return {
-        subjectId: collection.subject_id,
-        collection,
-        localInfo,
-        file,
-        localSnapshot: {
-          ...cachedSnapshot,
-          file,
-          path: localInfo.path,
-          mtime: file.stat.mtime,
-          episodeStatusMap: new Map(cachedSnapshot.episodeStatusMap)
-        }
-      };
-    }
-    onPrefetchMiss == null ? void 0 : onPrefetchMiss();
-    const localSnapshot = await this.documentService.readSnapshot(file, collection.subject_type);
-    return {
-      subjectId: collection.subject_id,
-      collection,
-      localInfo,
-      file,
-      localSnapshot
-    };
-  }
-  buildStatusSyncDiff(snapshot, selection) {
-    const { collection, localInfo } = snapshot;
-    const userDiffs = buildUserStatusSyncDiff({
-      localRate: snapshot.localSnapshot.user.rate,
-      cloudRate: collection.rate || null,
-      localComment: snapshot.localSnapshot.user.comment,
-      cloudComment: collection.comment || null,
-      localTags: snapshot.localSnapshot.user.tags,
-      cloudTags: collection.tags && collection.tags.length > 0 ? this.documentService.normalizeTags(collection.tags) : null,
-      localStatus: snapshot.localSnapshot.user.status,
-      cloudStatus: collection.type || null
-    });
-    const scope = getStatusSyncScope(selection);
-    const episodeStatus = {
-      localValue: this.episodeStatusManager ? this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) : null,
-      cloudValue: null,
-      hasDiff: false,
-      decision: "skip"
-    };
-    const rateDiff = {
-      ...userDiffs.rate,
-      hasDiff: selection.user.rate ? userDiffs.rate.hasDiff : false,
-      decision: "skip"
-    };
-    const commentDiff = {
-      ...userDiffs.comment,
-      hasDiff: selection.user.comment ? userDiffs.comment.hasDiff : false,
-      decision: "skip"
-    };
-    const tagsDiff = {
-      ...userDiffs.tags,
-      hasDiff: selection.user.tags ? userDiffs.tags.hasDiff : false,
-      decision: "skip"
-    };
-    const statusDiff = {
-      ...userDiffs.status,
-      hasDiff: selection.user.status ? userDiffs.status.hasDiff : false,
-      decision: "skip"
-    };
-    const hasUserDiff = hasSelectedUserFields(selection) && (rateDiff.hasDiff || commentDiff.hasDiff || tagsDiff.hasDiff || statusDiff.hasDiff);
-    return {
-      scope,
-      subjectId: collection.subject_id,
-      name_cn: collection.subject.name_cn || "",
-      name: collection.subject.name || "",
-      localPath: localInfo.path,
-      collection,
-      statusFieldName: snapshot.localSnapshot.user.statusFieldName,
-      rate: rateDiff,
-      comment: commentDiff,
-      tags: tagsDiff,
-      status: statusDiff,
-      episodeStatus,
-      platformFields: [],
-      hasUserDiff,
-      hasPlatformDiff: false,
-      hasAnyDiff: hasUserDiff,
-      expanded: false,
-      episodeStatusLoadState: selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? "pending" : "ready",
-      platformLoadState: hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? "pending" : "ready",
-      backgroundError: null
-    };
-  }
-  hasPendingBackgroundLoad(diff) {
-    return diff.episodeStatusLoadState !== "ready" || diff.platformLoadState !== "ready";
-  }
-  async mapWithConcurrency(items, concurrency, task) {
-    const results = new Array(items.length);
-    let nextIndex = 0;
-    const workerCount = Math.max(1, Math.min(concurrency, items.length));
-    const workers = Array.from({ length: workerCount }, async () => {
-      while (nextIndex < items.length) {
-        const currentIndex = nextIndex++;
-        results[currentIndex] = await task(items[currentIndex], currentIndex);
-      }
-    });
-    await Promise.all(workers);
-    return results;
-  }
-};
-
-// src/sync/statusSyncService.ts
-var StatusSyncService = class {
-  constructor(app, client, documentService, episodeStatusManager) {
-    this.snapshotBuilder = new StatusSyncSnapshotBuilder(app, documentService, episodeStatusManager);
-    this.backgroundLoader = new StatusSyncBackgroundLoader(client, episodeStatusManager);
-    this.executor = new StatusSyncExecutor(app, client, documentService, episodeStatusManager);
-  }
-  async buildDiffSession(options) {
-    return await this.snapshotBuilder.buildDiffSession(options);
-  }
-  async loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency = 4) {
-    await this.backgroundLoader.loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency);
-  }
-  applyDecisionPreset(diffs, decision) {
-    if (decision === "smart") {
-      this.applySmartMerge(diffs);
-      return;
-    }
-    diffs.forEach((diff) => {
-      diff.rate.decision = decision;
-      diff.comment.decision = decision;
-      diff.tags.decision = decision;
-      diff.status.decision = decision;
-      diff.episodeStatus.decision = decision === "merge" ? "skip" : decision;
-      diff.platformFields.forEach((field) => {
-        field.decision = decision === "cloud" || decision === "merge" ? "cloud" : "skip";
-      });
-    });
-  }
-  async executeSync(diffs) {
-    return await this.executor.executeSync(diffs);
-  }
-  applySmartMerge(diffs) {
-    diffs.forEach((diff) => {
-      if (diff.rate.hasDiff) {
-        diff.rate.decision = diff.rate.localValue && !diff.rate.cloudValue ? "local" : !diff.rate.localValue && diff.rate.cloudValue ? "cloud" : "local";
-      }
-      if (diff.comment.hasDiff) {
-        if (diff.comment.localValue && !diff.comment.cloudValue) {
-          diff.comment.decision = "local";
-        } else if (!diff.comment.localValue && diff.comment.cloudValue) {
-          diff.comment.decision = "cloud";
-        } else if (diff.comment.localValue && diff.comment.cloudValue) {
-          diff.comment.decision = diff.comment.localValue.length >= diff.comment.cloudValue.length ? "local" : "cloud";
-        }
-      }
-      if (diff.tags.hasDiff) {
-        diff.tags.decision = "merge";
-      }
-      if (diff.status.hasDiff) {
-        diff.status.decision = diff.status.localValue && !diff.status.cloudValue ? "local" : !diff.status.localValue && diff.status.cloudValue ? "cloud" : "local";
-      }
-      if (diff.episodeStatus.hasDiff) {
-        diff.episodeStatus.decision = diff.episodeStatus.localValue && !diff.episodeStatus.cloudValue ? "local" : !diff.episodeStatus.localValue && diff.episodeStatus.cloudValue ? "cloud" : "local";
-      }
-      diff.platformFields.forEach((field) => {
-        if (field.hasDiff) {
-          field.decision = "cloud";
-        }
-      });
-    });
-  }
-};
-
-// src/panel/controlPanel.ts
-var ControlPanel = class extends import_obsidian27.Modal {
-  constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, onOpenSyncOptions, onBatchDownloadCovers, onScanAndLinkRelated, subjectNoteManager, episodeStatusManager, autoSyncSelection) {
-    super(app);
-    // 分页
-    this.currentPage = 1;
-    this.pageSize = 50;
-    // 键盘导航
-    this.focusedRowIndex = -1;
-    this.tableRows = [];
-    // 滑动关闭（移动端）
-    this.touchStartY = 0;
-    this.touchCurrentY = 0;
-    this.swipeEnabled = false;
-    this.touchStartHandler = null;
-    this.touchMoveHandler = null;
-    this.touchEndHandler = null;
-    this.mobileShortLabels = getLocale() === "zh-CN" ? {
-      refresh: "\u5237\u65B0",
-      syncSelected: "\u540C\u6B65",
-      forceSync: "\u5F3A\u540C",
-      deleteSelected: "\u5220\u9664",
-      batchEdit: "\u6279\u7F16",
-      syncStatus: "\u72B6\u6001",
-      syncCollections: "\u6536\u85CF",
-      scanAndLinkRelated: "\u5173\u8054",
-      batchDownloadCovers: "\u5C01\u9762",
-      undo: "\u64A4\u9500",
-      more: "\u66F4\u591A",
-      search: "\u641C\u7D22"
-    } : {
-      refresh: "Refresh",
-      syncSelected: "Sync",
-      forceSync: "Force",
-      deleteSelected: "Delete",
-      batchEdit: "Batch",
-      syncStatus: "Status",
-      syncCollections: "Library",
-      scanAndLinkRelated: "Links",
-      batchDownloadCovers: "Cover",
-      undo: "Undo",
-      more: "More",
-      search: "Search"
-    };
-    this.lastStatusSyncPerf = null;
-    this.settings = settings;
-    this.syncManager = syncManager;
-    this.subjectNoteManager = subjectNoteManager != null ? subjectNoteManager : null;
-    this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
-    this.onFiltersChange = onFiltersChange;
-    this.cachedData = cachedData;
-    this.onCacheUpdate = onCacheUpdate;
-    this.onOpenSyncOptions = onOpenSyncOptions;
-    this.onBatchDownloadCovers = onBatchDownloadCovers;
-    this.onScanAndLinkRelated = onScanAndLinkRelated;
-    this.autoSyncSelection = autoSyncSelection != null ? autoSyncSelection : null;
-    this.client = new BangumiClient(settings.accessToken);
-    this.incrementalSync = new IncrementalSync(app);
-    this.documentService = new SubjectDocumentService(app, this.episodeStatusManager);
-    this.subjectSnapshotSession = new LocalSubjectSnapshotSession(app, this.documentService);
-    this.statusSyncService = new StatusSyncService(app, this.client, this.documentService, this.episodeStatusManager);
-    this.frontmatterEditor = new FrontmatterEditor(app);
-    this.conflictDetector = new ConflictDetector(app);
-    this.filters = { ...DEFAULT_PANEL_FILTERS, ...settings.panelFilters };
-    this.state = {
-      collections: (cachedData == null ? void 0 : cachedData.collections) || [],
-      localSubjects: (cachedData == null ? void 0 : cachedData.localSubjects) instanceof Map ? cachedData.localSubjects : /* @__PURE__ */ new Map(),
-      selectedIds: /* @__PURE__ */ new Set(),
-      loading: false,
-      loadingProgress: { current: 0, total: 0 },
-      error: null
-    };
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("bangumi-control-panel");
-    contentEl.createEl("h2", { text: tn("controlPanel", "title") });
-    this.filterBarEl = contentEl.createDiv({ cls: "bangumi-panel-filter-bar" });
-    this.renderFilterBar();
-    this.actionBarEl = contentEl.createDiv({ cls: "bangumi-panel-action-bar" });
-    this.renderActionBar();
-    this.tableEl = contentEl.createDiv({ cls: "bangumi-panel-table" });
-    this.footerBarEl = contentEl.createDiv({ cls: "bangumi-panel-footer-bar" });
-    this.statusEl = this.footerBarEl.createDiv({ cls: "bangumi-panel-status" });
-    this.paginationEl = this.footerBarEl.createDiv({ cls: "bangumi-panel-pagination" });
-    this.tableEl.setAttribute("tabindex", "0");
-    this.tableEl.addEventListener("keydown", (e) => this.handleKeyDown(e));
-    if (this.cachedData && this.cachedData.collections.length > 0) {
-      this.renderStatus(`${tn("controlPanel", "cachedDataLoaded")} ${this.state.collections.length}`);
-      this.applyFilters();
-      this.startUserDataPrefetch();
-      this.triggerAutoSyncStatus();
-    } else {
-      void this.loadData();
-    }
-    this.setupSwipeToClose();
-  }
-  onClose() {
-    this.subjectSnapshotSession.cancelWarmup();
-    if (this.touchStartHandler) {
-      this.contentEl.removeEventListener("touchstart", this.touchStartHandler);
-    }
-    if (this.touchMoveHandler) {
-      this.contentEl.removeEventListener("touchmove", this.touchMoveHandler);
-    }
-    if (this.touchEndHandler) {
-      this.contentEl.removeEventListener("touchend", this.touchEndHandler);
-    }
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-  /**
-   * 渲染筛选栏
-   */
-  renderFilterBar() {
-    this.filterBarEl.empty();
-    this.filterBarEl.addClass("bangumi-panel-toolbar");
-    const filterGroup = this.filterBarEl.createDiv({ cls: "bangumi-toolbar-group bangumi-toolbar-group-filters" });
-    const typeSelect = filterGroup.createEl("select", { cls: "bangumi-filter-select" });
-    typeSelect.createEl("option", { value: "all", text: tn("controlPanel", "allTypes") });
-    Object.values(SubjectType).forEach((type) => {
-      if (typeof type === "number") {
-        const option = typeSelect.createEl("option", {
-          value: String(type),
-          text: getSubjectTypeName(type)
-        });
-        if (this.filters.subjectType === type) {
-          option.selected = true;
-        }
-      }
-    });
-    typeSelect.addEventListener("change", () => {
-      this.filters.subjectType = typeSelect.value === "all" ? "all" : parseInt(typeSelect.value);
-      this.onFiltersChange(this.filters);
-      this.applyFilters();
-    });
-    const statusSelect = filterGroup.createEl("select", { cls: "bangumi-filter-select" });
-    statusSelect.createEl("option", { value: "all", text: tn("controlPanel", "allStatus") });
-    Object.values(CollectionType).forEach((type) => {
-      if (typeof type === "number") {
-        const option = statusSelect.createEl("option", {
-          value: String(type),
-          text: getCollectionTypeName(type)
-        });
-        if (this.filters.collectionType === type) {
-          option.selected = true;
-        }
-      }
-    });
-    statusSelect.addEventListener("change", () => {
-      this.filters.collectionType = statusSelect.value === "all" ? "all" : parseInt(statusSelect.value);
-      this.onFiltersChange(this.filters);
-      this.applyFilters();
-    });
-    const syncSelect = filterGroup.createEl("select", { cls: "bangumi-filter-select" });
-    syncSelect.createEl("option", { value: "all", text: tn("controlPanel", "allSyncStatus") });
-    syncSelect.createEl("option", { value: "synced", text: tn("controlPanel", "synced") });
-    syncSelect.createEl("option", { value: "unsynced", text: tn("controlPanel", "unsynced") });
-    syncSelect.value = this.filters.syncStatus;
-    syncSelect.addEventListener("change", () => {
-      this.filters.syncStatus = syncSelect.value;
-      this.onFiltersChange(this.filters);
-      this.applyFilters();
-    });
-    const sortByWrapper = filterGroup.createDiv({ cls: "bangumi-sort-field" });
-    sortByWrapper.createEl("label", { text: tn("controlPanel", "sortBy"), cls: "bangumi-sort-label" });
-    this.sortBySelect = sortByWrapper.createEl("select", { cls: "bangumi-filter-select bangumi-sort-select" });
-    this.sortBySelect.createEl("option", { value: "default", text: tn("controlPanel", "sortDefault") });
-    this.sortBySelect.createEl("option", { value: "time", text: tn("controlPanel", "sortTime") });
-    this.sortBySelect.createEl("option", { value: "title", text: tn("controlPanel", "sortTitle") });
-    this.sortBySelect.createEl("option", { value: "status", text: tn("controlPanel", "sortStatus") });
-    this.sortBySelect.createEl("option", { value: "rating", text: tn("controlPanel", "sortRating") });
-    this.sortBySelect.value = this.filters.sortBy;
-    this.sortBySelect.addEventListener("change", () => {
-      this.filters.sortBy = this.sortBySelect.value;
-      this.onFiltersChange(this.filters);
-      this.applyFilters();
-    });
-    const sortDirectionWrapper = filterGroup.createDiv({ cls: "bangumi-sort-field" });
-    sortDirectionWrapper.createEl("label", { text: tn("controlPanel", "sortDirection"), cls: "bangumi-sort-label" });
-    this.sortDirectionSelect = sortDirectionWrapper.createEl("select", { cls: "bangumi-filter-select bangumi-sort-select" });
-    this.sortDirectionSelect.createEl("option", { value: "desc", text: tn("controlPanel", "sortDesc") });
-    this.sortDirectionSelect.createEl("option", { value: "asc", text: tn("controlPanel", "sortAsc") });
-    this.sortDirectionSelect.value = this.filters.sortDirection;
-    this.sortDirectionSelect.addEventListener("change", () => {
-      this.filters.sortDirection = this.sortDirectionSelect.value;
-      this.onFiltersChange(this.filters);
-      this.applyFilters();
-    });
-    const searchInput = filterGroup.createEl("input", {
-      type: "text",
-      placeholder: tn("controlPanel", "searchPlaceholder"),
-      cls: "bangumi-filter-search"
-    });
-    searchInput.value = this.filters.keyword;
-    searchInput.addEventListener("input", () => {
-      this.filters.keyword = searchInput.value;
-      this.onFiltersChange(this.filters);
-      this.applyFilters();
-    });
-  }
-  /**
-   * 渲染操作栏
-   */
-  renderActionBar() {
-    this.actionBarEl.empty();
-    const hasSelection = this.state.selectedIds.size > 0;
-    const toolbarActions = this.getToolbarActions(hasSelection);
-    for (const action of toolbarActions) {
-      const button = this.actionBarEl.createEl("button", {
-        text: action.label,
-        cls: `bangumi-action-btn ${action.className}`
-      });
-      this.decorateMobileButton(button, action.mobileLabel, action.label);
-      button.addEventListener("click", (evt) => {
-        action.run(evt);
-      });
-      if (action.key === "undo") {
-        button.disabled = !this.frontmatterEditor.canUndo();
-      }
-    }
-    this.updateSelectedCount();
-  }
-  getToolbarActions(hasSelection) {
-    const actionMap = new Map(this.getActionDescriptors().map((action) => [action.key, action]));
-    const keys = hasSelection ? ["search", "refresh", "syncSelected", "forceSync", "batchEdit", "deleteSelected", "undo", "more"] : ["search", "refresh", "syncStatus", "syncCollections", "scanAndLinkRelated", "batchDownloadCovers", "undo", "more"];
-    return keys.map((key) => actionMap.get(key)).filter((action) => action !== void 0);
-  }
-  getMoreMenuActions(hasSelection) {
-    const toolbarKeys = new Set(this.getToolbarActions(hasSelection).map((action) => action.key));
-    return this.getActionDescriptors().filter(
-      (action) => action.showInMoreMenu && !toolbarKeys.has(action.key)
-    );
-  }
-  getActionDescriptors() {
-    return [
-      {
-        key: "search",
-        label: tn("searchModal", "title"),
-        mobileLabel: this.mobileShortLabels.search,
-        className: "bangumi-action-btn-search",
-        showInDefaultToolbar: true,
-        showInSelectionToolbar: true,
-        showInMoreMenu: false,
-        menuSection: "tools",
-        run: () => this.openSearchModal()
-      },
-      {
-        key: "refresh",
-        label: tn("controlPanel", "refresh"),
-        mobileLabel: this.mobileShortLabels.refresh,
-        className: "bangumi-action-btn-refresh",
-        showInDefaultToolbar: true,
-        showInSelectionToolbar: true,
-        showInMoreMenu: false,
-        menuSection: "tools",
-        run: () => {
-          void this.loadData();
-        }
-      },
-      {
-        key: "syncStatus",
-        label: tn("controlPanel", "syncStatus"),
-        mobileLabel: this.mobileShortLabels.syncStatus,
-        className: "bangumi-action-btn-status",
-        showInDefaultToolbar: true,
-        showInSelectionToolbar: false,
-        showInMoreMenu: true,
-        menuSection: "sync",
-        run: () => this.openStatusSyncScopeSelector()
-      },
-      {
-        key: "syncCollections",
-        label: tn("commands", "syncCollections"),
-        mobileLabel: this.mobileShortLabels.syncCollections,
-        className: "bangumi-action-btn-sync",
-        showInDefaultToolbar: true,
-        showInSelectionToolbar: false,
-        showInMoreMenu: true,
-        menuSection: "sync",
-        run: () => this.onOpenSyncOptions()
-      },
-      {
-        key: "scanAndLinkRelated",
-        label: tn("commands", "scanAndLinkRelated"),
-        mobileLabel: this.mobileShortLabels.scanAndLinkRelated,
-        className: "bangumi-action-btn-tools",
-        showInDefaultToolbar: true,
-        showInSelectionToolbar: false,
-        showInMoreMenu: true,
-        menuSection: "tools",
-        run: () => this.onScanAndLinkRelated()
-      },
-      {
-        key: "batchDownloadCovers",
-        label: tn("commands", "batchDownloadCovers"),
-        mobileLabel: this.mobileShortLabels.batchDownloadCovers,
-        className: "bangumi-action-btn-tools",
-        showInDefaultToolbar: true,
-        showInSelectionToolbar: false,
-        showInMoreMenu: true,
-        menuSection: "tools",
-        run: () => this.onBatchDownloadCovers()
-      },
-      {
-        key: "undo",
-        label: tn("controlPanel", "undo"),
-        mobileLabel: this.mobileShortLabels.undo,
-        className: "bangumi-action-btn-undo",
-        showInDefaultToolbar: true,
-        showInSelectionToolbar: true,
-        showInMoreMenu: false,
-        menuSection: "selection",
-        run: () => {
-          void this.undoLastEdit();
-        }
-      },
-      {
-        key: "syncSelected",
-        label: tn("controlPanel", "syncSelected"),
-        mobileLabel: this.mobileShortLabels.syncSelected,
-        className: "bangumi-action-btn-sync",
-        showInDefaultToolbar: false,
-        showInSelectionToolbar: true,
-        showInMoreMenu: true,
-        menuSection: "selection",
-        requiresSelection: true,
-        run: () => {
-          void this.syncSelected(false);
-        }
-      },
-      {
-        key: "forceSync",
-        label: tn("controlPanel", "forceSync"),
-        mobileLabel: this.mobileShortLabels.forceSync,
-        className: "bangumi-action-btn-force",
-        showInDefaultToolbar: false,
-        showInSelectionToolbar: true,
-        showInMoreMenu: true,
-        menuSection: "selection",
-        requiresSelection: true,
-        run: () => {
-          void this.syncSelected(true);
-        }
-      },
-      {
-        key: "batchEdit",
-        label: tn("controlPanel", "batchEdit"),
-        mobileLabel: this.mobileShortLabels.batchEdit,
-        className: "bangumi-action-btn-batch",
-        showInDefaultToolbar: false,
-        showInSelectionToolbar: true,
-        showInMoreMenu: true,
-        menuSection: "selection",
-        requiresSelection: true,
-        run: () => this.openBatchEditor()
-      },
-      {
-        key: "deleteSelected",
-        label: tn("controlPanel", "deleteSelected"),
-        mobileLabel: this.mobileShortLabels.deleteSelected,
-        className: "bangumi-action-btn-delete",
-        showInDefaultToolbar: false,
-        showInSelectionToolbar: true,
-        showInMoreMenu: true,
-        menuSection: "selection",
-        requiresSelection: true,
-        run: () => this.deleteSelected()
-      },
-      {
-        key: "more",
-        label: tn("controlPanel", "more"),
-        mobileLabel: this.mobileShortLabels.more,
-        className: "bangumi-action-btn-more",
-        showInDefaultToolbar: true,
-        showInSelectionToolbar: true,
-        showInMoreMenu: false,
-        menuSection: "tools",
-        run: (evt) => this.openMoreMenu(evt)
-      }
-    ];
-  }
-  openMoreMenu(evt) {
-    if (!evt) {
-      return;
-    }
-    const hasSelection = this.state.selectedIds.size > 0;
-    const menu = new import_obsidian27.Menu();
-    const actions = this.getMoreMenuActions(hasSelection);
-    const orderedSections = ["sync", "selection", "tools"];
-    let hasRenderedAnyItem = false;
-    for (const section of orderedSections) {
-      const sectionActions = actions.filter((action) => action.menuSection === section);
-      if (sectionActions.length === 0) {
-        continue;
-      }
-      if (hasRenderedAnyItem) {
-        menu.addSeparator();
-      }
-      for (const action of sectionActions) {
-        const disabled = !!action.requiresSelection && !hasSelection;
-        menu.addItem((item) => {
-          item.setTitle(disabled ? `${action.label} (${tn("controlPanel", "selectFirst")})` : action.label).setDisabled(disabled).onClick(() => action.run());
-        });
-      }
-      hasRenderedAnyItem = true;
-    }
-    menu.showAtMouseEvent(evt);
-  }
-  decorateMobileButton(button, shortLabel, fullLabel) {
-    button.dataset.mobileLabel = shortLabel;
-    button.setAttribute("aria-label", fullLabel);
-    button.setAttribute("title", fullLabel);
-  }
-  /**
-   * 加载数据
-   */
-  async loadData() {
-    this.state.loading = true;
-    this.state.error = null;
-    this.renderStatus(tn("controlPanel", "loadingCollections"));
-    this.renderTable();
-    try {
-      const validateResult = await this.client.validateToken();
-      if (!validateResult.valid || !validateResult.username) {
-        throw new Error(validateResult.error || "Token validation failed");
-      }
-      this.renderStatus(tn("controlPanel", "fetchingCollections"));
-      const collections = await this.client.getAllUserCollections(validateResult.username, {
-        onProgress: (current, total) => {
-          this.state.loadingProgress = { current, total };
-          this.renderStatus(`${tn("controlPanel", "fetchingCollections")} (${current}/${total})`);
-        }
-      });
-      this.state.collections = collections;
-      this.renderStatus(tn("controlPanel", "scanningLocal"));
-      const scanPath = this.settings.scanFolderPath || "ACGN";
-      await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
-        this.renderStatus(`${tn("controlPanel", "scanningFiles")} (${current}/${total})`);
-      });
-      this.state.localSubjects = /* @__PURE__ */ new Map();
-      const syncedIds = this.incrementalSync.getSyncedIds();
-      for (const id of syncedIds) {
-        const info = this.incrementalSync.getLocalSubject(id);
-        if (info) {
-          this.state.localSubjects.set(id, info);
-        }
-      }
-      this.state.loading = false;
-      this.renderStatus(`${tn("controlPanel", "loadComplete")}, ${tn("controlPanel", "totalItems")} ${collections.length}, ${tn("controlPanel", "synced")} ${syncedIds.size}`);
-      this.onCacheUpdate({
-        collections: this.state.collections,
-        localSubjects: new Map(this.state.localSubjects)
-      });
-      this.applyFilters();
-      this.startUserDataPrefetch();
-      this.triggerAutoSyncStatus();
-    } catch (error) {
-      this.state.loading = false;
-      this.state.error = error instanceof Error ? error.message : String(error);
-      this.renderStatus(`${tn("controlPanel", "loadFailed")}: ${this.state.error}`);
-    }
-  }
-  /**
-   * 应用筛选
-   */
-  applyFilters() {
-    this.currentPage = 1;
-    this.renderTable();
-    this.renderPagination();
-  }
-  /**
-   * 获取筛选后的数据
-   */
-  getFilteredCollections() {
-    let result = [...this.state.collections];
-    if (this.filters.subjectType !== "all") {
-      result = result.filter((c) => c.subject_type === this.filters.subjectType);
-    }
-    if (this.filters.collectionType !== "all") {
-      result = result.filter((c) => c.type === this.filters.collectionType);
-    }
-    if (this.filters.syncStatus === "synced") {
-      result = result.filter((c) => this.state.localSubjects.has(c.subject_id));
-    } else if (this.filters.syncStatus === "unsynced") {
-      result = result.filter((c) => !this.state.localSubjects.has(c.subject_id));
-    }
-    if (this.filters.keyword.trim()) {
-      const keyword = this.filters.keyword.toLowerCase().trim();
-      result = result.filter(
-        (c) => c.subject.name_cn && c.subject.name_cn.toLowerCase().includes(keyword) || c.subject.name && c.subject.name.toLowerCase().includes(keyword)
-      );
-    }
-    return this.sortCollections(result);
-  }
-  sortCollections(collections) {
-    const { sortBy, sortDirection } = this.filters;
-    if (sortBy === "default") {
-      return collections;
-    }
-    const direction = sortDirection === "asc" ? 1 : -1;
-    return [...collections].sort((left, right) => {
-      let comparison = 0;
-      switch (sortBy) {
-        case "time":
-          comparison = compareTime(left.updated_at, right.updated_at);
-          break;
-        case "title":
-          comparison = compareTitle(
-            left.subject.name_cn || left.subject.name || "",
-            right.subject.name_cn || right.subject.name || ""
-          );
-          break;
-        case "status":
-          comparison = left.type - right.type;
-          break;
-        case "rating":
-          comparison = compareNumber(left.rate, right.rate);
-          if (comparison === 0) {
-            comparison = compareNumber(left.subject.score, right.subject.score);
-          }
-          break;
-      }
-      if (comparison === 0) {
-        comparison = compareTitle(
-          left.subject.name_cn || left.subject.name || "",
-          right.subject.name_cn || right.subject.name || ""
-        );
-      }
-      if (comparison === 0) {
-        comparison = left.subject_id - right.subject_id;
-      }
-      return comparison * direction;
-    });
-  }
-  /**
-   * 渲染状态栏
-   */
-  renderStatus(message) {
-    this.statusEl.empty();
-    this.statusEl.createSpan({ cls: "bangumi-status-message", text: message });
-    this.statusEl.createSpan({
-      cls: "bangumi-selected-count",
-      text: `${tn("controlPanel", "selectedCount")}: ${this.state.selectedIds.size}`
-    });
-    if (this.state.loading) {
-      this.statusEl.addClass("loading");
-    } else {
-      this.statusEl.removeClass("loading");
-    }
-  }
-  /**
-   * 更新状态栏中的已选数量
-   */
-  updateSelectedCount() {
-    if (!this.statusEl)
-      return;
-    const selectedCount = this.statusEl.querySelector(".bangumi-selected-count");
-    if (selectedCount) {
-      selectedCount.setText(`${tn("controlPanel", "selectedCount")}: ${this.state.selectedIds.size}`);
-    }
-  }
-  /**
-   * 渲染表格
-   */
-  renderTable() {
-    this.tableEl.empty();
-    if (this.state.loading) {
-      this.tableEl.createDiv({ cls: "bangumi-table-loading", text: tn("controlPanel", "loading") });
-      return;
-    }
-    if (this.state.error) {
-      this.tableEl.createDiv({ cls: "bangumi-table-error", text: `${tn("controlPanel", "loadFailed")}: ${this.state.error}` });
-      return;
-    }
-    const filteredCollections = this.getFilteredCollections();
-    const startIndex = (this.currentPage - 1) * this.pageSize;
-    const endIndex = startIndex + this.pageSize;
-    const pageCollections = filteredCollections.slice(startIndex, endIndex);
-    if (pageCollections.length === 0) {
-      this.tableEl.createDiv({ cls: "bangumi-table-empty", text: "No items" });
-      return;
-    }
-    const table = this.tableEl.createEl("table", { cls: "bangumi-collection-table" });
-    const thead = table.createEl("thead");
-    const headerRow = thead.createEl("tr");
-    headerRow.createEl("th").createEl("input", { type: "checkbox" }, (checkbox) => {
-      const allSelected = pageCollections.length > 0 && pageCollections.every((c) => this.state.selectedIds.has(c.subject_id));
-      checkbox.checked = allSelected;
-      checkbox.addEventListener("change", () => {
-        if (checkbox.checked) {
-          pageCollections.forEach((c) => this.state.selectedIds.add(c.subject_id));
-        } else {
-          pageCollections.forEach((c) => this.state.selectedIds.delete(c.subject_id));
-        }
-        this.renderTable();
-        this.renderActionBar();
-      });
-    });
-    headerRow.createEl("th", { text: tn("controlPanel", "name") });
-    headerRow.createEl("th", { text: tn("controlPanel", "type") });
-    headerRow.createEl("th", { text: tn("controlPanel", "status") });
-    headerRow.createEl("th", { text: tn("controlPanel", "rating") });
-    headerRow.createEl("th", { text: tn("controlPanel", "comment") });
-    headerRow.createEl("th", { text: tn("controlPanel", "tags") });
-    headerRow.createEl("th", { text: tn("controlPanel", "sync") });
-    headerRow.createEl("th", { text: tn("controlPanel", "action") });
-    const tbody = table.createEl("tbody");
-    this.tableRows = [];
-    pageCollections.forEach((collection) => {
-      const row = tbody.createEl("tr");
-      this.tableRows.push(row);
-      const isSynced = this.state.localSubjects.has(collection.subject_id);
-      const localInfo = this.state.localSubjects.get(collection.subject_id);
-      row.createEl("td").createEl("input", { type: "checkbox" }, (checkbox) => {
-        checkbox.checked = this.state.selectedIds.has(collection.subject_id);
-        checkbox.addEventListener("change", () => {
-          if (checkbox.checked) {
-            this.state.selectedIds.add(collection.subject_id);
-          } else {
-            this.state.selectedIds.delete(collection.subject_id);
-          }
-          this.renderActionBar();
-        });
-      });
-      const nameCell = row.createEl("td", { cls: "bangumi-name-cell" });
-      nameCell.createSpan({ text: collection.subject.name_cn || collection.subject.name || tn("controlPanel", "unknown") });
-      if (!isMobile() && collection.subject.name && collection.subject.name_cn && collection.subject.name !== collection.subject.name_cn) {
-        nameCell.createEl("br");
-        nameCell.createSpan({ cls: "bangumi-name-original", text: collection.subject.name });
-      }
-      row.createEl("td", { text: getTypeLabel(collection.subject_type) });
-      row.createEl("td", { text: getCollectionStatusLabel(collection.type, collection.subject_type) });
-      const ratingCell = row.createEl("td");
-      if (collection.subject.score) {
-        ratingCell.createSpan({ text: `\u2605${collection.subject.score.toFixed(1)}` });
-      }
-      if (collection.rate) {
-        ratingCell.createSpan({ cls: "bangumi-my-rate", text: ` [${collection.rate}]` });
-      }
-      const commentCell = row.createEl("td", { cls: "bangumi-comment-cell" });
-      if (collection.comment) {
-        const maxLen = isMobile() ? collection.comment.length : 20;
-        const displayComment = !isMobile() && collection.comment.length > maxLen ? collection.comment.substring(0, maxLen) + "..." : collection.comment;
-        commentCell.setText(displayComment);
-        if (!isMobile()) {
-          commentCell.setAttribute("title", collection.comment);
-        }
-      }
-      const tagsCell = row.createEl("td", { cls: "bangumi-tags-cell" });
-      if (collection.tags && collection.tags.length > 0) {
-        const displayTags = collection.tags.slice(0, 3).join(", ");
-        tagsCell.setText(displayTags);
-        if (collection.tags.length > 3) {
-          tagsCell.setText(displayTags + "...");
-        }
-      }
-      const syncCell = row.createEl("td", { cls: "bangumi-sync-status" });
-      if (isSynced) {
-        syncCell.createSpan({ text: `\u2713 ${tn("controlPanel", "synced")}`, cls: "synced" });
-      } else {
-        syncCell.createSpan({ text: `\u2717 ${tn("controlPanel", "unsynced")}`, cls: "unsynced" });
-      }
-      if (isMobile()) {
-        const metaCell = row.createEl("td", { cls: "bangumi-mobile-meta" });
-        metaCell.createSpan({ cls: "bangumi-mobile-meta-item", text: getTypeLabel(collection.subject_type) });
-        metaCell.createSpan({ cls: "bangumi-mobile-meta-item", text: getCollectionStatusLabel(collection.type, collection.subject_type) });
-        const ratingSpan = metaCell.createSpan({ cls: "bangumi-mobile-meta-item" });
-        if (collection.subject.score) {
-          ratingSpan.createSpan({ text: `\u2605${collection.subject.score.toFixed(1)}` });
-        }
-        if (collection.rate) {
-          ratingSpan.createSpan({ cls: "bangumi-my-rate", text: ` [${collection.rate}]` });
-        }
-        if (!collection.subject.score && !collection.rate) {
-          ratingSpan.setText("-");
-        }
-        const syncSpan = metaCell.createSpan({ cls: "bangumi-mobile-meta-item" });
-        if (isSynced) {
-          syncSpan.createSpan({ text: `\u2713 ${tn("controlPanel", "synced")}`, cls: "synced" });
-        } else {
-          syncSpan.createSpan({ text: `\u2717 ${tn("controlPanel", "unsynced")}`, cls: "unsynced" });
-        }
-      }
-      const actionCell = row.createEl("td", { cls: "bangumi-action-cell" });
-      if (isSynced && localInfo) {
-        actionCell.createEl("button", { text: tn("controlPanel", "open"), cls: "bangumi-action-btn-small" }, (btn) => {
-          btn.addEventListener("click", () => this.openFile(localInfo.path));
-        });
-        actionCell.createEl("button", { text: tn("controlPanel", "note"), cls: "bangumi-action-btn-small" }, (btn) => {
-          btn.addEventListener("click", () => {
-            void this.openOrCreateNote(localInfo.path);
-          });
-        });
-      }
-    });
-  }
-  async openOrCreateNote(path) {
-    if (!this.subjectNoteManager) {
-      new import_obsidian27.Notice(tn("notices", "noteManagerNotInit"));
-      return;
-    }
-    const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian27.TFile)) {
-      new import_obsidian27.Notice(tn("controlPanel", "fileNotFound"));
-      return;
-    }
-    await this.subjectNoteManager.createOrAppendForLocalFile(file);
-  }
-  /**
-   * 渲染分页
-   */
-  renderPagination() {
-    this.paginationEl.empty();
-    const filteredCollections = this.getFilteredCollections();
-    const totalPages = Math.ceil(filteredCollections.length / this.pageSize);
-    if (totalPages <= 1) {
-      this.footerBarEl.addClass("no-pagination");
-      return;
-    }
-    this.footerBarEl.removeClass("no-pagination");
-    this.paginationEl.createEl("button", { text: tn("controlPanel", "prevPage"), cls: "bangumi-pagination-btn bangumi-pagination-prev" }, (btn) => {
-      btn.disabled = this.currentPage <= 1;
-      btn.addEventListener("click", () => {
-        if (this.currentPage > 1) {
-          this.currentPage--;
-          this.renderTable();
-          this.renderPagination();
-        }
-      });
-    });
-    const info = this.paginationEl.createSpan({ cls: "bangumi-pagination-info" });
-    info.setText(`${tn("controlPanel", "totalItems")} ${filteredCollections.length}, ${this.currentPage}/${totalPages}`);
-    this.paginationEl.createEl("button", { text: tn("controlPanel", "nextPage"), cls: "bangumi-pagination-btn bangumi-pagination-next" }, (btn) => {
-      btn.disabled = this.currentPage >= totalPages;
-      btn.addEventListener("click", () => {
-        if (this.currentPage < totalPages) {
-          this.currentPage++;
-          this.renderTable();
-          this.renderPagination();
-        }
-      });
-    });
-  }
-  /**
-   * 打开文件
-   */
-  openFile(path) {
-    const file = this.app.vault.getAbstractFileByPath(path);
-    if (file instanceof import_obsidian27.TFile) {
-      this.close();
-      void this.app.workspace.openLinkText(file.path, "", true);
-    } else {
-      new import_obsidian27.Notice(tn("controlPanel", "fileNotFound"));
-    }
-  }
-  /**
-   * 同步选中条目
-   * @param overwrite 是否强制覆盖已存在的文件
-   */
-  async syncSelected(overwrite = false) {
-    if (this.state.selectedIds.size === 0) {
-      new import_obsidian27.Notice(tn("controlPanel", "selectToSync"));
-      return;
-    }
-    let selectedCollections;
-    if (overwrite) {
-      selectedCollections = this.state.collections.filter(
-        (c) => this.state.selectedIds.has(c.subject_id)
-      );
-    } else {
-      selectedCollections = this.state.collections.filter(
-        (c) => this.state.selectedIds.has(c.subject_id) && !this.state.localSubjects.has(c.subject_id)
-      );
-    }
-    if (selectedCollections.length === 0) {
-      new import_obsidian27.Notice(overwrite ? tn("controlPanel", "selectToSync") : tn("controlPanel", "alreadySynced"));
-      return;
-    }
-    const localPropertyResult = await this.collectLocalPropertyValues(selectedCollections);
-    if (localPropertyResult === null) {
-      return;
-    }
-    this.state.loading = true;
-    this.renderStatus(`${tn("controlPanel", "syncingItems")} ${selectedCollections.length}...`);
-    try {
-      const result = await this.syncManager.syncByCollections(
-        selectedCollections,
-        {
-          overwrite,
-          localPropertyValuesBySubjectId: localPropertyResult.propertyValuesBySubjectId,
-          concurrency: this.settings.syncConcurrency
-        },
-        (current, total, message) => {
-          this.renderStatus(message);
-        }
-      );
-      this.state.loading = false;
-      if (result.completion === "success" || result.completion === "partial-success") {
-        const completionText = result.completion === "partial-success" ? tn("syncModal", "partialSuccess") : tn("controlPanel", "syncComplete");
-        new import_obsidian27.Notice(`${completionText}: ${result.added}, ${result.errors}`);
-        const scanPath = this.settings.scanFolderPath || "ACGN";
-        await this.incrementalSync.scanLocalFolder(scanPath);
-        this.state.localSubjects = /* @__PURE__ */ new Map();
-        const syncedIds = this.incrementalSync.getSyncedIds();
-        for (const id of syncedIds) {
-          const info = this.incrementalSync.getLocalSubject(id);
-          if (info) {
-            this.state.localSubjects.set(id, info);
-          }
-        }
-        this.state.selectedIds.clear();
-        this.renderStatus(`${tn("controlPanel", "syncComplete")}, ${tn("controlPanel", "totalItems")} ${this.state.collections.length}, ${tn("controlPanel", "synced")} ${syncedIds.size}`);
-        this.renderTable();
-        this.renderActionBar();
-        this.renderPagination();
-      } else {
-        new import_obsidian27.Notice(tn("controlPanel", "syncFailed"));
-        this.renderStatus(tn("controlPanel", "syncFailed"));
-      }
-    } catch (error) {
-      this.state.loading = false;
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian27.Notice(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
-      this.renderStatus(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
-    }
-  }
-  async collectLocalPropertyValues(collections) {
-    if (collections.length > 10) {
-      console.debug(`[Bangumi Sync] \u6279\u91CF\u540C\u6B65 ${collections.length} \u6761\uFF0C\u8DF3\u8FC7\u81EA\u5B9A\u4E49\u5C5E\u6027\u5F39\u7A97`);
-      return { propertyValuesBySubjectId: /* @__PURE__ */ new Map() };
-    }
-    let warned = false;
-    const subjectsById = await loadSubjectsForCollections(
-      collections,
-      this.client,
-      (message) => {
-        if (!warned) {
-          warned = true;
-          new import_obsidian27.Notice(message);
-        }
-      }
-    );
-    if (!hasLocalPropertyFieldsForCollections(collections, subjectsById, this.syncManager.getCustomTemplates())) {
-      console.debug(`[Bangumi Sync] No custom property fields, skipping modal`);
-      return { propertyValuesBySubjectId: /* @__PURE__ */ new Map() };
-    }
-    console.debug(`[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
-    return new Promise((resolve) => {
-      let resolved = false;
-      const modal = new LocalPropertyModal(
-        this.app,
-        collections,
-        subjectsById,
-        this.syncManager.getCustomTemplates(),
-        (result) => {
-          resolved = true;
-          resolve(result);
-        }
-      );
-      const originalOnClose = modal.onClose.bind(modal);
-      modal.onClose = () => {
-        originalOnClose();
-        if (!resolved) {
-          resolved = true;
-          resolve(null);
-        }
-      };
-      modal.open();
-    });
-  }
-  /**
-   * 删除选中的本地条目
-   */
-  deleteSelected() {
-    if (this.state.selectedIds.size === 0) {
-      new import_obsidian27.Notice(tn("controlPanel", "selectToDelete"));
-      return;
-    }
-    const syncedCollections = this.state.collections.filter(
-      (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
-    );
-    if (syncedCollections.length === 0) {
-      new import_obsidian27.Notice(tn("controlPanel", "selectSyncedToDelete"));
-      return;
-    }
-    const modal = new ConfirmModal(
-      this.app,
-      tn("controlPanel", "confirmDeleteMessage"),
-      () => {
-        void (async () => {
-          let deleted = 0;
-          let failed = 0;
-          for (const collection of syncedCollections) {
-            const localInfo = this.state.localSubjects.get(collection.subject_id);
-            if (localInfo) {
-              try {
-                const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-                if (file instanceof import_obsidian27.TFile) {
-                  await this.app.fileManager.trashFile(file);
-                  this.state.localSubjects.delete(collection.subject_id);
-                  deleted++;
-                }
-              } catch (error) {
-                console.error(`Delete file failed: ${localInfo.path}`, error);
-                failed++;
-              }
-            }
-          }
-          new import_obsidian27.Notice(`${tn("controlPanel", "deleteComplete")}: ${deleted}, ${failed}`);
-          this.state.selectedIds.clear();
-          this.renderStatus(`${tn("controlPanel", "totalItems")} ${this.state.collections.length}, ${tn("controlPanel", "synced")} ${this.state.localSubjects.size}`);
-          this.renderTable();
-          this.renderActionBar();
-        })();
-      }
-    );
-    modal.open();
-  }
-  /**
-   * 打开批量编辑器
-   */
-  openBatchEditor() {
-    const selectedCollections = this.state.collections.filter(
-      (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
-    );
-    if (selectedCollections.length === 0) {
-      new import_obsidian27.Notice(tn("controlPanel", "selectSyncedToEdit"));
-      return;
-    }
-    const targetItems = selectedCollections.map((collection) => {
-      const localInfo = this.state.localSubjects.get(collection.subject_id);
-      if (!(localInfo == null ? void 0 : localInfo.path)) {
-        return null;
-      }
-      return {
-        filePath: localInfo.path,
-        displayName: collection.subject.name_cn || collection.subject.name || localInfo.name_cn || String(collection.subject_id),
-        subjectId: collection.subject_id
-      };
-    }).filter((item) => item !== null);
-    const modal = new BatchEditorModal(
-      this.app,
-      targetItems,
-      async (submission) => {
-        var _a, _b;
-        const result = submission.mode === "uniform" ? await this.frontmatterEditor.batchModify(
-          targetItems.map((item) => item.filePath),
-          (_a = submission.operations) != null ? _a : []
-        ) : await this.frontmatterEditor.batchApplyPerItemUpdates((_b = submission.perItemUpdates) != null ? _b : []);
-        new import_obsidian27.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
-        for (const item of targetItems) {
-          this.subjectSnapshotSession.invalidatePath(item.filePath);
-        }
-        this.renderActionBar();
-      },
-      this.documentService,
-      (filePath) => this.subjectSnapshotSession.getByPath(filePath)
-    );
-    modal.open();
-  }
-  /**
-   * 打开搜索弹窗
-   */
-  openSearchModal() {
-    const modal = new SearchModal(
-      this.app,
-      this.client,
-      this.settings,
-      this.syncManager,
-      () => {
-        void this.loadData();
-      }
-    );
-    modal.open();
-  }
-  /**
-   * 撤销上一次编辑
-   */
-  async undoLastEdit() {
-    if (!this.frontmatterEditor.canUndo()) {
-      new import_obsidian27.Notice(tn("controlPanel", "noUndo"));
-      return;
-    }
-    const success = await this.frontmatterEditor.undo();
-    if (success) {
-      new import_obsidian27.Notice(tn("controlPanel", "undoSuccess"));
-      this.renderActionBar();
-    } else {
-      new import_obsidian27.Notice(tn("controlPanel", "undoFailed"));
-    }
-  }
-  /**
-   * 自动触发指定范围的状态同步
-   */
-  triggerAutoSyncStatus() {
-    if (!this.autoSyncSelection) {
-      return;
-    }
-    const autoSyncSelection = this.autoSyncSelection;
-    this.autoSyncSelection = null;
-    if (autoSyncSelection === "prompt") {
-      this.openStatusSyncScopeSelector();
-      return;
-    }
-    void this.syncStatusAfterPrefetchWarmup(autoSyncSelection);
-  }
-  async syncStatusAfterPrefetchWarmup(selection) {
-    const prefetchPromise = this.subjectSnapshotSession.currentWarmup;
-    if (prefetchPromise) {
-      try {
-        await Promise.race([
-          prefetchPromise,
-          this.delay(1e3)
-        ]);
-      } catch (error) {
-        console.warn("\u72B6\u6001\u540C\u6B65\u9884\u70ED\u7F13\u5B58\u5931\u8D25\uFF0C\u7EE7\u7EED\u6267\u884C\u540C\u6B65:", error);
-      }
-    }
-    await this.syncStatus(selection);
-  }
-  delay(ms) {
-    var _a;
-    const ownerWindow = (_a = this.contentEl.ownerDocument.defaultView) != null ? _a : activeWindow;
-    return new Promise((resolve) => ownerWindow.setTimeout(resolve, ms));
-  }
-  openStatusSyncScopeSelector(initialSelection) {
-    const modal = new StatusSyncScopeModal(
-      this.app,
-      normalizeStatusSyncFieldSelection(initialSelection != null ? initialSelection : createDefaultStatusSyncFieldSelection()),
-      (selection) => {
-        void this.syncStatusAfterPrefetchWarmup(selection);
-      }
-    );
-    modal.open();
-  }
-  async syncStatus(selection) {
-    selection = normalizeStatusSyncFieldSelection(selection);
-    if (!hasSelectedUserFields(selection) && !hasSelectedPlatformFields(selection)) {
-      new import_obsidian27.Notice(tn("statusSyncModal", "selectAtLeastOne"));
-      return;
-    }
-    const scope = getStatusSyncScope(selection);
-    const perfStart = Date.now();
-    this.lastStatusSyncPerf = {
-      startAt: perfStart,
-      syncedCollections: 0,
-      prefetchHits: 0,
-      prefetchMisses: 0,
-      lastError: null
-    };
-    const syncedCollections = this.state.collections.filter(
-      (c) => this.state.localSubjects.has(c.subject_id)
-    );
-    this.lastStatusSyncPerf.syncedCollections = syncedCollections.length;
-    if (syncedCollections.length === 0) {
-      new import_obsidian27.Notice(tn("controlPanel", "noSyncedItemsStatus"));
-      return;
-    }
-    this.state.loading = true;
-    this.renderStatus(`${this.getSyncStatusLabel(scope)} (1/2)`);
-    console.debug(`[Bangumi Sync][Perf] syncStatus:start synced=${syncedCollections.length}`);
-    try {
-      const snapshotStart = Date.now();
-      const { snapshots, diffs } = await this.statusSyncService.buildDiffSession({
-        selection,
-        collections: syncedCollections,
-        localSubjects: this.state.localSubjects,
-        getCachedSnapshot: (subjectId, path, mtime) => this.subjectSnapshotSession.get(subjectId, path, mtime),
-        onProgress: (current, total) => {
-          this.renderStatus(`${this.getSyncStatusLabel(scope)} (1/2 ${current}/${total})`);
-        },
-        onPrefetchHit: () => {
-          var _a;
-          if (this.lastStatusSyncPerf) {
-            this.lastStatusSyncPerf.prefetchHits = ((_a = this.lastStatusSyncPerf.prefetchHits) != null ? _a : 0) + 1;
-          }
-        },
-        onPrefetchMiss: () => {
-          var _a;
-          if (this.lastStatusSyncPerf) {
-            this.lastStatusSyncPerf.prefetchMisses = ((_a = this.lastStatusSyncPerf.prefetchMisses) != null ? _a : 0) + 1;
-          }
-        }
-      });
-      const snapshotDuration = Date.now() - snapshotStart;
-      this.lastStatusSyncPerf.snapshotDurationMs = snapshotDuration;
-      this.lastStatusSyncPerf.snapshotCount = snapshots.length;
-      console.debug(
-        `[Bangumi Sync][Perf] syncStatus:snapshots duration=${snapshotDuration}ms snapshots=${snapshots.length}`
-      );
-      const diffBuildDuration = 0;
-      this.lastStatusSyncPerf.initialDiffDurationMs = diffBuildDuration;
-      this.lastStatusSyncPerf.initialVisibleDiffs = diffs.length;
-      console.debug(
-        `[Bangumi Sync][Perf] syncStatus:initialDiffs duration=${diffBuildDuration}ms visible=${diffs.length}`
-      );
-      this.state.loading = false;
-      if (diffs.length === 0) {
-        const message = this.getNoDiffMessage(selection);
-        new import_obsidian27.Notice(message);
-        this.renderStatus(message);
-        return;
-      }
-      const modal = new StatusSyncModal(
-        this.app,
-        this.statusSyncService,
-        cloneStatusSyncFieldSelection(selection),
-        diffs,
-        () => {
-          void this.loadData();
-        }
-      );
-      modal.open();
-      const modalOpenDuration = Date.now() - perfStart;
-      this.lastStatusSyncPerf.modalOpenedMs = modalOpenDuration;
-      console.debug(
-        `[Bangumi Sync][Perf] syncStatus:modalOpened total=${modalOpenDuration}ms visible=${diffs.length}`
-      );
-      this.renderStatus(`${this.getSyncStatusLabel(scope)} (2/2)`);
-      void this.statusSyncService.loadBackgroundDiffs(
-        selection,
-        snapshots,
-        {
-          isDisposed: () => modal.isDisposed(),
-          updateDiff: (subjectId, patch) => modal.updateDiff(subjectId, patch),
-          updateBackgroundProgress: (completed, total) => modal.updateBackgroundProgress(completed, total)
-        },
-        (completed, total) => {
-          this.renderStatus(`${this.getSyncStatusLabel(scope)} (2/2 ${completed}/${total})`);
-          if (this.lastStatusSyncPerf) {
-            this.lastStatusSyncPerf.backgroundCompleted = completed;
-            this.lastStatusSyncPerf.backgroundCandidates = total;
-          }
-        }
-      );
-    } catch (error) {
-      this.state.loading = false;
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      if (this.lastStatusSyncPerf) {
-        this.lastStatusSyncPerf.lastError = errorMsg;
-      }
-      new import_obsidian27.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
-      this.renderStatus(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
-    }
-  }
-  getSyncStatusLabel(scope) {
-    if (scope === "mixed") {
-      return tn("controlPanel", "comparingStatus");
-    }
-    return scope === "user" ? tn("controlPanel", "comparingUserData") : tn("controlPanel", "comparingPlatformData");
-  }
-  getNoDiffMessage(selection) {
-    const hasUser = hasSelectedUserFields(selection);
-    const hasPlatform = hasSelectedPlatformFields(selection);
-    if (hasUser && hasPlatform) {
-      return tn("controlPanel", "noStatusDiff");
-    }
-    return hasUser ? tn("controlPanel", "noUserDataDiff") : tn("controlPanel", "noPlatformDataDiff");
-  }
-  startUserDataPrefetch() {
-    const syncedCollections = this.getSyncedCollections();
-    if (syncedCollections.length === 0) {
-      this.subjectSnapshotSession.clear();
-      return;
-    }
-    void this.subjectSnapshotSession.warm(syncedCollections, this.state.localSubjects, {
-      concurrency: 4,
-      onComplete: (count) => {
-        console.debug(`[Bangumi Sync] \u7528\u6237\u6570\u636E\u9884\u70ED\u5B8C\u6210: ${count}`);
-      },
-      onError: (error) => {
-        console.warn("[Bangumi Sync] \u7528\u6237\u6570\u636E\u9884\u70ED\u5931\u8D25:", error);
-      }
-    });
-  }
-  getSyncedCollections() {
-    return this.state.collections.filter((collection) => this.state.localSubjects.has(collection.subject_id));
-  }
-  /**
-   * 处理键盘导航
-   */
-  handleKeyDown(event) {
-    const filteredCollections = this.getFilteredCollections();
-    const startIndex = (this.currentPage - 1) * this.pageSize;
-    const pageCollections = filteredCollections.slice(startIndex, startIndex + this.pageSize);
-    if (pageCollections.length === 0)
-      return;
-    switch (event.key) {
-      case "ArrowDown":
-        event.preventDefault();
-        this.focusedRowIndex = Math.min(this.focusedRowIndex + 1, pageCollections.length - 1);
-        this.updateFocus();
-        break;
-      case "ArrowUp":
-        event.preventDefault();
-        this.focusedRowIndex = Math.max(this.focusedRowIndex - 1, 0);
-        this.updateFocus();
-        break;
-      case "PageDown":
-        event.preventDefault();
-        if (this.currentPage < Math.ceil(filteredCollections.length / this.pageSize)) {
-          this.currentPage++;
-          this.focusedRowIndex = 0;
-          this.renderTable();
-          this.renderPagination();
-        }
-        break;
-      case "PageUp":
-        event.preventDefault();
-        if (this.currentPage > 1) {
-          this.currentPage--;
-          this.focusedRowIndex = 0;
-          this.renderTable();
-          this.renderPagination();
-        }
-        break;
-      case "Enter":
-      case " ":
-        event.preventDefault();
-        if (this.focusedRowIndex >= 0 && this.focusedRowIndex < pageCollections.length) {
-          const collection = pageCollections[this.focusedRowIndex];
-          const localInfo = this.state.localSubjects.get(collection.subject_id);
-          if (localInfo) {
-            this.openFile(localInfo.path);
-          }
-        }
-        break;
-      case "Escape":
-        event.preventDefault();
-        this.close();
-        break;
-    }
-  }
-  /**
-   * 更新焦点样式
-   */
-  updateFocus() {
-    this.tableRows.forEach((row, index) => {
-      if (index === this.focusedRowIndex) {
-        row.addClass("focused");
-        row.scrollIntoView({ block: "nearest" });
-      } else {
-        row.removeClass("focused");
-      }
-    });
-  }
-  /**
-   * 设置滑动关闭手势（仅移动端）
-   * 只在从顶部下拉时触发，避免与表格滚动冲突
-   */
-  setupSwipeToClose() {
-    if (!isMobile())
-      return;
-    this.touchStartHandler = (e) => {
-      this.touchStartY = e.touches[0].clientY;
-      this.swipeEnabled = this.tableEl.scrollTop === 0;
-    };
-    this.touchMoveHandler = (e) => {
-      if (!this.swipeEnabled)
-        return;
-      this.touchCurrentY = e.touches[0].clientY;
-      const diff = this.touchCurrentY - this.touchStartY;
-      if (diff > 0 && this.tableEl.scrollTop === 0) {
-        this.contentEl.setCssProps({
-          "--swipe-y": `${diff}px`,
-          "--swipe-opacity": String(1 - diff / 300)
-        });
-        this.contentEl.addClass("is-swiping");
-      }
-    };
-    this.touchEndHandler = () => {
-      if (!this.swipeEnabled)
-        return;
-      const diff = this.touchCurrentY - this.touchStartY;
-      if (diff > 100 && this.tableEl.scrollTop === 0) {
-        this.close();
-      } else {
-        this.contentEl.setCssProps({
-          "--swipe-y": "",
-          "--swipe-opacity": ""
-        });
-        this.contentEl.removeClass("is-swiping");
-      }
-      this.swipeEnabled = false;
-    };
-    this.contentEl.addEventListener("touchstart", this.touchStartHandler, { passive: true });
-    this.contentEl.addEventListener("touchmove", this.touchMoveHandler, { passive: true });
-    this.contentEl.addEventListener("touchend", this.touchEndHandler, { passive: true });
-  }
-};
-function compareTime(left, right) {
-  return parseDateTime(left) - parseDateTime(right);
-}
-function compareTitle(left, right) {
-  return left.localeCompare(right, "zh-CN", { numeric: true, sensitivity: "base" });
-}
-function compareNumber(left, right) {
-  return left - right;
-}
-function parseDateTime(value) {
-  if (!value)
-    return 0;
-  const time = Date.parse(value);
-  return Number.isFinite(time) ? time : 0;
-}
-var ConfirmModal = class extends import_obsidian27.Modal {
-  constructor(app, message, onConfirm) {
-    super(app);
-    this.message = message;
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.createEl("p", { text: this.message });
-    const buttonDiv = contentEl.createDiv({ cls: "modal-button-container" });
-    const confirmBtn = buttonDiv.createEl("button", { text: tn("controlPanel", "confirmDelete"), cls: "mod-cta" });
-    confirmBtn.addEventListener("click", () => {
-      void this.onConfirm();
-      this.close();
-    });
-    const cancelBtn = buttonDiv.createEl("button", { text: tn("syncOptions", "cancel") });
-    cancelBtn.addEventListener("click", () => {
-      this.close();
-    });
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-};
 
 // src/episode/episodeContextMenu.ts
 var import_obsidian28 = require("obsidian");
