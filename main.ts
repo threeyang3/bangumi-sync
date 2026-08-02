@@ -659,6 +659,7 @@ export default class BangumiPlugin extends Plugin {
 		this.syncManager.setCancellationSignal(this.cancellationSignal);
 		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
 		this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
+		this.syncModal.setCommitHandler(() => this.syncManager!.commitPendingBatch());
 		this.syncModal.open();
 
 		this.syncManager.setProgressCallback((progress: SyncProgress) => {
@@ -773,6 +774,7 @@ export default class BangumiPlugin extends Plugin {
 		this.syncManager.setCancellationSignal(this.cancellationSignal);
 		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
 		this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
+		this.syncModal.setCommitHandler(() => this.syncManager!.commitPendingBatch());
 		this.syncModal.open();
 
 		this.syncManager.setProgressCallback((progress: SyncProgress) => {
@@ -839,6 +841,7 @@ export default class BangumiPlugin extends Plugin {
 						this.syncManager!.setCancellationSignal(this.cancellationSignal);
 						this.syncModal = new SyncModal(this.app, this.cancellationSignal);
 						this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
+						this.syncModal.setCommitHandler(() => this.syncManager!.commitPendingBatch());
 						this.syncModal.open();
 
 						this.syncManager!.setProgressCallback((progress: SyncProgress) => {

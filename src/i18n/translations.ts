@@ -241,6 +241,13 @@ export interface TranslationStrings {
 		rollbackComplete: string;
 		rollbackFailed: string;
 		rollbackAvailable: string;
+		pendingDecision: string;
+		keepSuccessful: string;
+		keptSuccessful: string;
+		rollbackBatch: string;
+		returnToResult: string;
+		rolledBack: string;
+		warnings: string;
 		completedStats: string;
 		detailedStats: string;
 		partialSuccess: string;
@@ -884,9 +891,16 @@ const en: TranslationStrings = {
 		paused: 'Paused',
 		syncing: 'Syncing',
 		rollback: 'Rollback',
-		rollbackComplete: 'Rollback complete: {deleted} deleted, {failed} failed',
+		rollbackComplete: 'Rollback complete: {deleted} created files deleted, {contents} contents and {paths} paths restored, {failed} failed',
 		rollbackFailed: 'Rollback failed',
 		rollbackAvailable: 'This cancelled batch changed local files and can be rolled back safely.',
+		pendingDecision: 'Some changes succeeded. Keep those results or roll back this batch before closing or starting another sync.',
+		keepSuccessful: 'Keep successful results',
+		keptSuccessful: 'Successful results kept',
+		rollbackBatch: 'Roll back this batch',
+		returnToResult: 'Return to results',
+		rolledBack: 'Sync failed; changes were automatically rolled back.',
+		warnings: 'Warnings',
 		completedStats: 'Added: {added}, Skipped: {skipped}, Errors: {errors}',
 		detailedStats: 'Created {created}, updated {updated}, unchanged {unchanged}, renamed {renamed}, collisions resolved {collisionResolved}, skipped {skipped}, failed {failed}',
 		partialSuccess: 'Sync partially completed',
@@ -1512,9 +1526,16 @@ const zhCN: TranslationStrings = {
 		paused: '已暂停',
 		syncing: '同步中',
 		rollback: '回滚',
-		rollbackComplete: '回滚完成：删除 {deleted} 个，失败 {failed} 个',
+		rollbackComplete: '回滚完成：删除新建文件 {deleted} 个，恢复内容 {contents} 个，恢复路径 {paths} 个，失败 {failed} 个',
 		rollbackFailed: '回滚失败',
 		rollbackAvailable: '本次已取消的同步修改了本地文件，可以安全回滚。',
+		pendingDecision: '部分修改已成功。关闭或开始新同步前，请选择保留成功结果或回滚本批次。',
+		keepSuccessful: '保留成功结果',
+		keptSuccessful: '已保留成功结果',
+		rollbackBatch: '回滚本批次',
+		returnToResult: '返回结果',
+		rolledBack: '同步失败，修改已自动回滚。',
+		warnings: '警告',
 		completedStats: '新增 {added}，跳过 {skipped}，失败 {errors}',
 		detailedStats: '创建 {created}，更新 {updated}，未变化 {unchanged}，重命名 {renamed}，解决冲突 {collisionResolved}，跳过 {skipped}，失败 {failed}',
 		partialSuccess: '同步部分成功',

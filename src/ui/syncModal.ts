@@ -6,6 +6,7 @@
 import { App, Modal, Setting } from 'obsidian';
 import { SyncProgress, SyncCancellationSignal, SyncResultWithRollback } from '../sync/syncStatus';
 import { SyncRollbackResult } from '../sync/syncTransaction';
+import { getSyncCompletionPresentation } from '../sync/syncCompletionPresentation';
 import { tn, tnFormat } from '../i18n';
 
 export class SyncModal extends Modal {
@@ -18,7 +19,9 @@ export class SyncModal extends Modal {
 	private cancelBtn: HTMLButtonElement | null = null;
 	private completedEl: HTMLElement | null = null;
 	private onCancelled: (() => Promise<SyncRollbackResult>) | null = null;
+	private onCommitted: (() => Promise<{ committed: boolean; persistedStates: boolean; rollback?: SyncRollbackResult }>) | null = null;
 	private isCompleted = false;
+	private pendingDecision = false;
 
 	constructor(app: App, cancellationSignal: SyncCancellationSignal) {
 		super(app);
@@ -70,6 +73,14 @@ export class SyncModal extends Modal {
 		}
 	}
 
+	close(): void {
+		if (this.pendingDecision) {
+			this.showPendingClosePrompt();
+			return;
+		}
+		super.close();
+	}
+
 	/**
 	 * 切换暂停/恢复
 	 */
@@ -113,6 +124,10 @@ export class SyncModal extends Modal {
 		this.onCancelled = handler;
 	}
 
+	setCommitHandler(handler: () => Promise<{ committed: boolean; persistedStates: boolean; rollback?: SyncRollbackResult }>): void {
+		this.onCommitted = handler;
+	}
+
 	/**
 	 * 更新进度
 	 */
@@ -140,6 +155,8 @@ export class SyncModal extends Modal {
 	 */
 	showCompleted(result: SyncResultWithRollback): void {
 		this.isCompleted = true;
+		const presentation = getSyncCompletionPresentation(result);
+		this.pendingDecision = !presentation.allowClose;
 
 		// 隐藏操作按钮
 		if (this.actionsEl) {
@@ -168,6 +185,8 @@ export class SyncModal extends Modal {
 						? `${tn('syncModal', 'rollbackFailed')}: ${result.rollback.failed}`
 						: tnFormat('syncModal', 'rollbackComplete', {
 							deleted: result.rollback.deletedCreatedFiles,
+							contents: result.rollback.restoredContents,
+							paths: result.rollback.restoredPaths,
 							failed: result.rollback.failed,
 						}),
 					cls: result.rollback.failed > 0 ? 'bangumi-sync-error' : 'bangumi-sync-stats',
@@ -186,24 +205,50 @@ export class SyncModal extends Modal {
 				}
 			}
 
-			// 如果是取消状态，显示回滚按钮
-			if (result.wasCancelled && result.canRollback) {
+			if (presentation.showCommitButton || presentation.showRollbackButton) {
 				this.completedEl.createEl('p', {
-					text: tn('syncModal', 'rollbackAvailable'),
+					text: tn('syncModal', 'pendingDecision'),
 					cls: 'bangumi-sync-cancelled-info',
 				});
-
+			}
+			if (result.warnings.length > 0) {
+				const warningsEl = this.completedEl.createEl('details', { cls: 'bangumi-sync-warning-details' });
+				warningsEl.createEl('summary', { text: `${tn('syncModal', 'warnings')} (${result.warnings.length})` });
+				const listEl = warningsEl.createEl('ul');
+				for (const warning of result.warnings) {
+					listEl.createEl('li', { text: `${warning.operation}: ${warning.message}` });
+				}
+			}
+			if (presentation.showCommitButton) {
+				const commitBtn = this.completedEl.createEl('button', {
+					cls: 'bangumi-commit-btn mod-cta', text: tn('syncModal', 'keepSuccessful'),
+				});
+				commitBtn.addEventListener('click', () => void (async () => {
+					commitBtn.disabled = true;
+					const commit = await this.onCommitted?.();
+					if (commit?.committed) {
+						this.pendingDecision = false;
+						commitBtn.setText(tn('syncModal', 'keptSuccessful'));
+					} else if (commit?.rollback) {
+						this.pendingDecision = false;
+						commitBtn.setText(tn('syncModal', commit.rollback.failed > 0 ? 'rollbackFailed' : 'rolledBack'));
+					}
+				})());
+			}
+			if (presentation.showRollbackButton) {
 				const rollbackBtn = this.completedEl.createEl('button', {
 					cls: 'bangumi-rollback-btn mod-warning',
-					text: tn('syncModal', 'rollback'),
+					text: tn('syncModal', 'rollbackBatch'),
 				});
 				rollbackBtn.addEventListener('click', () => void (async () => {
 					rollbackBtn.disabled = true;
 					rollbackBtn.setText('...');
 					if (this.onCancelled) {
 						const rollbackResult = await this.onCancelled();
+						this.pendingDecision = false;
 						rollbackBtn.setText(tnFormat('syncModal', 'rollbackComplete', {
-							deleted: rollbackResult.deletedCreatedFiles,
+							deleted: rollbackResult.deletedCreatedFiles, contents: rollbackResult.restoredContents,
+							paths: rollbackResult.restoredPaths,
 							failed: rollbackResult.failed,
 						}));
 					}
@@ -227,6 +272,8 @@ export class SyncModal extends Modal {
 				this.updateStatus(tn('notices', 'syncCancelled'));
 			} else if (result.completion === 'partial-success') {
 				this.updateStatus(tn('syncModal', 'partialSuccess'));
+			} else if (result.completion === 'rolled-back') {
+				this.updateStatus(tn('syncModal', 'rolledBack'));
 			} else if (result.completion === 'rollback-failed') {
 				this.updateStatus(tn('syncModal', 'rollbackFailed'));
 			} else if (result.completion === 'failed') {
@@ -235,6 +282,16 @@ export class SyncModal extends Modal {
 				this.updateStatus(tn('syncModal', 'completed'));
 			}
 		}
+	}
+
+	private showPendingClosePrompt(): void {
+		new PendingSyncDecisionModal(this.app, async decision => {
+			if (decision === 'return') return;
+			if (decision === 'keep') await this.onCommitted?.();
+			if (decision === 'rollback') await this.onCancelled?.();
+			this.pendingDecision = false;
+			super.close();
+		}).open();
 	}
 
 	/**
@@ -290,6 +347,28 @@ export class SyncModal extends Modal {
 	private updateStatus(text: string): void {
 		if (this.statusText) {
 			this.statusText.setText(text);
+		}
+	}
+}
+
+class PendingSyncDecisionModal extends Modal {
+	constructor(app: App, private readonly decide: (decision: 'keep' | 'rollback' | 'return') => Promise<void>) {
+		super(app);
+	}
+
+	onOpen(): void {
+		new Setting(this.contentEl).setName(tn('syncModal', 'pendingDecision')).setHeading();
+		const actions = this.contentEl.createDiv({ cls: 'bangumi-sync-actions' });
+		for (const [decision, label, cls] of [
+			['keep', tn('syncModal', 'keepSuccessful'), 'mod-cta'],
+			['rollback', tn('syncModal', 'rollbackBatch'), 'mod-warning'],
+			['return', tn('syncModal', 'returnToResult'), ''],
+		] as const) {
+			const button = actions.createEl('button', { text: label, cls });
+			button.addEventListener('click', () => void (async () => {
+				await this.decide(decision);
+				this.close();
+			})());
 		}
 	}
 }

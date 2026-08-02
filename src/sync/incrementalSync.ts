@@ -167,8 +167,16 @@ export class IncrementalSync {
 	 * 清空本批次已同步的条目记录
 	 */
 	startBatch(): void {
-		this.batchSyncedItems.clear();
+		this.clearBatch();
 		console.debug(`[Bangumi Sync] 开始新的同步批次`);
+	}
+
+	clearBatch(): void {
+		this.batchSyncedItems.clear();
+	}
+
+	finishBatch(): void {
+		this.clearBatch();
 	}
 
 	/**

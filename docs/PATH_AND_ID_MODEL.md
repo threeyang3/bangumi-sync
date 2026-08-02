@@ -43,3 +43,9 @@ Bangumi Subject ID 是本地条目的唯一身份；Markdown 路径只是当前�
 ## 诊断
 
 命令“检查本地 Bangumi 条目”报告：缺少/冲突/重复 ID、规范化路径冲突、用户重命名、未知路径状态和当前模板碰撞。报告按 `safe-auto-fix`、`needs-user-decision`、`blocking-error` 分级，并可导出 Markdown。
+
+## 路径状态也是事务数据（6.10.2）
+
+`subjectPathStates` 不是事后元数据，而是与笔记创建、内容替换和碰撞重命名同属一个逻辑事务。管理器在执行前保存类型化快照；设置保存失败时回滚磁盘修改、恢复内存快照、重新扫描 Vault，并再次尝试保存旧快照。
+
+仅为对称碰撞命名而移动的上下文条目也会产生结果：包含 `previousPath`、`actualPath`、`pathAction: renamed` 和 `writeAction: skipped`。

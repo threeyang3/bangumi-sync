@@ -16,7 +16,7 @@ import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType, R
 import { FileManager, FileWriteStatus } from '../../common/file/fileManager';
 import { ImageHandler } from '../../common/file/imageHandler';
 import { IncrementalSync } from './incrementalSync';
-import { determineSyncCompletion, SyncOptions, SyncResult, SyncProgress, SyncCancellationSignal, SyncResultWithRollback } from './syncStatus';
+import { determineSyncCompletion, SyncOptions, SyncResult, SyncProgress, SyncCancellationSignal, SyncResultWithRollback, SyncWarning } from './syncStatus';
 import { parseCharacters } from '../../common/parser/characterParser';
 import { generateFilePath, extractPathVars } from '../../common/template/pathTemplate';
 import { applyNamedPropertyValuesToContent, CustomTemplates, generateContentByType } from '../template/contentTemplate';
@@ -57,6 +57,7 @@ interface PreparedCollectionBatch {
 	prepared: PreparedCollection[];
 	failures: PreparationFailure[];
 	renamed: TransactionRename[];
+	groupKeyBySubjectId: Map<number, string>;
 }
 
 interface RenderedCollection {
@@ -89,6 +90,23 @@ export interface SyncManagerConfig {
 	pathNamingStrategy?: PathNamingStrategy;
 }
 
+export type BatchTransactionState = 'none' | 'active' | 'awaiting-user-decision' | 'committed' | 'rolled-back' | 'rollback-failed';
+
+interface PendingSyncTransaction {
+	transactions: SyncTransaction[];
+	previousPathStates: Record<string, SubjectPathState>;
+	affectedSubjectIds: number[];
+	createdAt: number;
+	state: 'awaiting-user-decision';
+}
+
+export class PendingSyncTransactionError extends Error {
+	constructor() {
+		super('A previous sync batch is awaiting a keep or rollback decision.');
+		this.name = 'PendingSyncTransactionError';
+	}
+}
+
 /**
  * 同步管理器
  */
@@ -104,7 +122,8 @@ export class SyncManager {
 	private onProgress?: (progress: SyncProgress) => void;
 	private cancellationSignal: SyncCancellationSignal | null = null;
 	private pathResolver = new SubjectPathResolver();
-	private activeTransaction: SyncTransaction | null = null;
+	private pendingTransaction: PendingSyncTransaction | null = null;
+	private batchTransactionState: BatchTransactionState = 'none';
 	private lastAutomaticRollback: SyncRollbackResult | undefined;
 
 	constructor(app: App, config: SyncManagerConfig) {
@@ -138,14 +157,28 @@ export class SyncManager {
 	 * 回滚本次批次新建的文件
 	 */
 	async rollbackBatch(): Promise<SyncRollbackResult> {
-		if (this.activeTransaction) {
-			const result = await this.activeTransaction.rollback();
-			await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
+		if (!this.pendingTransaction) return this.emptyRollbackResult();
+		return this.rollbackPendingTransaction(this.pendingTransaction);
+	}
+
+	getBatchTransactionState(): BatchTransactionState {
+		return this.batchTransactionState;
+	}
+
+	async commitPendingBatch(): Promise<{ committed: boolean; persistedStates: boolean; rollback?: SyncRollbackResult }> {
+		const pending = this.pendingTransaction;
+		if (!pending) return { committed: false, persistedStates: false };
+		try {
 			await this.persistPathStates();
-			this.activeTransaction = null;
-			return result;
+			for (const transaction of pending.transactions) transaction.commit();
+			this.pendingTransaction = null;
+			this.batchTransactionState = 'committed';
+			this.incrementalSync.finishBatch();
+			return { committed: true, persistedStates: true };
+		} catch {
+			const rollback = await this.rollbackPendingTransaction(pending);
+			return { committed: false, persistedStates: false, rollback };
 		}
-		return { deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0 };
 	}
 
 	/**
@@ -162,8 +195,55 @@ export class SyncManager {
 
 	private async persistPathStates(): Promise<void> {
 		const states = this.incrementalSync.exportPathStates();
-		this.config.subjectPathStates = states;
+		await this.persistSpecificPathStates(states);
+	}
+
+	private async persistSpecificPathStates(states: Record<string, SubjectPathState>): Promise<void> {
 		await this.config.onPathStatesChanged?.(states);
+		this.config.subjectPathStates = this.clonePathStates(states);
+		this.incrementalSync.setPathStates(states);
+	}
+
+	private clonePathStates(states: Readonly<Record<string, SubjectPathState>>): Record<string, SubjectPathState> {
+		return Object.fromEntries(Object.entries(states).map(([id, state]) => [id, { ...state }]));
+	}
+
+	private emptyRollbackResult(): SyncRollbackResult {
+		return { deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0 };
+	}
+
+	private mergeRollbackResult(target: SyncRollbackResult, source: SyncRollbackResult): void {
+		target.deletedCreatedFiles += source.deletedCreatedFiles;
+		target.restoredContents += source.restoredContents;
+		target.restoredPaths += source.restoredPaths;
+		target.failed += source.failed;
+		if (source.failures?.length) target.failures = [...(target.failures ?? []), ...source.failures];
+	}
+
+	private assertNoPendingTransaction(): void {
+		if (this.pendingTransaction?.state === 'awaiting-user-decision') throw new PendingSyncTransactionError();
+	}
+
+	private async rollbackPendingTransaction(pending: PendingSyncTransaction): Promise<SyncRollbackResult> {
+		const result = this.emptyRollbackResult();
+		for (const transaction of [...pending.transactions].reverse()) {
+			this.mergeRollbackResult(result, await transaction.rollback());
+		}
+		this.incrementalSync.setPathStates(pending.previousPathStates);
+		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
+		try {
+			await this.persistSpecificPathStates(pending.previousPathStates);
+		} catch (error) {
+			result.failed++;
+			result.failures = [...(result.failures ?? []), {
+				operation: 'restore-content', path: 'subjectPathStates',
+				message: error instanceof Error ? error.message : String(error),
+			}];
+		}
+		this.incrementalSync.clearBatch();
+		this.pendingTransaction = null;
+		this.batchTransactionState = result.failed > 0 ? 'rollback-failed' : 'rolled-back';
+		return result;
 	}
 
 	async diagnoseLocalSubjects(): Promise<LocalSubjectDiagnosticReport> {
@@ -334,7 +414,7 @@ export class SyncManager {
 			...base,
 			batchFiles,
 			wasCancelled,
-			canRollback: Boolean(this.activeTransaction?.hasChanges()),
+			canRollback: Boolean(this.pendingTransaction?.transactions.some(transaction => transaction.hasChanges())),
 			...(this.lastAutomaticRollback ? { rollback: this.lastAutomaticRollback } : {}),
 		};
 	}
@@ -357,6 +437,7 @@ export class SyncManager {
 			duration: 0,
 			errorDetails: [],
 			outcomes: [],
+			warnings: [],
 		};
 	}
 
@@ -431,76 +512,143 @@ export class SyncManager {
 		onProgress?: (prepared: PreparedCollection, index: number) => void,
 	): Promise<{ wasCancelled: boolean; relations: Array<{ subjectId: number; filePath: string; relations: RelatedSubject[] }> }> {
 		this.lastAutomaticRollback = undefined;
-		this.activeTransaction?.commit();
-		this.activeTransaction = null;
+		this.assertNoPendingTransaction();
+		this.batchTransactionState = 'active';
+		const previousPathStates = this.clonePathStates(this.config.subjectPathStates ?? {});
 		for (const failure of batch.failures) this.recordPreparedFailure(result, failure);
 
 		let wasCancelled = false;
-		const rendered: RenderedCollection[] = [];
+		const renderedByGroup = new Map<string, RenderedCollection[]>();
+		const failedGroups = new Set<string>();
 		await this.processConcurrently(batch.prepared, concurrency, async (prepared, index) => {
+			const groupKey = batch.groupKeyBySubjectId.get(prepared.collection.subject_id) ?? `subject:${prepared.collection.subject_id}`;
 			if (await this.checkCancellation()) {
 				wasCancelled = true;
 				return;
 			}
 			onProgress?.(prepared, index);
 			try {
-				rendered.push(await this.renderCollection(prepared.collection, optionsFor(prepared), prepared));
+				const rendered = await this.renderCollection(prepared.collection, optionsFor(prepared), prepared);
+				const items = renderedByGroup.get(groupKey) ?? [];
+				items.push(rendered);
+				renderedByGroup.set(groupKey, items);
 			} catch (error) {
+				failedGroups.add(groupKey);
 				this.recordProcessingFailure(result, prepared, error);
 			}
 		});
 
-		if (wasCancelled) return { wasCancelled, relations: [] };
-		if (result.failed > 0 && batch.renamed.length > 0) {
-			for (const item of rendered) {
-				this.recordProcessingFailure(result, item.prepared, new Error('Collision transaction was not started because another item failed during content preparation.'));
-			}
-			return { wasCancelled, relations: [] };
-		}
-
-		const transaction = new SyncTransaction(this.app, this.fileManager);
-		this.activeTransaction = transaction;
-		try {
-			await transaction.executeRenames(batch.renamed);
-		} catch (error) {
-			for (const item of rendered) this.recordProcessingFailure(result, item.prepared, error);
-			await transaction.rollback();
-			this.activeTransaction = null;
-			await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
-			return { wasCancelled, relations: [] };
-		}
-		for (const rename of batch.renamed) this.incrementalSync.renameLocalSubject(rename.subjectId, rename.to);
-
 		const relations: Array<{ subjectId: number; filePath: string; relations: RelatedSubject[] }> = [];
-		await this.processConcurrently(rendered, concurrency, async item => {
-			try {
-				const writeResult = await this.writeRenderedCollection(item);
-				relations.push(writeResult);
-				this.recordWriteOutcome(result, item.prepared, writeResult.writeStatus);
-			} catch (error) {
-				this.recordProcessingFailure(result, item.prepared, error);
-			}
-		});
+		const successfulTransactions: SyncTransaction[] = [];
+		const affectedSubjectIds = new Set<number>();
+		const automaticRollback = this.emptyRollbackResult();
+		let hadAutomaticRollback = false;
+		let fatalRollbackFailure = false;
+		const groupKeys = new Set<string>([
+			...batch.prepared.map(item => batch.groupKeyBySubjectId.get(item.collection.subject_id) ?? `subject:${item.collection.subject_id}`),
+			...batch.renamed.map(rename => batch.groupKeyBySubjectId.get(rename.subjectId) ?? `subject:${rename.subjectId}`),
+		]);
 
-		if (result.failed > 0 && transaction.getRenameCount() > 0) {
-			this.lastAutomaticRollback = await transaction.rollback();
-			await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
-			for (const outcome of result.outcomes) {
-				if (outcome.writeAction !== 'failed') {
-					outcome.pathAction = 'rolled-back';
-					outcome.writeAction = 'rolled-back';
+		for (const groupKey of groupKeys) {
+			const items = renderedByGroup.get(groupKey) ?? [];
+			if (failedGroups.has(groupKey)) {
+				for (const item of items) this.recordProcessingFailure(result, item.prepared, new Error('The atomic collision group was skipped because another item in the group failed during preparation.'));
+				continue;
+			}
+			if (wasCancelled) continue;
+			const renames = batch.renamed.filter(rename => (batch.groupKeyBySubjectId.get(rename.subjectId) ?? `subject:${rename.subjectId}`) === groupKey);
+			const transaction = new SyncTransaction(this.app, this.fileManager);
+			const written: Array<{ item: RenderedCollection; writeStatus: FileWriteStatus }> = [];
+			const writeFailures = new Set<number>();
+			try {
+				await transaction.executeRenames(renames);
+				await this.processConcurrently(items, Math.min(concurrency, Math.max(1, items.length)), async item => {
+					try {
+						const writeResult = await this.writeRenderedCollection(item, transaction);
+						written.push({ item, writeStatus: writeResult.writeStatus });
+					} catch (error) {
+						writeFailures.add(item.prepared.collection.subject_id);
+						this.recordProcessingFailure(result, item.prepared, error);
+					}
+				});
+				if (writeFailures.size > 0) throw new Error('An item write failed inside the atomic transaction group.');
+			} catch (error) {
+				for (const item of items) {
+					if (!writeFailures.has(item.prepared.collection.subject_id)) this.recordProcessingFailure(result, item.prepared, error);
+				}
+				const rollback = await transaction.rollback();
+				hadAutomaticRollback = hadAutomaticRollback || transaction.getState() !== 'active';
+				this.mergeRollbackResult(automaticRollback, rollback);
+				fatalRollbackFailure = fatalRollbackFailure || rollback.failed > 0;
+				if (fatalRollbackFailure) break;
+				continue;
+			}
+
+			for (const rename of renames) {
+				this.incrementalSync.renameLocalSubject(rename.subjectId, rename.to);
+				affectedSubjectIds.add(rename.subjectId);
+				if (!items.some(item => item.prepared.collection.subject_id === rename.subjectId)) {
+					result.outcomes.push({
+						subjectId: rename.subjectId, previousPath: rename.from, actualPath: rename.to,
+						pathAction: 'renamed', writeAction: 'skipped',
+					});
 				}
 			}
-			this.activeTransaction = null;
+			for (const { item, writeStatus } of written) {
+				const { subject, filePath, fileExisted } = item;
+				this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name, !fileExisted);
+				affectedSubjectIds.add(subject.id);
+				relations.push({ subjectId: subject.id, filePath, relations: item.relations });
+				this.recordWriteOutcome(result, item.prepared, writeStatus);
+			}
+			successfulTransactions.push(transaction);
+		}
+
+		if (fatalRollbackFailure) {
+			for (const transaction of [...successfulTransactions].reverse()) this.mergeRollbackResult(automaticRollback, await transaction.rollback());
+			this.incrementalSync.setPathStates(previousPathStates);
+			await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
+			this.incrementalSync.clearBatch();
+			this.lastAutomaticRollback = automaticRollback;
+			this.batchTransactionState = 'rollback-failed';
 			return { wasCancelled, relations: [] };
 		}
 
-		if (result.failed === 0) {
-			await this.persistPathStates();
-			transaction.commit();
-			this.activeTransaction = null;
+		const hasPendingChanges = successfulTransactions.some(transaction => transaction.hasChanges());
+		if (hasPendingChanges && (result.failed > 0 || wasCancelled)) {
+			this.pendingTransaction = {
+				transactions: successfulTransactions,
+				previousPathStates,
+				affectedSubjectIds: Array.from(affectedSubjectIds),
+				createdAt: Date.now(),
+				state: 'awaiting-user-decision',
+			};
+			this.batchTransactionState = 'awaiting-user-decision';
+			return { wasCancelled, relations: [] };
 		}
-		return { wasCancelled, relations };
+
+		if (successfulTransactions.length > 0) {
+			try {
+				await this.persistPathStates();
+				for (const transaction of successfulTransactions) transaction.commit();
+				this.incrementalSync.finishBatch();
+				this.batchTransactionState = 'committed';
+			} catch {
+				const pending: PendingSyncTransaction = {
+					transactions: successfulTransactions, previousPathStates,
+					affectedSubjectIds: Array.from(affectedSubjectIds), createdAt: Date.now(), state: 'awaiting-user-decision',
+				};
+				this.pendingTransaction = pending;
+				this.lastAutomaticRollback = await this.rollbackPendingTransaction(pending);
+			}
+		} else {
+			this.incrementalSync.clearBatch();
+			this.batchTransactionState = hadAutomaticRollback
+				? automaticRollback.failed > 0 ? 'rollback-failed' : 'rolled-back'
+				: 'none';
+			if (hadAutomaticRollback) this.lastAutomaticRollback = automaticRollback;
+		}
+		return { wasCancelled, relations: result.failed === 0 ? relations : [] };
 	}
 
 	/**
@@ -519,6 +667,7 @@ export class SyncManager {
 			result.skipped = diff.toSkip.length;
 
 			// 开始批次同步
+			this.assertNoPendingTransaction();
 			this.incrementalSync.startBatch();
 			const batch = await this.prepareCollectionBatch(diff.toAdd, concurrency);
 			const execution = await this.executePreparedCollectionBatch(
@@ -543,6 +692,7 @@ export class SyncManager {
 			}
 
 		} catch (error: unknown) {
+			if (error instanceof PendingSyncTransactionError) throw error;
 			console.error('[Bangumi Sync] 同步失败:', error);
 			this.reportProgress({ status: 'error', message: error instanceof Error ? error.message : String(error) });
 			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
@@ -672,7 +822,14 @@ export class SyncManager {
 				prepared.push({ collection, fullInfo, allocation });
 			}
 		}
-		return { prepared, failures, renamed: pathPlan.renamed };
+		const groupKeyBySubjectId = new Map<number, string>();
+		for (const candidate of candidates) {
+			const allocation = pathPlan.allocations.get(candidate.subjectId);
+			groupKeyBySubjectId.set(candidate.subjectId, allocation?.collisionResolved
+				? `collision:${normalizePathCollisionKey(candidate.preferredPath)}`
+				: `subject:${candidate.subjectId}`);
+		}
+		return { prepared, failures, renamed: pathPlan.renamed, groupKeyBySubjectId };
 	}
 
 	/**
@@ -971,6 +1128,7 @@ export class SyncManager {
 			console.debug(`[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}，并发数: ${concurrency}`);
 
 			// 开始批次同步
+			this.assertNoPendingTransaction();
 			this.incrementalSync.startBatch();
 			const batch = await this.prepareCollectionBatch(collections, concurrency);
 			const execution = await this.executePreparedCollectionBatch(
@@ -991,8 +1149,8 @@ export class SyncManager {
 			const batchRelations = execution.relations;
 
 			// 后处理：为同批次相关条目补充双向链接
-			if (batchRelations.length > 1) {
-				await this.postProcessBatchRelations(batchRelations);
+			if (batchRelations.length > 0) {
+				result.warnings.push(...await this.postProcessBatchRelations(batchRelations));
 			}
 
 			this.finalizeSyncResult(result, wasCancelled);
@@ -1004,6 +1162,7 @@ export class SyncManager {
 			}
 
 		} catch (error) {
+			if (error instanceof PendingSyncTransactionError) throw error;
 			console.error('[Bangumi Sync] 按收藏列表同步失败:', error);
 			this.reportProgress({ status: 'error', message: String(error) });
 		}
@@ -1091,6 +1250,7 @@ export class SyncManager {
 			console.debug(`[Bangumi Sync] 开始同步 ${itemsToSync.length} 个条目，并发数: ${concurrency}`);
 
 			// 开始批次同步
+			this.assertNoPendingTransaction();
 			this.incrementalSync.startBatch();
 			const batch = await this.prepareCollectionBatch(
 				itemsToSync.map(item => item.collection),
@@ -1115,8 +1275,8 @@ export class SyncManager {
 			const batchRelations = execution.relations;
 
 			// 后处理：为同批次相关条目补充双向链接
-			if (batchRelations.length > 1) {
-				await this.postProcessBatchRelations(batchRelations);
+			if (batchRelations.length > 0) {
+				result.warnings.push(...await this.postProcessBatchRelations(batchRelations));
 			}
 
 			this.finalizeSyncResult(result, wasCancelled);
@@ -1128,6 +1288,7 @@ export class SyncManager {
 			}
 
 		} catch (error: unknown) {
+			if (error instanceof PendingSyncTransactionError) throw error;
 			console.error('[Bangumi Sync] 执行同步失败:', error);
 			this.reportProgress({ status: 'error', message: error instanceof Error ? error.message : String(error) });
 			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
@@ -1232,21 +1393,12 @@ export class SyncManager {
 
 	private async writeRenderedCollection(
 		rendered: RenderedCollection,
+		transaction: SyncTransaction,
 	): Promise<{ subjectId: number; filePath: string; relations: RelatedSubject[]; writeStatus: FileWriteStatus }> {
-		const { subject, filePath, content, fileExisted, shouldOverwrite, relations } = rendered;
+		const { subject, filePath, content, shouldOverwrite, relations } = rendered;
 		const writeOptions = { overwrite: shouldOverwrite, subjectId: subject.id };
-		const writeResult = this.activeTransaction
-			? await this.activeTransaction.createOrUpdateFile(filePath, content, writeOptions)
-			: await this.fileManager.createOrUpdateFile(filePath, content, writeOptions);
+		const writeResult = await transaction.createOrUpdateFile(filePath, content, writeOptions);
 		console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
-
-		// 添加到批次已同步列表
-		this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name, !fileExisted);
-
-		// 更新已同步相关条目的链接（双向链接）
-		if (this.config.enableRelatedLinks !== false && relations && relations.length > 0) {
-			await this.updateRelatedItemsBidirectional(subject.id, filePath, subject.name_cn || subject.name, relations);
-		}
 
 		return { subjectId: subject.id, filePath, relations, writeStatus: writeResult.status };
 	}
@@ -1260,7 +1412,8 @@ export class SyncManager {
 		currentPath: string,
 		currentName: string,
 		relations: { id: number; name_cn: string; name: string }[]
-	): Promise<void> {
+	): Promise<SyncWarning[]> {
+		const warnings: SyncWarning[] = [];
 		const displayName = this.extractDisplayNameFromPath(currentPath);
 		const currentLink = `[[${currentPath}|${displayName}]]`;
 
@@ -1282,8 +1435,14 @@ export class SyncManager {
 				await this.updateRelatedFile(path, update.subjectId, update.links);
 			} catch (error) {
 				console.error(`[Bangumi Sync] 更新相关条目链接失败: ${path}`, error);
+				warnings.push({
+					subjectId: update.subjectId,
+					operation: 'related-link-update',
+					message: error instanceof Error ? error.message : String(error),
+				});
 			}
 		}
+		return warnings;
 	}
 
 	/**
@@ -1293,8 +1452,17 @@ export class SyncManager {
 	 */
 	private async postProcessBatchRelations(
 		batchItems: { subjectId: number; filePath: string; relations: RelatedSubject[] }[]
-	): Promise<void> {
-		if (this.config.enableRelatedLinks === false) return;
+	): Promise<SyncWarning[]> {
+		const warnings: SyncWarning[] = [];
+		if (this.config.enableRelatedLinks === false) return warnings;
+		for (const item of batchItems) {
+			warnings.push(...await this.updateRelatedItemsBidirectional(
+				item.subjectId,
+				item.filePath,
+				this.extractDisplayNameFromPath(item.filePath),
+				item.relations,
+			));
+		}
 
 		const batchSubjectIds = new Set(batchItems.map(item => item.subjectId));
 		const updatesByFile = new Map<string, { subjectId: number; links: string[] }>();
@@ -1324,7 +1492,7 @@ export class SyncManager {
 			}
 		}
 
-		if (updatesByFile.size === 0) return;
+		if (updatesByFile.size === 0) return warnings;
 
 		console.debug(`[Bangumi Sync] 后处理同批次相关链接: ${updatesByFile.size} 个文件需要更新`);
 
@@ -1333,8 +1501,14 @@ export class SyncManager {
 				await this.updateRelatedFile(path, update.subjectId, update.links);
 			} catch (error) {
 				console.error(`[Bangumi Sync] 后处理更新相关链接失败: ${path}`, error);
+				warnings.push({
+					subjectId: update.subjectId,
+					operation: 'related-link-postprocess',
+					message: error instanceof Error ? error.message : String(error),
+				});
 			}
 		}
+		return warnings;
 	}
 
 	private async updateRelatedFile(path: string, subjectId: number, links: string[]): Promise<void> {
@@ -1343,11 +1517,7 @@ export class SyncManager {
 		const content = await this.app.vault.read(file);
 		const updatedContent = this.incrementalSync.updateRelated(content, links);
 		if (updatedContent === content) return;
-		if (this.activeTransaction) {
-			await this.activeTransaction.createOrUpdateFile(path, updatedContent, { overwrite: true, subjectId });
-		} else {
-			await this.app.vault.process(file, () => updatedContent);
-		}
+		await this.app.vault.process(file, () => updatedContent);
 		console.debug(`[Bangumi Sync] 已更新相关链接: ${path} (+${links.length})`);
 	}
 

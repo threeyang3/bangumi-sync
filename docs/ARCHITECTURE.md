@@ -544,3 +544,9 @@ SearchModal
 - 模板维护者：看 [TEMPLATE_GUIDE.md](./TEMPLATE_GUIDE.md)
 - 状态同步维护者：看 [STATUS_SYNC_PITFALLS.md](./STATUS_SYNC_PITFALLS.md)
 - 发布维护者：看 [DEVELOPMENT.md](./DEVELOPMENT.md)
+
+## 6.10.2 事务终结
+
+`SyncManager` 维护显式批次状态机：`none → active → awaiting-user-decision → committed|rolled-back|rollback-failed`。未决的部分成功批次不能被替换或隐式提交。碰撞组共享原子事务；无关条目使用独立事务，成功分组在路径状态保存成功或用户明确保留前一直可回滚。
+
+`SyncTransaction` 将重命名记录为 `original`、`temporary` 或 `final`。回滚先移开 final 路径，再把每个 temporary 路径恢复到原位，并逐项报告失败。`IncrementalSync.finishBatch()`/`clearBatch()` 与文件事务一同关闭内存批次生命周期。
