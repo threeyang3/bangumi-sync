@@ -30,6 +30,7 @@ import {
 	LocalSubjectSnapshot,
 	PlatformMetadataUpdate,
 } from './types';
+import { SubjectIdentity, SubjectIdentityConflict, SubjectIdentitySource, parsePositiveSubjectId } from './subjectIdentity';
 
 export class SubjectDocumentService {
 	private app: App;
@@ -38,6 +39,52 @@ export class SubjectDocumentService {
 	constructor(app: App, episodeStatusManager?: EpisodeStatusManager | null) {
 		this.app = app;
 		this.episodeStatusManager = episodeStatusManager ?? null;
+	}
+
+	getSubjectIdentityFromContent(content: string): SubjectIdentity {
+		const frontmatter = this.extractFrontmatterRecord(content);
+		const candidates: Array<{ source: Exclude<SubjectIdentitySource, 'missing'>; value: number }> = [];
+		const addCandidate = (source: Exclude<SubjectIdentitySource, 'missing'>, value: number | null): void => {
+			if (value !== null) {
+				candidates.push({ source, value });
+			}
+		};
+
+		addCandidate('id', parsePositiveSubjectId(frontmatter.id ?? frontmatter.ID));
+		addCandidate('BangumiID', parsePositiveSubjectId(frontmatter.BangumiID));
+		const canonicalUrl = frontmatter['Bangumi链接'] ?? frontmatter.bangumi_url ?? frontmatter.BangumiURL;
+		const urlSource = typeof canonicalUrl === 'string'
+			? canonicalUrl
+			: candidates.length === 0 ? content : '';
+		const urlMatch = urlSource.match(/(?:bgm\.tv|bangumi\.tv|chii\.in)\/subject\/(\d+)/i);
+		addCandidate('bangumi-url', urlMatch ? parsePositiveSubjectId(urlMatch[1]) : null);
+		const canonicalCover = frontmatter['封面'] ?? frontmatter.cover;
+		const coverSource = typeof canonicalCover === 'string'
+			? canonicalCover
+			: candidates.length === 0 ? content : '';
+		const coverMatch = coverSource.match(/(?:^|[/\\])(\d+)_cover\.(?:jpe?g|png|webp|avif)(?:[)\]"'\s]|$)/im);
+		addCandidate('cover-path', coverMatch ? parsePositiveSubjectId(coverMatch[1]) : null);
+
+		const primary = candidates.find(candidate => candidate.source === 'id')
+			?? candidates.find(candidate => candidate.source === 'BangumiID')
+			?? candidates.find(candidate => candidate.source === 'bangumi-url')
+			?? candidates.find(candidate => candidate.source === 'cover-path');
+		if (!primary) {
+			return { subjectId: null, source: 'missing' };
+		}
+
+		const conflicts: SubjectIdentityConflict[] = candidates
+			.filter(candidate => candidate.value !== primary.value)
+			.map(candidate => ({ source: candidate.source, value: candidate.value }));
+		return {
+			subjectId: primary.value,
+			source: primary.source,
+			...(conflicts.length > 0 ? { conflicts } : {}),
+		};
+	}
+
+	async getSubjectIdentity(file: TFile): Promise<SubjectIdentity> {
+		return this.getSubjectIdentityFromContent(await this.app.vault.read(file));
 	}
 
 	async readSnapshot(file: TFile, subjectType: SubjectType): Promise<LocalSubjectSnapshot> {

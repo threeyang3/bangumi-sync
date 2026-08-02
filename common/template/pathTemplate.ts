@@ -5,11 +5,12 @@
 
 import { Subject, UserCollection, getSubjectTypeLabel } from '../api/types';
 import { parseInfoByType } from '../parser/infoboxParser';
+import { limitPathLength, normalizePathValue, sanitizeFileName } from '../file/pathUtils';
 
 /**
  * 路径模板变量
  */
-interface PathTemplateVars {
+export interface PathTemplateVars {
 	type: string;      // 条目类型大类 (book/anime/music/game/real)
 	category: string;  // 细分类别
 	platform: string;  // 平台/具体类型 (如: 公式书、TV、电影)
@@ -78,17 +79,6 @@ export function getTypeSuffixForName(category: string): string {
 }
 
 /**
- * 清理文件名中的非法字符
- */
-function sanitizeFileName(name: string): string {
-	// 移除 Windows 文件名非法字符
-	return name
-		.replace(/[<>:"/\\|?*]/g, ' ')
-		.replace(/\s+/g, ' ')
-		.trim();
-}
-
-/**
  * 渲染路径模板
  * 使用单次正则匹配替换所有变量
  * @param template 模板字符串，如 "ACGN/{{type}}/{{name_cn}}.md"
@@ -96,29 +86,44 @@ function sanitizeFileName(name: string): string {
  */
 export function renderPathTemplate(template: string, vars: PathTemplateVars): string {
 	const varMap: Record<string, string> = {
-		type: sanitizeFileName(vars.type),
-		category: sanitizeFileName(vars.category),
-		platform: sanitizeFileName(vars.platform),
-		name: sanitizeFileName(vars.name),
-		name_cn: sanitizeFileName(vars.name_cn),
-		name_cn_with_type: sanitizeFileName(vars.name_cn_with_type),
+		type: sanitizeFileName(vars.type, ''),
+		category: sanitizeFileName(vars.category, ''),
+		platform: sanitizeFileName(vars.platform, ''),
+		name: sanitizeFileName(vars.name, String(vars.id)),
+		name_cn: sanitizeFileName(vars.name_cn, String(vars.id)),
+		name_cn_with_type: sanitizeFileName(vars.name_cn_with_type, String(vars.id)),
 		year: vars.year,
-		author: sanitizeFileName(vars.author),
+		author: sanitizeFileName(vars.author, ''),
 		id: String(vars.id),
 	};
 
+	const unknownVariables = new Set<string>();
 	let result = template.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
-		return key in varMap ? varMap[key] : `{{${key}}}`;
+		if (!(key in varMap)) {
+			unknownVariables.add(key);
+			return '';
+		}
+		return varMap[key];
 	});
+	if (unknownVariables.size > 0) {
+		throw new Error(`Unknown path template variable(s): ${Array.from(unknownVariables).join(', ')}`);
+	}
 
 	// 清理路径中的空目录部分
-	result = result
+	result = limitPathLength(normalizePathValue(result
 		.split('/')
+		.map((part, index, parts) => {
+			if (index !== parts.length - 1) return sanitizeFileName(part, '');
+			if (part.toLocaleLowerCase('en-US').endsWith('.md')) {
+				return `${sanitizeFileName(part.slice(0, -3), String(vars.id), 157)}.md`;
+			}
+			return sanitizeFileName(part, String(vars.id), 160);
+		})
 		.filter(part => part.length > 0)
-		.join('/');
+		.join('/')));
 
 	// 确保以 .md 结尾
-	if (!result.endsWith('.md')) {
+	if (!result.toLocaleLowerCase('en-US').endsWith('.md')) {
 		result += '.md';
 	}
 

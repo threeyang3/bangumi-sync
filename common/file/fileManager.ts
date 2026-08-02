@@ -4,12 +4,34 @@
  */
 
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
+import { isDescendantPath } from './pathUtils';
+import { SubjectDocumentService } from '../../src/document/subjectDocumentService';
+
+export type FileWriteStatus = 'created' | 'updated' | 'unchanged';
+
+export interface FileWriteResult {
+	status: FileWriteStatus;
+	file: TFile;
+}
+
+export class SubjectPathCollisionError extends Error {
+	constructor(
+		readonly path: string,
+		readonly requestedSubjectId: number,
+		readonly existingSubjectId: number | null,
+	) {
+		super(`Cannot write subject ${requestedSubjectId} to ${path}; the path belongs to ${existingSubjectId ?? 'an unknown subject'}.`);
+		this.name = 'SubjectPathCollisionError';
+	}
+}
 
 export class FileManager {
 	private app: App;
+	private documentService: SubjectDocumentService;
 
-	constructor(app: App) {
+	constructor(app: App, documentService = new SubjectDocumentService(app)) {
 		this.app = app;
+		this.documentService = documentService;
 	}
 
 	/**
@@ -59,6 +81,20 @@ export class FileManager {
 		return null;
 	}
 
+	async assertPathOwnership(path: string, subjectId: number): Promise<TFile | null> {
+		const normalizedPath = normalizePath(path);
+		const file = this.getFile(normalizedPath);
+		if (!file) {
+			return null;
+		}
+
+		const identity = await this.documentService.getSubjectIdentity(file);
+		if (identity.conflicts?.length || identity.subjectId !== subjectId) {
+			throw new SubjectPathCollisionError(normalizedPath, subjectId, identity.subjectId);
+		}
+		return file;
+	}
+
 	/**
 	 * 创建文件
 	 */
@@ -95,27 +131,35 @@ export class FileManager {
 		content: string,
 		options?: {
 			overwrite?: boolean;
+			subjectId?: number;
 		}
-	): Promise<{ file: TFile; created: boolean }> {
+	): Promise<FileWriteResult> {
 		const normalizedPath = normalizePath(path);
 		const existingFile = this.getFile(normalizedPath);
 
 		if (existingFile) {
+			if (options?.subjectId !== undefined) {
+				await this.assertPathOwnership(normalizedPath, options.subjectId);
+			}
 			// 文件已存在
 			if (options?.overwrite) {
 				// 强制覆盖
+				const currentContent = await this.app.vault.read(existingFile);
+				if (currentContent === content) {
+					return { file: existingFile, status: 'unchanged' };
+				}
 				await this.updateFile(existingFile, content);
-				return { file: existingFile, created: false };
+				return { file: existingFile, status: 'updated' };
 			}
 
 			// 默认不更新已存在的文件
 			console.debug(`[Bangumi Sync] 文件已存在，跳过: ${normalizedPath}`);
-			return { file: existingFile, created: false };
+			return { file: existingFile, status: 'unchanged' };
 		}
 
 		// 创建新文件
 		const file = await this.createFile(normalizedPath, content);
-		return { file, created: true };
+		return { file, status: 'created' };
 	}
 
 	/**
@@ -131,7 +175,7 @@ export class FileManager {
 
 		const files: TFile[] = [];
 		for (const file of this.app.vault.getMarkdownFiles()) {
-			if (file.path.startsWith(normalizedPath)) {
+			if (isDescendantPath(file.path, normalizedPath)) {
 				files.push(file);
 			}
 		}
