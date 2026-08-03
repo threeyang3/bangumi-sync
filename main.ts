@@ -37,6 +37,8 @@ import { EpisodeCommentManager } from './src/episode/episodeCommentManager';
 import { SubjectNoteManager } from './src/note/subjectNoteManager';
 import { StatusSyncFieldSelection } from './src/sync/statusSyncTypes';
 import { PathDiagnosticModal, PathMigrationPreviewModal } from './src/ui/pathToolsModal';
+import { RecoveryCenterModal } from './src/ui/recoveryCenterModal';
+import { assertWriteOperationAllowed, setWriteOperationGuard, WriteOperation } from './src/sync/writeOperationGate';
 
 /**
  * 缓存数据结构
@@ -137,6 +139,7 @@ export default class BangumiPlugin extends Plugin {
                         id: 'create-subject-note',
                         name: tn('commands', 'createSubjectNote'),
 			callback: () => {
+				if (!this.ensureWriteCanStart('subject-note')) return;
 				void this.subjectNoteManager?.createOrAppendForCurrentFile();
 			},
 		});
@@ -151,6 +154,12 @@ export default class BangumiPlugin extends Plugin {
 			id: 'scan-and-link-related',
 			name: tn('commands', 'scanAndLinkRelated'),
 			callback: () => void this.scanAndLinkRelated(),
+		});
+
+		this.addCommand({
+			id: 'open-recovery-center',
+			name: tn('commands', 'openRecoveryCenter'),
+			callback: () => this.openRecoveryCenter(),
 		});
 
 		this.addCommand({
@@ -207,6 +216,19 @@ export default class BangumiPlugin extends Plugin {
 		}
 	}
 
+	private openRecoveryCenter(): void {
+		if (!this.syncManager) {
+			new Notice(tn('notices', 'syncManagerNotInit'));
+			return;
+		}
+		new RecoveryCenterModal(this.app, {
+			getRecovery: () => this.syncManager?.getRecoveryRequired() ?? null,
+			retryRollback: () => this.syncManager!.retryRecovery(),
+			confirmManual: () => this.syncManager!.confirmManualRecovery(),
+			rescan: () => this.syncManager!.rescanRecovery(),
+		}).open();
+	}
+
 	private async openPathMigrationPreview(): Promise<void> {
 		try {
 			if (!this.syncManager) {
@@ -226,6 +248,7 @@ export default class BangumiPlugin extends Plugin {
 	}
 
 	onunload() {
+		setWriteOperationGuard(null);
 		// 清除自动同步定时器
 		if (this.autoSyncIntervalId !== null) {
 			activeWindow.clearInterval(this.autoSyncIntervalId);
@@ -359,6 +382,7 @@ export default class BangumiPlugin extends Plugin {
 		};
 
 		this.syncManager = new SyncManager(this.app, config);
+		setWriteOperationGuard(() => this.syncManager?.ensureCanStartSync());
 		this.subjectNoteManager = new SubjectNoteManager(this.app, this.syncManager.client, this.settings);
 	}
 
@@ -479,6 +503,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 打开导出用户数据弹窗
 	 */
 	openExportModal() {
+		if (!this.ensureWriteCanStart('user-data-export')) return;
 		const modal = new UserDataExportModal(
 			this.app,
 			this.settings.scanFolderPath,
@@ -493,6 +518,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 打开导入用户数据弹窗
 	 */
 	openImportModal() {
+		if (!this.ensureWriteCanStart('user-data-import')) return;
 		// 创建文件选择器
 		const input = activeDocument.createElement('input');
 		input.type = 'file';
@@ -648,6 +674,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 批量下载封面图片并替换链接
 	 */
 	async batchDownloadCovers() {
+		if (!this.ensureWriteCanStart('cover-download')) return;
 		if (!this.settings.downloadImages) {
 			new Notice(tn('notices', 'coverDownloadDisabled'));
 			return;
@@ -663,7 +690,7 @@ export default class BangumiPlugin extends Plugin {
 		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
 		this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
 		this.syncModal.setCommitHandler(() => this.syncManager!.commitPendingBatch());
-		this.syncModal.setRecoveryHandlers(() => this.syncManager!.retryRecovery(), () => this.syncManager!.confirmManualRecovery());
+		this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
 		this.syncModal.open();
 
 		this.syncManager.setProgressCallback((progress: SyncProgress) => {
@@ -710,6 +737,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 扫描所有本地已同步条目，为相关条目补充双向链接
 	 */
 	async scanAndLinkRelated() {
+		if (!this.ensureWriteCanStart('related-link-scan')) return;
 		if (!this.syncManager) {
 			new Notice(tn('notices', 'syncManagerNotInit'));
 			return;
@@ -780,7 +808,7 @@ export default class BangumiPlugin extends Plugin {
 		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
 		this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
 		this.syncModal.setCommitHandler(() => this.syncManager!.commitPendingBatch());
-		this.syncModal.setRecoveryHandlers(() => this.syncManager!.retryRecovery(), () => this.syncManager!.confirmManualRecovery());
+		this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
 		this.syncModal.open();
 
 		this.syncManager.setProgressCallback((progress: SyncProgress) => {
@@ -849,7 +877,7 @@ export default class BangumiPlugin extends Plugin {
 						this.syncModal = new SyncModal(this.app, this.cancellationSignal);
 						this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
 						this.syncModal.setCommitHandler(() => this.syncManager!.commitPendingBatch());
-						this.syncModal.setRecoveryHandlers(() => this.syncManager!.retryRecovery(), () => this.syncManager!.confirmManualRecovery());
+						this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
 						this.syncModal.open();
 
 						this.syncManager!.setProgressCallback((progress: SyncProgress) => {
@@ -918,11 +946,31 @@ export default class BangumiPlugin extends Plugin {
 			return true;
 		} catch (error) {
 			if (error instanceof RecoveryRequiredError) {
-				new Notice(`Bangumi Sync recovery required (${error.recovery.reason}). Retry recovery or inspect rollback details before syncing.`);
+				new Notice(tn('recoveryCenter', 'writeBlocked'));
+				this.openRecoveryCenter();
 			} else if (error instanceof PendingDecisionInProgressError) {
-				new Notice('Bangumi sync is still processing the previous keep/rollback decision.');
+				new Notice(tn('recoveryCenter', 'decisionInProgress'));
 			} else if (error instanceof PendingSyncTransactionError) {
-				new Notice('Choose whether to keep or roll back the previous partial sync before starting another sync.');
+				new Notice(tn('recoveryCenter', 'pendingDecision'));
+			} else {
+				new Notice(error instanceof Error ? error.message : String(error));
+			}
+			return false;
+		}
+	}
+
+	private ensureWriteCanStart(operation: WriteOperation): boolean {
+		try {
+			assertWriteOperationAllowed(operation);
+			return true;
+		} catch (error) {
+			if (error instanceof RecoveryRequiredError) {
+				new Notice(tn('recoveryCenter', 'writeBlocked'));
+				this.openRecoveryCenter();
+			} else if (error instanceof PendingDecisionInProgressError) {
+				new Notice(tn('recoveryCenter', 'decisionInProgress'));
+			} else if (error instanceof PendingSyncTransactionError) {
+				new Notice(tn('recoveryCenter', 'pendingDecision'));
 			} else {
 				new Notice(error instanceof Error ? error.message : String(error));
 			}

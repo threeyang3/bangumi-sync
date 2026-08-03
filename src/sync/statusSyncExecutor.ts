@@ -10,6 +10,7 @@ import {
 	StatusSyncDiff,
 	StatusSyncExecutionSummary,
 } from './statusSyncTypes';
+import { assertWriteOperationAllowed } from './writeOperationGate';
 
 export class StatusSyncExecutor {
 	private app: App;
@@ -30,6 +31,7 @@ export class StatusSyncExecutor {
 	}
 
 	async executeSync(diffs: StatusSyncDiff[]): Promise<StatusSyncExecutionSummary> {
+		assertWriteOperationAllowed('status-sync');
 		let successCount = 0;
 		let failCount = 0;
 		const actionableDiffs = diffs.filter(diff => diff.hasAnyDiff);

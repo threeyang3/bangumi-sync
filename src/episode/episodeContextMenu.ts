@@ -10,6 +10,7 @@ import { EpisodeCommentManager } from './episodeCommentManager';
 import { EpisodeStatusType, getEpisodeStatusText } from './types';
 import { delay } from '../../common/utils/timing';
 import { tn, tnFormat } from '../i18n/translations';
+import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
 
 /**
  * 集数右键菜单管理器
@@ -148,6 +149,12 @@ export class EpisodeContextMenu {
 		epBox: HTMLElement
 	): Promise<void> {
 		try {
+			assertWriteOperationAllowed('episode-status');
+		} catch {
+			new Notice(tn('recoveryCenter', 'writeBlocked'));
+			return;
+		}
+		try {
 			// 1. 更新本地文件中的状态标记
 			await this.statusManager.updateLocalStatus(file, episodeId, epNumber, status);
 
@@ -165,6 +172,12 @@ export class EpisodeContextMenu {
 	 * 设置"看到"状态：将该集及之前的所有集都标为"看过"
 	 */
 	private async setWatchedUpTo(file: TFile, targetEpNumber: number): Promise<void> {
+		try {
+			assertWriteOperationAllowed('episode-status');
+		} catch {
+			new Notice(tn('recoveryCenter', 'writeBlocked'));
+			return;
+		}
 		try {
 			// 获取当前视图中所有的集数按键
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -209,6 +222,12 @@ export class EpisodeContextMenu {
 	 * 添加单集吐槽
 	 */
 	private async addEpisodeComment(file: TFile, epNumber: number): Promise<void> {
+		try {
+			assertWriteOperationAllowed('episode-comment');
+		} catch {
+			new Notice(tn('recoveryCenter', 'writeBlocked'));
+			return;
+		}
 		try {
 			// 1. 在文件中插入 callout
 			const result = await this.commentManager.insertEpisodeComment(file, epNumber);

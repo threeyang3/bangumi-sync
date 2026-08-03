@@ -28,7 +28,7 @@ __export(main_exports, {
   default: () => BangumiPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian31 = require("obsidian");
+var import_obsidian32 = require("obsidian");
 
 // common/api/types.ts
 var SubjectType = /* @__PURE__ */ ((SubjectType3) => {
@@ -327,7 +327,8 @@ var en = {
     batchDownloadCovers: "Batch download cover images",
     scanAndLinkRelated: "Scan and link related subjects",
     diagnoseLocalSubjects: "Check local Bangumi subjects",
-    previewPathMigration: "Preview and apply current path template"
+    previewPathMigration: "Preview and apply current path template",
+    openRecoveryCenter: "Open Bangumi Sync Recovery Center"
   },
   ribbon: {
     collectionManager: "Bangumi collection manager"
@@ -924,6 +925,43 @@ var en = {
     includeUnknown: "Include legacy paths with unknown ownership state",
     includeUserRenamed: "Include user-renamed paths",
     close: "Close"
+  },
+  recoveryCenter: {
+    title: "Bangumi Sync Recovery Center",
+    noRecovery: "No local recovery is required.",
+    cause: "Cause",
+    detectedAt: "Detected",
+    affectedSubjects: "Affected subjects",
+    expectations: "Pre-batch expectations",
+    expectedPresent: "must exist",
+    expectedAbsent: "must be absent",
+    latestAttempt: "Latest attempt",
+    attemptHistory: "Attempt history",
+    retryRollback: "Retry automatic rollback",
+    confirmManual: "Confirm manual recovery",
+    rescan: "Rescan local state",
+    close: "Close",
+    working: "Checking local recovery\u2026",
+    recovered: "Local recovery completed. Write operations are available again.",
+    blocked: "Recovery is still blocked. Resolve the diagnostics below and rescan.",
+    actionFailed: "Recovery action failed",
+    diagnostics: "Blocking diagnostics",
+    openCenter: "Open Recovery Center",
+    writeBlocked: "Local recovery is required before this write operation can run.",
+    pendingDecision: "Resolve the previous partial sync before starting another write operation.",
+    decisionInProgress: "The previous sync decision or recovery action is still running.",
+    diagnosticRescanFailed: "Local rescan failed",
+    diagnosticStateRestoreFailed: "Path-state restore failed",
+    diagnosticPersistedStateMismatch: "Persisted path states do not match the pre-batch snapshot",
+    diagnosticIncrementalStateMismatch: "Incremental path states do not match the pre-batch snapshot",
+    diagnosticBlockingLocalFile: "Blocking local file",
+    diagnosticDuplicateSubjectId: "Duplicate subject ID",
+    diagnosticTemporaryFile: "Temporary transaction file remains",
+    diagnosticUnexpectedSubjectFile: "Subject file should be absent",
+    diagnosticMissingSubjectFile: "Expected subject file is missing",
+    diagnosticSubjectPathMismatch: "Subject path does not match",
+    diagnosticSubjectIdentityMismatch: "Expected path belongs to another subject",
+    diagnosticRollbackStepFailed: "Rollback step failed"
   }
 };
 var zhCN = {
@@ -939,7 +977,8 @@ var zhCN = {
     batchDownloadCovers: "\u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u56FE\u7247",
     scanAndLinkRelated: "\u626B\u63CF\u5E76\u5173\u8054\u76F8\u5173\u6761\u76EE",
     diagnoseLocalSubjects: "\u68C0\u67E5\u672C\u5730 Bangumi \u6761\u76EE",
-    previewPathMigration: "\u9884\u89C8\u5E76\u5E94\u7528\u5F53\u524D\u8DEF\u5F84\u6A21\u677F"
+    previewPathMigration: "\u9884\u89C8\u5E76\u5E94\u7528\u5F53\u524D\u8DEF\u5F84\u6A21\u677F",
+    openRecoveryCenter: "\u6253\u5F00 Bangumi Sync \u6062\u590D\u4E2D\u5FC3"
   },
   ribbon: {
     collectionManager: "Bangumi \u6536\u85CF\u7BA1\u7406"
@@ -1536,6 +1575,43 @@ var zhCN = {
     includeUnknown: "\u5305\u542B\u7BA1\u7406\u72B6\u6001\u672A\u77E5\u7684\u65E7\u8DEF\u5F84",
     includeUserRenamed: "\u5305\u542B\u7528\u6237\u624B\u52A8\u91CD\u547D\u540D\u7684\u8DEF\u5F84",
     close: "\u5173\u95ED"
+  },
+  recoveryCenter: {
+    title: "Bangumi Sync \u6062\u590D\u4E2D\u5FC3",
+    noRecovery: "\u5F53\u524D\u4E0D\u9700\u8981\u672C\u5730\u6062\u590D\u3002",
+    cause: "\u539F\u56E0",
+    detectedAt: "\u53D1\u73B0\u65F6\u95F4",
+    affectedSubjects: "\u53D7\u5F71\u54CD\u6761\u76EE",
+    expectations: "\u6279\u6B21\u524D\u9884\u671F",
+    expectedPresent: "\u5E94\u5F53\u5B58\u5728",
+    expectedAbsent: "\u5E94\u5F53\u4E0D\u5B58\u5728",
+    latestAttempt: "\u6700\u8FD1\u4E00\u6B21\u5C1D\u8BD5",
+    attemptHistory: "\u5C1D\u8BD5\u5386\u53F2",
+    retryRollback: "\u91CD\u8BD5\u81EA\u52A8\u56DE\u6EDA",
+    confirmManual: "\u786E\u8BA4\u624B\u52A8\u6062\u590D",
+    rescan: "\u91CD\u65B0\u626B\u63CF\u672C\u5730\u72B6\u6001",
+    close: "\u5173\u95ED",
+    working: "\u6B63\u5728\u68C0\u67E5\u672C\u5730\u6062\u590D\u72B6\u6001\u2026",
+    recovered: "\u672C\u5730\u6062\u590D\u5DF2\u5B8C\u6210\uFF0C\u5199\u5165\u64CD\u4F5C\u5DF2\u91CD\u65B0\u5F00\u653E\u3002",
+    blocked: "\u6062\u590D\u4ECD\u88AB\u963B\u585E\u3002\u8BF7\u5904\u7406\u4E0B\u65B9\u8BCA\u65AD\u540E\u91CD\u65B0\u626B\u63CF\u3002",
+    actionFailed: "\u6062\u590D\u64CD\u4F5C\u5931\u8D25",
+    diagnostics: "\u963B\u585E\u8BCA\u65AD",
+    openCenter: "\u6253\u5F00\u6062\u590D\u4E2D\u5FC3",
+    writeBlocked: "\u5B8C\u6210\u672C\u5730\u6062\u590D\u524D\u65E0\u6CD5\u6267\u884C\u6B64\u5199\u5165\u64CD\u4F5C\u3002",
+    pendingDecision: "\u8BF7\u5148\u5904\u7406\u4E0A\u4E00\u6B21\u90E8\u5206\u540C\u6B65\uFF0C\u518D\u5F00\u59CB\u65B0\u7684\u5199\u5165\u64CD\u4F5C\u3002",
+    decisionInProgress: "\u4E0A\u4E00\u6B21\u540C\u6B65\u51B3\u7B56\u6216\u6062\u590D\u64CD\u4F5C\u4ECD\u5728\u6267\u884C\u3002",
+    diagnosticRescanFailed: "\u672C\u5730\u91CD\u65B0\u626B\u63CF\u5931\u8D25",
+    diagnosticStateRestoreFailed: "\u8DEF\u5F84\u72B6\u6001\u6062\u590D\u5931\u8D25",
+    diagnosticPersistedStateMismatch: "\u6301\u4E45\u5316\u8DEF\u5F84\u72B6\u6001\u4E0E\u6279\u6B21\u524D\u5FEB\u7167\u4E0D\u4E00\u81F4",
+    diagnosticIncrementalStateMismatch: "\u589E\u91CF\u540C\u6B65\u8DEF\u5F84\u72B6\u6001\u4E0E\u6279\u6B21\u524D\u5FEB\u7167\u4E0D\u4E00\u81F4",
+    diagnosticBlockingLocalFile: "\u5B58\u5728\u963B\u585E\u7684\u672C\u5730\u6587\u4EF6",
+    diagnosticDuplicateSubjectId: "\u6761\u76EE ID \u91CD\u590D",
+    diagnosticTemporaryFile: "\u4ECD\u6709\u4E8B\u52A1\u4E34\u65F6\u6587\u4EF6",
+    diagnosticUnexpectedSubjectFile: "\u672C\u5E94\u4E0D\u5B58\u5728\u7684\u6761\u76EE\u6587\u4EF6\u4ECD\u5B58\u5728",
+    diagnosticMissingSubjectFile: "\u9884\u671F\u7684\u6761\u76EE\u6587\u4EF6\u7F3A\u5931",
+    diagnosticSubjectPathMismatch: "\u6761\u76EE\u8DEF\u5F84\u4E0D\u4E00\u81F4",
+    diagnosticSubjectIdentityMismatch: "\u9884\u671F\u8DEF\u5F84\u5C5E\u4E8E\u5176\u4ED6\u6761\u76EE",
+    diagnosticRollbackStepFailed: "\u56DE\u6EDA\u6B65\u9AA4\u5931\u8D25"
   }
 };
 var translations = {
@@ -7477,6 +7553,74 @@ function formatDiagnosticReport(report) {
 `;
 }
 
+// src/sync/recoveryValidation.ts
+function collectSubjectExpectationDiagnostics(expectations, registry) {
+  var _a;
+  const diagnostics = [];
+  for (const expectation of expectations) {
+    const record = registry.getById(expectation.subjectId);
+    if (!expectation.expectedToExist) {
+      if (record) {
+        diagnostics.push({
+          code: "unexpected-subject-file",
+          subjectId: expectation.subjectId,
+          actualPath: record.path,
+          message: `Subject ${expectation.subjectId} was absent before the batch but exists at ${record.path}.`
+        });
+      }
+      continue;
+    }
+    const expectedPath = expectation.expectedPath;
+    if (expectedPath) {
+      const actualSubjectId = registry.getPathOwner(expectedPath);
+      const expectedSubjectId = (_a = expectation.expectedSubjectId) != null ? _a : expectation.subjectId;
+      if (actualSubjectId !== void 0 && actualSubjectId !== expectedSubjectId) {
+        diagnostics.push({
+          code: "subject-identity-mismatch",
+          subjectId: expectation.subjectId,
+          expectedPath,
+          actualSubjectId,
+          message: `${expectedPath} belongs to subject ${actualSubjectId}, expected subject ${expectedSubjectId}.`
+        });
+        continue;
+      }
+    }
+    if (!record) {
+      diagnostics.push({
+        code: "missing-subject-file",
+        subjectId: expectation.subjectId,
+        expectedPath,
+        message: `Subject ${expectation.subjectId} existed before the batch but is now missing.`
+      });
+      continue;
+    }
+    if (expectedPath && normalizePathCollisionKey(record.path) !== normalizePathCollisionKey(expectedPath)) {
+      diagnostics.push({
+        code: "subject-path-mismatch",
+        subjectId: expectation.subjectId,
+        expectedPath,
+        actualPath: record.path,
+        message: `Subject ${expectation.subjectId} is at ${record.path}, expected ${expectedPath}.`
+      });
+    }
+  }
+  return diagnostics;
+}
+function normalizedPathState(state) {
+  return {
+    ...state,
+    currentPath: normalizePathCollisionKey(state.currentPath),
+    ...state.lastManagedPath ? { lastManagedPath: normalizePathCollisionKey(state.lastManagedPath) } : {}
+  };
+}
+function pathStatesEqual(left, right) {
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  if (leftKeys.length !== rightKeys.length || leftKeys.some((key, index) => key !== rightKeys[index]))
+    return false;
+  return leftKeys.every((key) => JSON.stringify(normalizedPathState(left[key])) === JSON.stringify(normalizedPathState(right[key])));
+}
+
 // src/sync/syncManager.ts
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
@@ -7507,6 +7651,7 @@ var SyncManager = class {
     this.pendingTransaction = null;
     this.batchTransactionState = "none";
     this.pendingDecisionPromise = null;
+    this.recoveryActionPromise = null;
     this.recoveryRequired = null;
     var _a;
     this.app = app;
@@ -7548,7 +7693,7 @@ var SyncManager = class {
     var _a, _b;
     if (this.recoveryRequired)
       throw new RecoveryRequiredError(this.recoveryRequired);
-    if (this.pendingDecisionPromise || ((_a = this.pendingTransaction) == null ? void 0 : _a.state) === "committing" || ((_b = this.pendingTransaction) == null ? void 0 : _b.state) === "rolling-back") {
+    if (this.pendingDecisionPromise || this.recoveryActionPromise || ((_a = this.pendingTransaction) == null ? void 0 : _a.state) === "committing" || ((_b = this.pendingTransaction) == null ? void 0 : _b.state) === "rolling-back") {
       throw new PendingDecisionInProgressError();
     }
     if (this.pendingTransaction)
@@ -7560,40 +7705,20 @@ var SyncManager = class {
       ...this.recoveryRequired,
       rollback: { ...this.recoveryRequired.rollback, failures: (_a = this.recoveryRequired.rollback.failures) == null ? void 0 : _a.map((item) => ({ ...item })) },
       originalPathStates: this.clonePathStates(this.recoveryRequired.originalPathStates),
-      affectedSubjectIds: [...this.recoveryRequired.affectedSubjectIds]
+      affectedSubjectIds: [...this.recoveryRequired.affectedSubjectIds],
+      subjectExpectations: this.recoveryRequired.subjectExpectations.map((item) => ({ ...item })),
+      attempts: this.recoveryRequired.attempts.map((item) => this.cloneRecoveryAttempt(item)),
+      latestAttempt: this.recoveryRequired.latestAttempt ? this.cloneRecoveryAttempt(this.recoveryRequired.latestAttempt) : void 0
     } : null;
   }
   retryRecovery() {
-    const pending = this.pendingTransaction;
-    if (!pending || !this.recoveryRequired)
-      return Promise.resolve({ status: "no-pending" });
-    if (this.pendingDecisionPromise)
-      return this.pendingDecisionPromise;
-    pending.state = "rolling-back";
-    this.batchTransactionState = "rolling-back";
-    const promise = this.rollbackPendingTransaction(pending);
-    this.pendingDecisionPromise = promise;
-    promise.then(() => {
-      this.pendingDecisionPromise = null;
-    }, () => {
-      this.pendingDecisionPromise = null;
-    });
-    return promise;
+    return this.resolveRecoveryAction("retry-rollback");
   }
-  async confirmManualRecovery() {
-    var _a;
-    if (!this.recoveryRequired)
-      return { recovered: true, blockingDiagnostics: [] };
-    const blockingDiagnostics = await this.collectRecoveryDiagnostics(this.recoveryRequired);
-    if (blockingDiagnostics.length > 0) {
-      return { recovered: false, blockingDiagnostics, recovery: (_a = this.getRecoveryRequired()) != null ? _a : void 0 };
-    }
-    this.recoveryRequired = null;
-    this.pendingTransaction = null;
-    this.pendingDecisionPromise = null;
-    this.batchTransactionState = "rolled-back";
-    this.incrementalSync.clearBatch();
-    return { recovered: true, blockingDiagnostics: [] };
+  confirmManualRecovery() {
+    return this.resolveRecoveryAction("confirm-manual");
+  }
+  rescanRecovery() {
+    return this.resolveRecoveryAction("rescan");
   }
   /**
    * 更新配置
@@ -7619,6 +7744,134 @@ var SyncManager = class {
   }
   clonePathStates(states) {
     return Object.fromEntries(Object.entries(states).map(([id, state]) => [id, { ...state }]));
+  }
+  cloneRecoveryAttempt(attempt) {
+    var _a;
+    return {
+      ...attempt,
+      diagnostics: attempt.diagnostics.map((item) => ({ ...item })),
+      rollback: attempt.rollback ? { ...attempt.rollback, failures: (_a = attempt.rollback.failures) == null ? void 0 : _a.map((item) => ({ ...item })) } : void 0
+    };
+  }
+  resolveRecoveryAction(action) {
+    if (this.recoveryActionPromise)
+      return this.recoveryActionPromise;
+    if (!this.recoveryRequired || !this.pendingTransaction) {
+      return Promise.resolve({ action, status: "no-recovery", recovered: true, diagnostics: [] });
+    }
+    const startedAt = Date.now();
+    const promise = this.performRecoveryAction(action, startedAt);
+    this.recoveryActionPromise = promise;
+    promise.then(
+      () => {
+        if (this.recoveryActionPromise === promise)
+          this.recoveryActionPromise = null;
+      },
+      () => {
+        if (this.recoveryActionPromise === promise)
+          this.recoveryActionPromise = null;
+      }
+    );
+    return promise;
+  }
+  async performRecoveryAction(action, startedAt) {
+    var _a, _b, _c, _d;
+    const recovery = this.recoveryRequired;
+    const pending = this.pendingTransaction;
+    if (!recovery || !pending)
+      return { action, status: "no-recovery", recovered: true, diagnostics: [] };
+    let outcome;
+    try {
+      if (action === "retry-rollback") {
+        pending.state = "rolling-back";
+        this.batchTransactionState = "rolling-back";
+        const decision = await this.rollbackPendingTransaction(pending);
+        const diagnostics = decision.status === "rollback-failed" ? this.rollbackFailureDiagnostics(decision.rollback) : [];
+        outcome = {
+          action,
+          status: decision.status === "rolled-back" ? "rolled-back" : "rollback-failed",
+          recovered: decision.status === "rolled-back",
+          diagnostics,
+          result: decision.result,
+          rollback: decision.rollback,
+          error: decision.error,
+          recovery: (_a = this.getRecoveryRequired()) != null ? _a : void 0
+        };
+      } else if (action === "confirm-manual") {
+        outcome = await this.performManualRecovery(recovery, pending);
+      } else {
+        const diagnostics = await this.collectRecoveryDiagnostics(recovery);
+        outcome = {
+          action,
+          status: "blocked",
+          recovered: false,
+          diagnostics,
+          recovery: (_b = this.getRecoveryRequired()) != null ? _b : void 0
+        };
+      }
+    } catch (error) {
+      outcome = {
+        action,
+        status: "failed",
+        recovered: false,
+        diagnostics: [],
+        error: errorMessage(error),
+        recovery: (_c = this.getRecoveryRequired()) != null ? _c : void 0
+      };
+    }
+    const attempt = {
+      action,
+      status: outcome.status,
+      startedAt,
+      finishedAt: Date.now(),
+      diagnostics: outcome.diagnostics.map((item) => ({ ...item })),
+      rollback: outcome.rollback,
+      error: outcome.error
+    };
+    if (this.recoveryRequired) {
+      this.recoveryRequired.attempts.push(attempt);
+      this.recoveryRequired.latestAttempt = attempt;
+      outcome.recovery = (_d = this.getRecoveryRequired()) != null ? _d : void 0;
+    }
+    return outcome;
+  }
+  async performManualRecovery(recovery, pending) {
+    var _a, _b, _c, _d;
+    let diagnostics = await this.collectRecoveryDiagnostics(recovery);
+    if (diagnostics.length > 0) {
+      return { action: "confirm-manual", status: "blocked", recovered: false, diagnostics, recovery: (_a = this.getRecoveryRequired()) != null ? _a : void 0 };
+    }
+    try {
+      await this.persistSpecificPathStates(recovery.originalPathStates);
+    } catch (error) {
+      diagnostics = [{ code: "state-restore-failed", message: errorMessage(error) }];
+      return { action: "confirm-manual", status: "failed", recovered: false, diagnostics, error: errorMessage(error), recovery: (_b = this.getRecoveryRequired()) != null ? _b : void 0 };
+    }
+    if (!pathStatesEqual((_c = this.config.subjectPathStates) != null ? _c : {}, recovery.originalPathStates)) {
+      diagnostics.push({ code: "persisted-state-mismatch", message: "Persisted subject path states differ from the pre-batch snapshot." });
+    }
+    if (!pathStatesEqual(this.incrementalSync.exportPathStates(), recovery.originalPathStates)) {
+      diagnostics.push({ code: "incremental-state-mismatch", message: "Incremental sync path states differ from the pre-batch snapshot." });
+    }
+    if (diagnostics.length === 0)
+      diagnostics = await this.collectRecoveryDiagnostics(recovery);
+    if (diagnostics.length === 0 && !pathStatesEqual(this.incrementalSync.exportPathStates(), recovery.originalPathStates)) {
+      diagnostics.push({ code: "incremental-state-mismatch", message: "Incremental sync path states changed after the verification rescan." });
+    }
+    if (diagnostics.length > 0) {
+      return { action: "confirm-manual", status: "blocked", recovered: false, diagnostics, recovery: (_d = this.getRecoveryRequired()) != null ? _d : void 0 };
+    }
+    const result = this.snapshotAfterDecision(pending, "rolled-back", recovery.rollback);
+    this.recoveryRequired = null;
+    this.pendingTransaction = null;
+    this.pendingDecisionPromise = null;
+    this.batchTransactionState = "rolled-back";
+    this.incrementalSync.clearBatch();
+    return { action: "confirm-manual", status: "recovered", recovered: true, diagnostics: [], result, rollback: recovery.rollback };
+  }
+  rollbackFailureDiagnostics(rollback) {
+    var _a;
+    return ((_a = rollback == null ? void 0 : rollback.failures) != null ? _a : []).map((failure) => failure.operation === "restore-path-states" ? { code: "state-restore-failed", message: `${failure.path}: ${failure.message}` } : failure.operation === "rescan" ? { code: "rescan-failed", message: `${failure.path}: ${failure.message}` } : { code: "rollback-step-failed", operation: failure.operation, path: failure.path, message: failure.message });
   }
   emptyRollbackResult() {
     return { attempted: false, changed: false, deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0 };
@@ -7680,7 +7933,7 @@ var SyncManager = class {
     return { status: "committed", result, warnings };
   }
   async rollbackPendingTransaction(pending, cause) {
-    var _a;
+    var _a, _b, _c;
     const result = this.emptyRollbackResult();
     for (const transaction of [...pending.transactions].reverse()) {
       try {
@@ -7714,12 +7967,24 @@ var SyncManager = class {
       pending.state = "rollback-failed";
       this.batchTransactionState = "rollback-failed";
       const operations = new Set((_a = result.failures) == null ? void 0 : _a.map((item) => item.operation));
+      const existingRecovery = this.recoveryRequired;
+      const automaticAttempt = {
+        action: "automatic-rollback",
+        status: "rollback-failed",
+        startedAt: Date.now(),
+        finishedAt: Date.now(),
+        diagnostics: this.rollbackFailureDiagnostics(result),
+        rollback: result
+      };
       this.recoveryRequired = {
         reason: operations.has("rescan") ? "rescan-failed" : operations.has("restore-path-states") ? "state-restore-failed" : "rollback-failed",
         rollback: result,
         affectedSubjectIds: [...pending.affectedSubjectIds],
         originalPathStates: this.clonePathStates(pending.previousPathStates),
-        detectedAt: Date.now()
+        subjectExpectations: pending.subjectExpectations.map((item) => ({ ...item })),
+        attempts: (_b = existingRecovery == null ? void 0 : existingRecovery.attempts.map((item) => this.cloneRecoveryAttempt(item))) != null ? _b : [automaticAttempt],
+        latestAttempt: (existingRecovery == null ? void 0 : existingRecovery.latestAttempt) ? this.cloneRecoveryAttempt(existingRecovery.latestAttempt) : automaticAttempt,
+        detectedAt: (_c = existingRecovery == null ? void 0 : existingRecovery.detectedAt) != null ? _c : Date.now()
       };
       return { status: "rollback-failed", result: snapshot, rollback: result, error: cause ? errorMessage(cause) : void 0 };
     }
@@ -7737,8 +8002,6 @@ var SyncManager = class {
   }
   markGroupsRolledBack(pending) {
     const snapshot = pending.resultSnapshot;
-    if (!snapshot)
-      return;
     this.markOutcomeIndexesRolledBack(snapshot, pending.groups);
   }
   markOutcomeIndexesRolledBack(result, groups) {
@@ -7760,8 +8023,6 @@ var SyncManager = class {
   }
   snapshotAfterDecision(pending, completion, rollback, warnings = []) {
     const snapshot = pending.resultSnapshot;
-    if (!snapshot)
-      return void 0;
     snapshot.warnings.push(...warnings);
     snapshot.canRollback = false;
     if (rollback)
@@ -7777,28 +8038,34 @@ var SyncManager = class {
     try {
       await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
     } catch (error) {
-      diagnostics.push(`Local rescan failed: ${errorMessage(error)}`);
+      diagnostics.push({ code: "rescan-failed", message: errorMessage(error) });
       return diagnostics;
     }
     const registry = this.incrementalSync.getRegistry();
     for (const issue of registry.invalidFiles) {
       if (issue.severity === "blocking-error")
-        diagnostics.push(`${issue.code}: ${issue.path} \u2014 ${issue.message}`);
+        diagnostics.push({ code: "blocking-local-file", path: issue.path, message: `${issue.code}: ${issue.message}` });
     }
     for (const [subjectId, paths] of registry.duplicateIds)
-      diagnostics.push(`duplicate-id: ${subjectId} \u2014 ${paths.join(", ")}`);
+      diagnostics.push({
+        code: "duplicate-subject-id",
+        subjectId,
+        paths: [...paths],
+        message: `Subject ${subjectId} appears in multiple files.`
+      });
     for (const file of this.app.vault.getMarkdownFiles()) {
       if (/(^|\/)\.bangumi-sync-\d+-\d+-\d+\.tmp\.md$/u.test(file.path))
-        diagnostics.push(`temporary-file: ${file.path}`);
+        diagnostics.push({ code: "temporary-file", path: file.path, message: "Temporary transaction file remains in the vault." });
     }
-    for (const subjectId of recovery.affectedSubjectIds) {
-      const original = recovery.originalPathStates[String(subjectId)];
-      const record = registry.getById(subjectId);
-      if (original && record && normalizePathCollisionKey(original.currentPath) !== normalizePathCollisionKey(record.path)) {
-        diagnostics.push(`path-state-mismatch: ${subjectId} expected ${original.currentPath}, found ${record.path}`);
-      }
-    }
-    return Array.from(new Set(diagnostics));
+    diagnostics.push(...collectSubjectExpectationDiagnostics(recovery.subjectExpectations, registry));
+    const seen = /* @__PURE__ */ new Set();
+    return diagnostics.filter((item) => {
+      const key = JSON.stringify(item);
+      if (seen.has(key))
+        return false;
+      seen.add(key);
+      return true;
+    });
   }
   async diagnoseLocalSubjects() {
     const scanRoot = this.config.scanFolderPath || "ACGN";
@@ -7957,18 +8224,39 @@ var SyncManager = class {
    * 创建带回滚能力的同步结果
    */
   createSyncResultWithRollback(base, wasCancelled) {
-    var _a, _b;
+    if (this.pendingTransaction) {
+      const snapshot = this.pendingTransaction.resultSnapshot;
+      Object.assign(snapshot, base, {
+        batchFiles: snapshot.batchFiles,
+        wasCancelled,
+        canRollback: this.pendingTransaction.state === "awaiting" && this.pendingTransaction.transactions.some((transaction) => transaction.hasRecordedChanges())
+      });
+      if (this.lastAutomaticRollback)
+        snapshot.rollback = this.lastAutomaticRollback;
+      return snapshot;
+    }
+    return this.captureResultSnapshot(base, wasCancelled);
+  }
+  captureResultSnapshot(base, wasCancelled) {
     const batchFiles = this.incrementalSync.getBatchSyncedFiles();
-    const wrapped = {
+    return {
       ...base,
       batchFiles,
       wasCancelled,
-      canRollback: Boolean(((_a = this.pendingTransaction) == null ? void 0 : _a.state) === "awaiting" && this.pendingTransaction.transactions.some((transaction) => transaction.hasRecordedChanges())),
+      canRollback: false,
       ...this.lastAutomaticRollback ? { rollback: this.lastAutomaticRollback } : {}
     };
-    if (((_b = this.pendingTransaction) == null ? void 0 : _b.state) === "awaiting")
-      this.pendingTransaction.resultSnapshot = wrapped;
-    return wrapped;
+  }
+  recoveryExpectationsFor(subjectIds, originalRecords) {
+    return Array.from(new Set(subjectIds), (subjectId) => {
+      const record = originalRecords.get(subjectId);
+      return {
+        subjectId,
+        expectedToExist: Boolean(record),
+        expectedPath: record == null ? void 0 : record.path,
+        expectedSubjectId: subjectId
+      };
+    });
   }
   createSyncResult(total = 0) {
     this.lastAutomaticRollback = void 0;
@@ -8055,6 +8343,7 @@ var SyncManager = class {
     this.assertNoPendingTransaction();
     this.batchTransactionState = "active";
     const previousPathStates = this.clonePathStates((_a = this.config.subjectPathStates) != null ? _a : {});
+    const originalRecords = new Map(Array.from(this.incrementalSync.getRegistry().idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
     for (const failure of batch.failures)
       this.recordPreparedFailure(result, failure);
     let wasCancelled = false;
@@ -8175,12 +8464,16 @@ var SyncManager = class {
       });
     }
     if (fatalRollbackFailure) {
+      this.finalizeSyncResult(result, wasCancelled);
+      const subjectExpectations = this.recoveryExpectationsFor(affectedSubjectIds, originalRecords);
       const pending = {
         transactions: successfulTransactions,
         groups: successfulGroups,
         previousPathStates,
         affectedSubjectIds: Array.from(affectedSubjectIds),
+        subjectExpectations,
         deferredRelations: relations,
+        resultSnapshot: this.captureResultSnapshot(result, wasCancelled),
         createdAt: Date.now(),
         state: "rolling-back"
       };
@@ -8192,12 +8485,15 @@ var SyncManager = class {
     }
     const hasPendingChanges = successfulTransactions.some((transaction) => transaction.hasChanges());
     if (hasPendingChanges && (result.failed > 0 || wasCancelled)) {
+      this.finalizeSyncResult(result, wasCancelled);
       this.pendingTransaction = {
         transactions: successfulTransactions,
         groups: successfulGroups,
         previousPathStates,
         affectedSubjectIds: Array.from(affectedSubjectIds),
+        subjectExpectations: this.recoveryExpectationsFor(affectedSubjectIds, originalRecords),
         deferredRelations: relations,
+        resultSnapshot: this.captureResultSnapshot(result, wasCancelled),
         createdAt: Date.now(),
         state: "awaiting"
       };
@@ -8212,12 +8508,15 @@ var SyncManager = class {
         this.incrementalSync.finishBatch();
         this.batchTransactionState = "committed";
       } catch (e) {
+        this.finalizeSyncResult(result, wasCancelled);
         const pending = {
           transactions: successfulTransactions,
           groups: successfulGroups,
           previousPathStates,
           affectedSubjectIds: Array.from(affectedSubjectIds),
           deferredRelations: relations,
+          subjectExpectations: this.recoveryExpectationsFor(affectedSubjectIds, originalRecords),
+          resultSnapshot: this.captureResultSnapshot(result, wasCancelled),
           createdAt: Date.now(),
           state: "rolling-back"
         };
@@ -9004,6 +9303,7 @@ var SyncManager = class {
    * 扫描所有本地条目，将网络封面下载到本地，并替换 frontmatter 和正文中的链接
    */
   async batchDownloadCovers() {
+    this.ensureCanStartSync();
     const scanPath = this.config.scanFolderPath || "ACGN";
     await this.incrementalSync.scanLocalFolder(scanPath);
     const localSubjects = this.incrementalSync.getLocalSubjects();
@@ -9067,6 +9367,7 @@ var SyncManager = class {
    * 使用并查集查找连通分量，确保同系列所有条目互相关联
    */
   async scanAndLinkRelated() {
+    this.ensureCanStartSync();
     const scanPath = this.config.scanFolderPath || "ACGN";
     console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u6761\u76EE\uFF0CscanFolderPath: "${this.config.scanFolderPath}"\uFF0C\u5B9E\u9645\u626B\u63CF\u8DEF\u5F84: "${scanPath}"\uFF0CpathTemplate: "${this.config.pathTemplate}"`);
     await this.incrementalSync.scanLocalFolder(scanPath);
@@ -9285,8 +9586,7 @@ var SyncModal = class extends import_obsidian12.Modal {
     this.completedEl = null;
     this.onCancelled = null;
     this.onCommitted = null;
-    this.onRecoveryRetry = null;
-    this.onManualRecovery = null;
+    this.onOpenRecoveryCenter = null;
     this.isCompleted = false;
     this.pendingDecision = false;
     this.decisionInProgress = false;
@@ -9375,9 +9675,8 @@ var SyncModal = class extends import_obsidian12.Modal {
   setCommitHandler(handler) {
     this.onCommitted = handler;
   }
-  setRecoveryHandlers(retry, confirmManual) {
-    this.onRecoveryRetry = retry;
-    this.onManualRecovery = confirmManual;
+  setRecoveryCenterHandler(handler) {
+    this.onOpenRecoveryCenter = handler;
   }
   /**
    * 更新进度
@@ -9480,18 +9779,15 @@ var SyncModal = class extends import_obsidian12.Modal {
         this.decisionButtons.push(rollbackBtn);
         rollbackBtn.addEventListener("click", () => void this.resolvePendingDecision("rollback"));
       }
-      if (result.completion === "rollback-failed" && this.onRecoveryRetry && this.onManualRecovery) {
-        const retryBtn = this.completedEl.createEl("button", {
+      if (result.completion === "rollback-failed" && this.onOpenRecoveryCenter) {
+        const recoveryBtn = this.completedEl.createEl("button", {
           cls: "bangumi-rollback-btn mod-warning",
-          text: "Retry recovery"
+          text: tn("recoveryCenter", "openCenter")
         });
-        const confirmBtn = this.completedEl.createEl("button", {
-          cls: "bangumi-commit-btn",
-          text: "Confirm manual recovery"
+        recoveryBtn.addEventListener("click", () => {
+          var _a2;
+          return (_a2 = this.onOpenRecoveryCenter) == null ? void 0 : _a2.call(this);
         });
-        this.decisionButtons.push(retryBtn, confirmBtn);
-        retryBtn.addEventListener("click", () => void this.retryRecovery());
-        confirmBtn.addEventListener("click", () => void this.confirmManualRecovery());
       }
       const closeBtn = this.completedEl.createEl("button", {
         cls: "bangumi-sync-close-btn mod-cta",
@@ -9533,51 +9829,14 @@ var SyncModal = class extends import_obsidian12.Modal {
       if (resolved.result)
         this.showCompleted(resolved.result);
       return resolved;
+    } catch (error) {
+      this.updateStatus(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      return void 0;
     } finally {
       this.decisionInProgress = false;
       if (this.pendingDecision)
         for (const button of this.decisionButtons)
           button.disabled = false;
-    }
-  }
-  async retryRecovery() {
-    if (this.decisionInProgress || !this.onRecoveryRetry)
-      return;
-    this.decisionInProgress = true;
-    for (const button of this.decisionButtons)
-      button.disabled = true;
-    try {
-      const resolved = await this.onRecoveryRetry();
-      if (resolved.result)
-        this.showCompleted(resolved.result);
-    } finally {
-      this.decisionInProgress = false;
-    }
-  }
-  async confirmManualRecovery() {
-    var _a;
-    if (this.decisionInProgress || !this.onManualRecovery)
-      return;
-    this.decisionInProgress = true;
-    for (const button of this.decisionButtons)
-      button.disabled = true;
-    try {
-      const check = await this.onManualRecovery();
-      if (check.recovered) {
-        this.pendingDecision = false;
-        this.updateStatus("Recovery confirmed");
-        (_a = this.completedEl) == null ? void 0 : _a.createEl("p", { text: "Local recovery checks passed. Sync can continue.", cls: "bangumi-sync-stats" });
-      } else if (this.completedEl) {
-        const details = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details", attr: { open: "" } });
-        details.createEl("summary", { text: `Recovery blockers (${check.blockingDiagnostics.length})` });
-        const list = details.createEl("ul", { cls: "bangumi-sync-error-list" });
-        for (const diagnostic of check.blockingDiagnostics)
-          list.createEl("li", { text: diagnostic });
-        for (const button of this.decisionButtons)
-          button.disabled = false;
-      }
-    } finally {
-      this.decisionInProgress = false;
     }
   }
   showPendingClosePrompt() {
@@ -10686,6 +10945,17 @@ var import_obsidian24 = require("obsidian");
 
 // src/panel/batchEditorModal.ts
 var import_obsidian18 = require("obsidian");
+
+// src/sync/writeOperationGate.ts
+var activeGuard = null;
+function setWriteOperationGuard(guard) {
+  activeGuard = guard;
+}
+function assertWriteOperationAllowed(operation) {
+  activeGuard == null ? void 0 : activeGuard(operation);
+}
+
+// src/panel/batchEditorModal.ts
 var BatchEditorModal = class extends import_obsidian18.Modal {
   constructor(app, items, onConfirm, documentService, getCachedSnapshot) {
     super(app);
@@ -11081,6 +11351,12 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
     }
   }
   async handleSubmit() {
+    try {
+      assertWriteOperationAllowed("batch-edit");
+    } catch (e) {
+      new import_obsidian18.Notice(tn("recoveryCenter", "writeBlocked"));
+      return;
+    }
     if (this.mode === "uniform") {
       if (this.operations.length === 0) {
         new import_obsidian18.Notice(tn("batchEditor", "noticeNoOp"));
@@ -11198,6 +11474,7 @@ var FrontmatterEditor = class {
     this.app = app;
   }
   async batchModify(filePaths, operations) {
+    assertWriteOperationAllowed("batch-edit");
     const originalContents = await this.captureOriginalContents(filePaths);
     const affectedFiles = [];
     let success = 0;
@@ -11215,6 +11492,7 @@ var FrontmatterEditor = class {
     return { success, failed };
   }
   async batchApplyPerItemUpdates(updates) {
+    assertWriteOperationAllowed("batch-edit");
     const filePaths = updates.map((update) => update.filePath);
     const originalContents = await this.captureOriginalContents(filePaths);
     const affectedFiles = [];
@@ -11233,6 +11511,7 @@ var FrontmatterEditor = class {
     return { success, failed };
   }
   async undo() {
+    assertWriteOperationAllowed("batch-edit");
     if (this.history.length === 0) {
       return false;
     }
@@ -11786,6 +12065,12 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     this.renderTable();
   }
   async executeSync() {
+    try {
+      assertWriteOperationAllowed("status-sync");
+    } catch (e) {
+      new import_obsidian19.Notice(tn("recoveryCenter", "writeBlocked"));
+      return;
+    }
     this.statusEl.setText(tn("statusSyncModal", "syncProgress"));
     const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
     const summary = tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount));
@@ -12599,6 +12884,7 @@ var StatusSyncExecutor = class {
     this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
   }
   async executeSync(diffs) {
+    assertWriteOperationAllowed("status-sync");
     let successCount = 0;
     let failCount = 0;
     const actionableDiffs = diffs.filter((diff) => diff.hasAnyDiff);
@@ -14328,6 +14614,7 @@ var UserDataExporter = class {
    * 按条目 category 导出用户数据到单个备份文件
    */
   async exportByCategory(folderPath, outputDir, dataTypes = ["all" /* ALL */], onProgress) {
+    assertWriteOperationAllowed("user-data-export");
     try {
       const userDataMap = await this.extractor.extractForExportFromFolder(folderPath, dataTypes, onProgress);
       if (userDataMap.size === 0) {
@@ -14703,6 +14990,7 @@ var UserDataImporter = class {
     return await this.importFromTexts(files, options, onProgress);
   }
   async importFromTexts(files, options, onProgress) {
+    assertWriteOperationAllowed("user-data-import");
     const compareResult = await this.compareImportData(files, options, onProgress);
     const applied = await this.applyImportPlan(files, options);
     return {
@@ -14796,6 +15084,7 @@ var UserDataImporter = class {
     return result;
   }
   async applyMissingFieldDecisions(decisions) {
+    assertWriteOperationAllowed("user-data-import");
     const grouped = /* @__PURE__ */ new Map();
     for (const decision of decisions) {
       if (decision.decision === null)
@@ -14826,6 +15115,7 @@ var UserDataImporter = class {
     dataTypes: []
   }) {
     var _a;
+    assertWriteOperationAllowed("user-data-import");
     let applied = 0;
     for (const item of diffs) {
       const localFile = await this.findLocalFile(item.subjectId);
@@ -14866,6 +15156,7 @@ var UserDataImporter = class {
   }
   async applyImportPlan(files, options, diffs = [], missingFieldDecisions = [], onProgress) {
     var _a, _b, _c, _d, _e, _f;
+    assertWriteOperationAllowed("user-data-import");
     const parsedFiles = this.parseImportFiles(files);
     const diffDecisionMap = this.buildDiffDecisionMap(diffs);
     const missingDecisionMap = this.buildMissingFieldDecisionMap(missingFieldDecisions);
@@ -16357,6 +16648,12 @@ var EpisodeContextMenu = class {
    */
   async setEpisodeStatus(file, episodeId, epNumber, status, epBox) {
     try {
+      assertWriteOperationAllowed("episode-status");
+    } catch (e) {
+      new import_obsidian28.Notice(tn("recoveryCenter", "writeBlocked"));
+      return;
+    }
+    try {
       await this.statusManager.updateLocalStatus(file, episodeId, epNumber, status);
       this.updateEpBoxStyle(epBox, status);
       new import_obsidian28.Notice(tnFormat("episodeContextMenu", "episodeStatusSet", { ep: epNumber, status: getEpisodeStatusText(status) }));
@@ -16369,6 +16666,12 @@ var EpisodeContextMenu = class {
    * 设置"看到"状态：将该集及之前的所有集都标为"看过"
    */
   async setWatchedUpTo(file, targetEpNumber) {
+    try {
+      assertWriteOperationAllowed("episode-status");
+    } catch (e) {
+      new import_obsidian28.Notice(tn("recoveryCenter", "writeBlocked"));
+      return;
+    }
     try {
       const view = this.app.workspace.getActiveViewOfType(import_obsidian28.MarkdownView);
       if (!view)
@@ -16402,6 +16705,12 @@ var EpisodeContextMenu = class {
    * 添加单集吐槽
    */
   async addEpisodeComment(file, epNumber) {
+    try {
+      assertWriteOperationAllowed("episode-comment");
+    } catch (e) {
+      new import_obsidian28.Notice(tn("recoveryCenter", "writeBlocked"));
+      return;
+    }
     try {
       const result = await this.commentManager.insertEpisodeComment(file, epNumber);
       if (result.success) {
@@ -16524,6 +16833,7 @@ var EpisodeStatusManager = class {
    * 更新本地文件中的单集状态
    */
   async updateLocalStatus(file, episodeId, epNumber, status) {
+    assertWriteOperationAllowed("episode-status");
     await this.app.vault.process(file, (content) => {
       return this.updateEpStatusInContent(content, episodeId, epNumber, status);
     });
@@ -16532,6 +16842,7 @@ var EpisodeStatusManager = class {
    * 批量更新多个单集状态
    */
   async updateMultipleStatuses(file, episodes) {
+    assertWriteOperationAllowed("episode-status");
     await this.app.vault.process(file, (content) => {
       return this.applyEpisodeStatusUpdates(content, episodes);
     });
@@ -16721,6 +17032,7 @@ ${statusLines}`;
    * 同步本地状态到云端
    */
   async syncStatusToCloud(file, progressCallback) {
+    assertWriteOperationAllowed("episode-status");
     const statusMap = await this.getEpisodeStatusMap(file);
     const entries = Array.from(statusMap.values()).filter((s) => s.status !== 0);
     const ownerWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
@@ -16746,6 +17058,7 @@ ${statusLines}`;
    * 从云端拉取状态到本地
    */
   async syncStatusFromCloud(file, subjectId) {
+    assertWriteOperationAllowed("episode-status");
     try {
       const userEpisodes = await this.client.getUserEpisodeStatus(subjectId);
       await this.app.vault.process(file, (content) => {
@@ -16773,6 +17086,7 @@ ${statusLines}`;
    * 清除所有单集状态
    */
   async clearAllStatuses(file) {
+    assertWriteOperationAllowed("episode-status");
     await this.app.vault.process(file, (content) => {
       const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
       if (!frontmatterMatch)
@@ -16794,6 +17108,7 @@ var EpisodeCommentManager = class {
    * 返回插入位置信息，用于光标定位
    */
   async insertEpisodeComment(file, epNumber) {
+    assertWriteOperationAllowed("episode-comment");
     const content = await this.app.vault.read(file);
     const recordMatch = this.findRecordSection(content);
     const callout = this.buildEpisodeCommentCallout(epNumber);
@@ -16943,6 +17258,7 @@ var SubjectNoteManager = class {
     await this.createOrAppendForLocalFile(file);
   }
   async createOrAppendForLocalFile(localFile) {
+    assertWriteOperationAllowed("subject-note");
     if (!this.settings.notePathTemplate.trim()) {
       new import_obsidian29.Notice(tn("subjectNote", "configureNotePath"));
       return;
@@ -17367,8 +17683,126 @@ var PathMigrationPreviewModal = class extends import_obsidian30.Modal {
   }
 };
 
+// src/ui/recoveryCenterModal.ts
+var import_obsidian31 = require("obsidian");
+var RecoveryCenterModal = class extends import_obsidian31.Modal {
+  constructor(app, handlers) {
+    super(app);
+    this.handlers = handlers;
+    this.working = false;
+    this.lastResult = null;
+    this.actionError = null;
+  }
+  onOpen() {
+    this.render();
+  }
+  render() {
+    var _a, _b, _c, _d;
+    this.contentEl.empty();
+    new import_obsidian31.Setting(this.contentEl).setName(tn("recoveryCenter", "title")).setHeading();
+    const recovery = this.handlers.getRecovery();
+    if (!recovery) {
+      this.contentEl.createEl("p", { text: tn("recoveryCenter", "noRecovery"), cls: "bangumi-sync-stats" });
+      if ((_a = this.lastResult) == null ? void 0 : _a.recovered)
+        this.contentEl.createEl("p", { text: tn("recoveryCenter", "recovered"), cls: "bangumi-sync-stats" });
+      this.addCloseButton();
+      return;
+    }
+    this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "cause")}: ${recovery.reason}` });
+    this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "detectedAt")}: ${new Date(recovery.detectedAt).toLocaleString()}` });
+    this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "affectedSubjects")}: ${recovery.affectedSubjectIds.join(", ")}` });
+    const expectations = this.contentEl.createEl("details", { attr: { open: "" } });
+    expectations.createEl("summary", { text: `${tn("recoveryCenter", "expectations")} (${recovery.subjectExpectations.length})` });
+    const expectationList = expectations.createEl("ul");
+    for (const item of recovery.subjectExpectations) {
+      expectationList.createEl("li", {
+        text: `${item.subjectId}: ${item.expectedToExist ? tn("recoveryCenter", "expectedPresent") : tn("recoveryCenter", "expectedAbsent")}${item.expectedPath ? ` \u2014 ${item.expectedPath}` : ""}`
+      });
+    }
+    const latest = recovery.latestAttempt;
+    if (latest) {
+      this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "latestAttempt")}: ${latest.action} \u2014 ${latest.status}` });
+    }
+    if (recovery.attempts.length > 0) {
+      const history = this.contentEl.createEl("details");
+      history.createEl("summary", { text: `${tn("recoveryCenter", "attemptHistory")} (${recovery.attempts.length})` });
+      const list = history.createEl("ul");
+      for (const attempt of recovery.attempts)
+        list.createEl("li", { text: `${new Date(attempt.finishedAt).toLocaleString()} \u2014 ${attempt.action}: ${attempt.status}` });
+    }
+    const diagnostics = (_d = (_c = (_b = this.lastResult) == null ? void 0 : _b.diagnostics) != null ? _c : latest == null ? void 0 : latest.diagnostics) != null ? _d : [];
+    if (diagnostics.length > 0)
+      this.renderDiagnostics(diagnostics);
+    if (this.lastResult && !this.lastResult.recovered) {
+      this.contentEl.createEl("p", {
+        text: this.lastResult.status === "failed" ? tn("recoveryCenter", "actionFailed") : tn("recoveryCenter", "blocked"),
+        cls: "bangumi-sync-error"
+      });
+    }
+    if (this.actionError)
+      this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "actionFailed")}: ${this.actionError}`, cls: "bangumi-sync-error" });
+    if (this.working)
+      this.contentEl.createEl("p", { text: tn("recoveryCenter", "working") });
+    const actions = this.contentEl.createDiv({ cls: "bangumi-sync-actions" });
+    this.addActionButton(actions, tn("recoveryCenter", "retryRollback"), "retry-rollback", "mod-warning");
+    this.addActionButton(actions, tn("recoveryCenter", "confirmManual"), "confirm-manual", "mod-cta");
+    this.addActionButton(actions, tn("recoveryCenter", "rescan"), "rescan", "");
+    this.addCloseButton(actions);
+  }
+  addActionButton(container, label, action, cls) {
+    const button = container.createEl("button", { text: label, cls });
+    button.disabled = this.working;
+    button.addEventListener("click", () => void this.runAction(action));
+  }
+  addCloseButton(container = this.contentEl) {
+    const button = container.createEl("button", { text: tn("recoveryCenter", "close") });
+    button.disabled = this.working;
+    button.addEventListener("click", () => this.close());
+  }
+  async runAction(action) {
+    if (this.working)
+      return;
+    this.working = true;
+    this.actionError = null;
+    this.render();
+    try {
+      this.lastResult = action === "retry-rollback" ? await this.handlers.retryRollback() : action === "confirm-manual" ? await this.handlers.confirmManual() : await this.handlers.rescan();
+    } catch (error) {
+      this.actionError = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.working = false;
+      this.render();
+    }
+  }
+  renderDiagnostics(diagnostics) {
+    const details = this.contentEl.createEl("details", { cls: "bangumi-sync-error-details", attr: { open: "" } });
+    details.createEl("summary", { text: `${tn("recoveryCenter", "diagnostics")} (${diagnostics.length})` });
+    const list = details.createEl("ul", { cls: "bangumi-sync-error-list" });
+    for (const diagnostic of diagnostics)
+      list.createEl("li", { text: this.formatDiagnostic(diagnostic) });
+  }
+  formatDiagnostic(diagnostic) {
+    const labels = {
+      "rollback-step-failed": "diagnosticRollbackStepFailed",
+      "rescan-failed": "diagnosticRescanFailed",
+      "state-restore-failed": "diagnosticStateRestoreFailed",
+      "persisted-state-mismatch": "diagnosticPersistedStateMismatch",
+      "incremental-state-mismatch": "diagnosticIncrementalStateMismatch",
+      "blocking-local-file": "diagnosticBlockingLocalFile",
+      "duplicate-subject-id": "diagnosticDuplicateSubjectId",
+      "temporary-file": "diagnosticTemporaryFile",
+      "unexpected-subject-file": "diagnosticUnexpectedSubjectFile",
+      "missing-subject-file": "diagnosticMissingSubjectFile",
+      "subject-path-mismatch": "diagnosticSubjectPathMismatch",
+      "subject-identity-mismatch": "diagnosticSubjectIdentityMismatch"
+    };
+    const context = "path" in diagnostic ? diagnostic.path : "actualPath" in diagnostic ? diagnostic.actualPath : "expectedPath" in diagnostic && diagnostic.expectedPath ? diagnostic.expectedPath : "subjectId" in diagnostic ? String(diagnostic.subjectId) : "";
+    return `${tn("recoveryCenter", labels[diagnostic.code])}${context ? ` \u2014 ${context}` : ""}: ${diagnostic.message}`;
+  }
+};
+
 // main.ts
-var BangumiPlugin = class extends import_obsidian31.Plugin {
+var BangumiPlugin = class extends import_obsidian32.Plugin {
   constructor() {
     super(...arguments);
     this.syncManager = null;
@@ -17433,6 +17867,8 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
       name: tn("commands", "createSubjectNote"),
       callback: () => {
         var _a;
+        if (!this.ensureWriteCanStart("subject-note"))
+          return;
         void ((_a = this.subjectNoteManager) == null ? void 0 : _a.createOrAppendForCurrentFile());
       }
     });
@@ -17445,6 +17881,11 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
       id: "scan-and-link-related",
       name: tn("commands", "scanAndLinkRelated"),
       callback: () => void this.scanAndLinkRelated()
+    });
+    this.addCommand({
+      id: "open-recovery-center",
+      name: tn("commands", "openRecoveryCenter"),
+      callback: () => this.openRecoveryCenter()
     });
     this.addCommand({
       id: "diagnose-local-subjects",
@@ -17477,7 +17918,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
   async openPathDiagnostic() {
     try {
       if (!this.syncManager) {
-        new import_obsidian31.Notice(tn("notices", "syncManagerNotInit"));
+        new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
         return;
       }
       const report = await this.syncManager.diagnoseLocalSubjects();
@@ -17490,13 +17931,28 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
         }
       ).open();
     } catch (error) {
-      new import_obsidian31.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+  openRecoveryCenter() {
+    if (!this.syncManager) {
+      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+      return;
+    }
+    new RecoveryCenterModal(this.app, {
+      getRecovery: () => {
+        var _a, _b;
+        return (_b = (_a = this.syncManager) == null ? void 0 : _a.getRecoveryRequired()) != null ? _b : null;
+      },
+      retryRollback: () => this.syncManager.retryRecovery(),
+      confirmManual: () => this.syncManager.confirmManualRecovery(),
+      rescan: () => this.syncManager.rescanRecovery()
+    }).open();
   }
   async openPathMigrationPreview() {
     try {
       if (!this.syncManager) {
-        new import_obsidian31.Notice(tn("notices", "syncManagerNotInit"));
+        new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
         return;
       }
       const preview = await this.syncManager.previewPathMigration();
@@ -17513,10 +17969,11 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
         }
       ).open();
     } catch (error) {
-      new import_obsidian31.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   onunload() {
+    setWriteOperationGuard(null);
     if (this.autoSyncIntervalId !== null) {
       activeWindow.clearInterval(this.autoSyncIntervalId);
       this.autoSyncIntervalId = null;
@@ -17631,6 +18088,10 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
       }
     };
     this.syncManager = new SyncManager(this.app, config);
+    setWriteOperationGuard(() => {
+      var _a;
+      return (_a = this.syncManager) == null ? void 0 : _a.ensureCanStartSync();
+    });
     this.subjectNoteManager = new SubjectNoteManager(this.app, this.syncManager.client, this.settings);
   }
   /**
@@ -17714,12 +18175,12 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
         if (config.filePath) {
           try {
             const file = this.app.vault.getAbstractFileByPath(config.filePath);
-            if (file instanceof import_obsidian31.TFile) {
+            if (file instanceof import_obsidian32.TFile) {
               return await this.app.vault.read(file);
             }
           } catch (error) {
             console.error(`[Bangumi Sync] \u8BFB\u53D6\u6A21\u677F\u6587\u4EF6\u5931\u8D25: ${config.filePath}`, error);
-            new import_obsidian31.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
+            new import_obsidian32.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
           }
         }
         return getBuiltInTemplateByKey(defaultTemplateKey, true);
@@ -17733,11 +18194,13 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
    * 打开导出用户数据弹窗
    */
   openExportModal() {
+    if (!this.ensureWriteCanStart("user-data-export"))
+      return;
     const modal = new UserDataExportModal(
       this.app,
       this.settings.scanFolderPath,
       (files) => {
-        new import_obsidian31.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
+        new import_obsidian32.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
       }
     );
     modal.open();
@@ -17746,6 +18209,8 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
    * 打开导入用户数据弹窗
    */
   openImportModal() {
+    if (!this.ensureWriteCanStart("user-data-import"))
+      return;
     const input = activeDocument.createElement("input");
     input.type = "file";
     input.accept = ".json";
@@ -17762,7 +18227,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
             content: await file.text()
           });
         } catch (error) {
-          new import_obsidian31.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
+          new import_obsidian32.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
           return;
         }
       }
@@ -17784,13 +18249,13 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
    */
   openSearchModal() {
     if (!this.syncManager) {
-      new import_obsidian31.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     if (!this.ensureSyncCanStart())
       return;
     if (!this.settings.accessToken) {
-      new import_obsidian31.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     const modal = new SearchModal(
@@ -17812,7 +18277,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
     if (!this.ensureSyncCanStart())
       return;
     if (!this.settings.accessToken) {
-      new import_obsidian31.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (this.controlPanel) {
@@ -17859,7 +18324,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
     if (!this.ensureSyncCanStart())
       return;
     if (!this.settings.accessToken) {
-      new import_obsidian31.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     const modal = new SyncOptionsModal(
@@ -17891,12 +18356,14 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
    * 批量下载封面图片并替换链接
    */
   async batchDownloadCovers() {
+    if (!this.ensureWriteCanStart("cover-download"))
+      return;
     if (!this.settings.downloadImages) {
-      new import_obsidian31.Notice(tn("notices", "coverDownloadDisabled"));
+      new import_obsidian32.Notice(tn("notices", "coverDownloadDisabled"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian31.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -17904,7 +18371,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
     this.syncModal = new SyncModal(this.app, this.cancellationSignal);
     this.syncModal.setRollbackHandler(() => this.syncManager.rollbackBatch());
     this.syncModal.setCommitHandler(() => this.syncManager.commitPendingBatch());
-    this.syncModal.setRecoveryHandlers(() => this.syncManager.retryRecovery(), () => this.syncManager.confirmManualRecovery());
+    this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
     this.syncModal.open();
     this.syncManager.setProgressCallback((progress) => {
       if (this.syncModal) {
@@ -17922,9 +18389,9 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar();
       if (result.downloaded === 0 && result.skipped === 0) {
-        new import_obsidian31.Notice(tn("notices", "coverDownloadNoItems"));
+        new import_obsidian32.Notice(tn("notices", "coverDownloadNoItems"));
       } else {
-        new import_obsidian31.Notice(tnFormat("notices", "coverDownloadComplete", {
+        new import_obsidian32.Notice(tnFormat("notices", "coverDownloadComplete", {
           downloaded: result.downloaded,
           skipped: result.skipped,
           failed: result.failed
@@ -17939,15 +18406,17 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u5931\u8D25:", error);
-      new import_obsidian31.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
    * 扫描所有本地已同步条目，为相关条目补充双向链接
    */
   async scanAndLinkRelated() {
+    if (!this.ensureWriteCanStart("related-link-scan"))
+      return;
     if (!this.syncManager) {
-      new import_obsidian31.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -17978,7 +18447,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u626B\u63CF\u5173\u8054\u5931\u8D25:", error);
-      new import_obsidian31.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
@@ -17988,19 +18457,19 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
     if (!this.ensureSyncCanStart())
       return;
     if (!this.settings.accessToken) {
-      new import_obsidian31.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (options.subjectTypes.length === 0) {
-      new import_obsidian31.Notice(tn("notices", "selectSubjectType"));
+      new import_obsidian32.Notice(tn("notices", "selectSubjectType"));
       return;
     }
     if (options.collectionTypes.length === 0) {
-      new import_obsidian31.Notice(tn("notices", "selectCollectionType"));
+      new import_obsidian32.Notice(tn("notices", "selectCollectionType"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian31.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -18008,7 +18477,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
     this.syncModal = new SyncModal(this.app, this.cancellationSignal);
     this.syncModal.setRollbackHandler(() => this.syncManager.rollbackBatch());
     this.syncModal.setCommitHandler(() => this.syncManager.commitPendingBatch());
-    this.syncModal.setRecoveryHandlers(() => this.syncManager.retryRecovery(), () => this.syncManager.confirmManualRecovery());
+    this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
     this.syncModal.open();
     this.syncManager.setProgressCallback((progress) => {
       if (this.syncModal) {
@@ -18025,12 +18494,12 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
           force: options.force
         });
         if (!prepareResult.success) {
-          new import_obsidian31.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
+          new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
           this.cleanupSyncState(0);
           return;
         }
         if (!prepareResult.previewItems || prepareResult.previewItems.length === 0) {
-          new import_obsidian31.Notice(tn("notices", "noItemsToSync"));
+          new import_obsidian32.Notice(tn("notices", "noItemsToSync"));
           this.cleanupSyncState(0);
           return;
         }
@@ -18043,7 +18512,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
         );
         if (localPropertyResult === null) {
           console.debug("[Bangumi Sync] User cancelled custom properties");
-          new import_obsidian31.Notice(tn("notices", "syncCancelled"));
+          new import_obsidian32.Notice(tn("notices", "syncCancelled"));
           this.cleanupSyncState(0);
           return;
         }
@@ -18056,7 +18525,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
           (result) => {
             void (async () => {
               if (result.action === "cancel") {
-                new import_obsidian31.Notice(tn("notices", "syncCancelled"));
+                new import_obsidian32.Notice(tn("notices", "syncCancelled"));
                 return;
               }
               if (!this.ensureSyncCanStart())
@@ -18066,7 +18535,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
               this.syncModal = new SyncModal(this.app, this.cancellationSignal);
               this.syncModal.setRollbackHandler(() => this.syncManager.rollbackBatch());
               this.syncModal.setCommitHandler(() => this.syncManager.commitPendingBatch());
-              this.syncModal.setRecoveryHandlers(() => this.syncManager.retryRecovery(), () => this.syncManager.confirmManualRecovery());
+              this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
               this.syncModal.open();
               this.syncManager.setProgressCallback((progress) => {
                 if (this.syncModal) {
@@ -18095,7 +18564,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
         previewModal.open();
       } catch (error) {
         console.error("[Bangumi Sync] Preview flow error:", error);
-        new import_obsidian31.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+        new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
         this.cleanupSyncState(0);
       }
     } else {
@@ -18118,7 +18587,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
   }
   ensureSyncCanStart() {
     if (!this.syncManager) {
-      new import_obsidian31.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
       return false;
     }
     try {
@@ -18126,13 +18595,32 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
       return true;
     } catch (error) {
       if (error instanceof RecoveryRequiredError) {
-        new import_obsidian31.Notice(`Bangumi Sync recovery required (${error.recovery.reason}). Retry recovery or inspect rollback details before syncing.`);
+        new import_obsidian32.Notice(tn("recoveryCenter", "writeBlocked"));
+        this.openRecoveryCenter();
       } else if (error instanceof PendingDecisionInProgressError) {
-        new import_obsidian31.Notice("Bangumi sync is still processing the previous keep/rollback decision.");
+        new import_obsidian32.Notice(tn("recoveryCenter", "decisionInProgress"));
       } else if (error instanceof PendingSyncTransactionError) {
-        new import_obsidian31.Notice("Choose whether to keep or roll back the previous partial sync before starting another sync.");
+        new import_obsidian32.Notice(tn("recoveryCenter", "pendingDecision"));
       } else {
-        new import_obsidian31.Notice(error instanceof Error ? error.message : String(error));
+        new import_obsidian32.Notice(error instanceof Error ? error.message : String(error));
+      }
+      return false;
+    }
+  }
+  ensureWriteCanStart(operation) {
+    try {
+      assertWriteOperationAllowed(operation);
+      return true;
+    } catch (error) {
+      if (error instanceof RecoveryRequiredError) {
+        new import_obsidian32.Notice(tn("recoveryCenter", "writeBlocked"));
+        this.openRecoveryCenter();
+      } else if (error instanceof PendingDecisionInProgressError) {
+        new import_obsidian32.Notice(tn("recoveryCenter", "decisionInProgress"));
+      } else if (error instanceof PendingSyncTransactionError) {
+        new import_obsidian32.Notice(tn("recoveryCenter", "pendingDecision"));
+      } else {
+        new import_obsidian32.Notice(error instanceof Error ? error.message : String(error));
       }
       return false;
     }
@@ -18162,7 +18650,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
       (message) => {
         if (!warned) {
           warned = true;
-          new import_obsidian31.Notice(message);
+          new import_obsidian32.Notice(message);
         }
       }
     );

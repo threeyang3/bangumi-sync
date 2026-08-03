@@ -4,6 +4,7 @@
  */
 
 import { App, TFile } from 'obsidian';
+import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
 
 /**
  * 插入结果
@@ -32,6 +33,7 @@ export class EpisodeCommentManager {
 		file: TFile,
 		epNumber: number
 	): Promise<InsertResult> {
+		assertWriteOperationAllowed('episode-comment');
 		const content = await this.app.vault.read(file);
 
 		// 查找"记录"部分

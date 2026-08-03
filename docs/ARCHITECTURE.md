@@ -558,3 +558,11 @@ SearchModal
 每个事务组记录对应 outcome 索引。回滚后 outcome 保留 `attemptedPathAction` / `attemptedWriteAction`，最终 action 改为 `rolled-back`，所有聚合计数重新计算。关联条目写回保存在 `deferredRelations`，仅在提交成功后执行。
 
 回滚失败不会丢弃 pending transaction。`RecoveryRequiredState` 保存原因、回滚详情、受影响 ID 与原始路径状态；所有同步入口和路径迁移通过 `ensureCanStartSync()` 统一阻断。恢复可重试未完成事务，或在人工处理后通过纯本地扫描确认无临时文件、重复 ID、阻塞诊断和路径状态不一致。
+
+## 6.10.4 恢复闭环
+
+`PendingSyncTransaction.resultSnapshot` 与 `subjectExpectations` 均为必填，并在进入 awaiting/recovery 之前生成。期望记录明确保存批次前条目是否存在、原路径和期望身份；`RecoveryDiagnostic` 用结构化 union 表示 unexpected、missing、path mismatch、identity mismatch、临时文件、重复 ID、扫描与状态恢复错误。
+
+Retry、Manual Confirm 与 Rescan 共用单个运行时互斥 Promise。人工确认依次执行本地扫描与矩阵校验、保存原始 `subjectPathStates`、比较配置和 `IncrementalSync` 状态、再次扫描与复核；任何一步失败都保留上下文。Recovery Center 是可重开的独立 Modal，SyncModal 的 rollback-failed 终态提供稳定入口。
+
+`writeOperationGate` 在 UI 与写服务两层阻止收藏/单条同步、迁移应用、封面、关联链接、状态同步、批量编辑、导入导出、集数、吐槽和共享笔记写入。恢复诊断不依赖网络。上下文仍未持久化到磁盘，重启后自动恢复由 Issue #5 跟踪。

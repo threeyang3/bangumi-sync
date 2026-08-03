@@ -49,3 +49,16 @@ Bangumi Subject ID 是本地条目的唯一身份；Markdown 路径只是当前�
 `subjectPathStates` 不是事后元数据，而是与笔记创建、内容替换和碰撞重命名同属一个逻辑事务。管理器在执行前保存类型化快照；设置保存失败时回滚磁盘修改、恢复内存快照、重新扫描 Vault，并再次尝试保存旧快照。
 
 仅为对称碰撞命名而移动的上下文条目也会产生结果：包含 `previousPath`、`actualPath`、`pathAction: renamed` 和 `writeAction: skipped`。
+
+## 恢复期原始事实（6.10.4）
+
+恢复判断不从回滚后的当前文件反推“原本应该怎样”。批次创建时为每个受影响 ID 保存 `RecoverySubjectExpectation`：`expectedToExist`、`expectedPath` 与 `expectedSubjectId`。校验矩阵如下：
+
+- 原本不存在且当前不存在：正常；当前存在则为 `unexpected-subject-file`。
+- 原本存在且当前缺失：`missing-subject-file`。
+- 原本存在、身份相同但路径不同：`subject-path-mismatch`。
+- 期望路径当前属于其他 ID：`subject-identity-mismatch`，优先于缺失判断。
+
+人工确认还会阻止临时事务文件、重复 ID 和 blocking local file。矩阵通过后重新持久化批次前 `subjectPathStates`，用规范化路径比较配置状态与 `IncrementalSync.exportPathStates()`，再次扫描并复核；只有全部相等才清除 pending/recovery。Retry、Manual Confirm、Rescan 共享互斥锁，历史 attempts 与 latest attempt 分离，最新失败不会混入旧失败列表。
+
+恢复期统一写门禁覆盖收藏/单条同步、路径迁移应用、封面与关联写回、状态同步、批量编辑、用户数据导入导出、集数状态、吐槽和共享笔记。诊断与确认只使用本地数据，不调用网络。6.10.4 不包含磁盘事务日志或插件重启后的自动恢复，后续由 Issue #5 跟踪。

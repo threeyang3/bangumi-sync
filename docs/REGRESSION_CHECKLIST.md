@@ -87,3 +87,18 @@ npm run test
 - [ ] 文件恢复、路径状态恢复和重扫失败均保留恢复上下文及 operation/path/message。
 - [ ] 恢复期间普通、预览、搜索、控制面板、自动同步和路径迁移入口均被阻断。
 - [ ] 重试恢复只处理未完成记录；人工确认会阻止临时文件、重复 ID、阻塞诊断和路径状态不一致。
+
+## 6.10.4 恢复闭环
+
+- [ ] absent/absent 通过；absent/present 报 unexpected；present/absent 报 missing。
+- [ ] 同 ID 不同路径报 path mismatch；期望路径属于其他 ID 报 identity mismatch。
+- [ ] 人工确认重新保存原 `subjectPathStates`，配置状态和 `IncrementalSync` 状态都相等，并在二次扫描后才清门禁。
+- [ ] Retry、Manual Confirm 与 Rescan 共享一个 Promise；并发点击只执行首个动作。
+- [ ] result snapshot 在 awaiting 和自动恢复失败前已存在；最终统计表示磁盘终态。
+- [ ] attempts 历史与 latest 分开，最新诊断不包含已经解决的历史失败。
+- [ ] Recovery Center 可通过命令面板打开、关闭、重新打开；上下文不会因关闭窗口丢失。
+- [ ] 动作期间按钮禁用；成功、阻塞或 handler 异常后整页重绘并重新启用，无 unhandled rejection。
+- [ ] rollback-failed 的 SyncModal 提供 Recovery Center 入口，关闭结果后仍能恢复。
+- [ ] 收藏/单条同步、迁移、封面、关联、状态、批量编辑、导入导出、集数、吐槽、共享笔记在 UI 与服务层均受门禁保护。
+- [ ] 本地诊断和恢复扫描仍可用；恢复动作不发起网络请求。
+- [ ] 明确记录 6.10.4 无重启自动恢复/磁盘事务日志，Issue #5 保持 open。

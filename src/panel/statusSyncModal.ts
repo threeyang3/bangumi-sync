@@ -2,6 +2,7 @@ import { App, Modal, Notice } from 'obsidian';
 import { CollectionType, SubjectType, getCollectionStatusLabel } from '../../common/api/types';
 import { tn } from '../i18n';
 import { StatusSyncService } from '../sync/statusSyncService';
+import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
 import {
         FieldDecision,
         FieldDiff,
@@ -466,6 +467,12 @@ export class StatusSyncModal extends Modal {
         }
 
         private async executeSync(): Promise<void> {
+				try {
+						assertWriteOperationAllowed('status-sync');
+				} catch {
+						new Notice(tn('recoveryCenter', 'writeBlocked'));
+						return;
+				}
                 this.statusEl.setText(tn('statusSyncModal', 'syncProgress'));
                 const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
 

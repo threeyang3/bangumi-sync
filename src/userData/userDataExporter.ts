@@ -14,6 +14,7 @@ import {
 	SUBJECT_TYPE_LABELS,
 	UserDataType,
 } from './types';
+import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
 
 /**
  * 用户数据导出器
@@ -36,6 +37,7 @@ export class UserDataExporter {
 		dataTypes: UserDataType[] = [UserDataType.ALL],
 		onProgress?: (current: number, total: number) => void
 	): Promise<{ success: boolean; files: string[]; error?: string }> {
+		assertWriteOperationAllowed('user-data-export');
         try {
             // 提取所有可回导用户数据
             const userDataMap = await this.extractor.extractForExportFromFolder(folderPath, dataTypes, onProgress);
