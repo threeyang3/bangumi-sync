@@ -1,9 +1,15 @@
 ## Fixed
 
-- Validated the complete pre-batch recovery matrix: expected absence, expected presence, original path, and subject identity at the expected path.
-- Re-persisted and verified the original `subjectPathStates` before manual recovery can clear the write gate.
-- Serialized retry, manual confirmation, and rescan actions so competing recovery clicks cannot mutate the Vault concurrently.
-- Captured a complete result snapshot before every pending or recovery transition, including automatic rollback failures.
+- Fixed manual recovery failing to detect a newly created subject file that should be absent.
+- Fixed manual recovery failing to detect an original subject file that is now missing.
+- Fixed manual recovery clearing the gate without re-persisting and verifying the original `subjectPathStates`.
+- Fixed retry and manual confirmation being able to mutate recovery state concurrently.
+- Fixed automatic rollback failures reaching recovery without a complete result snapshot.
+- Fixed recovery completion leaving rollback-failed content on screen instead of fully rerendering the terminal state.
+- Fixed Recovery Center becoming unreachable after the recovery window or sync result was closed.
+- Fixed peripheral writes such as cover download and related-link scanning bypassing recovery-required.
+- Fixed rejected recovery handlers leaving action buttons permanently disabled.
+- Fixed hard-coded English strings in the recovery workflow.
 
 ## Changed
 
