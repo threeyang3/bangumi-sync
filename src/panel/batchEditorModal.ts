@@ -11,6 +11,7 @@ import {
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 import { LocalSubjectSnapshot } from '../document/types';
 import { tn, tnFormat } from '../i18n';
+import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
 
 type BatchEditMode = 'uniform' | 'per_item';
 
@@ -538,6 +539,12 @@ export class BatchEditorModal extends Modal {
 	}
 
 	private async handleSubmit(): Promise<void> {
+		try {
+			assertWriteOperationAllowed('batch-edit');
+		} catch {
+			new Notice(tn('recoveryCenter', 'writeBlocked'));
+			return;
+		}
 		if (this.mode === 'uniform') {
 			if (this.operations.length === 0) {
 				new Notice(tn('batchEditor', 'noticeNoOp'));
@@ -682,6 +689,7 @@ export class FrontmatterEditor {
 		filePaths: string[],
 		operations: BatchEditOperation[]
 	): Promise<{ success: number; failed: number }> {
+		assertWriteOperationAllowed('batch-edit');
 		const originalContents = await this.captureOriginalContents(filePaths);
 		const affectedFiles: string[] = [];
 		let success = 0;
@@ -704,6 +712,7 @@ export class FrontmatterEditor {
 	async batchApplyPerItemUpdates(
 		updates: BatchPerItemUpdate[]
 	): Promise<{ success: number; failed: number }> {
+		assertWriteOperationAllowed('batch-edit');
 		const filePaths = updates.map(update => update.filePath);
 		const originalContents = await this.captureOriginalContents(filePaths);
 		const affectedFiles: string[] = [];
@@ -725,6 +734,7 @@ export class FrontmatterEditor {
 	}
 
 	async undo(): Promise<boolean> {
+		assertWriteOperationAllowed('batch-edit');
 		if (this.history.length === 0) {
 			return false;
 		}

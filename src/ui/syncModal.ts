@@ -5,7 +5,7 @@
 
 import { App, Modal, Setting } from 'obsidian';
 import { SyncProgress, SyncCancellationSignal, SyncResultWithRollback } from '../sync/syncStatus';
-import type { PendingDecisionResult, RecoveryCheckResult } from '../sync/syncManager';
+import type { PendingDecisionResult } from '../sync/syncManager';
 import { formatRollbackFailureDetail, getSyncCompletionPresentation, pendingDecisionAllowsClose } from '../sync/syncCompletionPresentation';
 import { tn, tnFormat } from '../i18n';
 
@@ -20,8 +20,7 @@ export class SyncModal extends Modal {
 	private completedEl: HTMLElement | null = null;
 	private onCancelled: (() => Promise<PendingDecisionResult>) | null = null;
 	private onCommitted: (() => Promise<PendingDecisionResult>) | null = null;
-	private onRecoveryRetry: (() => Promise<PendingDecisionResult>) | null = null;
-	private onManualRecovery: (() => Promise<RecoveryCheckResult>) | null = null;
+	private onOpenRecoveryCenter: (() => void) | null = null;
 	private isCompleted = false;
 	private pendingDecision = false;
 	private decisionInProgress = false;
@@ -133,12 +132,8 @@ export class SyncModal extends Modal {
 		this.onCommitted = handler;
 	}
 
-	setRecoveryHandlers(
-		retry: () => Promise<PendingDecisionResult>,
-		confirmManual: () => Promise<RecoveryCheckResult>,
-	): void {
-		this.onRecoveryRetry = retry;
-		this.onManualRecovery = confirmManual;
+	setRecoveryCenterHandler(handler: () => void): void {
+		this.onOpenRecoveryCenter = handler;
 	}
 
 	/**
@@ -254,16 +249,11 @@ export class SyncModal extends Modal {
 				this.decisionButtons.push(rollbackBtn);
 				rollbackBtn.addEventListener('click', () => void this.resolvePendingDecision('rollback'));
 			}
-			if (result.completion === 'rollback-failed' && this.onRecoveryRetry && this.onManualRecovery) {
-				const retryBtn = this.completedEl.createEl('button', {
-					cls: 'bangumi-rollback-btn mod-warning', text: 'Retry recovery',
+			if (result.completion === 'rollback-failed' && this.onOpenRecoveryCenter) {
+				const recoveryBtn = this.completedEl.createEl('button', {
+					cls: 'bangumi-rollback-btn mod-warning', text: tn('recoveryCenter', 'openCenter'),
 				});
-				const confirmBtn = this.completedEl.createEl('button', {
-					cls: 'bangumi-commit-btn', text: 'Confirm manual recovery',
-				});
-				this.decisionButtons.push(retryBtn, confirmBtn);
-				retryBtn.addEventListener('click', () => void this.retryRecovery());
-				confirmBtn.addEventListener('click', () => void this.confirmManualRecovery());
+				recoveryBtn.addEventListener('click', () => this.onOpenRecoveryCenter?.());
 			}
 
 			// 关闭按钮
@@ -306,43 +296,12 @@ export class SyncModal extends Modal {
 			this.pendingDecision = !pendingDecisionAllowsClose(resolved);
 			if (resolved.result) this.showCompleted(resolved.result);
 			return resolved;
+		} catch (error) {
+			this.updateStatus(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
 		} finally {
 			this.decisionInProgress = false;
 			if (this.pendingDecision) for (const button of this.decisionButtons) button.disabled = false;
-		}
-	}
-
-	private async retryRecovery(): Promise<void> {
-		if (this.decisionInProgress || !this.onRecoveryRetry) return;
-		this.decisionInProgress = true;
-		for (const button of this.decisionButtons) button.disabled = true;
-		try {
-			const resolved = await this.onRecoveryRetry();
-			if (resolved.result) this.showCompleted(resolved.result);
-		} finally {
-			this.decisionInProgress = false;
-		}
-	}
-
-	private async confirmManualRecovery(): Promise<void> {
-		if (this.decisionInProgress || !this.onManualRecovery) return;
-		this.decisionInProgress = true;
-		for (const button of this.decisionButtons) button.disabled = true;
-		try {
-			const check = await this.onManualRecovery();
-			if (check.recovered) {
-				this.pendingDecision = false;
-				this.updateStatus('Recovery confirmed');
-				this.completedEl?.createEl('p', { text: 'Local recovery checks passed. Sync can continue.', cls: 'bangumi-sync-stats' });
-			} else if (this.completedEl) {
-				const details = this.completedEl.createEl('details', { cls: 'bangumi-sync-error-details', attr: { open: '' } });
-				details.createEl('summary', { text: `Recovery blockers (${check.blockingDiagnostics.length})` });
-				const list = details.createEl('ul', { cls: 'bangumi-sync-error-list' });
-				for (const diagnostic of check.blockingDiagnostics) list.createEl('li', { text: diagnostic });
-				for (const button of this.decisionButtons) button.disabled = false;
-			}
-		} finally {
-			this.decisionInProgress = false;
 		}
 	}
 

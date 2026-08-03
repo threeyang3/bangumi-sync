@@ -7,6 +7,7 @@ import { App, TFile } from 'obsidian';
 import { BangumiClient } from '../api/client';
 import { LocalEpisodeStatus, EpisodeStatusType, getEpisodeStatusText } from './types';
 import { delay } from '../../common/utils/timing';
+import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
 
 /**
  * 单集状态管理器
@@ -107,6 +108,7 @@ export class EpisodeStatusManager {
 		epNumber: number,
 		status: EpisodeStatusType
 	): Promise<void> {
+		assertWriteOperationAllowed('episode-status');
 		await this.app.vault.process(file, (content) => {
 			// 单条更新走细粒度 updateEpStatusInContent，避免触发 applyEpisodeStatusUpdates
 			// 的"先清空再重建"流程把其他集的状态也清掉。
@@ -121,6 +123,7 @@ export class EpisodeStatusManager {
 		file: TFile,
 		episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>
 	): Promise<void> {
+		assertWriteOperationAllowed('episode-status');
 		await this.app.vault.process(file, (content) => {
 			return this.applyEpisodeStatusUpdates(content, episodes);
 		});
@@ -381,6 +384,7 @@ export class EpisodeStatusManager {
 		file: TFile,
 		progressCallback?: (current: number, total: number, message: string) => void
 	): Promise<{ success: number; failed: number }> {
+		assertWriteOperationAllowed('episode-status');
 		const statusMap = await this.getEpisodeStatusMap(file);
 		const entries = Array.from(statusMap.values()).filter(s => s.status !== 0);
 		const ownerWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
@@ -417,6 +421,7 @@ export class EpisodeStatusManager {
 		file: TFile,
 		subjectId: number
 	): Promise<boolean> {
+		assertWriteOperationAllowed('episode-status');
 		try {
 			const userEpisodes = await this.client.getUserEpisodeStatus(subjectId);
 
@@ -452,6 +457,7 @@ export class EpisodeStatusManager {
 	 * 清除所有单集状态
 	 */
 	async clearAllStatuses(file: TFile): Promise<void> {
+		assertWriteOperationAllowed('episode-status');
 		await this.app.vault.process(file, (content) => {
 			const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
 			if (!frontmatterMatch) return content;

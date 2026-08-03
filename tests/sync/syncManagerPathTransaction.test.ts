@@ -394,7 +394,15 @@ describe('SyncManager path transaction integration', () => {
 
 		const failed = await manager.rollbackBatch();
 		expect(failed.status).toBe('rollback-failed');
-		expect(manager.getRecoveryRequired()?.reason).toBe('rollback-failed');
+		expect(failed.result).toBeDefined();
+		expect(failed.result?.outcomes).toHaveLength(2);
+		const recovery = manager.getRecoveryRequired();
+		expect(recovery?.reason).toBe('rollback-failed');
+		expect(recovery?.subjectExpectations).toEqual(expect.arrayContaining([
+			expect.objectContaining({ subjectId: 10, expectedToExist: false }),
+		]));
+		expect(recovery?.attempts).toHaveLength(1);
+		expect(recovery?.latestAttempt?.status).toBe('rollback-failed');
 		await expect(manager.syncByCollections([makeCollection(first)], { concurrency: 1 }))
 			.rejects.toBeInstanceOf(RecoveryRequiredError);
 
@@ -403,5 +411,51 @@ describe('SyncManager path transaction integration', () => {
 		expect(retried.status).toBe('rolled-back');
 		expect(manager.getRecoveryRequired()).toBeNull();
 		expect(vault.files.has('ACGN/music/成功.md')).toBe(false);
+	});
+
+	it('serializes retry and manual confirmation through one recovery action promise', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '成功');
+		const second = makeSubject(11, '2021-01-01', '失败');
+		const originalTrash = vault.app.fileManager.trashFile.bind(vault.app.fileManager);
+		vault.app.fileManager.trashFile = () => Promise.reject(new Error('injected trash failure'));
+		const manager = createManager(vault, [first, second], { failures: new Set([11]) });
+		await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+		await manager.rollbackBatch();
+
+		let release!: () => void;
+		const held = new Promise<void>(resolve => { release = resolve; });
+		vault.app.fileManager.trashFile = async file => {
+			await held;
+			return originalTrash(file);
+		};
+		const retry = manager.retryRecovery();
+		const manual = manager.confirmManualRecovery();
+		expect(manual).toBe(retry);
+		release();
+		expect(await retry).toMatchObject({ status: 'rolled-back', recovered: true });
+		expect(manager.getRecoveryRequired()).toBeNull();
+	});
+
+	it('keeps manual recovery blocked until the pre-batch absence expectation is restored', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '成功');
+		const second = makeSubject(11, '2021-01-01', '失败');
+		vault.app.fileManager.trashFile = () => Promise.reject(new Error('injected trash failure'));
+		const manager = createManager(vault, [first, second], { failures: new Set([11]) });
+		await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+		await manager.rollbackBatch();
+
+		const blocked = await manager.confirmManualRecovery();
+		expect(blocked).toMatchObject({ status: 'blocked', recovered: false });
+		expect(blocked.diagnostics).toEqual(expect.arrayContaining([
+			expect.objectContaining({ code: 'unexpected-subject-file', subjectId: 10 }),
+		]));
+		expect(manager.getRecoveryRequired()?.latestAttempt?.diagnostics).toEqual(blocked.diagnostics);
+
+		vault.files.delete('ACGN/music/成功.md');
+		const recovered = await manager.confirmManualRecovery();
+		expect(recovered).toMatchObject({ status: 'recovered', recovered: true });
+		expect(manager.getRecoveryRequired()).toBeNull();
 	});
 });

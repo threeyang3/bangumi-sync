@@ -7,6 +7,7 @@ import { renderContentTemplate } from '../template/contentTemplate';
 import { tn } from '../i18n/translations';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 import { limitPathLength } from '../../common/file/pathUtils';
+import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
 
 interface SubjectNoteContext {
 	subject: Subject;
@@ -41,6 +42,7 @@ export class SubjectNoteManager {
 	}
 
 	async createOrAppendForLocalFile(localFile: TFile): Promise<void> {
+		assertWriteOperationAllowed('subject-note');
 		if (!this.settings.notePathTemplate.trim()) {
 			new Notice(tn('subjectNote', 'configureNotePath'));
 			return;

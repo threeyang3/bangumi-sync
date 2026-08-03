@@ -32,6 +32,7 @@ import {
 	mergeSectionValues as mergeImportedSectionValues,
 	smartMergeImportValues,
 } from './importLogic';
+import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
 
 interface NormalizedImportItem {
 	identifier: SubjectIdentifier;
@@ -138,6 +139,7 @@ export class UserDataImporter {
 		options: ImportOptions,
 		onProgress?: (current: number, total: number) => void
 	): Promise<ImportResult> {
+		assertWriteOperationAllowed('user-data-import');
 		const compareResult = await this.compareImportData(files, options, onProgress);
 		const applied = await this.applyImportPlan(files, options);
 
@@ -253,6 +255,7 @@ export class UserDataImporter {
 	}
 
 	async applyMissingFieldDecisions(decisions: MissingFieldDecision[]): Promise<void> {
+		assertWriteOperationAllowed('user-data-import');
 		const grouped = new Map<number, MissingFieldDecision[]>();
 
 		for (const decision of decisions) {
@@ -289,6 +292,7 @@ export class UserDataImporter {
 			dataTypes: [],
 		}
 	): Promise<number> {
+		assertWriteOperationAllowed('user-data-import');
 		let applied = 0;
 
 		for (const item of diffs) {
@@ -349,6 +353,7 @@ export class UserDataImporter {
 		missingFieldDecisions: MissingFieldDecision[] = [],
 		onProgress?: (current: number, total: number) => void
 	): Promise<ImportResult> {
+		assertWriteOperationAllowed('user-data-import');
 		const parsedFiles = this.parseImportFiles(files);
 		const diffDecisionMap = this.buildDiffDecisionMap(diffs);
 		const missingDecisionMap = this.buildMissingFieldDecisionMap(missingFieldDecisions);
