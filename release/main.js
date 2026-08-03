@@ -943,6 +943,7 @@ var en = {
     close: "Close",
     working: "Checking local recovery\u2026",
     recovered: "Local recovery completed. Write operations are available again.",
+    currentFailures: "Current failures",
     blocked: "Recovery is still blocked. Resolve the diagnostics below and rescan.",
     actionFailed: "Recovery action failed",
     diagnostics: "Blocking diagnostics",
@@ -961,7 +962,10 @@ var en = {
     diagnosticMissingSubjectFile: "Expected subject file is missing",
     diagnosticSubjectPathMismatch: "Subject path does not match",
     diagnosticSubjectIdentityMismatch: "Expected path belongs to another subject",
-    diagnosticRollbackStepFailed: "Rollback step failed"
+    diagnosticRollbackStepFailed: "Rollback step failed",
+    diagnosticContentMismatch: "Original content does not match",
+    diagnosticContentFileMissing: "Original content file is missing",
+    diagnosticUnexpectedCreatedPath: "Created path still exists"
   }
 };
 var zhCN = {
@@ -1593,6 +1597,7 @@ var zhCN = {
     close: "\u5173\u95ED",
     working: "\u6B63\u5728\u68C0\u67E5\u672C\u5730\u6062\u590D\u72B6\u6001\u2026",
     recovered: "\u672C\u5730\u6062\u590D\u5DF2\u5B8C\u6210\uFF0C\u5199\u5165\u64CD\u4F5C\u5DF2\u91CD\u65B0\u5F00\u653E\u3002",
+    currentFailures: "\u5F53\u524D\u5931\u8D25",
     blocked: "\u6062\u590D\u4ECD\u88AB\u963B\u585E\u3002\u8BF7\u5904\u7406\u4E0B\u65B9\u8BCA\u65AD\u540E\u91CD\u65B0\u626B\u63CF\u3002",
     actionFailed: "\u6062\u590D\u64CD\u4F5C\u5931\u8D25",
     diagnostics: "\u963B\u585E\u8BCA\u65AD",
@@ -1611,7 +1616,10 @@ var zhCN = {
     diagnosticMissingSubjectFile: "\u9884\u671F\u7684\u6761\u76EE\u6587\u4EF6\u7F3A\u5931",
     diagnosticSubjectPathMismatch: "\u6761\u76EE\u8DEF\u5F84\u4E0D\u4E00\u81F4",
     diagnosticSubjectIdentityMismatch: "\u9884\u671F\u8DEF\u5F84\u5C5E\u4E8E\u5176\u4ED6\u6761\u76EE",
-    diagnosticRollbackStepFailed: "\u56DE\u6EDA\u6B65\u9AA4\u5931\u8D25"
+    diagnosticRollbackStepFailed: "\u56DE\u6EDA\u6B65\u9AA4\u5931\u8D25",
+    diagnosticContentMismatch: "\u539F\u59CB\u5185\u5BB9\u4E0D\u4E00\u81F4",
+    diagnosticContentFileMissing: "\u539F\u59CB\u5185\u5BB9\u6587\u4EF6\u7F3A\u5931",
+    diagnosticUnexpectedCreatedPath: "\u6279\u6B21\u65B0\u5EFA\u8DEF\u5F84\u4ECD\u7136\u5B58\u5728"
   }
 };
 var translations = {
@@ -3464,6 +3472,25 @@ var TemplateEditorModal = class extends import_obsidian2.Modal {
     contentEl.empty();
   }
 };
+
+// src/settings/settingsLifecycle.ts
+async function persistStableManagerSettings(update) {
+  var _a, _b;
+  try {
+    (_a = update.manager) == null ? void 0 : _a.assertConfigurationChangeAllowed(update.changedFields);
+  } catch (error) {
+    update.restore(update.previousSettings);
+    return { applied: false, error };
+  }
+  try {
+    await update.save(update.settings);
+    (_b = update.manager) == null ? void 0 : _b.updateConfig(update.nextConfig, update.changedFields);
+    return { applied: true };
+  } catch (error) {
+    update.restore(update.previousSettings);
+    throw error;
+  }
+}
 
 // src/sync/syncManager.ts
 var import_obsidian11 = require("obsidian");
@@ -7358,6 +7385,23 @@ var SubjectPathResolver = class {
 
 // src/sync/syncTransaction.ts
 var import_obsidian10 = require("obsidian");
+
+// src/sync/recoveryContent.ts
+function hashRecoveryContent(content) {
+  const bytes = new TextEncoder().encode(content);
+  const words = Array.from({ length: 8 }, (_, index) => (2166136261 ^ Math.imul(index + 1, 2654435761)) >>> 0);
+  for (const byte of bytes) {
+    for (let index = 0; index < words.length; index++) {
+      let value = words[index] ^ byte + index * 17;
+      value = Math.imul(value, 16777619 ^ index * 2);
+      value ^= value >>> 13;
+      words[index] = value >>> 0;
+    }
+  }
+  return words.map((value) => value.toString(16).padStart(8, "0")).join("");
+}
+
+// src/sync/syncTransaction.ts
 var SyncTransaction = class {
   constructor(app, fileManager) {
     this.app = app;
@@ -7386,6 +7430,24 @@ var SyncTransaction = class {
   }
   getRenameCount() {
     return this.renames.filter((rename) => rename.phase === "final").length;
+  }
+  getRecoveryExpectations() {
+    const createdFiles = this.createdFiles.map((item) => ({
+      subjectId: item.subjectId,
+      createdPath: item.createdPath,
+      expectedToExistAfterRollback: false
+    }));
+    const updatedContents = Array.from(this.updatedContents, ([file, original]) => {
+      var _a;
+      const rename = this.renames.find((item) => item.file === file);
+      return {
+        subjectId: original.subjectId,
+        path: (_a = rename == null ? void 0 : rename.from) != null ? _a : original.path,
+        expectedContentHash: hashRecoveryContent(original.content),
+        originalContentLength: original.content.length
+      };
+    });
+    return { createdFiles, updatedContents };
   }
   async executeRenames(renames) {
     this.assertActive();
@@ -7429,11 +7491,15 @@ var SyncTransaction = class {
     this.assertActive();
     const existing = await this.fileManager.assertPathOwnership(path, options.subjectId);
     if (existing && !this.updatedContents.has(existing)) {
-      this.updatedContents.set(existing, await this.app.vault.read(existing));
+      this.updatedContents.set(existing, {
+        content: await this.app.vault.read(existing),
+        subjectId: options.subjectId,
+        path: existing.path
+      });
     }
     const result = await this.fileManager.createOrUpdateFile(path, content, options);
     if (result.status === "created")
-      this.createdFiles.push(result.file);
+      this.createdFiles.push({ file: result.file, subjectId: options.subjectId, createdPath: (0, import_obsidian10.normalizePath)(path) });
     if (result.status !== "updated" && existing)
       this.updatedContents.delete(existing);
     return result;
@@ -7450,18 +7516,18 @@ var SyncTransaction = class {
     if (this.state !== "active" && this.state !== "rollback-failed")
       return result;
     result.attempted = this.hasRecordedChanges() || this.state === "rollback-failed";
-    for (const file of [...this.createdFiles].reverse()) {
+    for (const created of [...this.createdFiles].reverse()) {
       try {
-        await this.app.fileManager.trashFile(file);
+        await this.app.fileManager.trashFile(created.file);
         result.deletedCreatedFiles++;
-        this.createdFiles.splice(this.createdFiles.indexOf(file), 1);
+        this.createdFiles.splice(this.createdFiles.indexOf(created), 1);
       } catch (error) {
-        this.recordRollbackFailure(result, "delete-created", file.path, error);
+        this.recordRollbackFailure(result, "delete-created", created.createdPath, error);
       }
     }
-    for (const [file, content] of this.updatedContents) {
+    for (const [file, original] of this.updatedContents) {
       try {
-        await this.app.vault.process(file, () => content);
+        await this.app.vault.process(file, () => original.content);
         result.restoredContents++;
         this.updatedContents.delete(file);
       } catch (error) {
@@ -7625,6 +7691,19 @@ function pathStatesEqual(left, right) {
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
+var TRANSACTION_SENSITIVE_CONFIG_FIELDS = /* @__PURE__ */ new Set([
+  "scanFolderPath",
+  "pathTemplate",
+  "pathTemplateByType",
+  "pathNamingStrategy",
+  "subjectPathStates",
+  "imagePathTemplate",
+  "notePathTemplate",
+  "coverLinkType",
+  "dataProtection",
+  "enableRelatedLinks",
+  "customTemplates"
+]);
 var PendingSyncTransactionError = class extends Error {
   constructor() {
     super("A previous sync batch is awaiting a keep or rollback decision.");
@@ -7644,6 +7723,19 @@ var RecoveryRequiredError = class extends Error {
     this.name = "RecoveryRequiredError";
   }
 };
+var ConfigurationChangeBlockedError = class extends Error {
+  constructor(changedFields) {
+    super(`Configuration changes are blocked while recovery state is active: ${changedFields.join(", ")}.`);
+    this.changedFields = changedFields;
+    this.name = "ConfigurationChangeBlockedError";
+  }
+};
+var ManagerReinitializationBlockedError = class extends Error {
+  constructor() {
+    super("SyncManager cannot be reinitialized while transaction or recovery state is active.");
+    this.name = "ManagerReinitializationBlockedError";
+  }
+};
 var SyncManager = class {
   constructor(app, config) {
     this.cancellationSignal = null;
@@ -7653,6 +7745,7 @@ var SyncManager = class {
     this.pendingDecisionPromise = null;
     this.recoveryActionPromise = null;
     this.recoveryRequired = null;
+    this.recoveryStateListeners = /* @__PURE__ */ new Set();
     var _a;
     this.app = app;
     this.config = config;
@@ -7699,6 +7792,26 @@ var SyncManager = class {
     if (this.pendingTransaction)
       throw new PendingSyncTransactionError();
   }
+  hasActiveTransactionState() {
+    return this.batchTransactionState === "active" || this.pendingTransaction !== null || this.pendingDecisionPromise !== null || this.recoveryRequired !== null || this.recoveryActionPromise !== null;
+  }
+  assertConfigurationChangeAllowed(changedFields) {
+    var _a, _b;
+    if (changedFields.length === 0 || !this.hasActiveTransactionState())
+      return;
+    const actionInProgress = this.batchTransactionState === "active" || this.pendingDecisionPromise !== null || this.recoveryActionPromise !== null || ((_a = this.pendingTransaction) == null ? void 0 : _a.state) === "committing" || ((_b = this.pendingTransaction) == null ? void 0 : _b.state) === "rolling-back";
+    const blocked = actionInProgress ? changedFields : changedFields.filter((field) => TRANSACTION_SENSITIVE_CONFIG_FIELDS.has(field));
+    if (blocked.length > 0)
+      throw new ConfigurationChangeBlockedError(blocked);
+  }
+  assertCanReinitialize() {
+    if (this.hasActiveTransactionState())
+      throw new ManagerReinitializationBlockedError();
+  }
+  subscribeRecoveryState(listener) {
+    this.recoveryStateListeners.add(listener);
+    return () => this.recoveryStateListeners.delete(listener);
+  }
   getRecoveryRequired() {
     var _a;
     return this.recoveryRequired ? {
@@ -7707,6 +7820,8 @@ var SyncManager = class {
       originalPathStates: this.clonePathStates(this.recoveryRequired.originalPathStates),
       affectedSubjectIds: [...this.recoveryRequired.affectedSubjectIds],
       subjectExpectations: this.recoveryRequired.subjectExpectations.map((item) => ({ ...item })),
+      contentExpectations: this.recoveryRequired.contentExpectations.map((item) => ({ ...item })),
+      forbiddenPathsAfterRollback: [...this.recoveryRequired.forbiddenPathsAfterRollback],
       attempts: this.recoveryRequired.attempts.map((item) => this.cloneRecoveryAttempt(item)),
       latestAttempt: this.recoveryRequired.latestAttempt ? this.cloneRecoveryAttempt(this.recoveryRequired.latestAttempt) : void 0
     } : null;
@@ -7723,13 +7838,25 @@ var SyncManager = class {
   /**
    * 更新配置
    */
-  updateConfig(config) {
-    var _a;
+  updateConfig(config, changedFields = Object.keys(config)) {
+    var _a, _b;
+    this.assertConfigurationChangeAllowed(changedFields);
     this.config = { ...this.config, ...config };
-    this.client.setAccessToken(config.accessToken || "");
-    this.imageHandler.setDownloadEnabled((_a = config.downloadImages) != null ? _a : true);
-    if (config.subjectPathStates) {
+    if (Object.prototype.hasOwnProperty.call(config, "accessToken"))
+      this.client.setAccessToken((_a = config.accessToken) != null ? _a : "");
+    if (Object.prototype.hasOwnProperty.call(config, "downloadImages"))
+      this.imageHandler.setDownloadEnabled((_b = config.downloadImages) != null ? _b : false);
+    if (Object.prototype.hasOwnProperty.call(config, "subjectPathStates") && config.subjectPathStates) {
       this.incrementalSync.setPathStates(config.subjectPathStates);
+    }
+  }
+  notifyRecoveryStateChanged() {
+    const snapshot = this.getRecoveryRequired();
+    for (const listener of this.recoveryStateListeners) {
+      try {
+        listener(snapshot);
+      } catch (e) {
+      }
     }
   }
   async persistPathStates() {
@@ -7751,6 +7878,19 @@ var SyncManager = class {
       ...attempt,
       diagnostics: attempt.diagnostics.map((item) => ({ ...item })),
       rollback: attempt.rollback ? { ...attempt.rollback, failures: (_a = attempt.rollback.failures) == null ? void 0 : _a.map((item) => ({ ...item })) } : void 0
+    };
+  }
+  captureTransactionRecoveryFacts(transactions) {
+    const contentExpectations = [];
+    const forbiddenPathsAfterRollback = [];
+    for (const transaction of transactions) {
+      const expectations = transaction.getRecoveryExpectations();
+      contentExpectations.push(...expectations.updatedContents.map((item) => ({ ...item })));
+      forbiddenPathsAfterRollback.push(...expectations.createdFiles.map((item) => item.createdPath));
+    }
+    return {
+      contentExpectations,
+      forbiddenPathsAfterRollback: Array.from(new Set(forbiddenPathsAfterRollback.map(import_obsidian11.normalizePath)))
     };
   }
   resolveRecoveryAction(action) {
@@ -7832,6 +7972,9 @@ var SyncManager = class {
       this.recoveryRequired.attempts.push(attempt);
       this.recoveryRequired.latestAttempt = attempt;
       outcome.recovery = (_d = this.getRecoveryRequired()) != null ? _d : void 0;
+      this.notifyRecoveryStateChanged();
+    } else if (outcome.recovered) {
+      outcome.attempts = [...recovery.attempts, attempt].map((item) => this.cloneRecoveryAttempt(item));
     }
     return outcome;
   }
@@ -7850,24 +7993,44 @@ var SyncManager = class {
     if (!pathStatesEqual((_c = this.config.subjectPathStates) != null ? _c : {}, recovery.originalPathStates)) {
       diagnostics.push({ code: "persisted-state-mismatch", message: "Persisted subject path states differ from the pre-batch snapshot." });
     }
-    if (!pathStatesEqual(this.incrementalSync.exportPathStates(), recovery.originalPathStates)) {
-      diagnostics.push({ code: "incremental-state-mismatch", message: "Incremental sync path states differ from the pre-batch snapshot." });
-    }
     if (diagnostics.length === 0)
       diagnostics = await this.collectRecoveryDiagnostics(recovery);
-    if (diagnostics.length === 0 && !pathStatesEqual(this.incrementalSync.exportPathStates(), recovery.originalPathStates)) {
-      diagnostics.push({ code: "incremental-state-mismatch", message: "Incremental sync path states changed after the verification rescan." });
-    }
+    if (diagnostics.length === 0)
+      this.incrementalSync.setPathStates(recovery.originalPathStates);
     if (diagnostics.length > 0) {
       return { action: "confirm-manual", status: "blocked", recovered: false, diagnostics, recovery: (_d = this.getRecoveryRequired()) != null ? _d : void 0 };
     }
-    const result = this.snapshotAfterDecision(pending, "rolled-back", recovery.rollback);
+    const finalRollback = {
+      attempted: true,
+      changed: true,
+      deletedCreatedFiles: recovery.forbiddenPathsAfterRollback.length,
+      restoredContents: recovery.contentExpectations.length,
+      restoredPaths: recovery.subjectExpectations.filter((item) => item.expectedToExist && item.expectedPath).length,
+      failed: 0,
+      failures: []
+    };
+    const result = this.snapshotAfterDecision(pending, "rolled-back", finalRollback);
     this.recoveryRequired = null;
     this.pendingTransaction = null;
     this.pendingDecisionPromise = null;
     this.batchTransactionState = "rolled-back";
     this.incrementalSync.clearBatch();
-    return { action: "confirm-manual", status: "recovered", recovered: true, diagnostics: [], result, rollback: recovery.rollback };
+    this.notifyRecoveryStateChanged();
+    return {
+      action: "confirm-manual",
+      status: "recovered",
+      recovered: true,
+      diagnostics: [],
+      result,
+      rollback: finalRollback,
+      resolution: {
+        method: "manual-verification",
+        currentFailed: 0,
+        verifiedSubjects: recovery.subjectExpectations.length,
+        verifiedContents: recovery.contentExpectations.length,
+        verifiedAbsentPaths: recovery.forbiddenPathsAfterRollback.length
+      }
+    };
   }
   rollbackFailureDiagnostics(rollback) {
     var _a;
@@ -7949,9 +8112,9 @@ var SyncManager = class {
       this.recordManagerRollbackFailure(result, "restore-path-states", "subjectPathStates", error);
     }
     try {
-      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+      await this.incrementalSync.scanLocalFolder(pending.scanRootAtBatchStart);
     } catch (error) {
-      this.recordManagerRollbackFailure(result, "rescan", this.config.scanFolderPath || "ACGN", error);
+      this.recordManagerRollbackFailure(result, "rescan", pending.scanRootAtBatchStart, error);
     }
     this.incrementalSync.clearBatch();
     this.markGroupsRolledBack(pending);
@@ -7982,16 +8145,21 @@ var SyncManager = class {
         affectedSubjectIds: [...pending.affectedSubjectIds],
         originalPathStates: this.clonePathStates(pending.previousPathStates),
         subjectExpectations: pending.subjectExpectations.map((item) => ({ ...item })),
+        scanRoot: pending.scanRootAtBatchStart,
+        contentExpectations: pending.contentExpectations.map((item) => ({ ...item })),
+        forbiddenPathsAfterRollback: [...pending.forbiddenPathsAfterRollback],
         attempts: (_b = existingRecovery == null ? void 0 : existingRecovery.attempts.map((item) => this.cloneRecoveryAttempt(item))) != null ? _b : [automaticAttempt],
         latestAttempt: (existingRecovery == null ? void 0 : existingRecovery.latestAttempt) ? this.cloneRecoveryAttempt(existingRecovery.latestAttempt) : automaticAttempt,
         detectedAt: (_c = existingRecovery == null ? void 0 : existingRecovery.detectedAt) != null ? _c : Date.now()
       };
+      this.notifyRecoveryStateChanged();
       return { status: "rollback-failed", result: snapshot, rollback: result, error: cause ? errorMessage(cause) : void 0 };
     }
     pending.state = "rolled-back";
     this.pendingTransaction = null;
     this.recoveryRequired = null;
     this.batchTransactionState = "rolled-back";
+    this.notifyRecoveryStateChanged();
     return { status: "rolled-back", result: snapshot, rollback: result, error: cause ? errorMessage(cause) : void 0 };
   }
   recordManagerRollbackFailure(result, operation, path, error) {
@@ -8036,7 +8204,7 @@ var SyncManager = class {
   async collectRecoveryDiagnostics(recovery) {
     const diagnostics = [];
     try {
-      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+      await this.incrementalSync.scanLocalFolder(recovery.scanRoot);
     } catch (error) {
       diagnostics.push({ code: "rescan-failed", message: errorMessage(error) });
       return diagnostics;
@@ -8053,11 +8221,46 @@ var SyncManager = class {
         paths: [...paths],
         message: `Subject ${subjectId} appears in multiple files.`
       });
-    for (const file of this.app.vault.getMarkdownFiles()) {
+    const scanRootKey = normalizePathCollisionKey(recovery.scanRoot);
+    const scanRootSegments = (0, import_obsidian11.normalizePath)(recovery.scanRoot).split("/").filter(Boolean).length;
+    const filesInScanRoot = this.app.vault.getMarkdownFiles().filter((file) => {
+      const ancestor = (0, import_obsidian11.normalizePath)(file.path).split("/").slice(0, scanRootSegments).join("/");
+      return normalizePathCollisionKey(ancestor) === scanRootKey;
+    });
+    for (const file of filesInScanRoot) {
       if (/(^|\/)\.bangumi-sync-\d+-\d+-\d+\.tmp\.md$/u.test(file.path))
         diagnostics.push({ code: "temporary-file", path: file.path, message: "Temporary transaction file remains in the vault." });
     }
     diagnostics.push(...collectSubjectExpectationDiagnostics(recovery.subjectExpectations, registry));
+    for (const expectation of recovery.contentExpectations) {
+      const file = filesInScanRoot.find((item) => normalizePathCollisionKey(item.path) === normalizePathCollisionKey(expectation.path));
+      if (!file) {
+        diagnostics.push({ code: "content-file-missing", subjectId: expectation.subjectId, path: expectation.path, message: "The pre-batch file is missing." });
+        continue;
+      }
+      const content = await this.app.vault.read(file);
+      const actualHash = hashRecoveryContent(content);
+      if (actualHash !== expectation.expectedContentHash || content.length !== expectation.originalContentLength)
+        diagnostics.push({
+          code: "content-mismatch",
+          subjectId: expectation.subjectId,
+          path: expectation.path,
+          expectedHash: expectation.expectedContentHash,
+          actualHash,
+          message: `Original content hash ${expectation.expectedContentHash.slice(0, 8)} does not match ${actualHash.slice(0, 8)}.`
+        });
+    }
+    for (const path of recovery.forbiddenPathsAfterRollback) {
+      const file = filesInScanRoot.find((item) => normalizePathCollisionKey(item.path) === normalizePathCollisionKey(path));
+      if (!file)
+        continue;
+      diagnostics.push({
+        code: "unexpected-created-path",
+        path,
+        actualSubjectId: registry.getPathOwner(path),
+        message: `The concrete path created by the failed batch still exists: ${file.path}.`
+      });
+    }
     const seen = /* @__PURE__ */ new Set();
     return diagnostics.filter((item) => {
       const key = JSON.stringify(item);
@@ -8342,6 +8545,7 @@ var SyncManager = class {
     this.lastAutomaticRollback = void 0;
     this.assertNoPendingTransaction();
     this.batchTransactionState = "active";
+    const scanRootAtBatchStart = (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN");
     const previousPathStates = this.clonePathStates((_a = this.config.subjectPathStates) != null ? _a : {});
     const originalRecords = new Map(Array.from(this.incrementalSync.getRegistry().idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
     for (const failure of batch.failures)
@@ -8466,12 +8670,15 @@ var SyncManager = class {
     if (fatalRollbackFailure) {
       this.finalizeSyncResult(result, wasCancelled);
       const subjectExpectations = this.recoveryExpectationsFor(affectedSubjectIds, originalRecords);
+      const recoveryFacts = this.captureTransactionRecoveryFacts(successfulTransactions);
       const pending = {
         transactions: successfulTransactions,
         groups: successfulGroups,
         previousPathStates,
         affectedSubjectIds: Array.from(affectedSubjectIds),
         subjectExpectations,
+        scanRootAtBatchStart,
+        ...recoveryFacts,
         deferredRelations: relations,
         resultSnapshot: this.captureResultSnapshot(result, wasCancelled),
         createdAt: Date.now(),
@@ -8486,12 +8693,15 @@ var SyncManager = class {
     const hasPendingChanges = successfulTransactions.some((transaction) => transaction.hasChanges());
     if (hasPendingChanges && (result.failed > 0 || wasCancelled)) {
       this.finalizeSyncResult(result, wasCancelled);
+      const recoveryFacts = this.captureTransactionRecoveryFacts(successfulTransactions);
       this.pendingTransaction = {
         transactions: successfulTransactions,
         groups: successfulGroups,
         previousPathStates,
         affectedSubjectIds: Array.from(affectedSubjectIds),
         subjectExpectations: this.recoveryExpectationsFor(affectedSubjectIds, originalRecords),
+        scanRootAtBatchStart,
+        ...recoveryFacts,
         deferredRelations: relations,
         resultSnapshot: this.captureResultSnapshot(result, wasCancelled),
         createdAt: Date.now(),
@@ -8509,6 +8719,7 @@ var SyncManager = class {
         this.batchTransactionState = "committed";
       } catch (e) {
         this.finalizeSyncResult(result, wasCancelled);
+        const recoveryFacts = this.captureTransactionRecoveryFacts(successfulTransactions);
         const pending = {
           transactions: successfulTransactions,
           groups: successfulGroups,
@@ -8516,6 +8727,8 @@ var SyncManager = class {
           affectedSubjectIds: Array.from(affectedSubjectIds),
           deferredRelations: relations,
           subjectExpectations: this.recoveryExpectationsFor(affectedSubjectIds, originalRecords),
+          scanRootAtBatchStart,
+          ...recoveryFacts,
           resultSnapshot: this.captureResultSnapshot(result, wasCancelled),
           createdAt: Date.now(),
           state: "rolling-back"
@@ -9592,6 +9805,8 @@ var SyncModal = class extends import_obsidian12.Modal {
     this.decisionInProgress = false;
     this.decisionButtons = [];
     this.pendingClosePrompt = null;
+    this.recoverySubscriber = null;
+    this.recoveryUnsubscribe = null;
     this.cancellationSignal = cancellationSignal;
     this.progress = {
       current: 0,
@@ -9618,8 +9833,13 @@ var SyncModal = class extends import_obsidian12.Modal {
     });
     this.cancelBtn.addEventListener("click", () => void this.handleCancel());
     this.completedEl = contentEl.createDiv({ cls: "bangumi-sync-completed bangumi-hidden" });
+    if (this.recoverySubscriber)
+      this.recoveryUnsubscribe = this.recoverySubscriber((recovery) => this.handleRecoveryState(recovery));
   }
   onClose() {
+    var _a;
+    (_a = this.recoveryUnsubscribe) == null ? void 0 : _a.call(this);
+    this.recoveryUnsubscribe = null;
     if (!this.isCompleted) {
       this.contentEl.empty();
     }
@@ -9677,6 +9897,22 @@ var SyncModal = class extends import_obsidian12.Modal {
   }
   setRecoveryCenterHandler(handler) {
     this.onOpenRecoveryCenter = handler;
+  }
+  setRecoveryStateSubscriber(subscriber) {
+    this.recoverySubscriber = subscriber;
+  }
+  handleRecoveryState(recovery) {
+    var _a;
+    if (recovery)
+      return;
+    this.pendingDecision = false;
+    const button = (_a = this.completedEl) == null ? void 0 : _a.querySelector(".bangumi-recovery-btn");
+    if (button) {
+      button.disabled = true;
+      button.setText(tn("recoveryCenter", "recovered"));
+    }
+    if (this.statusText)
+      this.updateStatus(tn("recoveryCenter", "recovered"));
   }
   /**
    * 更新进度
@@ -9781,7 +10017,7 @@ var SyncModal = class extends import_obsidian12.Modal {
       }
       if (result.completion === "rollback-failed" && this.onOpenRecoveryCenter) {
         const recoveryBtn = this.completedEl.createEl("button", {
-          cls: "bangumi-rollback-btn mod-warning",
+          cls: "bangumi-rollback-btn bangumi-recovery-btn mod-warning",
           text: tn("recoveryCenter", "openCenter")
         });
         recoveryBtn.addEventListener("click", () => {
@@ -17692,19 +17928,29 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
     this.working = false;
     this.lastResult = null;
     this.actionError = null;
+    this.unsubscribe = null;
   }
   onOpen() {
+    this.unsubscribe = this.handlers.subscribe(() => this.render());
     this.render();
   }
+  onClose() {
+    var _a;
+    (_a = this.unsubscribe) == null ? void 0 : _a.call(this);
+    this.unsubscribe = null;
+  }
   render() {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f, _g;
     this.contentEl.empty();
     new import_obsidian31.Setting(this.contentEl).setName(tn("recoveryCenter", "title")).setHeading();
     const recovery = this.handlers.getRecovery();
     if (!recovery) {
       this.contentEl.createEl("p", { text: tn("recoveryCenter", "noRecovery"), cls: "bangumi-sync-stats" });
-      if ((_a = this.lastResult) == null ? void 0 : _a.recovered)
+      if ((_a = this.lastResult) == null ? void 0 : _a.recovered) {
         this.contentEl.createEl("p", { text: tn("recoveryCenter", "recovered"), cls: "bangumi-sync-stats" });
+        this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "currentFailures")}: ${(_c = (_b = this.lastResult.rollback) == null ? void 0 : _b.failed) != null ? _c : 0}`, cls: "bangumi-sync-stats" });
+        this.renderAttemptHistory((_d = this.lastResult.attempts) != null ? _d : []);
+      }
       this.addCloseButton();
       return;
     }
@@ -17723,14 +17969,8 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
     if (latest) {
       this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "latestAttempt")}: ${latest.action} \u2014 ${latest.status}` });
     }
-    if (recovery.attempts.length > 0) {
-      const history = this.contentEl.createEl("details");
-      history.createEl("summary", { text: `${tn("recoveryCenter", "attemptHistory")} (${recovery.attempts.length})` });
-      const list = history.createEl("ul");
-      for (const attempt of recovery.attempts)
-        list.createEl("li", { text: `${new Date(attempt.finishedAt).toLocaleString()} \u2014 ${attempt.action}: ${attempt.status}` });
-    }
-    const diagnostics = (_d = (_c = (_b = this.lastResult) == null ? void 0 : _b.diagnostics) != null ? _c : latest == null ? void 0 : latest.diagnostics) != null ? _d : [];
+    this.renderAttemptHistory(recovery.attempts);
+    const diagnostics = (_g = (_f = (_e = this.lastResult) == null ? void 0 : _e.diagnostics) != null ? _f : latest == null ? void 0 : latest.diagnostics) != null ? _g : [];
     if (diagnostics.length > 0)
       this.renderDiagnostics(diagnostics);
     if (this.lastResult && !this.lastResult.recovered) {
@@ -17748,6 +17988,15 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
     this.addActionButton(actions, tn("recoveryCenter", "confirmManual"), "confirm-manual", "mod-cta");
     this.addActionButton(actions, tn("recoveryCenter", "rescan"), "rescan", "");
     this.addCloseButton(actions);
+  }
+  renderAttemptHistory(attempts) {
+    if (attempts.length === 0)
+      return;
+    const history = this.contentEl.createEl("details");
+    history.createEl("summary", { text: `${tn("recoveryCenter", "attemptHistory")} (${attempts.length})` });
+    const list = history.createEl("ul");
+    for (const attempt of attempts)
+      list.createEl("li", { text: `${new Date(attempt.finishedAt).toLocaleString()} \u2014 ${attempt.action}: ${attempt.status}` });
   }
   addActionButton(container, label, action, cls) {
     const button = container.createEl("button", { text: label, cls });
@@ -17794,7 +18043,10 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
       "unexpected-subject-file": "diagnosticUnexpectedSubjectFile",
       "missing-subject-file": "diagnosticMissingSubjectFile",
       "subject-path-mismatch": "diagnosticSubjectPathMismatch",
-      "subject-identity-mismatch": "diagnosticSubjectIdentityMismatch"
+      "subject-identity-mismatch": "diagnosticSubjectIdentityMismatch",
+      "content-mismatch": "diagnosticContentMismatch",
+      "content-file-missing": "diagnosticContentFileMissing",
+      "unexpected-created-path": "diagnosticUnexpectedCreatedPath"
     };
     const context = "path" in diagnostic ? diagnostic.path : "actualPath" in diagnostic ? diagnostic.actualPath : "expectedPath" in diagnostic && diagnostic.expectedPath ? diagnostic.expectedPath : "subjectId" in diagnostic ? String(diagnostic.subjectId) : "";
     return `${tn("recoveryCenter", labels[diagnostic.code])}${context ? ` \u2014 ${context}` : ""}: ${diagnostic.message}`;
@@ -17811,6 +18063,8 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     this.syncStatusBarEl = null;
     this.cancellationSignal = null;
     this.controlPanel = null;
+    this.appliedSyncConfig = null;
+    this.lastSavedSettings = null;
     // 单集功能
     this.episodeStatusManager = null;
     this.episodeCommentManager = null;
@@ -17823,7 +18077,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
   // 10 分钟缓存
   async onload() {
     await this.loadSettings();
-    await this.initSyncManager();
+    await this.initOrUpdateSyncManager();
     this.syncStatusBarEl = this.addStatusBarItem();
     this.syncStatusBarEl.addClass("bangumi-sync-status-bar", "bangumi-hidden");
     this.initEpisodeFeatures();
@@ -17905,8 +18159,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       this,
       this.settings,
       async () => {
-        await this.saveSettings();
-        await this.initSyncManager();
+        await this.applySettingsChanges();
       },
       () => this.openPathDiagnostic(),
       () => this.openPathMigrationPreview()
@@ -17935,18 +18188,17 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     }
   }
   openRecoveryCenter() {
-    if (!this.syncManager) {
+    const manager = this.syncManager;
+    if (!manager) {
       new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     new RecoveryCenterModal(this.app, {
-      getRecovery: () => {
-        var _a, _b;
-        return (_b = (_a = this.syncManager) == null ? void 0 : _a.getRecoveryRequired()) != null ? _b : null;
-      },
-      retryRollback: () => this.syncManager.retryRecovery(),
-      confirmManual: () => this.syncManager.confirmManualRecovery(),
-      rescan: () => this.syncManager.rescanRecovery()
+      getRecovery: () => manager.getRecoveryRequired(),
+      retryRollback: () => manager.retryRecovery(),
+      confirmManual: () => manager.confirmManualRecovery(),
+      rescan: () => manager.rescanRecovery(),
+      subscribe: (listener) => manager.subscribeRecoveryState(listener)
     }).open();
   }
   async openPathMigrationPreview() {
@@ -18062,13 +18314,14 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
    */
   async saveSettings() {
     await this.saveData(this.settings);
+    this.lastSavedSettings = this.cloneSettings(this.settings);
   }
   /**
    * 初始化同步管理器
    */
-  async initSyncManager() {
+  async buildSyncManagerConfig() {
     const templates = await this.getTemplates();
-    const config = {
+    return {
       accessToken: this.settings.accessToken,
       pathTemplate: this.settings.syncPathTemplate,
       pathTemplateByType: this.settings.pathTemplateByType,
@@ -18087,12 +18340,76 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         await this.saveSettings();
       }
     };
-    this.syncManager = new SyncManager(this.app, config);
-    setWriteOperationGuard(() => {
-      var _a;
-      return (_a = this.syncManager) == null ? void 0 : _a.ensureCanStartSync();
+  }
+  cloneSettings(settings) {
+    return JSON.parse(JSON.stringify(settings));
+  }
+  restoreSettings(snapshot) {
+    for (const key of Object.keys(this.settings))
+      Reflect.deleteProperty(this.settings, key);
+    Object.assign(this.settings, this.cloneSettings(snapshot));
+  }
+  changedSyncConfigFields(previous, next) {
+    if (!previous)
+      return [];
+    const fields = [
+      "accessToken",
+      "scanFolderPath",
+      "pathTemplate",
+      "pathTemplateByType",
+      "pathNamingStrategy",
+      "subjectPathStates",
+      "imagePathTemplate",
+      "notePathTemplate",
+      "coverLinkType",
+      "dataProtection",
+      "downloadImages",
+      "enableRelatedLinks",
+      "customTemplates"
+    ];
+    return fields.filter((field) => JSON.stringify(previous[field]) !== JSON.stringify(next[field]));
+  }
+  refreshDependentServices(manager) {
+    this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.settings);
+  }
+  async applySettingsChanges() {
+    const previousSettings = this.lastSavedSettings ? this.cloneSettings(this.lastSavedSettings) : this.cloneSettings(this.settings);
+    const nextConfig = await this.buildSyncManagerConfig();
+    const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, nextConfig);
+    const outcome = await persistStableManagerSettings({
+      settings: this.settings,
+      previousSettings,
+      nextConfig,
+      changedFields,
+      manager: this.syncManager,
+      save: (settings) => this.saveData(settings),
+      restore: (snapshot) => this.restoreSettings(snapshot)
     });
-    this.subjectNoteManager = new SubjectNoteManager(this.app, this.syncManager.client, this.settings);
+    if (outcome.applied) {
+      this.appliedSyncConfig = nextConfig;
+      this.lastSavedSettings = this.cloneSettings(this.settings);
+      if (this.syncManager)
+        this.refreshDependentServices(this.syncManager);
+      return;
+    }
+    if (outcome.error instanceof ConfigurationChangeBlockedError)
+      new import_obsidian32.Notice(outcome.error.message);
+  }
+  async initOrUpdateSyncManager() {
+    const config = await this.buildSyncManagerConfig();
+    if (this.syncManager) {
+      const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, config);
+      this.syncManager.updateConfig(config, changedFields);
+      this.appliedSyncConfig = config;
+      this.refreshDependentServices(this.syncManager);
+      return;
+    }
+    this.syncManager = new SyncManager(this.app, config);
+    this.appliedSyncConfig = config;
+    this.lastSavedSettings = this.cloneSettings(this.settings);
+    const manager = this.syncManager;
+    setWriteOperationGuard(() => manager.ensureCanStartSync());
+    this.refreshDependentServices(manager);
   }
   /**
    * 初始化单集功能
@@ -18369,8 +18686,10 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     this.cancellationSignal = createCancellationSignal();
     this.syncManager.setCancellationSignal(this.cancellationSignal);
     this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-    this.syncModal.setRollbackHandler(() => this.syncManager.rollbackBatch());
-    this.syncModal.setCommitHandler(() => this.syncManager.commitPendingBatch());
+    const modalManager = this.syncManager;
+    this.syncModal.setRollbackHandler(() => modalManager.rollbackBatch());
+    this.syncModal.setCommitHandler(() => modalManager.commitPendingBatch());
+    this.syncModal.setRecoveryStateSubscriber((listener) => modalManager.subscribeRecoveryState(listener));
     this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
     this.syncModal.open();
     this.syncManager.setProgressCallback((progress) => {
@@ -18475,8 +18794,10 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     this.cancellationSignal = createCancellationSignal();
     this.syncManager.setCancellationSignal(this.cancellationSignal);
     this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-    this.syncModal.setRollbackHandler(() => this.syncManager.rollbackBatch());
-    this.syncModal.setCommitHandler(() => this.syncManager.commitPendingBatch());
+    const modalManager = this.syncManager;
+    this.syncModal.setRollbackHandler(() => modalManager.rollbackBatch());
+    this.syncModal.setCommitHandler(() => modalManager.commitPendingBatch());
+    this.syncModal.setRecoveryStateSubscriber((listener) => modalManager.subscribeRecoveryState(listener));
     this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
     this.syncModal.open();
     this.syncManager.setProgressCallback((progress) => {
@@ -18533,8 +18854,10 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
               this.cancellationSignal = createCancellationSignal();
               this.syncManager.setCancellationSignal(this.cancellationSignal);
               this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-              this.syncModal.setRollbackHandler(() => this.syncManager.rollbackBatch());
-              this.syncModal.setCommitHandler(() => this.syncManager.commitPendingBatch());
+              const modalManager2 = this.syncManager;
+              this.syncModal.setRollbackHandler(() => modalManager2.rollbackBatch());
+              this.syncModal.setCommitHandler(() => modalManager2.commitPendingBatch());
+              this.syncModal.setRecoveryStateSubscriber((listener) => modalManager2.subscribeRecoveryState(listener));
               this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
               this.syncModal.open();
               this.syncManager.setProgressCallback((progress) => {

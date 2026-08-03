@@ -1,5 +1,15 @@
 # 版本历史
 
+## v6.10.5
+
+### 修复
+- 设置保存改为原位更新稳定 `SyncManager`，pending/recovery、写门禁和旧窗口不再失去真实事务所有者。
+- 恢复固定使用批次开始时 scan root，并严格验证原始内容指纹与 concrete created path；修改残留文件 ID 不能绕过检查。
+- 人工恢复成功生成当前零失败终态，历史 rollback failure 保留在尝试记录；多个恢复窗口通过状态事件同步。
+
+### 兼容性
+- 无 Markdown 或 Subject ID 迁移；运行期恢复上下文仍不跨插件重启，持久化事务日志继续由 Issue #5 跟踪。
+
 ## v6.10.1
 
 ### 修复

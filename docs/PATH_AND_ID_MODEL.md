@@ -1,5 +1,11 @@
 # Bangumi 条目身份与路径模型
 
+## 恢复路径事实（6.10.5）
+
+Subject ID 仍是条目身份，但 expected-absent 恢复不能只查询 ID。事务会记录每个新建文件的 concrete created path，人工确认按 `normalizePathCollisionKey()` 检查该路径是否仍被占用；因此修改残留文件的 frontmatter ID 不能绕过恢复。Windows/macOS 风格的大小写等价路径视为同一目标。
+
+对批次前已存在且被覆盖的文件，事务从同一次读取中保存严格字符串内容的长度与 256 位确定性指纹；CRLF 与 LF 视为不同内容。验证路径与扫描范围来自批次开始时固定的 scan root，而不是恢复时的可变设置。
+
 ## 核心不变量
 
 Bangumi Subject ID 是本地条目的唯一身份；Markdown 路径只是当前存储位置，文件名只是展示名称。正常状态始终满足：

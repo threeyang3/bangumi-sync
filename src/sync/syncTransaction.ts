@@ -1,6 +1,7 @@
 import { App, TFile, normalizePath } from 'obsidian';
 import { FileManager, FileWriteResult } from '../../common/file/fileManager';
 import { normalizePathCollisionKey } from '../../common/file/pathUtils';
+import { hashRecoveryContent } from './recoveryContent';
 
 export interface TransactionRename {
 	subjectId: number;
@@ -24,6 +25,24 @@ export interface SyncRollbackResult {
 	failures?: RollbackFailure[];
 }
 
+export interface RecoveryCreatedFileExpectation {
+	subjectId: number;
+	createdPath: string;
+	expectedToExistAfterRollback: false;
+}
+
+export interface RecoveryContentExpectation {
+	subjectId: number;
+	path: string;
+	expectedContentHash: string;
+	originalContentLength: number;
+}
+
+export interface TransactionRecoveryExpectations {
+	createdFiles: RecoveryCreatedFileExpectation[];
+	updatedContents: RecoveryContentExpectation[];
+}
+
 type RenamePhase = 'original' | 'temporary' | 'final';
 
 interface StagedRename extends TransactionRename {
@@ -35,8 +54,8 @@ interface StagedRename extends TransactionRename {
 export type SyncTransactionState = 'active' | 'committed' | 'rolled-back' | 'rollback-failed';
 
 export class SyncTransaction {
-	private readonly createdFiles: TFile[] = [];
-	private readonly updatedContents = new Map<TFile, string>();
+	private readonly createdFiles: Array<{ file: TFile; subjectId: number; createdPath: string }> = [];
+	private readonly updatedContents = new Map<TFile, { content: string; subjectId: number; path: string }>();
 	private readonly renames: StagedRename[] = [];
 	private state: SyncTransactionState = 'active';
 
@@ -73,6 +92,24 @@ export class SyncTransaction {
 
 	getRenameCount(): number {
 		return this.renames.filter(rename => rename.phase === 'final').length;
+	}
+
+	getRecoveryExpectations(): TransactionRecoveryExpectations {
+		const createdFiles = this.createdFiles.map(item => ({
+			subjectId: item.subjectId,
+			createdPath: item.createdPath,
+			expectedToExistAfterRollback: false as const,
+		}));
+		const updatedContents = Array.from(this.updatedContents, ([file, original]) => {
+			const rename = this.renames.find(item => item.file === file);
+			return {
+				subjectId: original.subjectId,
+				path: rename?.from ?? original.path,
+				expectedContentHash: hashRecoveryContent(original.content),
+				originalContentLength: original.content.length,
+			};
+		});
+		return { createdFiles, updatedContents };
 	}
 
 	async executeRenames(renames: TransactionRename[]): Promise<void> {
@@ -122,10 +159,14 @@ export class SyncTransaction {
 		this.assertActive();
 		const existing = await this.fileManager.assertPathOwnership(path, options.subjectId);
 		if (existing && !this.updatedContents.has(existing)) {
-			this.updatedContents.set(existing, await this.app.vault.read(existing));
+			this.updatedContents.set(existing, {
+				content: await this.app.vault.read(existing),
+				subjectId: options.subjectId,
+				path: existing.path,
+			});
 		}
 		const result = await this.fileManager.createOrUpdateFile(path, content, options);
-		if (result.status === 'created') this.createdFiles.push(result.file);
+		if (result.status === 'created') this.createdFiles.push({ file: result.file, subjectId: options.subjectId, createdPath: normalizePath(path) });
 		if (result.status !== 'updated' && existing) this.updatedContents.delete(existing);
 		return result;
 	}
@@ -138,18 +179,18 @@ export class SyncTransaction {
 		if (this.state !== 'active' && this.state !== 'rollback-failed') return result;
 		result.attempted = this.hasRecordedChanges() || this.state === 'rollback-failed';
 
-		for (const file of [...this.createdFiles].reverse()) {
+		for (const created of [...this.createdFiles].reverse()) {
 			try {
-				await this.app.fileManager.trashFile(file);
+				await this.app.fileManager.trashFile(created.file);
 				result.deletedCreatedFiles++;
-				this.createdFiles.splice(this.createdFiles.indexOf(file), 1);
+				this.createdFiles.splice(this.createdFiles.indexOf(created), 1);
 			} catch (error) {
-				this.recordRollbackFailure(result, 'delete-created', file.path, error);
+				this.recordRollbackFailure(result, 'delete-created', created.createdPath, error);
 			}
 		}
-		for (const [file, content] of this.updatedContents) {
+		for (const [file, original] of this.updatedContents) {
 			try {
-				await this.app.vault.process(file, () => content);
+				await this.app.vault.process(file, () => original.content);
 				result.restoredContents++;
 				this.updatedContents.delete(file);
 			} catch (error) {

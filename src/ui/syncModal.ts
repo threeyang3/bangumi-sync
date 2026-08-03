@@ -5,7 +5,7 @@
 
 import { App, Modal, Setting } from 'obsidian';
 import { SyncProgress, SyncCancellationSignal, SyncResultWithRollback } from '../sync/syncStatus';
-import type { PendingDecisionResult } from '../sync/syncManager';
+import type { PendingDecisionResult, RecoveryRequiredState, RecoveryStateListener } from '../sync/syncManager';
 import { formatRollbackFailureDetail, getSyncCompletionPresentation, pendingDecisionAllowsClose } from '../sync/syncCompletionPresentation';
 import { tn, tnFormat } from '../i18n';
 
@@ -26,6 +26,8 @@ export class SyncModal extends Modal {
 	private decisionInProgress = false;
 	private decisionButtons: HTMLButtonElement[] = [];
 	private pendingClosePrompt: PendingSyncDecisionModal | null = null;
+	private recoverySubscriber: ((listener: RecoveryStateListener) => () => void) | null = null;
+	private recoveryUnsubscribe: (() => void) | null = null;
 
 	constructor(app: App, cancellationSignal: SyncCancellationSignal) {
 		super(app);
@@ -67,9 +69,12 @@ export class SyncModal extends Modal {
 
 		// 完成区域（初始隐藏）
 		this.completedEl = contentEl.createDiv({ cls: 'bangumi-sync-completed bangumi-hidden' });
+		if (this.recoverySubscriber) this.recoveryUnsubscribe = this.recoverySubscriber(recovery => this.handleRecoveryState(recovery));
 	}
 
 	onClose(): void {
+		this.recoveryUnsubscribe?.();
+		this.recoveryUnsubscribe = null;
 		// 关闭弹窗不取消同步，只隐藏弹窗
 		// 同步在后台继续运行，状态栏显示进度
 		if (!this.isCompleted) {
@@ -134,6 +139,21 @@ export class SyncModal extends Modal {
 
 	setRecoveryCenterHandler(handler: () => void): void {
 		this.onOpenRecoveryCenter = handler;
+	}
+
+	setRecoveryStateSubscriber(subscriber: (listener: RecoveryStateListener) => () => void): void {
+		this.recoverySubscriber = subscriber;
+	}
+
+	private handleRecoveryState(recovery: RecoveryRequiredState | null): void {
+		if (recovery) return;
+		this.pendingDecision = false;
+		const button = this.completedEl?.querySelector<HTMLButtonElement>('.bangumi-recovery-btn');
+		if (button) {
+			button.disabled = true;
+			button.setText(tn('recoveryCenter', 'recovered'));
+		}
+		if (this.statusText) this.updateStatus(tn('recoveryCenter', 'recovered'));
 	}
 
 	/**
@@ -251,7 +271,7 @@ export class SyncModal extends Modal {
 			}
 			if (result.completion === 'rollback-failed' && this.onOpenRecoveryCenter) {
 				const recoveryBtn = this.completedEl.createEl('button', {
-					cls: 'bangumi-rollback-btn mod-warning', text: tn('recoveryCenter', 'openCenter'),
+					cls: 'bangumi-rollback-btn bangumi-recovery-btn mod-warning', text: tn('recoveryCenter', 'openCenter'),
 				});
 				recoveryBtn.addEventListener('click', () => this.onOpenRecoveryCenter?.());
 			}

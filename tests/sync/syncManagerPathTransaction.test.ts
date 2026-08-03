@@ -2,7 +2,7 @@ import { Vault } from 'obsidian';
 import { describe, expect, it, vi } from 'vitest';
 import { BangumiClient } from '../../src/api/client';
 import { CollectionType, Subject, SubjectType, UserCollection } from '../../common/api/types';
-import { PendingSyncTransactionError, RecoveryRequiredError, SyncManager, SyncManagerConfig } from '../../src/sync/syncManager';
+import { ConfigurationChangeBlockedError, ManagerReinitializationBlockedError, PendingSyncTransactionError, RecoveryRequiredError, SyncManager, SyncManagerConfig } from '../../src/sync/syncManager';
 import { SubjectPathState } from '../../src/sync/localSubjectRegistry';
 import { InMemoryVault } from '../mocks/inMemoryVault';
 
@@ -457,5 +457,90 @@ describe('SyncManager path transaction integration', () => {
 		const recovered = await manager.confirmManualRecovery();
 		expect(recovered).toMatchObject({ status: 'recovered', recovered: true });
 		expect(manager.getRecoveryRequired()).toBeNull();
+	});
+
+	it('updates safe configuration in place but freezes recovery-sensitive fields', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '成功');
+		const second = makeSubject(11, '2021-01-01', '失败');
+		vault.app.fileManager.trashFile = () => Promise.reject(new Error('injected trash failure'));
+		const manager = createManager(vault, [first, second], { failures: new Set([11]) });
+		await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+		await manager.rollbackBatch();
+		const before = manager.getRecoveryRequired();
+
+		manager.updateConfig({ accessToken: 'replacement-token' }, ['accessToken']);
+		expect(manager.getRecoveryRequired()).toEqual(before);
+		expect(() => manager.ensureCanStartSync()).toThrow(RecoveryRequiredError);
+		expect(() => manager.updateConfig({ scanFolderPath: 'Archive' }, ['scanFolderPath']))
+			.toThrow(ConfigurationChangeBlockedError);
+		expect(() => manager.assertCanReinitialize()).toThrow(ManagerReinitializationBlockedError);
+		expect(manager.getRecoveryRequired()).toEqual(before);
+	});
+
+	it('verifies original content, concrete created paths, fixed scan root, and fresh terminal stats', async () => {
+		const vault = new InMemoryVault();
+		const originalContent = '---\nid: 10\n---\noriginal\r\nbody';
+		vault.addFile('ACGN/music/已有.md', originalContent);
+		const existing = makeSubject(10, '2020-01-01', '已有');
+		const created = makeSubject(12, '2022-01-01', '新建');
+		const failed = makeSubject(11, '2021-01-01', '失败');
+		const manager = createManager(vault, [existing, created, failed], { failures: new Set([11]) });
+		await manager.syncByCollections([makeCollection(existing), makeCollection(created), makeCollection(failed)], { concurrency: 1, overwrite: true });
+
+		const originalProcess = vault.app.vault.process.bind(vault.app.vault);
+		const originalTrash = vault.app.fileManager.trashFile.bind(vault.app.fileManager);
+		vault.app.vault.process = () => Promise.reject(new Error('injected content restore failure'));
+		vault.app.fileManager.trashFile = () => Promise.reject(new Error('injected created delete failure'));
+		const rollback = await manager.rollbackBatch();
+		expect(rollback.status).toBe('rollback-failed');
+		const recovery = manager.getRecoveryRequired();
+		expect(recovery?.scanRoot).toBe('ACGN');
+		expect(recovery?.contentExpectations).toHaveLength(1);
+		expect(recovery?.forbiddenPathsAfterRollback).toContain('ACGN/music/新建.md');
+
+		manager.updateConfig({ accessToken: 'safe-token' }, ['accessToken']);
+		vault.app.vault.process = originalProcess;
+		vault.app.fileManager.trashFile = originalTrash;
+		vault.contents.set('ACGN/music/新建.md', '---\nid: 99\n---\nchanged identity');
+		const blocked = await manager.confirmManualRecovery();
+		expect(blocked.diagnostics).toEqual(expect.arrayContaining([
+			expect.objectContaining({ code: 'content-mismatch', path: 'ACGN/music/已有.md' }),
+			expect.objectContaining({ code: 'unexpected-created-path', path: 'ACGN/music/新建.md', actualSubjectId: 99 }),
+		]));
+
+		vault.contents.set('ACGN/music/已有.md', originalContent);
+		vault.files.delete('ACGN/music/新建.md');
+		vault.contents.delete('ACGN/music/新建.md');
+		const recovered = await manager.confirmManualRecovery();
+		expect(recovered.diagnostics).toEqual([]);
+		expect(recovered).toMatchObject({ status: 'recovered', recovered: true });
+		expect(recovered.rollback).toMatchObject({ failed: 0, failures: [] });
+		expect(recovered.resolution).toMatchObject({ method: 'manual-verification', currentFailed: 0, verifiedContents: 1, verifiedAbsentPaths: 1 });
+		expect(recovered.attempts?.some(attempt => (attempt.rollback?.failed ?? 0) > 0)).toBe(true);
+		expect(recovered.attempts?.at(-1)).toMatchObject({ action: 'confirm-manual', status: 'recovered' });
+	});
+
+	it('notifies every recovery observer through creation, attempts, and resolution', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '成功');
+		const second = makeSubject(11, '2021-01-01', '失败');
+		vault.app.fileManager.trashFile = () => Promise.reject(new Error('injected trash failure'));
+		const manager = createManager(vault, [first, second], { failures: new Set([11]) });
+		const firstObserver = vi.fn();
+		const secondObserver = vi.fn();
+		const unsubscribeFirst = manager.subscribeRecoveryState(firstObserver);
+		manager.subscribeRecoveryState(secondObserver);
+
+		await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+		await manager.rollbackBatch();
+		expect(firstObserver).toHaveBeenCalledWith(expect.objectContaining({ reason: 'rollback-failed' }));
+		expect(secondObserver).toHaveBeenCalledWith(expect.objectContaining({ reason: 'rollback-failed' }));
+		vault.files.delete('ACGN/music/成功.md');
+		vault.contents.delete('ACGN/music/成功.md');
+		await manager.confirmManualRecovery();
+		expect(firstObserver).toHaveBeenLastCalledWith(null);
+		expect(secondObserver).toHaveBeenLastCalledWith(null);
+		unsubscribeFirst();
 	});
 });

@@ -5,7 +5,9 @@ import type {
 	RecoveryAction,
 	RecoveryActionResult,
 	RecoveryDiagnostic,
+	RecoveryAttempt,
 	RecoveryRequiredState,
+	RecoveryStateListener,
 } from '../sync/syncManager';
 
 export interface RecoveryCenterHandlers {
@@ -13,19 +15,27 @@ export interface RecoveryCenterHandlers {
 	retryRollback: () => Promise<RecoveryActionResult>;
 	confirmManual: () => Promise<RecoveryActionResult>;
 	rescan: () => Promise<RecoveryActionResult>;
+	subscribe: (listener: RecoveryStateListener) => () => void;
 }
 
 export class RecoveryCenterModal extends Modal {
 	private working = false;
 	private lastResult: RecoveryActionResult | null = null;
 	private actionError: string | null = null;
+	private unsubscribe: (() => void) | null = null;
 
 	constructor(app: App, private readonly handlers: RecoveryCenterHandlers) {
 		super(app);
 	}
 
 	onOpen(): void {
+		this.unsubscribe = this.handlers.subscribe(() => this.render());
 		this.render();
+	}
+
+	onClose(): void {
+		this.unsubscribe?.();
+		this.unsubscribe = null;
 	}
 
 	private render(): void {
@@ -34,7 +44,11 @@ export class RecoveryCenterModal extends Modal {
 		const recovery = this.handlers.getRecovery();
 		if (!recovery) {
 			this.contentEl.createEl('p', { text: tn('recoveryCenter', 'noRecovery'), cls: 'bangumi-sync-stats' });
-			if (this.lastResult?.recovered) this.contentEl.createEl('p', { text: tn('recoveryCenter', 'recovered'), cls: 'bangumi-sync-stats' });
+			if (this.lastResult?.recovered) {
+				this.contentEl.createEl('p', { text: tn('recoveryCenter', 'recovered'), cls: 'bangumi-sync-stats' });
+				this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'currentFailures')}: ${this.lastResult.rollback?.failed ?? 0}`, cls: 'bangumi-sync-stats' });
+				this.renderAttemptHistory(this.lastResult.attempts ?? []);
+			}
 			this.addCloseButton();
 			return;
 		}
@@ -56,12 +70,7 @@ export class RecoveryCenterModal extends Modal {
 		if (latest) {
 			this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'latestAttempt')}: ${latest.action} — ${latest.status}` });
 		}
-		if (recovery.attempts.length > 0) {
-			const history = this.contentEl.createEl('details');
-			history.createEl('summary', { text: `${tn('recoveryCenter', 'attemptHistory')} (${recovery.attempts.length})` });
-			const list = history.createEl('ul');
-			for (const attempt of recovery.attempts) list.createEl('li', { text: `${new Date(attempt.finishedAt).toLocaleString()} — ${attempt.action}: ${attempt.status}` });
-		}
+		this.renderAttemptHistory(recovery.attempts);
 
 		const diagnostics = this.lastResult?.diagnostics ?? latest?.diagnostics ?? [];
 		if (diagnostics.length > 0) this.renderDiagnostics(diagnostics);
@@ -79,6 +88,14 @@ export class RecoveryCenterModal extends Modal {
 		this.addActionButton(actions, tn('recoveryCenter', 'confirmManual'), 'confirm-manual', 'mod-cta');
 		this.addActionButton(actions, tn('recoveryCenter', 'rescan'), 'rescan', '');
 		this.addCloseButton(actions);
+	}
+
+	private renderAttemptHistory(attempts: readonly RecoveryAttempt[]): void {
+		if (attempts.length === 0) return;
+		const history = this.contentEl.createEl('details');
+		history.createEl('summary', { text: `${tn('recoveryCenter', 'attemptHistory')} (${attempts.length})` });
+		const list = history.createEl('ul');
+		for (const attempt of attempts) list.createEl('li', { text: `${new Date(attempt.finishedAt).toLocaleString()} — ${attempt.action}: ${attempt.status}` });
 	}
 
 	private addActionButton(container: HTMLElement, label: string, action: Exclude<RecoveryAction, 'automatic-rollback'>, cls: string): void {
@@ -133,6 +150,9 @@ export class RecoveryCenterModal extends Modal {
 			'missing-subject-file': 'diagnosticMissingSubjectFile',
 			'subject-path-mismatch': 'diagnosticSubjectPathMismatch',
 			'subject-identity-mismatch': 'diagnosticSubjectIdentityMismatch',
+			'content-mismatch': 'diagnosticContentMismatch',
+			'content-file-missing': 'diagnosticContentFileMissing',
+			'unexpected-created-path': 'diagnosticUnexpectedCreatedPath',
 		};
 		const context = 'path' in diagnostic ? diagnostic.path
 			: 'actualPath' in diagnostic ? diagnostic.actualPath

@@ -20,7 +20,10 @@ export type RecoveryDiagnostic =
 	| { code: 'unexpected-subject-file'; subjectId: number; actualPath: string; message: string }
 	| { code: 'missing-subject-file'; subjectId: number; expectedPath?: string; message: string }
 	| { code: 'subject-path-mismatch'; subjectId: number; expectedPath: string; actualPath: string; message: string }
-	| { code: 'subject-identity-mismatch'; subjectId: number; expectedPath: string; actualSubjectId: number; message: string };
+	| { code: 'subject-identity-mismatch'; subjectId: number; expectedPath: string; actualSubjectId: number; message: string }
+	| { code: 'content-mismatch'; subjectId: number; path: string; expectedHash: string; actualHash: string; message: string }
+	| { code: 'content-file-missing'; subjectId: number; path: string; message: string }
+	| { code: 'unexpected-created-path'; path: string; actualSubjectId?: number; message: string };
 
 export function collectSubjectExpectationDiagnostics(
 	expectations: readonly RecoverySubjectExpectation[],
