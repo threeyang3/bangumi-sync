@@ -11,7 +11,8 @@
 import { Plugin, Notice, TFile } from 'obsidian';
 import { BangumiPluginSettings, DEFAULT_SETTINGS, PanelFilters } from './src/settings/settings';
 import { BangumiSettingTab } from './src/settings/settingsTab';
-import { PendingDecisionInProgressError, PendingSyncTransactionError, RecoveryRequiredError, SyncManager, SyncManagerConfig } from './src/sync/syncManager';
+import { persistStableManagerSettings } from './src/settings/settingsLifecycle';
+import { ConfigurationChangeBlockedError, PendingDecisionInProgressError, PendingSyncTransactionError, RecoveryRequiredError, SyncConfigField, SyncManager, SyncManagerConfig } from './src/sync/syncManager';
 import { SyncModal } from './src/ui/syncModal';
 import { SyncOptionsModal, SyncOptionsInput } from './src/ui/syncOptionsModal';
 import { SyncPreviewModal, SyncPreviewResult } from './src/ui/syncPreviewModal';
@@ -62,6 +63,8 @@ export default class BangumiPlugin extends Plugin {
 	private syncStatusBarEl: HTMLElement | null = null;
 	private cancellationSignal: ReturnType<typeof createCancellationSignal> | null = null;
 	private controlPanel: ControlPanel | null = null;
+	private appliedSyncConfig: SyncManagerConfig | null = null;
+	private lastSavedSettings: BangumiPluginSettings | null = null;
 
 	// 单集功能
 	episodeStatusManager: EpisodeStatusManager | null = null;
@@ -77,7 +80,7 @@ export default class BangumiPlugin extends Plugin {
 		await this.loadSettings();
 
 		// 初始化同步管理器
-		await this.initSyncManager();
+		await this.initOrUpdateSyncManager();
 
 		// 状态栏指示器（默认隐藏）
 		this.syncStatusBarEl = this.addStatusBarItem();
@@ -185,8 +188,7 @@ export default class BangumiPlugin extends Plugin {
 			this,
 			this.settings,
 			async () => {
-				await this.saveSettings();
-				await this.initSyncManager();
+				await this.applySettingsChanges();
 			},
 			() => this.openPathDiagnostic(),
 			() => this.openPathMigrationPreview(),
@@ -217,15 +219,17 @@ export default class BangumiPlugin extends Plugin {
 	}
 
 	private openRecoveryCenter(): void {
-		if (!this.syncManager) {
+		const manager = this.syncManager;
+		if (!manager) {
 			new Notice(tn('notices', 'syncManagerNotInit'));
 			return;
 		}
 		new RecoveryCenterModal(this.app, {
-			getRecovery: () => this.syncManager?.getRecoveryRequired() ?? null,
-			retryRollback: () => this.syncManager!.retryRecovery(),
-			confirmManual: () => this.syncManager!.confirmManualRecovery(),
-			rescan: () => this.syncManager!.rescanRecovery(),
+			getRecovery: () => manager.getRecoveryRequired(),
+			retryRollback: () => manager.retryRecovery(),
+			confirmManual: () => manager.confirmManualRecovery(),
+			rescan: () => manager.rescanRecovery(),
+			subscribe: listener => manager.subscribeRecoveryState(listener),
 		}).open();
 	}
 
@@ -353,15 +357,15 @@ export default class BangumiPlugin extends Plugin {
 	 */
 	async saveSettings() {
 		await this.saveData(this.settings);
+		this.lastSavedSettings = this.cloneSettings(this.settings);
 	}
 
 	/**
 	 * 初始化同步管理器
 	 */
-	private async initSyncManager() {
+	private async buildSyncManagerConfig(): Promise<SyncManagerConfig> {
 		const templates = await this.getTemplates();
-
-		const config: SyncManagerConfig = {
+		return {
 			accessToken: this.settings.accessToken,
 			pathTemplate: this.settings.syncPathTemplate,
 			pathTemplateByType: this.settings.pathTemplateByType,
@@ -380,10 +384,69 @@ export default class BangumiPlugin extends Plugin {
 				await this.saveSettings();
 			},
 		};
+	}
+
+	private cloneSettings(settings: BangumiPluginSettings): BangumiPluginSettings {
+		return JSON.parse(JSON.stringify(settings)) as BangumiPluginSettings;
+	}
+
+	private restoreSettings(snapshot: BangumiPluginSettings): void {
+		for (const key of Object.keys(this.settings)) Reflect.deleteProperty(this.settings, key);
+		Object.assign(this.settings, this.cloneSettings(snapshot));
+	}
+
+	private changedSyncConfigFields(previous: SyncManagerConfig | null, next: SyncManagerConfig): SyncConfigField[] {
+		if (!previous) return [];
+		const fields: SyncConfigField[] = [
+			'accessToken', 'scanFolderPath', 'pathTemplate', 'pathTemplateByType', 'pathNamingStrategy',
+			'subjectPathStates', 'imagePathTemplate', 'notePathTemplate', 'coverLinkType', 'dataProtection',
+			'downloadImages', 'enableRelatedLinks', 'customTemplates',
+		];
+		return fields.filter(field => JSON.stringify(previous[field]) !== JSON.stringify(next[field]));
+	}
+
+	private refreshDependentServices(manager: SyncManager): void {
+		this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.settings);
+	}
+
+	private async applySettingsChanges(): Promise<void> {
+		const previousSettings = this.lastSavedSettings ? this.cloneSettings(this.lastSavedSettings) : this.cloneSettings(this.settings);
+		const nextConfig = await this.buildSyncManagerConfig();
+		const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, nextConfig);
+		const outcome = await persistStableManagerSettings({
+			settings: this.settings,
+			previousSettings,
+			nextConfig,
+			changedFields,
+			manager: this.syncManager,
+			save: settings => this.saveData(settings),
+			restore: snapshot => this.restoreSettings(snapshot),
+		});
+		if (outcome.applied) {
+			this.appliedSyncConfig = nextConfig;
+			this.lastSavedSettings = this.cloneSettings(this.settings);
+			if (this.syncManager) this.refreshDependentServices(this.syncManager);
+			return;
+		}
+		if (outcome.error instanceof ConfigurationChangeBlockedError) new Notice(outcome.error.message);
+	}
+
+	private async initOrUpdateSyncManager(): Promise<void> {
+		const config = await this.buildSyncManagerConfig();
+		if (this.syncManager) {
+			const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, config);
+			this.syncManager.updateConfig(config, changedFields);
+			this.appliedSyncConfig = config;
+			this.refreshDependentServices(this.syncManager);
+			return;
+		}
 
 		this.syncManager = new SyncManager(this.app, config);
-		setWriteOperationGuard(() => this.syncManager?.ensureCanStartSync());
-		this.subjectNoteManager = new SubjectNoteManager(this.app, this.syncManager.client, this.settings);
+		this.appliedSyncConfig = config;
+		this.lastSavedSettings = this.cloneSettings(this.settings);
+		const manager = this.syncManager;
+		setWriteOperationGuard(() => manager.ensureCanStartSync());
+		this.refreshDependentServices(manager);
 	}
 
 	/**
@@ -688,8 +751,10 @@ export default class BangumiPlugin extends Plugin {
 		this.cancellationSignal = createCancellationSignal();
 		this.syncManager.setCancellationSignal(this.cancellationSignal);
 		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-		this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
-		this.syncModal.setCommitHandler(() => this.syncManager!.commitPendingBatch());
+		const modalManager = this.syncManager;
+		this.syncModal.setRollbackHandler(() => modalManager.rollbackBatch());
+		this.syncModal.setCommitHandler(() => modalManager.commitPendingBatch());
+		this.syncModal.setRecoveryStateSubscriber(listener => modalManager.subscribeRecoveryState(listener));
 		this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
 		this.syncModal.open();
 
@@ -806,8 +871,10 @@ export default class BangumiPlugin extends Plugin {
 		this.cancellationSignal = createCancellationSignal();
 		this.syncManager.setCancellationSignal(this.cancellationSignal);
 		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-		this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
-		this.syncModal.setCommitHandler(() => this.syncManager!.commitPendingBatch());
+		const modalManager = this.syncManager;
+		this.syncModal.setRollbackHandler(() => modalManager.rollbackBatch());
+		this.syncModal.setCommitHandler(() => modalManager.commitPendingBatch());
+		this.syncModal.setRecoveryStateSubscriber(listener => modalManager.subscribeRecoveryState(listener));
 		this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
 		this.syncModal.open();
 
@@ -875,8 +942,10 @@ export default class BangumiPlugin extends Plugin {
 						this.cancellationSignal = createCancellationSignal();
 						this.syncManager!.setCancellationSignal(this.cancellationSignal);
 						this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-						this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
-						this.syncModal.setCommitHandler(() => this.syncManager!.commitPendingBatch());
+						const modalManager = this.syncManager!;
+						this.syncModal.setRollbackHandler(() => modalManager.rollbackBatch());
+						this.syncModal.setCommitHandler(() => modalManager.commitPendingBatch());
+						this.syncModal.setRecoveryStateSubscriber(listener => modalManager.subscribeRecoveryState(listener));
 						this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
 						this.syncModal.open();
 

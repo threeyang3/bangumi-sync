@@ -1,5 +1,11 @@
 # 项目架构与模块说明
 
+## 6.10.5 manager 生命周期与恢复快照
+
+`BangumiPlugin` 在一次运行期内持有稳定的 `SyncManager`；设置保存构建新配置后调用 `updateConfig(config, changedFields)`，不会重建 registry、IncrementalSync 或事务所有者。全局写门禁、SyncModal 与 Recovery Center 都捕获同一个 manager。`assertConfigurationChangeAllowed()` 在 pending/recovery 时冻结事务敏感字段，服务层再次校验，拒绝时先恢复设置内存且不调用 `saveData()`。
+
+pending 快照保存 `scanRootAtBatchStart`、原始内容指纹和长度、以及批次新建的具体路径。RecoveryRequiredState 复制这些事实，后续 rescan、tmp 检查、内容/路径验证均使用固定根目录。恢复事件订阅使多个窗口同步终态；历史 `RecoveryAttempt` 与人工验证产生的当前零失败 rollback summary 分开保存。本架构仍不提供跨重启事务日志，后续由 Issue #5 跟踪。
+
 本文档描述 Bangumi Sync 当前代码结构、主要模块职责、核心运行链路，以及模块之间如何协作。
 
 如果你要看更细的判断条件，请继续读 [LOGIC_REFERENCE.md](./LOGIC_REFERENCE.md)。

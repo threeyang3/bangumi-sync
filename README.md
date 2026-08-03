@@ -1,5 +1,13 @@
 # Bangumi Sync
 
+## 运行期恢复所有权（6.10.5+）
+
+插件运行期间只保留一个稳定的 `SyncManager`。设置保存通过原位 `updateConfig()` 更新现有客户端和图片配置，不会丢失 pending transaction、recovery context 或全局写门禁。事务或恢复进行中，扫描目录、路径模板、分类型模板、命名策略、路径状态及其他会改变恢复语义的配置会被冻结；Access Token 等安全字段仍可保存。
+
+恢复始终使用批次开始时固定的 scan root。人工确认会严格核对被覆盖文件的原始内容指纹，并按批次实际创建的具体路径检查残留，即使残留文件的 Subject ID 被修改也不会放行。界面区分历史失败尝试与当前终态；人工验证成功后的当前失败数为 0，所有已打开的恢复窗口会同步失效旧操作。
+
+6.10.5 不包含磁盘事务日志或插件重启后的自动恢复；该工作继续由 [Issue #5](https://github.com/threeyang3/bangumi-sync/issues/5) 跟踪。
+
 一个用于 Obsidian 的插件，可以将你在 Bangumi（番组计划）上的收藏同步到 Obsidian 笔记中。
 
 ![GitHub release](https://img.shields.io/github/v/release/threeyang3/bangumi-sync)

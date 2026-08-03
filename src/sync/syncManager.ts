@@ -10,7 +10,7 @@
  * 5. 支持相关条目双向链接
  */
 
-import { Notice, App, TFile } from 'obsidian';
+import { Notice, App, TFile, normalizePath } from 'obsidian';
 import { BangumiClient } from '../api/client';
 import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType, RelatedSubject } from '../../common/api/types';
 import { FileManager, FileWriteStatus } from '../../common/file/fileManager';
@@ -30,7 +30,7 @@ import { LocalPropertyModalResult, LocalPropertyValueMap } from '../ui/localProp
 import { buildExtraTemplateVarsFromPropertyValues, getTemplatePropertyGroupsForSubject } from '../template/templateProperties';
 import { tn, tnFormat } from '../i18n/translations';
 import { SubjectPathAllocation, SubjectPathResolver } from './subjectPathResolver';
-import { SyncRollbackResult, SyncTransaction, TransactionRename } from './syncTransaction';
+import { RecoveryContentExpectation, SyncRollbackResult, SyncTransaction, TransactionRename } from './syncTransaction';
 import { SubjectPathState } from './localSubjectRegistry';
 import {
 	formatDiagnosticReport,
@@ -45,6 +45,7 @@ import {
 	RecoveryDiagnostic,
 	RecoverySubjectExpectation,
 } from './recoveryValidation';
+import { hashRecoveryContent } from './recoveryContent';
 export type { RecoveryDiagnostic, RecoverySubjectExpectation } from './recoveryValidation';
 
 function errorMessage(error: unknown): string {
@@ -108,6 +109,18 @@ export interface SyncManagerConfig {
 	pathNamingStrategy?: PathNamingStrategy;
 }
 
+export type SyncConfigField =
+	| 'accessToken' | 'scanFolderPath' | 'pathTemplate' | 'pathTemplateByType'
+	| 'pathNamingStrategy' | 'subjectPathStates' | 'imagePathTemplate'
+	| 'notePathTemplate' | 'coverLinkType' | 'dataProtection' | 'downloadImages'
+	| 'enableRelatedLinks' | 'customTemplates';
+
+const TRANSACTION_SENSITIVE_CONFIG_FIELDS = new Set<SyncConfigField>([
+	'scanFolderPath', 'pathTemplate', 'pathTemplateByType', 'pathNamingStrategy',
+	'subjectPathStates', 'imagePathTemplate', 'notePathTemplate', 'coverLinkType',
+	'dataProtection', 'enableRelatedLinks', 'customTemplates',
+]);
+
 export type PendingDecisionState = 'awaiting' | 'committing' | 'rolling-back' | 'committed' | 'rolled-back' | 'rollback-failed';
 export type BatchTransactionState = 'none' | 'active' | 'awaiting-user-decision' | 'committing' | 'rolling-back' | 'committed' | 'rolled-back' | 'rollback-failed';
 
@@ -127,6 +140,9 @@ export interface RecoveryRequiredState {
 	affectedSubjectIds: number[];
 	originalPathStates: Record<string, SubjectPathState>;
 	subjectExpectations: RecoverySubjectExpectation[];
+	scanRoot: string;
+	contentExpectations: RecoveryContentExpectation[];
+	forbiddenPathsAfterRollback: string[];
 	attempts: RecoveryAttempt[];
 	latestAttempt?: RecoveryAttempt;
 	detectedAt: number;
@@ -154,6 +170,16 @@ export interface RecoveryActionResult {
 	rollback?: SyncRollbackResult;
 	error?: string;
 	recovery?: RecoveryRequiredState;
+	resolution?: RecoveryResolutionSummary;
+	attempts?: RecoveryAttempt[];
+}
+
+export interface RecoveryResolutionSummary {
+	method: 'automatic' | 'retry' | 'manual-verification';
+	currentFailed: number;
+	verifiedSubjects: number;
+	verifiedContents: number;
+	verifiedAbsentPaths: number;
 }
 
 interface PendingSyncTransaction {
@@ -162,6 +188,9 @@ interface PendingSyncTransaction {
 	previousPathStates: Record<string, SubjectPathState>;
 	affectedSubjectIds: number[];
 	subjectExpectations: RecoverySubjectExpectation[];
+	scanRootAtBatchStart: string;
+	contentExpectations: RecoveryContentExpectation[];
+	forbiddenPathsAfterRollback: string[];
 	deferredRelations: DeferredRelation[];
 	resultSnapshot: SyncResultWithRollback;
 	createdAt: number;
@@ -189,6 +218,22 @@ export class RecoveryRequiredError extends Error {
 	}
 }
 
+export class ConfigurationChangeBlockedError extends Error {
+	constructor(readonly changedFields: readonly SyncConfigField[]) {
+		super(`Configuration changes are blocked while recovery state is active: ${changedFields.join(', ')}.`);
+		this.name = 'ConfigurationChangeBlockedError';
+	}
+}
+
+export class ManagerReinitializationBlockedError extends Error {
+	constructor() {
+		super('SyncManager cannot be reinitialized while transaction or recovery state is active.');
+		this.name = 'ManagerReinitializationBlockedError';
+	}
+}
+
+export type RecoveryStateListener = (recovery: RecoveryRequiredState | null) => void;
+
 /**
  * 同步管理器
  */
@@ -210,6 +255,7 @@ export class SyncManager {
 	private pendingDecisionPromise: Promise<PendingDecisionResult> | null = null;
 	private recoveryActionPromise: Promise<RecoveryActionResult> | null = null;
 	private recoveryRequired: RecoveryRequiredState | null = null;
+	private readonly recoveryStateListeners = new Set<RecoveryStateListener>();
 
 	constructor(app: App, config: SyncManagerConfig) {
 		this.app = app;
@@ -261,6 +307,36 @@ export class SyncManager {
 		if (this.pendingTransaction) throw new PendingSyncTransactionError();
 	}
 
+	hasActiveTransactionState(): boolean {
+		return this.batchTransactionState === 'active'
+			|| this.pendingTransaction !== null
+			|| this.pendingDecisionPromise !== null
+			|| this.recoveryRequired !== null
+			|| this.recoveryActionPromise !== null;
+	}
+
+	assertConfigurationChangeAllowed(changedFields: readonly SyncConfigField[]): void {
+		if (changedFields.length === 0 || !this.hasActiveTransactionState()) return;
+		const actionInProgress = this.batchTransactionState === 'active'
+			|| this.pendingDecisionPromise !== null
+			|| this.recoveryActionPromise !== null
+			|| this.pendingTransaction?.state === 'committing'
+			|| this.pendingTransaction?.state === 'rolling-back';
+		const blocked = actionInProgress
+			? changedFields
+			: changedFields.filter(field => TRANSACTION_SENSITIVE_CONFIG_FIELDS.has(field));
+		if (blocked.length > 0) throw new ConfigurationChangeBlockedError(blocked);
+	}
+
+	assertCanReinitialize(): void {
+		if (this.hasActiveTransactionState()) throw new ManagerReinitializationBlockedError();
+	}
+
+	subscribeRecoveryState(listener: RecoveryStateListener): () => void {
+		this.recoveryStateListeners.add(listener);
+		return () => this.recoveryStateListeners.delete(listener);
+	}
+
 	getRecoveryRequired(): RecoveryRequiredState | null {
 		return this.recoveryRequired ? {
 			...this.recoveryRequired,
@@ -268,6 +344,8 @@ export class SyncManager {
 			originalPathStates: this.clonePathStates(this.recoveryRequired.originalPathStates),
 			affectedSubjectIds: [...this.recoveryRequired.affectedSubjectIds],
 			subjectExpectations: this.recoveryRequired.subjectExpectations.map(item => ({ ...item })),
+			contentExpectations: this.recoveryRequired.contentExpectations.map(item => ({ ...item })),
+			forbiddenPathsAfterRollback: [...this.recoveryRequired.forbiddenPathsAfterRollback],
 			attempts: this.recoveryRequired.attempts.map(item => this.cloneRecoveryAttempt(item)),
 			latestAttempt: this.recoveryRequired.latestAttempt ? this.cloneRecoveryAttempt(this.recoveryRequired.latestAttempt) : undefined,
 		} : null;
@@ -288,12 +366,24 @@ export class SyncManager {
 	/**
 	 * 更新配置
 	 */
-	updateConfig(config: Partial<SyncManagerConfig>): void {
+	updateConfig(config: Partial<SyncManagerConfig>, changedFields: readonly SyncConfigField[] = Object.keys(config) as SyncConfigField[]): void {
+		this.assertConfigurationChangeAllowed(changedFields);
 		this.config = { ...this.config, ...config };
-		this.client.setAccessToken(config.accessToken || '');
-		this.imageHandler.setDownloadEnabled(config.downloadImages ?? true);
-		if (config.subjectPathStates) {
+		if (Object.prototype.hasOwnProperty.call(config, 'accessToken')) this.client.setAccessToken(config.accessToken ?? '');
+		if (Object.prototype.hasOwnProperty.call(config, 'downloadImages')) this.imageHandler.setDownloadEnabled(config.downloadImages ?? false);
+		if (Object.prototype.hasOwnProperty.call(config, 'subjectPathStates') && config.subjectPathStates) {
 			this.incrementalSync.setPathStates(config.subjectPathStates);
+		}
+	}
+
+	private notifyRecoveryStateChanged(): void {
+		const snapshot = this.getRecoveryRequired();
+		for (const listener of this.recoveryStateListeners) {
+			try {
+				listener(snapshot);
+			} catch {
+				// A stale modal must not interrupt recovery state transitions.
+			}
 		}
 	}
 
@@ -317,6 +407,23 @@ export class SyncManager {
 			...attempt,
 			diagnostics: attempt.diagnostics.map(item => ({ ...item })),
 			rollback: attempt.rollback ? { ...attempt.rollback, failures: attempt.rollback.failures?.map(item => ({ ...item })) } : undefined,
+		};
+	}
+
+	private captureTransactionRecoveryFacts(transactions: readonly SyncTransaction[]): {
+		contentExpectations: RecoveryContentExpectation[];
+		forbiddenPathsAfterRollback: string[];
+	} {
+		const contentExpectations: RecoveryContentExpectation[] = [];
+		const forbiddenPathsAfterRollback: string[] = [];
+		for (const transaction of transactions) {
+			const expectations = transaction.getRecoveryExpectations();
+			contentExpectations.push(...expectations.updatedContents.map(item => ({ ...item })));
+			forbiddenPathsAfterRollback.push(...expectations.createdFiles.map(item => item.createdPath));
+		}
+		return {
+			contentExpectations,
+			forbiddenPathsAfterRollback: Array.from(new Set(forbiddenPathsAfterRollback.map(normalizePath))),
 		};
 	}
 
@@ -393,6 +500,9 @@ export class SyncManager {
 			this.recoveryRequired.attempts.push(attempt);
 			this.recoveryRequired.latestAttempt = attempt;
 			outcome.recovery = this.getRecoveryRequired() ?? undefined;
+			this.notifyRecoveryStateChanged();
+		} else if (outcome.recovered) {
+			outcome.attempts = [...recovery.attempts, attempt].map(item => this.cloneRecoveryAttempt(item));
 		}
 		return outcome;
 	}
@@ -411,23 +521,36 @@ export class SyncManager {
 		if (!pathStatesEqual(this.config.subjectPathStates ?? {}, recovery.originalPathStates)) {
 			diagnostics.push({ code: 'persisted-state-mismatch', message: 'Persisted subject path states differ from the pre-batch snapshot.' });
 		}
-		if (!pathStatesEqual(this.incrementalSync.exportPathStates(), recovery.originalPathStates)) {
-			diagnostics.push({ code: 'incremental-state-mismatch', message: 'Incremental sync path states differ from the pre-batch snapshot.' });
-		}
 		if (diagnostics.length === 0) diagnostics = await this.collectRecoveryDiagnostics(recovery);
-		if (diagnostics.length === 0 && !pathStatesEqual(this.incrementalSync.exportPathStates(), recovery.originalPathStates)) {
-			diagnostics.push({ code: 'incremental-state-mismatch', message: 'Incremental sync path states changed after the verification rescan.' });
-		}
+		if (diagnostics.length === 0) this.incrementalSync.setPathStates(recovery.originalPathStates);
 		if (diagnostics.length > 0) {
 			return { action: 'confirm-manual', status: 'blocked', recovered: false, diagnostics, recovery: this.getRecoveryRequired() ?? undefined };
 		}
-		const result = this.snapshotAfterDecision(pending, 'rolled-back', recovery.rollback);
+		const finalRollback: SyncRollbackResult = {
+			attempted: true,
+			changed: true,
+			deletedCreatedFiles: recovery.forbiddenPathsAfterRollback.length,
+			restoredContents: recovery.contentExpectations.length,
+			restoredPaths: recovery.subjectExpectations.filter(item => item.expectedToExist && item.expectedPath).length,
+			failed: 0,
+			failures: [],
+		};
+		const result = this.snapshotAfterDecision(pending, 'rolled-back', finalRollback);
 		this.recoveryRequired = null;
 		this.pendingTransaction = null;
 		this.pendingDecisionPromise = null;
 		this.batchTransactionState = 'rolled-back';
 		this.incrementalSync.clearBatch();
-		return { action: 'confirm-manual', status: 'recovered', recovered: true, diagnostics: [], result, rollback: recovery.rollback };
+		this.notifyRecoveryStateChanged();
+		return {
+			action: 'confirm-manual', status: 'recovered', recovered: true, diagnostics: [], result, rollback: finalRollback,
+			resolution: {
+				method: 'manual-verification', currentFailed: 0,
+				verifiedSubjects: recovery.subjectExpectations.length,
+				verifiedContents: recovery.contentExpectations.length,
+				verifiedAbsentPaths: recovery.forbiddenPathsAfterRollback.length,
+			},
+		};
 	}
 
 	private rollbackFailureDiagnostics(rollback?: SyncRollbackResult): RecoveryDiagnostic[] {
@@ -513,9 +636,9 @@ export class SyncManager {
 			this.recordManagerRollbackFailure(result, 'restore-path-states', 'subjectPathStates', error);
 		}
 		try {
-			await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
+			await this.incrementalSync.scanLocalFolder(pending.scanRootAtBatchStart);
 		} catch (error) {
-			this.recordManagerRollbackFailure(result, 'rescan', this.config.scanFolderPath || 'ACGN', error);
+			this.recordManagerRollbackFailure(result, 'rescan', pending.scanRootAtBatchStart, error);
 		}
 		this.incrementalSync.clearBatch();
 		this.markGroupsRolledBack(pending);
@@ -540,16 +663,21 @@ export class SyncManager {
 				affectedSubjectIds: [...pending.affectedSubjectIds],
 				originalPathStates: this.clonePathStates(pending.previousPathStates),
 				subjectExpectations: pending.subjectExpectations.map(item => ({ ...item })),
+				scanRoot: pending.scanRootAtBatchStart,
+				contentExpectations: pending.contentExpectations.map(item => ({ ...item })),
+				forbiddenPathsAfterRollback: [...pending.forbiddenPathsAfterRollback],
 				attempts: existingRecovery?.attempts.map(item => this.cloneRecoveryAttempt(item)) ?? [automaticAttempt],
 				latestAttempt: existingRecovery?.latestAttempt ? this.cloneRecoveryAttempt(existingRecovery.latestAttempt) : automaticAttempt,
 				detectedAt: existingRecovery?.detectedAt ?? Date.now(),
 			};
+			this.notifyRecoveryStateChanged();
 			return { status: 'rollback-failed', result: snapshot, rollback: result, error: cause ? errorMessage(cause) : undefined };
 		}
 		pending.state = 'rolled-back';
 		this.pendingTransaction = null;
 		this.recoveryRequired = null;
 		this.batchTransactionState = 'rolled-back';
+		this.notifyRecoveryStateChanged();
 		return { status: 'rolled-back', result: snapshot, rollback: result, error: cause ? errorMessage(cause) : undefined };
 	}
 
@@ -598,7 +726,7 @@ export class SyncManager {
 	private async collectRecoveryDiagnostics(recovery: RecoveryRequiredState): Promise<RecoveryDiagnostic[]> {
 		const diagnostics: RecoveryDiagnostic[] = [];
 		try {
-			await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
+			await this.incrementalSync.scanLocalFolder(recovery.scanRoot);
 		} catch (error) {
 			diagnostics.push({ code: 'rescan-failed', message: errorMessage(error) });
 			return diagnostics;
@@ -610,10 +738,39 @@ export class SyncManager {
 		for (const [subjectId, paths] of registry.duplicateIds) diagnostics.push({
 			code: 'duplicate-subject-id', subjectId, paths: [...paths], message: `Subject ${subjectId} appears in multiple files.`,
 		});
-		for (const file of this.app.vault.getMarkdownFiles()) {
+		const scanRootKey = normalizePathCollisionKey(recovery.scanRoot);
+		const scanRootSegments = normalizePath(recovery.scanRoot).split('/').filter(Boolean).length;
+		const filesInScanRoot = this.app.vault.getMarkdownFiles().filter(file => {
+			const ancestor = normalizePath(file.path).split('/').slice(0, scanRootSegments).join('/');
+			return normalizePathCollisionKey(ancestor) === scanRootKey;
+		});
+		for (const file of filesInScanRoot) {
 			if (/(^|\/)\.bangumi-sync-\d+-\d+-\d+\.tmp\.md$/u.test(file.path)) diagnostics.push({ code: 'temporary-file', path: file.path, message: 'Temporary transaction file remains in the vault.' });
 		}
 		diagnostics.push(...collectSubjectExpectationDiagnostics(recovery.subjectExpectations, registry));
+		for (const expectation of recovery.contentExpectations) {
+			const file = filesInScanRoot.find(item => normalizePathCollisionKey(item.path) === normalizePathCollisionKey(expectation.path));
+			if (!file) {
+				diagnostics.push({ code: 'content-file-missing', subjectId: expectation.subjectId, path: expectation.path, message: 'The pre-batch file is missing.' });
+				continue;
+			}
+			const content = await this.app.vault.read(file);
+			const actualHash = hashRecoveryContent(content);
+			if (actualHash !== expectation.expectedContentHash || content.length !== expectation.originalContentLength) diagnostics.push({
+				code: 'content-mismatch', subjectId: expectation.subjectId, path: expectation.path,
+				expectedHash: expectation.expectedContentHash, actualHash,
+				message: `Original content hash ${expectation.expectedContentHash.slice(0, 8)} does not match ${actualHash.slice(0, 8)}.`,
+			});
+		}
+		for (const path of recovery.forbiddenPathsAfterRollback) {
+			const file = filesInScanRoot.find(item => normalizePathCollisionKey(item.path) === normalizePathCollisionKey(path));
+			if (!file) continue;
+			diagnostics.push({
+				code: 'unexpected-created-path', path,
+				actualSubjectId: registry.getPathOwner(path),
+				message: `The concrete path created by the failed batch still exists: ${file.path}.`,
+			});
+		}
 		const seen = new Set<string>();
 		return diagnostics.filter(item => {
 			const key = JSON.stringify(item);
@@ -924,6 +1081,7 @@ export class SyncManager {
 		this.lastAutomaticRollback = undefined;
 		this.assertNoPendingTransaction();
 		this.batchTransactionState = 'active';
+		const scanRootAtBatchStart = normalizePath(this.config.scanFolderPath || 'ACGN');
 		const previousPathStates = this.clonePathStates(this.config.subjectPathStates ?? {});
 		const originalRecords = new Map(Array.from(this.incrementalSync.getRegistry().idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
 		for (const failure of batch.failures) this.recordPreparedFailure(result, failure);
@@ -1033,12 +1191,15 @@ export class SyncManager {
 		if (fatalRollbackFailure) {
 			this.finalizeSyncResult(result, wasCancelled);
 			const subjectExpectations = this.recoveryExpectationsFor(affectedSubjectIds, originalRecords);
+			const recoveryFacts = this.captureTransactionRecoveryFacts(successfulTransactions);
 			const pending: PendingSyncTransaction = {
 				transactions: successfulTransactions,
 				groups: successfulGroups,
 				previousPathStates,
 				affectedSubjectIds: Array.from(affectedSubjectIds),
 				subjectExpectations,
+				scanRootAtBatchStart,
+				...recoveryFacts,
 				deferredRelations: relations,
 				resultSnapshot: this.captureResultSnapshot(result, wasCancelled),
 				createdAt: Date.now(),
@@ -1054,12 +1215,15 @@ export class SyncManager {
 		const hasPendingChanges = successfulTransactions.some(transaction => transaction.hasChanges());
 		if (hasPendingChanges && (result.failed > 0 || wasCancelled)) {
 			this.finalizeSyncResult(result, wasCancelled);
+			const recoveryFacts = this.captureTransactionRecoveryFacts(successfulTransactions);
 			this.pendingTransaction = {
 				transactions: successfulTransactions,
 				groups: successfulGroups,
 				previousPathStates,
 				affectedSubjectIds: Array.from(affectedSubjectIds),
 				subjectExpectations: this.recoveryExpectationsFor(affectedSubjectIds, originalRecords),
+				scanRootAtBatchStart,
+				...recoveryFacts,
 				deferredRelations: relations,
 				resultSnapshot: this.captureResultSnapshot(result, wasCancelled),
 				createdAt: Date.now(),
@@ -1077,10 +1241,13 @@ export class SyncManager {
 				this.batchTransactionState = 'committed';
 			} catch {
 				this.finalizeSyncResult(result, wasCancelled);
+				const recoveryFacts = this.captureTransactionRecoveryFacts(successfulTransactions);
 				const pending: PendingSyncTransaction = {
 					transactions: successfulTransactions, groups: successfulGroups, previousPathStates,
 					affectedSubjectIds: Array.from(affectedSubjectIds), deferredRelations: relations,
 					subjectExpectations: this.recoveryExpectationsFor(affectedSubjectIds, originalRecords),
+					scanRootAtBatchStart,
+					...recoveryFacts,
 					resultSnapshot: this.captureResultSnapshot(result, wasCancelled),
 					createdAt: Date.now(), state: 'rolling-back',
 				};

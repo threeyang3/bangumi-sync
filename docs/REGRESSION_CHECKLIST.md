@@ -1,5 +1,15 @@
 # 回归清单
 
+## 6.10.5 manager / recovery
+
+- [ ] pending decision 时保存 Access Token，确认 manager identity 不变且原窗口仍能回滚原事务。
+- [ ] recovery-required 时修改扫描目录、路径模板和命名策略，确认设置不持久化且恢复上下文不变。
+- [ ] 注入 restore-content 失败：内容未恢复时出现 `content-mismatch`，恢复原始 CRLF/LF 内容后才能确认成功。
+- [ ] 新建文件删除失败后修改其 ID，确认 concrete created path 仍触发 `unexpected-created-path`（含 Windows 大小写路径）。
+- [ ] 故障发生于 ACGN 后尝试改变配置，确认所有恢复扫描仍固定使用批次开始的 ACGN。
+- [ ] 同时打开 SyncModal 和多个 Recovery Center；恢复成功后所有旧操作禁用，当前失败为 0，历史失败仍在尝试记录中。
+- [ ] 确认插件重载不宣称恢复运行期上下文；跨重启恢复仍属于 Issue #5。
+
 这份清单只记录当前仍需要保留的人工回归项，作为 `lint / build / test` 之外的最后一道护栏。
 
 ## 什么时候必须跑

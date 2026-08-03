@@ -1,5 +1,13 @@
 # 开发指南
 
+## 6.10.5 恢复安全开发约束
+
+- 设置变更必须经过 `persistStableManagerSettings()` 和 `SyncManager.assertConfigurationChangeAllowed()`；禁止在设置回调中重建 manager。
+- manager 配置只能用 `updateConfig(config, changedFields)` 原位更新；事务活动时不得重新初始化。
+- 恢复验证必须使用 pending 捕获的固定 scan root、严格内容指纹和 concrete created path，不得从当前配置或修改后的 ID 反推批次事实。
+- 新增恢复状态必须通知订阅者，并分别断言历史尝试与当前终态统计。
+- 发布前运行 `npm ci`、`npm run lint`、`npm run test`、`npm run build`、`git diff --check`，再完成 Windows Obsidian Sandbox 回归。
+
 本文档只保留“开发环境、提交流程、发布流程、代码约束”这类维护信息。
 
 如果你要理解代码本身，请优先看：

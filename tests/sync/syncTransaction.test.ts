@@ -4,6 +4,30 @@ import { SyncTransaction } from '../../src/sync/syncTransaction';
 import { InMemoryVault } from '../mocks/inMemoryVault';
 
 describe('SyncTransaction staged rename log', () => {
+	it('captures strict original-content hashes and concrete created paths', async () => {
+		const vault = new InMemoryVault();
+		const original = '---\nid: 1\n---\r\noriginal';
+		vault.addFile('A/existing.md', original);
+		const transaction = new SyncTransaction(vault.app, new FileManager(vault.app));
+
+		await transaction.createOrUpdateFile('A/existing.md', '---\nid: 1\n---\nchanged', { overwrite: true, subjectId: 1 });
+		await transaction.createOrUpdateFile('A/created.md', '---\nid: 2\n---\ncreated', { overwrite: false, subjectId: 2 });
+		const expectations = transaction.getRecoveryExpectations();
+
+		expect(expectations.createdFiles).toEqual([{ subjectId: 2, createdPath: 'A/created.md', expectedToExistAfterRollback: false }]);
+		expect(expectations.updatedContents).toHaveLength(1);
+		expect(expectations.updatedContents[0]).toMatchObject({ subjectId: 1, path: 'A/existing.md', originalContentLength: original.length });
+		expect(expectations.updatedContents[0].expectedContentHash).toMatch(/^[a-f0-9]{64}$/u);
+
+		const lfVault = new InMemoryVault();
+		lfVault.addFile('A/existing.md', '---\nid: 1\n---\noriginal');
+		const lfTransaction = new SyncTransaction(lfVault.app, new FileManager(lfVault.app));
+		await lfTransaction.createOrUpdateFile('A/existing.md', 'changed', { overwrite: true, subjectId: 1 });
+		const lfExpectations = lfTransaction.getRecoveryExpectations();
+		expect(lfExpectations.updatedContents[0].expectedContentHash)
+			.not.toBe(expectations.updatedContents[0].expectedContentHash);
+	});
+
 	it('does not report an empty transaction as an attempted rollback', async () => {
 		const vault = new InMemoryVault();
 		const transaction = new SyncTransaction(vault.app, new FileManager(vault.app));

@@ -10,7 +10,9 @@ export type WriteOperation =
 	| 'user-data-export'
 	| 'episode-status'
 	| 'episode-comment'
-	| 'subject-note';
+	| 'subject-note'
+	| 'plugin-settings'
+	| 'transaction-sensitive-settings';
 
 export type WriteOperationGuard = (operation: WriteOperation) => void;
 

@@ -673,13 +673,14 @@ export interface TranslationStrings {
 		title: string; noRecovery: string; cause: string; detectedAt: string; affectedSubjects: string;
 		expectations: string; expectedPresent: string; expectedAbsent: string; latestAttempt: string; attemptHistory: string;
 		retryRollback: string; confirmManual: string; rescan: string; close: string; working: string;
-		recovered: string; blocked: string; actionFailed: string; diagnostics: string; openCenter: string;
+		recovered: string; currentFailures: string; blocked: string; actionFailed: string; diagnostics: string; openCenter: string;
 		writeBlocked: string; pendingDecision: string; decisionInProgress: string;
 		diagnosticRescanFailed: string; diagnosticStateRestoreFailed: string; diagnosticPersistedStateMismatch: string;
 		diagnosticIncrementalStateMismatch: string; diagnosticBlockingLocalFile: string; diagnosticDuplicateSubjectId: string;
 		diagnosticTemporaryFile: string; diagnosticUnexpectedSubjectFile: string; diagnosticMissingSubjectFile: string;
 		diagnosticSubjectPathMismatch: string; diagnosticSubjectIdentityMismatch: string;
-		diagnosticRollbackStepFailed: string;
+		diagnosticRollbackStepFailed: string; diagnosticContentMismatch: string; diagnosticContentFileMissing: string;
+		diagnosticUnexpectedCreatedPath: string;
 	};
 
 }
@@ -1323,13 +1324,15 @@ const en: TranslationStrings = {
 		title: 'Bangumi Sync Recovery Center', noRecovery: 'No local recovery is required.', cause: 'Cause', detectedAt: 'Detected', affectedSubjects: 'Affected subjects',
 		expectations: 'Pre-batch expectations', expectedPresent: 'must exist', expectedAbsent: 'must be absent', latestAttempt: 'Latest attempt', attemptHistory: 'Attempt history',
 		retryRollback: 'Retry automatic rollback', confirmManual: 'Confirm manual recovery', rescan: 'Rescan local state', close: 'Close', working: 'Checking local recovery…',
-		recovered: 'Local recovery completed. Write operations are available again.', blocked: 'Recovery is still blocked. Resolve the diagnostics below and rescan.', actionFailed: 'Recovery action failed', diagnostics: 'Blocking diagnostics', openCenter: 'Open Recovery Center',
+		recovered: 'Local recovery completed. Write operations are available again.', currentFailures: 'Current failures', blocked: 'Recovery is still blocked. Resolve the diagnostics below and rescan.', actionFailed: 'Recovery action failed', diagnostics: 'Blocking diagnostics', openCenter: 'Open Recovery Center',
 		writeBlocked: 'Local recovery is required before this write operation can run.', pendingDecision: 'Resolve the previous partial sync before starting another write operation.', decisionInProgress: 'The previous sync decision or recovery action is still running.',
 		diagnosticRescanFailed: 'Local rescan failed', diagnosticStateRestoreFailed: 'Path-state restore failed', diagnosticPersistedStateMismatch: 'Persisted path states do not match the pre-batch snapshot',
 		diagnosticIncrementalStateMismatch: 'Incremental path states do not match the pre-batch snapshot', diagnosticBlockingLocalFile: 'Blocking local file', diagnosticDuplicateSubjectId: 'Duplicate subject ID',
 		diagnosticTemporaryFile: 'Temporary transaction file remains', diagnosticUnexpectedSubjectFile: 'Subject file should be absent', diagnosticMissingSubjectFile: 'Expected subject file is missing',
 		diagnosticSubjectPathMismatch: 'Subject path does not match', diagnosticSubjectIdentityMismatch: 'Expected path belongs to another subject',
 		diagnosticRollbackStepFailed: 'Rollback step failed',
+		diagnosticContentMismatch: 'Original content does not match', diagnosticContentFileMissing: 'Original content file is missing',
+		diagnosticUnexpectedCreatedPath: 'Created path still exists',
 	},
 };
 
@@ -1972,13 +1975,15 @@ const zhCN: TranslationStrings = {
 		title: 'Bangumi Sync 恢复中心', noRecovery: '当前不需要本地恢复。', cause: '原因', detectedAt: '发现时间', affectedSubjects: '受影响条目',
 		expectations: '批次前预期', expectedPresent: '应当存在', expectedAbsent: '应当不存在', latestAttempt: '最近一次尝试', attemptHistory: '尝试历史',
 		retryRollback: '重试自动回滚', confirmManual: '确认手动恢复', rescan: '重新扫描本地状态', close: '关闭', working: '正在检查本地恢复状态…',
-		recovered: '本地恢复已完成，写入操作已重新开放。', blocked: '恢复仍被阻塞。请处理下方诊断后重新扫描。', actionFailed: '恢复操作失败', diagnostics: '阻塞诊断', openCenter: '打开恢复中心',
+		recovered: '本地恢复已完成，写入操作已重新开放。', currentFailures: '当前失败', blocked: '恢复仍被阻塞。请处理下方诊断后重新扫描。', actionFailed: '恢复操作失败', diagnostics: '阻塞诊断', openCenter: '打开恢复中心',
 		writeBlocked: '完成本地恢复前无法执行此写入操作。', pendingDecision: '请先处理上一次部分同步，再开始新的写入操作。', decisionInProgress: '上一次同步决策或恢复操作仍在执行。',
 		diagnosticRescanFailed: '本地重新扫描失败', diagnosticStateRestoreFailed: '路径状态恢复失败', diagnosticPersistedStateMismatch: '持久化路径状态与批次前快照不一致',
 		diagnosticIncrementalStateMismatch: '增量同步路径状态与批次前快照不一致', diagnosticBlockingLocalFile: '存在阻塞的本地文件', diagnosticDuplicateSubjectId: '条目 ID 重复',
 		diagnosticTemporaryFile: '仍有事务临时文件', diagnosticUnexpectedSubjectFile: '本应不存在的条目文件仍存在', diagnosticMissingSubjectFile: '预期的条目文件缺失',
 		diagnosticSubjectPathMismatch: '条目路径不一致', diagnosticSubjectIdentityMismatch: '预期路径属于其他条目',
 		diagnosticRollbackStepFailed: '回滚步骤失败',
+		diagnosticContentMismatch: '原始内容不一致', diagnosticContentFileMissing: '原始内容文件缺失',
+		diagnosticUnexpectedCreatedPath: '批次新建路径仍然存在',
 	},
 
 };
