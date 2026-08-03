@@ -4,6 +4,15 @@ import { SyncTransaction } from '../../src/sync/syncTransaction';
 import { InMemoryVault } from '../mocks/inMemoryVault';
 
 describe('SyncTransaction staged rename log', () => {
+	it('does not report an empty transaction as an attempted rollback', async () => {
+		const vault = new InMemoryVault();
+		const transaction = new SyncTransaction(vault.app, new FileManager(vault.app));
+
+		expect(await transaction.rollback()).toEqual({
+			attempted: false, changed: false,
+			deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0,
+		});
+	});
 	it('restores the first temporary path when staging the second rename fails', async () => {
 		const vault = new InMemoryVault();
 		vault.addFile('A/one.md', '---\nid: 1\n---\none');

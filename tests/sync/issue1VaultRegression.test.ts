@@ -43,7 +43,7 @@ describe('Issue #1 vault regression', () => {
 		expect(rescanned.getById(2)?.path).toBe('ACGN/anime/乱马（2024）.md');
 
 		const rollback = await transaction.rollback();
-		expect(rollback).toEqual({ deletedCreatedFiles: 1, restoredContents: 0, restoredPaths: 1, failed: 0 });
+		expect(rollback).toEqual({ attempted: true, changed: true, deletedCreatedFiles: 1, restoredContents: 0, restoredPaths: 1, failed: 0 });
 		expect(Array.from(vault.files.keys())).toEqual(['ACGN/anime/乱马.md']);
 		expect(vault.contents.get('ACGN/anime/乱马.md')).toContain('旧版用户数据');
 	});
@@ -63,7 +63,7 @@ describe('Issue #1 vault regression', () => {
 		await transaction.rollback();
 		expect(vault.contents.get('ACGN/anime/自定义乱马.md')).toContain('用户记录');
 		expect(await transaction.rollback()).toEqual({
-			deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0,
+			attempted: false, changed: false, deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0,
 		});
 	});
 });

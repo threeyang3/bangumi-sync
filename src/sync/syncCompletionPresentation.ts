@@ -1,4 +1,6 @@
 import { SyncResultWithRollback } from './syncStatus';
+import type { PendingDecisionResult } from './syncManager';
+import type { RollbackFailure } from './syncTransaction';
 
 export interface SyncCompletionPresentation {
 	statusKey: 'completed' | 'partialSuccess' | 'syncFailed' | 'rolledBack' | 'rollbackFailed' | 'syncCancelled';
@@ -6,6 +8,17 @@ export interface SyncCompletionPresentation {
 	showCommitButton: boolean;
 	showRollbackButton: boolean;
 	allowClose: boolean;
+}
+
+export function pendingDecisionAllowsClose(decision: PendingDecisionResult): boolean {
+	return decision.status === 'committed'
+		|| decision.status === 'rolled-back'
+		|| decision.status === 'rollback-failed'
+		|| decision.status === 'no-pending';
+}
+
+export function formatRollbackFailureDetail(failure: RollbackFailure): string {
+	return `${failure.operation}: ${failure.path} — ${failure.message}`;
 }
 
 export function getSyncCompletionPresentation(result: SyncResultWithRollback): SyncCompletionPresentation {

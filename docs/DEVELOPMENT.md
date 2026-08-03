@@ -258,3 +258,9 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 依次运行 `npm run lint`、`npm test` 和 `npm run build`。故障注入覆盖位于 `tests/sync/syncTransaction.test.ts` 与 `tests/sync/syncManagerPathTransaction.test.ts`；UI 状态映射由纯函数测试 `tests/sync/syncCompletionPresentation.test.ts` 覆盖。
 
 Obsidian 集成检查应部署生产构建的 `main.js`、`manifest.json`、`styles.css`，执行 `obsidian plugin:reload id=bangumi-sync`，再检查 `obsidian dev:errors` 与 `obsidian dev:console level=error`。完成后恢复用户原安装版本。
+
+## 测试 6.10.3 原子决策与恢复
+
+除完整 lint/test/build 外，定向运行 `syncManagerPathTransaction`、`syncTransaction` 与 `syncCompletionPresentation`。故障注入必须覆盖：双击共享 Promise、提交与回滚竞争、空事务、手动回滚后的最终统计、路径/内容/状态恢复失败、恢复重试以及恢复期间入口阻断。
+
+Sandbox 中应验证两个决策按钮会一起禁用、关闭提示只存在一个、终态会重绘统计、回滚失败详情包含 operation/path/message，并确认控制面板、搜索、预览、自动同步和路径迁移在恢复状态下不会发起网络或文件写入。

@@ -34,6 +34,7 @@ export interface SyncResult {
 	errorDetails: string[]; // 失败条目的详细错误信息
 	outcomes: SubjectSyncOutcome[];
 	warnings: SyncWarning[];
+	rolledBack: number;
 }
 
 export interface SyncWarning {
@@ -50,6 +51,8 @@ export interface SubjectSyncOutcome {
 	previousPath?: string;
 	pathAction: 'unchanged' | 'renamed' | 'collision-resolved' | 'rolled-back' | 'failed';
 	writeAction: 'created' | 'updated' | 'unchanged' | 'skipped' | 'failed' | 'rolled-back';
+	attemptedPathAction?: Exclude<SubjectSyncOutcome['pathAction'], 'rolled-back'>;
+	attemptedWriteAction?: Exclude<SubjectSyncOutcome['writeAction'], 'rolled-back'>;
 	error?: string;
 }
 
@@ -94,10 +97,17 @@ export interface SyncResultWithRollback extends SyncResult {
 	wasCancelled: boolean;
 	canRollback: boolean;
 	rollback?: {
+		attempted: boolean;
+		changed: boolean;
 		deletedCreatedFiles: number;
 		restoredContents: number;
 		restoredPaths: number;
 		failed: number;
+		failures?: Array<{
+			operation: 'delete-created' | 'restore-content' | 'stage-path' | 'restore-path' | 'rescan' | 'restore-path-states';
+			path: string;
+			message: string;
+		}>;
 	};
 }
 

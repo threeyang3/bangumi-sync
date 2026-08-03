@@ -1,8 +1,8 @@
 import { Vault } from 'obsidian';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BangumiClient } from '../../src/api/client';
 import { CollectionType, Subject, SubjectType, UserCollection } from '../../common/api/types';
-import { PendingSyncTransactionError, SyncManager, SyncManagerConfig } from '../../src/sync/syncManager';
+import { PendingSyncTransactionError, RecoveryRequiredError, SyncManager, SyncManagerConfig } from '../../src/sync/syncManager';
 import { SubjectPathState } from '../../src/sync/localSubjectRegistry';
 import { InMemoryVault } from '../mocks/inMemoryVault';
 
@@ -29,7 +29,7 @@ function makeCollection(subject: Subject): UserCollection {
 	};
 }
 
-function fakeClient(subjects: Subject[], failures = new Set<number>()): BangumiClient {
+function fakeClient(subjects: Subject[], failures = new Set<number>(), relationsById = new Map<number, Array<{ id: number; type: SubjectType; name: string; name_cn: string; relation: string }>>()): BangumiClient {
 	const byId = new Map(subjects.map(subject => [subject.id, subject]));
 	return {
 		getSubject: (id: number) => Promise.resolve(byId.get(id) ?? Promise.reject(new Error(`Missing ${id}`))),
@@ -37,7 +37,7 @@ function fakeClient(subjects: Subject[], failures = new Set<number>()): BangumiC
 			if (failures.has(id)) return Promise.reject(new Error(`Injected preparation failure for ${id}`));
 			const subject = byId.get(id);
 			if (!subject) return Promise.reject(new Error(`Missing ${id}`));
-			return Promise.resolve({ subject, characters: [], relations: [], persons: [] });
+			return Promise.resolve({ subject, characters: [], relations: relationsById.get(id) ?? [], persons: [] });
 		},
 		createOrUpdateCollection: () => Promise.resolve(),
 		setAccessToken: () => undefined,
@@ -50,6 +50,7 @@ function createManager(vault: InMemoryVault, subjects: Subject[], options: {
 	failures?: Set<number>;
 	onStates?: (states: Record<string, SubjectPathState>) => void;
 	pathStateHandler?: (states: Record<string, SubjectPathState>) => Promise<void>;
+	relationsById?: Map<number, Array<{ id: number; type: SubjectType; name: string; name_cn: string; relation: string }>>;
 } = {}): SyncManager {
 	const config: SyncManagerConfig = {
 		accessToken: 'test-token', pathTemplate: 'ACGN/music/{{name_cn}}.md',
@@ -61,7 +62,7 @@ function createManager(vault: InMemoryVault, subjects: Subject[], options: {
 			: undefined),
 	};
 	const manager = new SyncManager(vault.app, config);
-	manager.client = fakeClient(subjects, options.failures);
+	manager.client = fakeClient(subjects, options.failures, options.relationsById);
 	return manager;
 }
 
@@ -167,7 +168,7 @@ describe('SyncManager path transaction integration', () => {
 		const result = await manager.syncByCollections([makeCollection(newSubject)], { concurrency: 1 });
 
 		expect(result.completion).toBe('rolled-back');
-		expect(result.rollback).toEqual({ deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 1, failed: 0 });
+		expect(result.rollback).toEqual({ attempted: true, changed: true, deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 1, failed: 0 });
 		expect(Array.from(vault.files.keys())).toEqual(['ACGN/music/乱马.md']);
 		expect(vault.contents.get('ACGN/music/乱马.md')).toContain('legacy');
 	});
@@ -191,6 +192,11 @@ describe('SyncManager path transaction integration', () => {
 		expect(result.completion).toBe('rollback-failed');
 		expect(result.rollback?.failed).toBe(1);
 		expect(result.rollback?.restoredPaths).toBe(0);
+		expect(manager.getRecoveryRequired()?.reason).toBe('rollback-failed');
+		fileManager.renameFile = renameFile;
+		expect(await manager.retryRecovery()).toMatchObject({ status: 'rolled-back' });
+		expect(manager.getRecoveryRequired()).toBeNull();
+		expect(Array.from(vault.files.keys())).toEqual(['ACGN/music/乱马.md']);
 	});
 
 	it('keeps a partial batch rollbackable and makes rollback idempotent', async () => {
@@ -204,8 +210,10 @@ describe('SyncManager path transaction integration', () => {
 		expect(result.added).toBe(1);
 		expect(result.canRollback).toBe(true);
 		const rollback = await manager.rollbackBatch();
-		expect(rollback.deletedCreatedFiles).toBe(1);
-		expect((await manager.rollbackBatch()).deletedCreatedFiles).toBe(0);
+		expect(rollback.rollback?.deletedCreatedFiles).toBe(1);
+		expect(rollback.status).toBe('rolled-back');
+		expect(rollback.result).toMatchObject({ added: 0, rolledBack: 1, canRollback: false });
+		expect((await manager.rollbackBatch()).status).toBe('no-pending');
 	});
 
 	it('blocks a new batch until partial success is explicitly committed', async () => {
@@ -220,7 +228,7 @@ describe('SyncManager path transaction integration', () => {
 		await expect(manager.syncByCollections([makeCollection(first)], { concurrency: 1 }))
 			.rejects.toBeInstanceOf(PendingSyncTransactionError);
 
-		expect(await manager.commitPendingBatch()).toMatchObject({ committed: true, persistedStates: true });
+		expect(await manager.commitPendingBatch()).toMatchObject({ status: 'committed' });
 		expect(manager.getBatchTransactionState()).toBe('committed');
 		expect(vault.files.has('ACGN/music/成功.md')).toBe(true);
 	});
@@ -333,6 +341,67 @@ describe('SyncManager path transaction integration', () => {
 
 		expect(result.success).toBe(true);
 		expect(result.filePath).toBe('ACGN/music/乱马（2024）.md');
-		expect((await manager.rollbackBatch()).deletedCreatedFiles).toBe(0);
+		expect((await manager.rollbackBatch()).status).toBe('no-pending');
+	});
+
+	it('shares one decision promise so commit wins a simultaneous rollback click', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '成功');
+		const second = makeSubject(11, '2021-01-01', '失败');
+		let release!: () => void;
+		const persistenceGate = new Promise<void>(resolve => { release = resolve; });
+		const manager = createManager(vault, [first, second], {
+			failures: new Set([11]),
+			pathStateHandler: () => persistenceGate,
+		});
+		await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+
+		const commit = manager.commitPendingBatch();
+		const rollback = manager.rollbackBatch();
+		expect(rollback).toBe(commit);
+		expect(manager.getBatchTransactionState()).toBe('committing');
+		release();
+		expect(await commit).toMatchObject({ status: 'committed' });
+		expect(vault.files.has('ACGN/music/成功.md')).toBe(true);
+	});
+
+	it('defers related-link postprocessing until a partial batch is committed', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '成功');
+		const second = makeSubject(11, '2021-01-01', '失败');
+		const manager = createManager(vault, [first, second], {
+			failures: new Set([11]),
+			relationsById: new Map([[10, [{ id: 99, type: SubjectType.Music, name: '关联', name_cn: '关联', relation: '关联' }]]]),
+		});
+		manager.updateConfig({ enableRelatedLinks: true });
+		const postProcess = vi.fn().mockResolvedValue([]);
+		(manager as unknown as { postProcessBatchRelations: typeof postProcess }).postProcessBatchRelations = postProcess;
+
+		await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+		expect(postProcess).not.toHaveBeenCalled();
+		expect(await manager.commitPendingBatch()).toMatchObject({ status: 'committed' });
+		expect(postProcess).toHaveBeenCalledOnce();
+	});
+
+	it('retains recovery context after rollback failure and retries only unresolved work', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '成功');
+		const second = makeSubject(11, '2021-01-01', '失败');
+		const originalTrash = vault.app.fileManager.trashFile.bind(vault.app.fileManager);
+		vault.app.fileManager.trashFile = () => Promise.reject(new Error('injected trash failure'));
+		const manager = createManager(vault, [first, second], { failures: new Set([11]) });
+		await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+
+		const failed = await manager.rollbackBatch();
+		expect(failed.status).toBe('rollback-failed');
+		expect(manager.getRecoveryRequired()?.reason).toBe('rollback-failed');
+		await expect(manager.syncByCollections([makeCollection(first)], { concurrency: 1 }))
+			.rejects.toBeInstanceOf(RecoveryRequiredError);
+
+		vault.app.fileManager.trashFile = originalTrash;
+		const retried = await manager.retryRecovery();
+		expect(retried.status).toBe('rolled-back');
+		expect(manager.getRecoveryRequired()).toBeNull();
+		expect(vault.files.has('ACGN/music/成功.md')).toBe(false);
 	});
 });
