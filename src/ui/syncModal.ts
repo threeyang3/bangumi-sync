@@ -5,8 +5,8 @@
 
 import { App, Modal, Setting } from 'obsidian';
 import { SyncProgress, SyncCancellationSignal, SyncResultWithRollback } from '../sync/syncStatus';
-import { SyncRollbackResult } from '../sync/syncTransaction';
-import { getSyncCompletionPresentation } from '../sync/syncCompletionPresentation';
+import type { PendingDecisionResult, RecoveryCheckResult } from '../sync/syncManager';
+import { formatRollbackFailureDetail, getSyncCompletionPresentation, pendingDecisionAllowsClose } from '../sync/syncCompletionPresentation';
 import { tn, tnFormat } from '../i18n';
 
 export class SyncModal extends Modal {
@@ -18,10 +18,15 @@ export class SyncModal extends Modal {
 	private pauseBtn: HTMLButtonElement | null = null;
 	private cancelBtn: HTMLButtonElement | null = null;
 	private completedEl: HTMLElement | null = null;
-	private onCancelled: (() => Promise<SyncRollbackResult>) | null = null;
-	private onCommitted: (() => Promise<{ committed: boolean; persistedStates: boolean; rollback?: SyncRollbackResult }>) | null = null;
+	private onCancelled: (() => Promise<PendingDecisionResult>) | null = null;
+	private onCommitted: (() => Promise<PendingDecisionResult>) | null = null;
+	private onRecoveryRetry: (() => Promise<PendingDecisionResult>) | null = null;
+	private onManualRecovery: (() => Promise<RecoveryCheckResult>) | null = null;
 	private isCompleted = false;
 	private pendingDecision = false;
+	private decisionInProgress = false;
+	private decisionButtons: HTMLButtonElement[] = [];
+	private pendingClosePrompt: PendingSyncDecisionModal | null = null;
 
 	constructor(app: App, cancellationSignal: SyncCancellationSignal) {
 		super(app);
@@ -120,12 +125,20 @@ export class SyncModal extends Modal {
 	/**
 	 * 设置回滚回调
 	 */
-	setRollbackHandler(handler: () => Promise<SyncRollbackResult>): void {
+	setRollbackHandler(handler: () => Promise<PendingDecisionResult>): void {
 		this.onCancelled = handler;
 	}
 
-	setCommitHandler(handler: () => Promise<{ committed: boolean; persistedStates: boolean; rollback?: SyncRollbackResult }>): void {
+	setCommitHandler(handler: () => Promise<PendingDecisionResult>): void {
 		this.onCommitted = handler;
+	}
+
+	setRecoveryHandlers(
+		retry: () => Promise<PendingDecisionResult>,
+		confirmManual: () => Promise<RecoveryCheckResult>,
+	): void {
+		this.onRecoveryRetry = retry;
+		this.onManualRecovery = confirmManual;
 	}
 
 	/**
@@ -155,6 +168,7 @@ export class SyncModal extends Modal {
 	 */
 	showCompleted(result: SyncResultWithRollback): void {
 		this.isCompleted = true;
+		this.decisionButtons = [];
 		const presentation = getSyncCompletionPresentation(result);
 		this.pendingDecision = !presentation.allowClose;
 
@@ -191,6 +205,12 @@ export class SyncModal extends Modal {
 						}),
 					cls: result.rollback.failed > 0 ? 'bangumi-sync-error' : 'bangumi-sync-stats',
 				});
+				if (result.rollback.failures?.length) {
+					const rollbackDetails = this.completedEl.createEl('details', { cls: 'bangumi-sync-error-details' });
+					rollbackDetails.createEl('summary', { text: `${tn('syncModal', 'rollbackFailed')} (${result.rollback.failures.length})` });
+					const list = rollbackDetails.createEl('ul', { cls: 'bangumi-sync-error-list' });
+					for (const failure of result.rollback.failures) list.createEl('li', { text: formatRollbackFailureDetail(failure) });
+				}
 			}
 
 			// 错误详情（可折叠）
@@ -223,36 +243,27 @@ export class SyncModal extends Modal {
 				const commitBtn = this.completedEl.createEl('button', {
 					cls: 'bangumi-commit-btn mod-cta', text: tn('syncModal', 'keepSuccessful'),
 				});
-				commitBtn.addEventListener('click', () => void (async () => {
-					commitBtn.disabled = true;
-					const commit = await this.onCommitted?.();
-					if (commit?.committed) {
-						this.pendingDecision = false;
-						commitBtn.setText(tn('syncModal', 'keptSuccessful'));
-					} else if (commit?.rollback) {
-						this.pendingDecision = false;
-						commitBtn.setText(tn('syncModal', commit.rollback.failed > 0 ? 'rollbackFailed' : 'rolledBack'));
-					}
-				})());
+				this.decisionButtons.push(commitBtn);
+				commitBtn.addEventListener('click', () => void this.resolvePendingDecision('keep'));
 			}
 			if (presentation.showRollbackButton) {
 				const rollbackBtn = this.completedEl.createEl('button', {
 					cls: 'bangumi-rollback-btn mod-warning',
 					text: tn('syncModal', 'rollbackBatch'),
 				});
-				rollbackBtn.addEventListener('click', () => void (async () => {
-					rollbackBtn.disabled = true;
-					rollbackBtn.setText('...');
-					if (this.onCancelled) {
-						const rollbackResult = await this.onCancelled();
-						this.pendingDecision = false;
-						rollbackBtn.setText(tnFormat('syncModal', 'rollbackComplete', {
-							deleted: rollbackResult.deletedCreatedFiles, contents: rollbackResult.restoredContents,
-							paths: rollbackResult.restoredPaths,
-							failed: rollbackResult.failed,
-						}));
-					}
-				})());
+				this.decisionButtons.push(rollbackBtn);
+				rollbackBtn.addEventListener('click', () => void this.resolvePendingDecision('rollback'));
+			}
+			if (result.completion === 'rollback-failed' && this.onRecoveryRetry && this.onManualRecovery) {
+				const retryBtn = this.completedEl.createEl('button', {
+					cls: 'bangumi-rollback-btn mod-warning', text: 'Retry recovery',
+				});
+				const confirmBtn = this.completedEl.createEl('button', {
+					cls: 'bangumi-commit-btn', text: 'Confirm manual recovery',
+				});
+				this.decisionButtons.push(retryBtn, confirmBtn);
+				retryBtn.addEventListener('click', () => void this.retryRecovery());
+				confirmBtn.addEventListener('click', () => void this.confirmManualRecovery());
 			}
 
 			// 关闭按钮
@@ -284,14 +295,70 @@ export class SyncModal extends Modal {
 		}
 	}
 
+	private async resolvePendingDecision(decision: 'keep' | 'rollback'): Promise<PendingDecisionResult | undefined> {
+		if (this.decisionInProgress) return undefined;
+		const handler = decision === 'keep' ? this.onCommitted : this.onCancelled;
+		if (!handler) return undefined;
+		this.decisionInProgress = true;
+		for (const button of this.decisionButtons) button.disabled = true;
+		try {
+			const resolved = await handler();
+			this.pendingDecision = !pendingDecisionAllowsClose(resolved);
+			if (resolved.result) this.showCompleted(resolved.result);
+			return resolved;
+		} finally {
+			this.decisionInProgress = false;
+			if (this.pendingDecision) for (const button of this.decisionButtons) button.disabled = false;
+		}
+	}
+
+	private async retryRecovery(): Promise<void> {
+		if (this.decisionInProgress || !this.onRecoveryRetry) return;
+		this.decisionInProgress = true;
+		for (const button of this.decisionButtons) button.disabled = true;
+		try {
+			const resolved = await this.onRecoveryRetry();
+			if (resolved.result) this.showCompleted(resolved.result);
+		} finally {
+			this.decisionInProgress = false;
+		}
+	}
+
+	private async confirmManualRecovery(): Promise<void> {
+		if (this.decisionInProgress || !this.onManualRecovery) return;
+		this.decisionInProgress = true;
+		for (const button of this.decisionButtons) button.disabled = true;
+		try {
+			const check = await this.onManualRecovery();
+			if (check.recovered) {
+				this.pendingDecision = false;
+				this.updateStatus('Recovery confirmed');
+				this.completedEl?.createEl('p', { text: 'Local recovery checks passed. Sync can continue.', cls: 'bangumi-sync-stats' });
+			} else if (this.completedEl) {
+				const details = this.completedEl.createEl('details', { cls: 'bangumi-sync-error-details', attr: { open: '' } });
+				details.createEl('summary', { text: `Recovery blockers (${check.blockingDiagnostics.length})` });
+				const list = details.createEl('ul', { cls: 'bangumi-sync-error-list' });
+				for (const diagnostic of check.blockingDiagnostics) list.createEl('li', { text: diagnostic });
+				for (const button of this.decisionButtons) button.disabled = false;
+			}
+		} finally {
+			this.decisionInProgress = false;
+		}
+	}
+
 	private showPendingClosePrompt(): void {
-		new PendingSyncDecisionModal(this.app, async decision => {
-			if (decision === 'return') return;
-			if (decision === 'keep') await this.onCommitted?.();
-			if (decision === 'rollback') await this.onCancelled?.();
-			this.pendingDecision = false;
-			super.close();
-		}).open();
+		if (this.pendingClosePrompt) return;
+		this.pendingClosePrompt = new PendingSyncDecisionModal(this.app, async decision => {
+			if (decision === 'return') return true;
+			const resolved = await this.resolvePendingDecision(decision);
+			if (resolved && pendingDecisionAllowsClose(resolved)) {
+				this.pendingDecision = false;
+				super.close();
+				return true;
+			}
+			return false;
+		}, () => { this.pendingClosePrompt = null; });
+		this.pendingClosePrompt.open();
 	}
 
 	/**
@@ -352,7 +419,12 @@ export class SyncModal extends Modal {
 }
 
 class PendingSyncDecisionModal extends Modal {
-	constructor(app: App, private readonly decide: (decision: 'keep' | 'rollback' | 'return') => Promise<void>) {
+	private resolving = false;
+	constructor(
+		app: App,
+		private readonly decide: (decision: 'keep' | 'rollback' | 'return') => Promise<boolean>,
+		private readonly closed: () => void,
+	) {
 		super(app);
 	}
 
@@ -366,9 +438,20 @@ class PendingSyncDecisionModal extends Modal {
 		] as const) {
 			const button = actions.createEl('button', { text: label, cls });
 			button.addEventListener('click', () => void (async () => {
-				await this.decide(decision);
-				this.close();
+				if (this.resolving) return;
+				this.resolving = true;
+				for (const child of Array.from(actions.querySelectorAll('button'))) child.disabled = true;
+				const shouldClose = await this.decide(decision);
+				if (shouldClose) this.close();
+				else {
+					this.resolving = false;
+					for (const child of Array.from(actions.querySelectorAll('button'))) child.disabled = false;
+				}
 			})());
 		}
+	}
+
+	onClose(): void {
+		this.closed();
 	}
 }

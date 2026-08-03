@@ -9,12 +9,14 @@ export interface TransactionRename {
 }
 
 export interface RollbackFailure {
-	operation: 'delete-created' | 'restore-content' | 'stage-path' | 'restore-path';
+	operation: 'delete-created' | 'restore-content' | 'stage-path' | 'restore-path' | 'rescan' | 'restore-path-states';
 	path: string;
 	message: string;
 }
 
 export interface SyncRollbackResult {
+	attempted: boolean;
+	changed: boolean;
 	deletedCreatedFiles: number;
 	restoredContents: number;
 	restoredPaths: number;
@@ -53,6 +55,12 @@ export class SyncTransaction {
 			|| this.updatedContents.size > 0
 			|| this.renames.some(rename => rename.phase !== 'original')
 		);
+	}
+
+	hasRecordedChanges(): boolean {
+		return this.createdFiles.length > 0
+			|| this.updatedContents.size > 0
+			|| this.renames.some(rename => rename.phase !== 'original');
 	}
 
 	commit(): void {
@@ -124,14 +132,17 @@ export class SyncTransaction {
 
 	async rollback(): Promise<SyncRollbackResult> {
 		const result: SyncRollbackResult = {
+			attempted: false, changed: false,
 			deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0,
 		};
-		if (this.state !== 'active') return result;
+		if (this.state !== 'active' && this.state !== 'rollback-failed') return result;
+		result.attempted = this.hasRecordedChanges() || this.state === 'rollback-failed';
 
 		for (const file of [...this.createdFiles].reverse()) {
 			try {
 				await this.app.fileManager.trashFile(file);
 				result.deletedCreatedFiles++;
+				this.createdFiles.splice(this.createdFiles.indexOf(file), 1);
 			} catch (error) {
 				this.recordRollbackFailure(result, 'delete-created', file.path, error);
 			}
@@ -140,6 +151,7 @@ export class SyncTransaction {
 			try {
 				await this.app.vault.process(file, () => content);
 				result.restoredContents++;
+				this.updatedContents.delete(file);
 			} catch (error) {
 				this.recordRollbackFailure(result, 'restore-content', file.path, error);
 			}
@@ -167,6 +179,7 @@ export class SyncTransaction {
 				this.recordRollbackFailure(result, 'restore-path', rename.from, error);
 			}
 		}
+		result.changed = result.deletedCreatedFiles + result.restoredContents + result.restoredPaths > 0;
 		this.state = result.failed > 0 ? 'rollback-failed' : 'rolled-back';
 		return result;
 	}

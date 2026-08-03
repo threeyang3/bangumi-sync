@@ -11,7 +11,7 @@
 import { Plugin, Notice, TFile } from 'obsidian';
 import { BangumiPluginSettings, DEFAULT_SETTINGS, PanelFilters } from './src/settings/settings';
 import { BangumiSettingTab } from './src/settings/settingsTab';
-import { SyncManager, SyncManagerConfig } from './src/sync/syncManager';
+import { PendingDecisionInProgressError, PendingSyncTransactionError, RecoveryRequiredError, SyncManager, SyncManagerConfig } from './src/sync/syncManager';
 import { SyncModal } from './src/ui/syncModal';
 import { SyncOptionsModal, SyncOptionsInput } from './src/ui/syncOptionsModal';
 import { SyncPreviewModal, SyncPreviewResult } from './src/ui/syncPreviewModal';
@@ -535,13 +535,14 @@ export default class BangumiPlugin extends Plugin {
 	 * 打开搜索弹窗
 	 */
 	openSearchModal() {
-		if (!this.settings.accessToken) {
-			new Notice(tn('notices', 'configureTokenFirst'));
-			return;
-		}
-
 		if (!this.syncManager) {
 			new Notice(tn('notices', 'syncManagerNotInit'));
+			return;
+		}
+		if (!this.ensureSyncCanStart()) return;
+
+		if (!this.settings.accessToken) {
+			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
 		}
 
@@ -561,6 +562,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 打开控制面板
 	 */
         openControlPanel(options?: { autoSyncSelection?: StatusSyncFieldSelection | 'prompt' | null }) {
+		if (!this.ensureSyncCanStart()) return;
 		if (!this.settings.accessToken) {
 			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
@@ -609,6 +611,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 打开同步选项弹窗
 	 */
 	openSyncOptions() {
+		if (!this.ensureSyncCanStart()) return;
 		if (!this.settings.accessToken) {
 			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
@@ -660,6 +663,7 @@ export default class BangumiPlugin extends Plugin {
 		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
 		this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
 		this.syncModal.setCommitHandler(() => this.syncManager!.commitPendingBatch());
+		this.syncModal.setRecoveryHandlers(() => this.syncManager!.retryRecovery(), () => this.syncManager!.confirmManualRecovery());
 		this.syncModal.open();
 
 		this.syncManager.setProgressCallback((progress: SyncProgress) => {
@@ -750,6 +754,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 使用指定选项执行同步
 	 */
 	async syncCollectionsWithOptions(options: SyncOptionsInput, showPreview: boolean = true) {
+		if (!this.ensureSyncCanStart()) return;
 		if (!this.settings.accessToken) {
 			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
@@ -775,6 +780,7 @@ export default class BangumiPlugin extends Plugin {
 		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
 		this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
 		this.syncModal.setCommitHandler(() => this.syncManager!.commitPendingBatch());
+		this.syncModal.setRecoveryHandlers(() => this.syncManager!.retryRecovery(), () => this.syncManager!.confirmManualRecovery());
 		this.syncModal.open();
 
 		this.syncManager.setProgressCallback((progress: SyncProgress) => {
@@ -836,12 +842,14 @@ export default class BangumiPlugin extends Plugin {
 							new Notice(tn('notices', 'syncCancelled'));
 							return;
 						}
+						if (!this.ensureSyncCanStart()) return;
 
 						this.cancellationSignal = createCancellationSignal();
 						this.syncManager!.setCancellationSignal(this.cancellationSignal);
 						this.syncModal = new SyncModal(this.app, this.cancellationSignal);
 						this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
 						this.syncModal.setCommitHandler(() => this.syncManager!.commitPendingBatch());
+						this.syncModal.setRecoveryHandlers(() => this.syncManager!.retryRecovery(), () => this.syncManager!.confirmManualRecovery());
 						this.syncModal.open();
 
 						this.syncManager!.setProgressCallback((progress: SyncProgress) => {
@@ -897,6 +905,28 @@ export default class BangumiPlugin extends Plugin {
 			this.cancellationSignal = null;
 			this.syncManager.setCancellationSignal(null);
 			this.hideStatusBar();
+		}
+	}
+
+	private ensureSyncCanStart(): boolean {
+		if (!this.syncManager) {
+			new Notice(tn('notices', 'syncManagerNotInit'));
+			return false;
+		}
+		try {
+			this.syncManager.ensureCanStartSync();
+			return true;
+		} catch (error) {
+			if (error instanceof RecoveryRequiredError) {
+				new Notice(`Bangumi Sync recovery required (${error.recovery.reason}). Retry recovery or inspect rollback details before syncing.`);
+			} else if (error instanceof PendingDecisionInProgressError) {
+				new Notice('Bangumi sync is still processing the previous keep/rollback decision.');
+			} else if (error instanceof PendingSyncTransactionError) {
+				new Notice('Choose whether to keep or roll back the previous partial sync before starting another sync.');
+			} else {
+				new Notice(error instanceof Error ? error.message : String(error));
+			}
+			return false;
 		}
 	}
 

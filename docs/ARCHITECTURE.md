@@ -550,3 +550,11 @@ SearchModal
 `SyncManager` 维护显式批次状态机：`none → active → awaiting-user-decision → committed|rolled-back|rollback-failed`。未决的部分成功批次不能被替换或隐式提交。碰撞组共享原子事务；无关条目使用独立事务，成功分组在路径状态保存成功或用户明确保留前一直可回滚。
 
 `SyncTransaction` 将重命名记录为 `original`、`temporary` 或 `final`。回滚先移开 final 路径，再把每个 temporary 路径恢复到原位，并逐项报告失败。`IncrementalSync.finishBatch()`/`clearBatch()` 与文件事务一同关闭内存批次生命周期。
+
+## 6.10.3 原子决策与恢复门禁
+
+未决事务内部使用 `awaiting → committing|rolling-back → committed|rolled-back|rollback-failed`。状态转换发生在第一个异步操作之前，进行中的选择由单一 Promise 表示，因此双击和“保留/回滚”竞争只能产生一个磁盘操作序列。
+
+每个事务组记录对应 outcome 索引。回滚后 outcome 保留 `attemptedPathAction` / `attemptedWriteAction`，最终 action 改为 `rolled-back`，所有聚合计数重新计算。关联条目写回保存在 `deferredRelations`，仅在提交成功后执行。
+
+回滚失败不会丢弃 pending transaction。`RecoveryRequiredState` 保存原因、回滚详情、受影响 ID 与原始路径状态；所有同步入口和路径迁移通过 `ensureCanStartSync()` 统一阻断。恢复可重试未完成事务，或在人工处理后通过纯本地扫描确认无临时文件、重复 ID、阻塞诊断和路径状态不一致。

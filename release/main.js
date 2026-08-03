@@ -4881,8 +4881,8 @@ var FileManager = class {
         try {
           await this.app.vault.createFolder(dirPath);
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          console.debug(`[Bangumi Sync] \u521B\u5EFA\u76EE\u5F55\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\uFF09: ${errorMessage}`);
+          const errorMessage2 = error instanceof Error ? error.message : String(error);
+          console.debug(`[Bangumi Sync] \u521B\u5EFA\u76EE\u5F55\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\uFF09: ${errorMessage2}`);
         }
       }
     }
@@ -7297,6 +7297,9 @@ var SyncTransaction = class {
   hasChanges() {
     return this.state === "active" && (this.createdFiles.length > 0 || this.updatedContents.size > 0 || this.renames.some((rename) => rename.phase !== "original"));
   }
+  hasRecordedChanges() {
+    return this.createdFiles.length > 0 || this.updatedContents.size > 0 || this.renames.some((rename) => rename.phase !== "original");
+  }
   commit() {
     if (this.state !== "active")
       return;
@@ -7361,17 +7364,21 @@ var SyncTransaction = class {
   }
   async rollback() {
     const result = {
+      attempted: false,
+      changed: false,
       deletedCreatedFiles: 0,
       restoredContents: 0,
       restoredPaths: 0,
       failed: 0
     };
-    if (this.state !== "active")
+    if (this.state !== "active" && this.state !== "rollback-failed")
       return result;
+    result.attempted = this.hasRecordedChanges() || this.state === "rollback-failed";
     for (const file of [...this.createdFiles].reverse()) {
       try {
         await this.app.fileManager.trashFile(file);
         result.deletedCreatedFiles++;
+        this.createdFiles.splice(this.createdFiles.indexOf(file), 1);
       } catch (error) {
         this.recordRollbackFailure(result, "delete-created", file.path, error);
       }
@@ -7380,6 +7387,7 @@ var SyncTransaction = class {
       try {
         await this.app.vault.process(file, () => content);
         result.restoredContents++;
+        this.updatedContents.delete(file);
       } catch (error) {
         this.recordRollbackFailure(result, "restore-content", file.path, error);
       }
@@ -7408,6 +7416,7 @@ var SyncTransaction = class {
         this.recordRollbackFailure(result, "restore-path", rename.from, error);
       }
     }
+    result.changed = result.deletedCreatedFiles + result.restoredContents + result.restoredPaths > 0;
     this.state = result.failed > 0 ? "rollback-failed" : "rolled-back";
     return result;
   }
@@ -7469,10 +7478,26 @@ function formatDiagnosticReport(report) {
 }
 
 // src/sync/syncManager.ts
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
 var PendingSyncTransactionError = class extends Error {
   constructor() {
     super("A previous sync batch is awaiting a keep or rollback decision.");
     this.name = "PendingSyncTransactionError";
+  }
+};
+var PendingDecisionInProgressError = class extends Error {
+  constructor() {
+    super("A previous sync batch decision is still being processed.");
+    this.name = "PendingDecisionInProgressError";
+  }
+};
+var RecoveryRequiredError = class extends Error {
+  constructor(recovery) {
+    super("Bangumi Sync requires local recovery before another sync can start.");
+    this.recovery = recovery;
+    this.name = "RecoveryRequiredError";
   }
 };
 var SyncManager = class {
@@ -7481,6 +7506,8 @@ var SyncManager = class {
     this.pathResolver = new SubjectPathResolver();
     this.pendingTransaction = null;
     this.batchTransactionState = "none";
+    this.pendingDecisionPromise = null;
+    this.recoveryRequired = null;
     var _a;
     this.app = app;
     this.config = config;
@@ -7508,30 +7535,65 @@ var SyncManager = class {
   /**
    * 回滚本次批次新建的文件
    */
-  async rollbackBatch() {
-    if (!this.pendingTransaction)
-      return this.emptyRollbackResult();
-    return this.rollbackPendingTransaction(this.pendingTransaction);
+  rollbackBatch() {
+    return this.resolvePendingBatch("rollback");
   }
   getBatchTransactionState() {
     return this.batchTransactionState;
   }
-  async commitPendingBatch() {
-    const pending = this.pendingTransaction;
-    if (!pending)
-      return { committed: false, persistedStates: false };
-    try {
-      await this.persistPathStates();
-      for (const transaction of pending.transactions)
-        transaction.commit();
-      this.pendingTransaction = null;
-      this.batchTransactionState = "committed";
-      this.incrementalSync.finishBatch();
-      return { committed: true, persistedStates: true };
-    } catch (e) {
-      const rollback = await this.rollbackPendingTransaction(pending);
-      return { committed: false, persistedStates: false, rollback };
+  commitPendingBatch() {
+    return this.resolvePendingBatch("commit");
+  }
+  ensureCanStartSync() {
+    var _a, _b;
+    if (this.recoveryRequired)
+      throw new RecoveryRequiredError(this.recoveryRequired);
+    if (this.pendingDecisionPromise || ((_a = this.pendingTransaction) == null ? void 0 : _a.state) === "committing" || ((_b = this.pendingTransaction) == null ? void 0 : _b.state) === "rolling-back") {
+      throw new PendingDecisionInProgressError();
     }
+    if (this.pendingTransaction)
+      throw new PendingSyncTransactionError();
+  }
+  getRecoveryRequired() {
+    var _a;
+    return this.recoveryRequired ? {
+      ...this.recoveryRequired,
+      rollback: { ...this.recoveryRequired.rollback, failures: (_a = this.recoveryRequired.rollback.failures) == null ? void 0 : _a.map((item) => ({ ...item })) },
+      originalPathStates: this.clonePathStates(this.recoveryRequired.originalPathStates),
+      affectedSubjectIds: [...this.recoveryRequired.affectedSubjectIds]
+    } : null;
+  }
+  retryRecovery() {
+    const pending = this.pendingTransaction;
+    if (!pending || !this.recoveryRequired)
+      return Promise.resolve({ status: "no-pending" });
+    if (this.pendingDecisionPromise)
+      return this.pendingDecisionPromise;
+    pending.state = "rolling-back";
+    this.batchTransactionState = "rolling-back";
+    const promise = this.rollbackPendingTransaction(pending);
+    this.pendingDecisionPromise = promise;
+    promise.then(() => {
+      this.pendingDecisionPromise = null;
+    }, () => {
+      this.pendingDecisionPromise = null;
+    });
+    return promise;
+  }
+  async confirmManualRecovery() {
+    var _a;
+    if (!this.recoveryRequired)
+      return { recovered: true, blockingDiagnostics: [] };
+    const blockingDiagnostics = await this.collectRecoveryDiagnostics(this.recoveryRequired);
+    if (blockingDiagnostics.length > 0) {
+      return { recovered: false, blockingDiagnostics, recovery: (_a = this.getRecoveryRequired()) != null ? _a : void 0 };
+    }
+    this.recoveryRequired = null;
+    this.pendingTransaction = null;
+    this.pendingDecisionPromise = null;
+    this.batchTransactionState = "rolled-back";
+    this.incrementalSync.clearBatch();
+    return { recovered: true, blockingDiagnostics: [] };
   }
   /**
    * 更新配置
@@ -7559,10 +7621,12 @@ var SyncManager = class {
     return Object.fromEntries(Object.entries(states).map(([id, state]) => [id, { ...state }]));
   }
   emptyRollbackResult() {
-    return { deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0 };
+    return { attempted: false, changed: false, deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0 };
   }
   mergeRollbackResult(target, source) {
     var _a, _b;
+    target.attempted = target.attempted || source.attempted;
+    target.changed = target.changed || source.changed;
     target.deletedCreatedFiles += source.deletedCreatedFiles;
     target.restoredContents += source.restoredContents;
     target.restoredPaths += source.restoredPaths;
@@ -7571,32 +7635,170 @@ var SyncManager = class {
       target.failures = [...(_b = target.failures) != null ? _b : [], ...source.failures];
   }
   assertNoPendingTransaction() {
-    var _a;
-    if (((_a = this.pendingTransaction) == null ? void 0 : _a.state) === "awaiting-user-decision")
-      throw new PendingSyncTransactionError();
+    this.ensureCanStartSync();
   }
-  async rollbackPendingTransaction(pending) {
+  resolvePendingBatch(action) {
+    if (this.pendingDecisionPromise)
+      return this.pendingDecisionPromise;
+    const pending = this.pendingTransaction;
+    if (!pending)
+      return Promise.resolve({ status: "no-pending" });
+    if (pending.state !== "awaiting")
+      return Promise.resolve({ status: "busy" });
+    pending.state = action === "commit" ? "committing" : "rolling-back";
+    this.batchTransactionState = action === "commit" ? "committing" : "rolling-back";
+    const promise = action === "commit" ? this.commitPendingTransaction(pending) : this.rollbackPendingTransaction(pending);
+    this.pendingDecisionPromise = promise;
+    promise.then(() => {
+      this.pendingDecisionPromise = null;
+    }, () => {
+      this.pendingDecisionPromise = null;
+    });
+    return promise;
+  }
+  async commitPendingTransaction(pending) {
+    try {
+      await this.persistPathStates();
+      for (const transaction of pending.transactions)
+        transaction.commit();
+    } catch (error) {
+      pending.state = "rolling-back";
+      this.batchTransactionState = "rolling-back";
+      return this.rollbackPendingTransaction(pending, error);
+    }
+    let warnings = [];
+    try {
+      warnings = pending.deferredRelations.length > 0 ? await this.postProcessBatchRelations(pending.deferredRelations) : [];
+    } catch (error) {
+      warnings = [{ operation: "related-link-postprocess", message: errorMessage(error) }];
+    }
+    const result = this.snapshotAfterDecision(pending, "committed", void 0, warnings);
+    pending.state = "committed";
+    this.pendingTransaction = null;
+    this.batchTransactionState = "committed";
+    this.incrementalSync.finishBatch();
+    return { status: "committed", result, warnings };
+  }
+  async rollbackPendingTransaction(pending, cause) {
     var _a;
     const result = this.emptyRollbackResult();
     for (const transaction of [...pending.transactions].reverse()) {
-      this.mergeRollbackResult(result, await transaction.rollback());
+      try {
+        this.mergeRollbackResult(result, await transaction.rollback());
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "restore-content", "transaction", error);
+      }
     }
-    this.incrementalSync.setPathStates(pending.previousPathStates);
-    await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
     try {
+      this.incrementalSync.setPathStates(pending.previousPathStates);
       await this.persistSpecificPathStates(pending.previousPathStates);
     } catch (error) {
-      result.failed++;
-      result.failures = [...(_a = result.failures) != null ? _a : [], {
-        operation: "restore-content",
-        path: "subjectPathStates",
-        message: error instanceof Error ? error.message : String(error)
-      }];
+      this.recordManagerRollbackFailure(result, "restore-path-states", "subjectPathStates", error);
+    }
+    try {
+      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+    } catch (error) {
+      this.recordManagerRollbackFailure(result, "rescan", this.config.scanFolderPath || "ACGN", error);
     }
     this.incrementalSync.clearBatch();
+    this.markGroupsRolledBack(pending);
+    this.lastAutomaticRollback = result;
+    const failed = result.failed > 0;
+    const snapshot = this.snapshotAfterDecision(
+      pending,
+      failed ? "rollback-failed" : "rolled-back",
+      result,
+      cause ? [{ operation: "commit", message: errorMessage(cause) }] : []
+    );
+    if (failed) {
+      pending.state = "rollback-failed";
+      this.batchTransactionState = "rollback-failed";
+      const operations = new Set((_a = result.failures) == null ? void 0 : _a.map((item) => item.operation));
+      this.recoveryRequired = {
+        reason: operations.has("rescan") ? "rescan-failed" : operations.has("restore-path-states") ? "state-restore-failed" : "rollback-failed",
+        rollback: result,
+        affectedSubjectIds: [...pending.affectedSubjectIds],
+        originalPathStates: this.clonePathStates(pending.previousPathStates),
+        detectedAt: Date.now()
+      };
+      return { status: "rollback-failed", result: snapshot, rollback: result, error: cause ? errorMessage(cause) : void 0 };
+    }
+    pending.state = "rolled-back";
     this.pendingTransaction = null;
-    this.batchTransactionState = result.failed > 0 ? "rollback-failed" : "rolled-back";
-    return result;
+    this.recoveryRequired = null;
+    this.batchTransactionState = "rolled-back";
+    return { status: "rolled-back", result: snapshot, rollback: result, error: cause ? errorMessage(cause) : void 0 };
+  }
+  recordManagerRollbackFailure(result, operation, path, error) {
+    var _a;
+    result.attempted = true;
+    result.failed++;
+    result.failures = [...(_a = result.failures) != null ? _a : [], { operation, path, message: errorMessage(error) }];
+  }
+  markGroupsRolledBack(pending) {
+    const snapshot = pending.resultSnapshot;
+    if (!snapshot)
+      return;
+    this.markOutcomeIndexesRolledBack(snapshot, pending.groups);
+  }
+  markOutcomeIndexesRolledBack(result, groups) {
+    for (const group of groups) {
+      for (const index of group.outcomeIndexes) {
+        const outcome = result.outcomes[index];
+        if (!outcome)
+          continue;
+        if (outcome.pathAction !== "rolled-back")
+          outcome.attemptedPathAction = outcome.pathAction;
+        if (outcome.writeAction !== "rolled-back")
+          outcome.attemptedWriteAction = outcome.writeAction;
+        if (outcome.pathAction === "renamed" || outcome.writeAction === "created" || outcome.writeAction === "updated") {
+          outcome.pathAction = "rolled-back";
+          outcome.writeAction = "rolled-back";
+        }
+      }
+    }
+  }
+  snapshotAfterDecision(pending, completion, rollback, warnings = []) {
+    const snapshot = pending.resultSnapshot;
+    if (!snapshot)
+      return void 0;
+    snapshot.warnings.push(...warnings);
+    snapshot.canRollback = false;
+    if (rollback)
+      snapshot.rollback = rollback;
+    this.finalizeSyncResult(snapshot, snapshot.wasCancelled);
+    if (completion !== "committed")
+      snapshot.completion = completion;
+    snapshot.success = completion === "committed" && snapshot.failed === 0;
+    return snapshot;
+  }
+  async collectRecoveryDiagnostics(recovery) {
+    const diagnostics = [];
+    try {
+      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+    } catch (error) {
+      diagnostics.push(`Local rescan failed: ${errorMessage(error)}`);
+      return diagnostics;
+    }
+    const registry = this.incrementalSync.getRegistry();
+    for (const issue of registry.invalidFiles) {
+      if (issue.severity === "blocking-error")
+        diagnostics.push(`${issue.code}: ${issue.path} \u2014 ${issue.message}`);
+    }
+    for (const [subjectId, paths] of registry.duplicateIds)
+      diagnostics.push(`duplicate-id: ${subjectId} \u2014 ${paths.join(", ")}`);
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      if (/(^|\/)\.bangumi-sync-\d+-\d+-\d+\.tmp\.md$/u.test(file.path))
+        diagnostics.push(`temporary-file: ${file.path}`);
+    }
+    for (const subjectId of recovery.affectedSubjectIds) {
+      const original = recovery.originalPathStates[String(subjectId)];
+      const record = registry.getById(subjectId);
+      if (original && record && normalizePathCollisionKey(original.currentPath) !== normalizePathCollisionKey(record.path)) {
+        diagnostics.push(`path-state-mismatch: ${subjectId} expected ${original.currentPath}, found ${record.path}`);
+      }
+    }
+    return Array.from(new Set(diagnostics));
   }
   async diagnoseLocalSubjects() {
     const scanRoot = this.config.scanFolderPath || "ACGN";
@@ -7721,6 +7923,7 @@ var SyncManager = class {
     return { generatedAt: new Date().toISOString(), entries };
   }
   async applyPathMigration(preview) {
+    this.ensureCanStartSync();
     const renames = preview.entries.filter((entry) => entry.status === "rename").map((entry) => ({ subjectId: entry.subjectId, from: entry.from, to: entry.to }));
     const transaction = new SyncTransaction(this.app, this.fileManager);
     try {
@@ -7754,15 +7957,18 @@ var SyncManager = class {
    * 创建带回滚能力的同步结果
    */
   createSyncResultWithRollback(base, wasCancelled) {
-    var _a;
+    var _a, _b;
     const batchFiles = this.incrementalSync.getBatchSyncedFiles();
-    return {
+    const wrapped = {
       ...base,
       batchFiles,
       wasCancelled,
-      canRollback: Boolean((_a = this.pendingTransaction) == null ? void 0 : _a.transactions.some((transaction) => transaction.hasChanges())),
+      canRollback: Boolean(((_a = this.pendingTransaction) == null ? void 0 : _a.state) === "awaiting" && this.pendingTransaction.transactions.some((transaction) => transaction.hasRecordedChanges())),
       ...this.lastAutomaticRollback ? { rollback: this.lastAutomaticRollback } : {}
     };
+    if (((_b = this.pendingTransaction) == null ? void 0 : _b.state) === "awaiting")
+      this.pendingTransaction.resultSnapshot = wrapped;
+    return wrapped;
   }
   createSyncResult(total = 0) {
     this.lastAutomaticRollback = void 0;
@@ -7782,7 +7988,8 @@ var SyncManager = class {
       duration: 0,
       errorDetails: [],
       outcomes: [],
-      warnings: []
+      warnings: [],
+      rolledBack: 0
     };
   }
   recordPreparedFailure(result, failure) {
@@ -7814,10 +8021,10 @@ var SyncManager = class {
   }
   recordProcessingFailure(result, prepared, error) {
     const collection = prepared.collection;
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage2 = error instanceof Error ? error.message : String(error);
     const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
     result.failed++;
-    result.errorDetails.push(`[${collection.subject_id}] ${name}: ${errorMessage}`);
+    result.errorDetails.push(`[${collection.subject_id}] ${name}: ${errorMessage2}`);
     result.outcomes.push({
       subjectId: collection.subject_id,
       name,
@@ -7825,23 +8032,25 @@ var SyncManager = class {
       actualPath: prepared.allocation.finalPath,
       pathAction: "failed",
       writeAction: "failed",
-      error: errorMessage
+      error: errorMessage2
     });
   }
   finalizeSyncResult(result, wasCancelled) {
+    var _a;
     result.created = result.outcomes.filter((outcome) => outcome.writeAction === "created").length;
     result.updated = result.outcomes.filter((outcome) => outcome.writeAction === "updated").length;
     result.unchanged = result.outcomes.filter((outcome) => outcome.writeAction === "unchanged").length;
     result.failed = result.outcomes.filter((outcome) => outcome.writeAction === "failed").length;
     result.renamed = result.outcomes.filter((outcome) => outcome.pathAction === "renamed").length;
+    result.rolledBack = result.outcomes.filter((outcome) => outcome.pathAction === "rolled-back" || outcome.writeAction === "rolled-back").length;
     result.collisionResolved = result.outcomes.filter((outcome) => outcome.pathAction === "collision-resolved").length;
     result.added = result.created + result.updated;
     result.errors = result.failed;
-    result.completion = this.lastAutomaticRollback ? this.lastAutomaticRollback.failed > 0 ? "rollback-failed" : "rolled-back" : determineSyncCompletion(result.added, result.failed, wasCancelled);
+    result.completion = ((_a = this.lastAutomaticRollback) == null ? void 0 : _a.attempted) ? this.lastAutomaticRollback.failed > 0 ? "rollback-failed" : "rolled-back" : determineSyncCompletion(result.added, result.failed, wasCancelled);
     result.success = result.completion === "success";
   }
   async executePreparedCollectionBatch(batch, concurrency, result, optionsFor, onProgress) {
-    var _a, _b;
+    var _a, _b, _c;
     this.lastAutomaticRollback = void 0;
     this.assertNoPendingTransaction();
     this.batchTransactionState = "active";
@@ -7871,6 +8080,7 @@ var SyncManager = class {
     });
     const relations = [];
     const successfulTransactions = [];
+    const successfulGroups = [];
     const affectedSubjectIds = /* @__PURE__ */ new Set();
     const automaticRollback = this.emptyRollbackResult();
     let hadAutomaticRollback = false;
@@ -7899,6 +8109,7 @@ var SyncManager = class {
         return ((_a2 = batch.groupKeyBySubjectId.get(rename.subjectId)) != null ? _a2 : `subject:${rename.subjectId}`) === groupKey;
       });
       const transaction = new SyncTransaction(this.app, this.fileManager);
+      const groupOutcomeStart = result.outcomes.length;
       const written = [];
       const writeFailures = /* @__PURE__ */ new Set();
       try {
@@ -7920,11 +8131,21 @@ var SyncManager = class {
             this.recordProcessingFailure(result, item.prepared, error);
         }
         const rollback = await transaction.rollback();
-        hadAutomaticRollback = hadAutomaticRollback || transaction.getState() !== "active";
+        hadAutomaticRollback = hadAutomaticRollback || rollback.attempted;
         this.mergeRollbackResult(automaticRollback, rollback);
         fatalRollbackFailure = fatalRollbackFailure || rollback.failed > 0;
-        if (fatalRollbackFailure)
+        if (fatalRollbackFailure) {
+          successfulTransactions.push(transaction);
+          successfulGroups.push({
+            transaction,
+            outcomeIndexes: Array.from({ length: result.outcomes.length - groupOutcomeStart }, (_, index) => groupOutcomeStart + index)
+          });
+          for (const rename of renames)
+            affectedSubjectIds.add(rename.subjectId);
+          for (const item of items)
+            affectedSubjectIds.add(item.subject.id);
           break;
+        }
         continue;
       }
       for (const rename of renames) {
@@ -7948,25 +8169,37 @@ var SyncManager = class {
         this.recordWriteOutcome(result, item.prepared, writeStatus);
       }
       successfulTransactions.push(transaction);
+      successfulGroups.push({
+        transaction,
+        outcomeIndexes: Array.from({ length: result.outcomes.length - groupOutcomeStart }, (_, index) => groupOutcomeStart + index)
+      });
     }
     if (fatalRollbackFailure) {
-      for (const transaction of [...successfulTransactions].reverse())
-        this.mergeRollbackResult(automaticRollback, await transaction.rollback());
-      this.incrementalSync.setPathStates(previousPathStates);
-      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
-      this.incrementalSync.clearBatch();
-      this.lastAutomaticRollback = automaticRollback;
-      this.batchTransactionState = "rollback-failed";
+      const pending = {
+        transactions: successfulTransactions,
+        groups: successfulGroups,
+        previousPathStates,
+        affectedSubjectIds: Array.from(affectedSubjectIds),
+        deferredRelations: relations,
+        createdAt: Date.now(),
+        state: "rolling-back"
+      };
+      this.pendingTransaction = pending;
+      const decision = await this.rollbackPendingTransaction(pending);
+      this.markOutcomeIndexesRolledBack(result, successfulGroups);
+      this.lastAutomaticRollback = (_c = decision.rollback) != null ? _c : automaticRollback;
       return { wasCancelled, relations: [] };
     }
     const hasPendingChanges = successfulTransactions.some((transaction) => transaction.hasChanges());
     if (hasPendingChanges && (result.failed > 0 || wasCancelled)) {
       this.pendingTransaction = {
         transactions: successfulTransactions,
+        groups: successfulGroups,
         previousPathStates,
         affectedSubjectIds: Array.from(affectedSubjectIds),
+        deferredRelations: relations,
         createdAt: Date.now(),
-        state: "awaiting-user-decision"
+        state: "awaiting"
       };
       this.batchTransactionState = "awaiting-user-decision";
       return { wasCancelled, relations: [] };
@@ -7981,13 +8214,17 @@ var SyncManager = class {
       } catch (e) {
         const pending = {
           transactions: successfulTransactions,
+          groups: successfulGroups,
           previousPathStates,
           affectedSubjectIds: Array.from(affectedSubjectIds),
+          deferredRelations: relations,
           createdAt: Date.now(),
-          state: "awaiting-user-decision"
+          state: "rolling-back"
         };
         this.pendingTransaction = pending;
-        this.lastAutomaticRollback = await this.rollbackPendingTransaction(pending);
+        const decision = await this.rollbackPendingTransaction(pending);
+        this.lastAutomaticRollback = decision.rollback;
+        this.markOutcomeIndexesRolledBack(result, successfulGroups);
       }
     } else {
       this.incrementalSync.clearBatch();
@@ -8002,6 +8239,7 @@ var SyncManager = class {
    * 优化：支持并发处理多个条目，提高同步速度
    */
   async sync(options, concurrency = 3) {
+    this.ensureCanStartSync();
     const startTime = Date.now();
     let wasCancelled = false;
     const result = this.createSyncResult();
@@ -8371,6 +8609,7 @@ var SyncManager = class {
    */
   async syncByCollections(collections, options, onProgress) {
     var _a, _b;
+    this.ensureCanStartSync();
     const startTime = Date.now();
     let wasCancelled = false;
     const result = this.createSyncResult(collections.length);
@@ -8427,6 +8666,7 @@ var SyncManager = class {
    * 用于手动同步模式，在显示预览弹窗前调用
    */
   async prepareSync(options) {
+    this.ensureCanStartSync();
     try {
       const { diff } = await this.prepareSyncData(options);
       const previewItems = diff.toAdd.map((collection) => ({
@@ -8460,6 +8700,7 @@ var SyncManager = class {
    * 用于手动同步模式，在用户确认后调用
    */
   async executeSync(previewItems, action, localPropertyResult, concurrency = 3) {
+    this.ensureCanStartSync();
     const startTime = Date.now();
     let wasCancelled = false;
     const result = this.createSyncResult();
@@ -8694,6 +8935,7 @@ var SyncManager = class {
    */
   async syncSingleSubject(subjectId, input) {
     var _a, _b, _c, _d, _e, _f;
+    this.ensureCanStartSync();
     try {
       if (input.syncToCloud) {
         await this.client.createOrUpdateCollection(subjectId, {
@@ -9005,6 +9247,12 @@ var SyncManager = class {
 var import_obsidian12 = require("obsidian");
 
 // src/sync/syncCompletionPresentation.ts
+function pendingDecisionAllowsClose(decision) {
+  return decision.status === "committed" || decision.status === "rolled-back" || decision.status === "rollback-failed" || decision.status === "no-pending";
+}
+function formatRollbackFailureDetail(failure) {
+  return `${failure.operation}: ${failure.path} \u2014 ${failure.message}`;
+}
 function getSyncCompletionPresentation(result) {
   const pending = result.canRollback;
   if (result.completion === "rollback-failed") {
@@ -9037,8 +9285,13 @@ var SyncModal = class extends import_obsidian12.Modal {
     this.completedEl = null;
     this.onCancelled = null;
     this.onCommitted = null;
+    this.onRecoveryRetry = null;
+    this.onManualRecovery = null;
     this.isCompleted = false;
     this.pendingDecision = false;
+    this.decisionInProgress = false;
+    this.decisionButtons = [];
+    this.pendingClosePrompt = null;
     this.cancellationSignal = cancellationSignal;
     this.progress = {
       current: 0,
@@ -9122,6 +9375,10 @@ var SyncModal = class extends import_obsidian12.Modal {
   setCommitHandler(handler) {
     this.onCommitted = handler;
   }
+  setRecoveryHandlers(retry, confirmManual) {
+    this.onRecoveryRetry = retry;
+    this.onManualRecovery = confirmManual;
+  }
   /**
    * 更新进度
    */
@@ -9144,7 +9401,9 @@ var SyncModal = class extends import_obsidian12.Modal {
    * 显示同步完成状态
    */
   showCompleted(result) {
+    var _a;
     this.isCompleted = true;
+    this.decisionButtons = [];
     const presentation = getSyncCompletionPresentation(result);
     this.pendingDecision = !presentation.allowClose;
     if (this.actionsEl) {
@@ -9173,6 +9432,13 @@ var SyncModal = class extends import_obsidian12.Modal {
           }),
           cls: result.rollback.failed > 0 ? "bangumi-sync-error" : "bangumi-sync-stats"
         });
+        if ((_a = result.rollback.failures) == null ? void 0 : _a.length) {
+          const rollbackDetails = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details" });
+          rollbackDetails.createEl("summary", { text: `${tn("syncModal", "rollbackFailed")} (${result.rollback.failures.length})` });
+          const list = rollbackDetails.createEl("ul", { cls: "bangumi-sync-error-list" });
+          for (const failure of result.rollback.failures)
+            list.createEl("li", { text: formatRollbackFailureDetail(failure) });
+        }
       }
       if (result.errorDetails.length > 0) {
         const detailsEl = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details" });
@@ -9203,38 +9469,29 @@ var SyncModal = class extends import_obsidian12.Modal {
           cls: "bangumi-commit-btn mod-cta",
           text: tn("syncModal", "keepSuccessful")
         });
-        commitBtn.addEventListener("click", () => void (async () => {
-          var _a;
-          commitBtn.disabled = true;
-          const commit = await ((_a = this.onCommitted) == null ? void 0 : _a.call(this));
-          if (commit == null ? void 0 : commit.committed) {
-            this.pendingDecision = false;
-            commitBtn.setText(tn("syncModal", "keptSuccessful"));
-          } else if (commit == null ? void 0 : commit.rollback) {
-            this.pendingDecision = false;
-            commitBtn.setText(tn("syncModal", commit.rollback.failed > 0 ? "rollbackFailed" : "rolledBack"));
-          }
-        })());
+        this.decisionButtons.push(commitBtn);
+        commitBtn.addEventListener("click", () => void this.resolvePendingDecision("keep"));
       }
       if (presentation.showRollbackButton) {
         const rollbackBtn = this.completedEl.createEl("button", {
           cls: "bangumi-rollback-btn mod-warning",
           text: tn("syncModal", "rollbackBatch")
         });
-        rollbackBtn.addEventListener("click", () => void (async () => {
-          rollbackBtn.disabled = true;
-          rollbackBtn.setText("...");
-          if (this.onCancelled) {
-            const rollbackResult = await this.onCancelled();
-            this.pendingDecision = false;
-            rollbackBtn.setText(tnFormat("syncModal", "rollbackComplete", {
-              deleted: rollbackResult.deletedCreatedFiles,
-              contents: rollbackResult.restoredContents,
-              paths: rollbackResult.restoredPaths,
-              failed: rollbackResult.failed
-            }));
-          }
-        })());
+        this.decisionButtons.push(rollbackBtn);
+        rollbackBtn.addEventListener("click", () => void this.resolvePendingDecision("rollback"));
+      }
+      if (result.completion === "rollback-failed" && this.onRecoveryRetry && this.onManualRecovery) {
+        const retryBtn = this.completedEl.createEl("button", {
+          cls: "bangumi-rollback-btn mod-warning",
+          text: "Retry recovery"
+        });
+        const confirmBtn = this.completedEl.createEl("button", {
+          cls: "bangumi-commit-btn",
+          text: "Confirm manual recovery"
+        });
+        this.decisionButtons.push(retryBtn, confirmBtn);
+        retryBtn.addEventListener("click", () => void this.retryRecovery());
+        confirmBtn.addEventListener("click", () => void this.confirmManualRecovery());
       }
       const closeBtn = this.completedEl.createEl("button", {
         cls: "bangumi-sync-close-btn mod-cta",
@@ -9261,18 +9518,85 @@ var SyncModal = class extends import_obsidian12.Modal {
       }
     }
   }
+  async resolvePendingDecision(decision) {
+    if (this.decisionInProgress)
+      return void 0;
+    const handler = decision === "keep" ? this.onCommitted : this.onCancelled;
+    if (!handler)
+      return void 0;
+    this.decisionInProgress = true;
+    for (const button of this.decisionButtons)
+      button.disabled = true;
+    try {
+      const resolved = await handler();
+      this.pendingDecision = !pendingDecisionAllowsClose(resolved);
+      if (resolved.result)
+        this.showCompleted(resolved.result);
+      return resolved;
+    } finally {
+      this.decisionInProgress = false;
+      if (this.pendingDecision)
+        for (const button of this.decisionButtons)
+          button.disabled = false;
+    }
+  }
+  async retryRecovery() {
+    if (this.decisionInProgress || !this.onRecoveryRetry)
+      return;
+    this.decisionInProgress = true;
+    for (const button of this.decisionButtons)
+      button.disabled = true;
+    try {
+      const resolved = await this.onRecoveryRetry();
+      if (resolved.result)
+        this.showCompleted(resolved.result);
+    } finally {
+      this.decisionInProgress = false;
+    }
+  }
+  async confirmManualRecovery() {
+    var _a;
+    if (this.decisionInProgress || !this.onManualRecovery)
+      return;
+    this.decisionInProgress = true;
+    for (const button of this.decisionButtons)
+      button.disabled = true;
+    try {
+      const check = await this.onManualRecovery();
+      if (check.recovered) {
+        this.pendingDecision = false;
+        this.updateStatus("Recovery confirmed");
+        (_a = this.completedEl) == null ? void 0 : _a.createEl("p", { text: "Local recovery checks passed. Sync can continue.", cls: "bangumi-sync-stats" });
+      } else if (this.completedEl) {
+        const details = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details", attr: { open: "" } });
+        details.createEl("summary", { text: `Recovery blockers (${check.blockingDiagnostics.length})` });
+        const list = details.createEl("ul", { cls: "bangumi-sync-error-list" });
+        for (const diagnostic of check.blockingDiagnostics)
+          list.createEl("li", { text: diagnostic });
+        for (const button of this.decisionButtons)
+          button.disabled = false;
+      }
+    } finally {
+      this.decisionInProgress = false;
+    }
+  }
   showPendingClosePrompt() {
-    new PendingSyncDecisionModal(this.app, async (decision) => {
-      var _a, _b;
+    if (this.pendingClosePrompt)
+      return;
+    this.pendingClosePrompt = new PendingSyncDecisionModal(this.app, async (decision) => {
       if (decision === "return")
-        return;
-      if (decision === "keep")
-        await ((_a = this.onCommitted) == null ? void 0 : _a.call(this));
-      if (decision === "rollback")
-        await ((_b = this.onCancelled) == null ? void 0 : _b.call(this));
-      this.pendingDecision = false;
-      super.close();
-    }).open();
+        return true;
+      const resolved = await this.resolvePendingDecision(decision);
+      if (resolved && pendingDecisionAllowsClose(resolved)) {
+        this.pendingDecision = false;
+        super.close();
+        return true;
+      }
+      return false;
+    }, () => {
+      this.pendingClosePrompt = null;
+    });
+    this.pendingClosePrompt.open();
   }
   /**
    * 显示扫描完成状态
@@ -9327,9 +9651,11 @@ var SyncModal = class extends import_obsidian12.Modal {
   }
 };
 var PendingSyncDecisionModal = class extends import_obsidian12.Modal {
-  constructor(app, decide) {
+  constructor(app, decide, closed) {
     super(app);
     this.decide = decide;
+    this.closed = closed;
+    this.resolving = false;
   }
   onOpen() {
     new import_obsidian12.Setting(this.contentEl).setName(tn("syncModal", "pendingDecision")).setHeading();
@@ -9341,10 +9667,24 @@ var PendingSyncDecisionModal = class extends import_obsidian12.Modal {
     ]) {
       const button = actions.createEl("button", { text: label, cls });
       button.addEventListener("click", () => void (async () => {
-        await this.decide(decision);
-        this.close();
+        if (this.resolving)
+          return;
+        this.resolving = true;
+        for (const child of Array.from(actions.querySelectorAll("button")))
+          child.disabled = true;
+        const shouldClose = await this.decide(decision);
+        if (shouldClose)
+          this.close();
+        else {
+          this.resolving = false;
+          for (const child of Array.from(actions.querySelectorAll("button")))
+            child.disabled = false;
+        }
       })());
     }
+  }
+  onClose() {
+    this.closed();
   }
 };
 
@@ -12067,11 +12407,11 @@ var StatusSyncBackgroundLoader = class {
         if (callbacks.isDisposed()) {
           return;
         }
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage2 = error instanceof Error ? error.message : String(error);
         callbacks.updateDiff(snapshot.subjectId, {
           episodeStatusLoadState: selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? "failed" : "ready",
           platformLoadState: hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? "failed" : "ready",
-          backgroundError: errorMessage
+          backgroundError: errorMessage2
         });
       } finally {
         completed++;
@@ -17443,12 +17783,14 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
    * 打开搜索弹窗
    */
   openSearchModal() {
-    if (!this.settings.accessToken) {
-      new import_obsidian31.Notice(tn("notices", "configureTokenFirst"));
-      return;
-    }
     if (!this.syncManager) {
       new import_obsidian31.Notice(tn("notices", "syncManagerNotInit"));
+      return;
+    }
+    if (!this.ensureSyncCanStart())
+      return;
+    if (!this.settings.accessToken) {
+      new import_obsidian31.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     const modal = new SearchModal(
@@ -17467,6 +17809,8 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
    */
   openControlPanel(options) {
     var _a;
+    if (!this.ensureSyncCanStart())
+      return;
     if (!this.settings.accessToken) {
       new import_obsidian31.Notice(tn("notices", "configureTokenFirst"));
       return;
@@ -17512,6 +17856,8 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
    * 打开同步选项弹窗
    */
   openSyncOptions() {
+    if (!this.ensureSyncCanStart())
+      return;
     if (!this.settings.accessToken) {
       new import_obsidian31.Notice(tn("notices", "configureTokenFirst"));
       return;
@@ -17558,6 +17904,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
     this.syncModal = new SyncModal(this.app, this.cancellationSignal);
     this.syncModal.setRollbackHandler(() => this.syncManager.rollbackBatch());
     this.syncModal.setCommitHandler(() => this.syncManager.commitPendingBatch());
+    this.syncModal.setRecoveryHandlers(() => this.syncManager.retryRecovery(), () => this.syncManager.confirmManualRecovery());
     this.syncModal.open();
     this.syncManager.setProgressCallback((progress) => {
       if (this.syncModal) {
@@ -17638,6 +17985,8 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
    * 使用指定选项执行同步
    */
   async syncCollectionsWithOptions(options, showPreview = true) {
+    if (!this.ensureSyncCanStart())
+      return;
     if (!this.settings.accessToken) {
       new import_obsidian31.Notice(tn("notices", "configureTokenFirst"));
       return;
@@ -17659,6 +18008,7 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
     this.syncModal = new SyncModal(this.app, this.cancellationSignal);
     this.syncModal.setRollbackHandler(() => this.syncManager.rollbackBatch());
     this.syncModal.setCommitHandler(() => this.syncManager.commitPendingBatch());
+    this.syncModal.setRecoveryHandlers(() => this.syncManager.retryRecovery(), () => this.syncManager.confirmManualRecovery());
     this.syncModal.open();
     this.syncManager.setProgressCallback((progress) => {
       if (this.syncModal) {
@@ -17709,11 +18059,14 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
                 new import_obsidian31.Notice(tn("notices", "syncCancelled"));
                 return;
               }
+              if (!this.ensureSyncCanStart())
+                return;
               this.cancellationSignal = createCancellationSignal();
               this.syncManager.setCancellationSignal(this.cancellationSignal);
               this.syncModal = new SyncModal(this.app, this.cancellationSignal);
               this.syncModal.setRollbackHandler(() => this.syncManager.rollbackBatch());
               this.syncModal.setCommitHandler(() => this.syncManager.commitPendingBatch());
+              this.syncModal.setRecoveryHandlers(() => this.syncManager.retryRecovery(), () => this.syncManager.confirmManualRecovery());
               this.syncModal.open();
               this.syncManager.setProgressCallback((progress) => {
                 if (this.syncModal) {
@@ -17761,6 +18114,27 @@ var BangumiPlugin = class extends import_obsidian31.Plugin {
       this.cancellationSignal = null;
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar();
+    }
+  }
+  ensureSyncCanStart() {
+    if (!this.syncManager) {
+      new import_obsidian31.Notice(tn("notices", "syncManagerNotInit"));
+      return false;
+    }
+    try {
+      this.syncManager.ensureCanStartSync();
+      return true;
+    } catch (error) {
+      if (error instanceof RecoveryRequiredError) {
+        new import_obsidian31.Notice(`Bangumi Sync recovery required (${error.recovery.reason}). Retry recovery or inspect rollback details before syncing.`);
+      } else if (error instanceof PendingDecisionInProgressError) {
+        new import_obsidian31.Notice("Bangumi sync is still processing the previous keep/rollback decision.");
+      } else if (error instanceof PendingSyncTransactionError) {
+        new import_obsidian31.Notice("Choose whether to keep or roll back the previous partial sync before starting another sync.");
+      } else {
+        new import_obsidian31.Notice(error instanceof Error ? error.message : String(error));
+      }
+      return false;
     }
   }
   cleanupSyncState(statusBarDelay = 0) {
