@@ -264,3 +264,9 @@ Obsidian 集成检查应部署生产构建的 `main.js`、`manifest.json`、`sty
 除完整 lint/test/build 外，定向运行 `syncManagerPathTransaction`、`syncTransaction` 与 `syncCompletionPresentation`。故障注入必须覆盖：双击共享 Promise、提交与回滚竞争、空事务、手动回滚后的最终统计、路径/内容/状态恢复失败、恢复重试以及恢复期间入口阻断。
 
 Sandbox 中应验证两个决策按钮会一起禁用、关闭提示只存在一个、终态会重绘统计、回滚失败详情包含 operation/path/message，并确认控制面板、搜索、预览、自动同步和路径迁移在恢复状态下不会发起网络或文件写入。
+
+## 测试 6.10.4 恢复闭环
+
+自动化测试必须覆盖完整存在/缺失矩阵：absent/absent、absent/present（unexpected）、present/absent（missing）、路径不一致及期望路径身份不一致；同时验证原路径状态重新持久化、配置与 `IncrementalSync` 双重比较、二次扫描、Retry/Manual Confirm 互斥、恢复尝试历史与 latest 分离，以及所有写服务门禁。
+
+Sandbox 中从命令面板打开“Bangumi Sync: Open Bangumi Sync Recovery Center”，确认窗口可关闭并重新打开、上下文仍在；三个动作执行时按钮禁用，完成或异常后整页重绘并重新启用，错误不会产生 unhandled rejection。恢复检查不得请求网络。6.10.4 不测试重启后自动恢复，因为磁盘事务日志仍由 Issue #5 跟踪。
