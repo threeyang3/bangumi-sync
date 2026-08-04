@@ -14,7 +14,7 @@ import { Notice, App, TFile, normalizePath } from 'obsidian';
 import { BangumiClient } from '../api/client';
 import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType, RelatedSubject } from '../../common/api/types';
 import { FileManager, FileWriteStatus } from '../../common/file/fileManager';
-import { ImageHandler } from '../../common/file/imageHandler';
+import { ImageHandler, ImageQuality } from '../../common/file/imageHandler';
 import { IncrementalSync } from './incrementalSync';
 import { determineSyncCompletion, SyncOptions, SyncResult, SyncProgress, SyncCancellationSignal, SyncResultWithRollback, SyncWarning } from './syncStatus';
 import { parseCharacters } from '../../common/parser/characterParser';
@@ -33,7 +33,12 @@ import { SubjectPathAllocation, SubjectPathResolver } from './subjectPathResolve
 import { RecoveryContentExpectation, RecoveryRenameExpectation, RollbackFailure, SyncRollbackResult, SyncTransaction, TransactionRecoveryExpectations, TransactionRename } from './syncTransaction';
 import { cloneSyncManagerConfig } from './syncConfig';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
-import { PersistentRecoveryJournal, RecoveryJournalStore } from './recoveryJournal';
+import {
+	ConfigurationRecoveryFacts,
+	PersistentRecoveryJournal,
+	RecoveryBinaryContentExpectation,
+	RecoveryJournalStore,
+} from './recoveryJournal';
 import { SubjectPathState } from './localSubjectRegistry';
 import {
 	formatDiagnosticReport,
@@ -48,8 +53,11 @@ import {
 	RecoveryDiagnostic,
 	RecoverySubjectExpectation,
 } from './recoveryValidation';
-import { hashRecoveryContent } from './recoveryContent';
+import { decodeRecoveryBase64, encodeRecoveryBase64, hashRecoveryBytes, hashRecoveryContent } from './recoveryContent';
+import { getRecoveryActionPolicy, RecoveryActionPolicy } from './recoveryPolicy';
 export type { RecoveryDiagnostic, RecoverySubjectExpectation } from './recoveryValidation';
+
+const MAX_BINARY_RECOVERY_BYTES = 16 * 1024 * 1024;
 
 function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
@@ -101,6 +109,8 @@ export interface SyncManagerConfig {
 	imagePathTemplate: string;
 	notePathTemplate?: string;  // 笔记链接路径模板
 	downloadImages: boolean;
+	imageQuality: ImageQuality;
+	imageUpdateExisting: boolean;
 	scanFolderPath: string;  // 扫描本地文件夹的路径
 	coverLinkType?: CoverLinkType;  // 封面链接类型
 	enableRelatedLinks?: boolean;  // 是否自动处理关联条目链接
@@ -110,18 +120,20 @@ export interface SyncManagerConfig {
 	subjectPathStates?: Record<string, SubjectPathState>;
 	onPathStatesChanged?: (states: Record<string, SubjectPathState>) => Promise<void>;
 	pathNamingStrategy?: PathNamingStrategy;
+	recoverConfiguration?: (facts: ConfigurationRecoveryFacts) => Promise<SyncManagerConfig>;
+	onConfigurationRecovered?: () => Promise<void> | void;
 }
 
 export type SyncConfigField =
 	| 'accessToken' | 'scanFolderPath' | 'pathTemplate' | 'pathTemplateByType'
 	| 'pathNamingStrategy' | 'subjectPathStates' | 'imagePathTemplate'
-	| 'notePathTemplate' | 'coverLinkType' | 'dataProtection' | 'downloadImages'
+	| 'notePathTemplate' | 'coverLinkType' | 'dataProtection' | 'downloadImages' | 'imageQuality' | 'imageUpdateExisting'
 	| 'enableRelatedLinks' | 'customTemplates';
 
 const TRANSACTION_SENSITIVE_CONFIG_FIELDS = new Set<SyncConfigField>([
 	'scanFolderPath', 'pathTemplate', 'pathTemplateByType', 'pathNamingStrategy',
 	'subjectPathStates', 'imagePathTemplate', 'notePathTemplate', 'coverLinkType',
-	'dataProtection', 'enableRelatedLinks', 'customTemplates',
+	'dataProtection', 'enableRelatedLinks', 'customTemplates', 'imageQuality', 'imageUpdateExisting',
 ]);
 
 export type PendingDecisionState = 'awaiting' | 'committing' | 'rolling-back' | 'committed' | 'rolled-back' | 'rollback-failed';
@@ -147,6 +159,9 @@ export interface RecoveryRequiredState {
 	contentExpectations: RecoveryContentExpectation[];
 	forbiddenPathsAfterRollback: string[];
 	resourcePathsAfterRollback: string[];
+	updatedResourceExpectations: RecoveryBinaryContentExpectation[];
+	orphanTemporaryPaths: string[];
+	configurationFacts?: ConfigurationRecoveryFacts;
 	renameExpectations: RecoveryRenameExpectation[];
 	attempts: RecoveryAttempt[];
 	latestAttempt?: RecoveryAttempt;
@@ -180,6 +195,12 @@ export interface RecoveryActionResult {
 	attempts?: RecoveryAttempt[];
 }
 
+export type RecoveryLifecycleState = 'none' | 'rollback-available' | 'manual-only' | 'diagnostic-only' | 'retrying' | 'validating' | 'recovered';
+
+export interface ManualRecoveryOptions {
+	acceptUnverifiableJournalRisk?: boolean;
+}
+
 export interface RecoveryResolutionSummary {
 	method: 'automatic' | 'retry' | 'manual-verification';
 	currentFailed: number;
@@ -203,6 +224,9 @@ interface PendingSyncTransaction {
 	contentExpectations: RecoveryContentExpectation[];
 	forbiddenPathsAfterRollback: string[];
 	resourcePathsAfterRollback: string[];
+	updatedResourceExpectations: RecoveryBinaryContentExpectation[];
+	orphanTemporaryPaths: string[];
+	configurationFacts?: ConfigurationRecoveryFacts;
 	renameExpectations: RecoveryRenameExpectation[];
 	deferredRelations: DeferredRelation[];
 	resultSnapshot: SyncResultWithRollback;
@@ -286,9 +310,11 @@ export class SyncManager {
 	private lastAutomaticRollback: SyncRollbackResult | undefined;
 	private pendingDecisionPromise: Promise<PendingDecisionResult> | null = null;
 	private recoveryActionPromise: Promise<RecoveryActionResult> | null = null;
+	private recoveryLifecycleState: RecoveryLifecycleState = 'none';
 	private recoveryRequired: RecoveryRequiredState | null = null;
 	private readonly recoveryStateListeners = new Set<RecoveryStateListener>();
 	private readonly managerStateListeners = new Set<ManagerStateListener>();
+	private lastEmittedManagerState: ManagerState | null = null;
 	private configurationUpdateState: 'idle' | 'persisting' | 'applying' | 'rolling-back' = 'idle';
 
 	constructor(app: App, config: SyncManagerConfig) {
@@ -298,7 +324,10 @@ export class SyncManager {
 		this.fileManager = new FileManager(app);
 		this.imageHandler = new ImageHandler(app, this.fileManager);
 		this.imageHandler.setBeforeCreateHook(path => this.persistCreatedResourcePath(path));
+		this.imageHandler.setBeforeUpdateHook((path, originalContent) => this.persistUpdatedResourceExpectation(path, originalContent));
 		this.imageHandler.setDownloadEnabled(config.downloadImages);
+		this.imageHandler.setImageQuality(config.imageQuality);
+		this.imageHandler.setUpdateExisting(config.imageUpdateExisting);
 		this.incrementalSync = new IncrementalSync(app);
 		this.incrementalSync.setPathStates(config.subjectPathStates ?? {});
 		this.userDataExtractor = new UserDataExtractor(app);
@@ -325,6 +354,7 @@ export class SyncManager {
 		const orphanTemps = await this.findTransactionTemporaryPaths();
 		if (orphanTemps.length > 0) {
 			const journal = this.createEmptyRecoveryJournal('recovery-required');
+			journal.orphanTemporaryPaths = [...orphanTemps];
 			await this.recoveryJournalStore.write(journal);
 			this.restorePersistentJournal(journal, 'orphan-temporary');
 		}
@@ -346,9 +376,10 @@ export class SyncManager {
 		return found;
 	}
 
-	async requireConfigurationRecovery(error: unknown): Promise<void> {
+	async requireConfigurationRecovery(error: unknown, facts?: ConfigurationRecoveryFacts): Promise<void> {
 		const message = `Settings persistence rollback failed: ${errorMessage(error)}`;
 		const journal = this.createEmptyRecoveryJournal('recovery-required', message);
+		journal.configurationFacts = facts;
 		this.restorePersistentJournal(journal, 'configuration-rollback-failed');
 		await this.recoveryJournalStore.write(journal);
 	}
@@ -356,10 +387,11 @@ export class SyncManager {
 	private createEmptyRecoveryJournal(state: PersistentRecoveryJournal['state'], blockingIssue?: string): PersistentRecoveryJournal {
 		const now = Date.now();
 		return {
-			schemaVersion: 1, journalId: `recovery-${now}`, pluginVersion: '6.11.0', state,
+			schemaVersion: 1, journalId: `recovery-${now}`, pluginVersion: '6.11.1', state,
 			createdAt: now, updatedAt: now, scanRoot: normalizePath(this.config.scanFolderPath || 'ACGN'),
 			affectedSubjectIds: [], originalPathStates: this.clonePathStates(this.config.subjectPathStates ?? {}),
 			subjectExpectations: [], contentExpectations: [], createdPathExpectations: [], renameExpectations: [], createdResourcePaths: [],
+			updatedResourceExpectations: [], orphanTemporaryPaths: [],
 			resultSnapshot: this.captureResultSnapshot(this.createSyncResult(), false), attempts: [], blockingIssue,
 		};
 	}
@@ -372,20 +404,26 @@ export class SyncManager {
 			scanRootAtBatchStart: journal.scanRoot, contentExpectations: journal.contentExpectations.map(item => ({ ...item })),
 			forbiddenPathsAfterRollback: journal.createdPathExpectations.map(item => item.createdPath),
 			resourcePathsAfterRollback: [...journal.createdResourcePaths],
+			updatedResourceExpectations: journal.updatedResourceExpectations.map(item => ({ ...item })),
+			orphanTemporaryPaths: [...journal.orphanTemporaryPaths],
+			configurationFacts: journal.configurationFacts,
 			renameExpectations: journal.renameExpectations.map(item => ({ ...item })), deferredRelations: [],
 			resultSnapshot: journal.resultSnapshot, createdAt: journal.createdAt, state: 'rollback-failed', journalIssue: journal.blockingIssue,
 		};
 		this.pendingTransaction = pending;
-		this.batchTransactionState = 'rollback-failed';
 		this.recoveryRequired = {
 			reason: forcedReason, rollback: this.emptyRollbackResult(), affectedSubjectIds: [...journal.affectedSubjectIds],
 			originalPathStates: this.clonePathStates(journal.originalPathStates), subjectExpectations: journal.subjectExpectations.map(item => ({ ...item })),
 			scanRoot: journal.scanRoot, contentExpectations: journal.contentExpectations.map(item => ({ ...item })),
 			forbiddenPathsAfterRollback: journal.createdPathExpectations.map(item => item.createdPath),
 			resourcePathsAfterRollback: [...journal.createdResourcePaths],
+			updatedResourceExpectations: journal.updatedResourceExpectations.map(item => ({ ...item })),
+			orphanTemporaryPaths: [...journal.orphanTemporaryPaths],
+			configurationFacts: journal.configurationFacts,
 			renameExpectations: journal.renameExpectations.map(item => ({ ...item })), attempts: journal.attempts.map(item => this.cloneRecoveryAttempt(item)),
 			detectedAt: Date.now(), journalIssue: journal.blockingIssue,
 		};
+		this.setBatchTransactionState('rollback-failed');
 		this.notifyRecoveryStateChanged();
 	}
 
@@ -518,6 +556,9 @@ export class SyncManager {
 			contentExpectations: this.recoveryRequired.contentExpectations.map(item => ({ ...item })),
 			forbiddenPathsAfterRollback: [...this.recoveryRequired.forbiddenPathsAfterRollback],
 			resourcePathsAfterRollback: [...this.recoveryRequired.resourcePathsAfterRollback],
+			updatedResourceExpectations: this.recoveryRequired.updatedResourceExpectations.map(item => ({ ...item })),
+			orphanTemporaryPaths: [...this.recoveryRequired.orphanTemporaryPaths],
+			configurationFacts: this.recoveryRequired.configurationFacts,
 			renameExpectations: this.recoveryRequired.renameExpectations.map(item => ({ ...item })),
 			attempts: this.recoveryRequired.attempts.map(item => this.cloneRecoveryAttempt(item)),
 			latestAttempt: this.recoveryRequired.latestAttempt ? this.cloneRecoveryAttempt(this.recoveryRequired.latestAttempt) : undefined,
@@ -528,12 +569,25 @@ export class SyncManager {
 		return this.resolveRecoveryAction('retry-rollback');
 	}
 
-	confirmManualRecovery(): Promise<RecoveryActionResult> {
-		return this.resolveRecoveryAction('confirm-manual');
+	confirmManualRecovery(options: ManualRecoveryOptions = {}): Promise<RecoveryActionResult> {
+		return this.resolveRecoveryAction('confirm-manual', options);
 	}
 
 	rescanRecovery(): Promise<RecoveryActionResult> {
 		return this.resolveRecoveryAction('rescan');
+	}
+
+	getRecoveryActionPolicy(): RecoveryActionPolicy | null {
+		return this.recoveryRequired ? getRecoveryActionPolicy(this.recoveryRequired) : null;
+	}
+
+	getRecoveryLifecycleState(): RecoveryLifecycleState {
+		if (this.recoveryActionPromise) return this.recoveryLifecycleState;
+		if (!this.recoveryRequired) return this.recoveryLifecycleState === 'recovered' ? 'recovered' : 'none';
+		const policy = getRecoveryActionPolicy(this.recoveryRequired);
+		if (policy.allowRetryRollback) return 'rollback-available';
+		if (policy.allowManualConfirmation) return 'manual-only';
+		return 'diagnostic-only';
 	}
 
 	/**
@@ -545,9 +599,15 @@ export class SyncManager {
 	}
 
 	private applyConfigSnapshot(config: SyncManagerConfig): void {
-		this.config = cloneSyncManagerConfig(config);
+		this.config = cloneSyncManagerConfig({
+			...config,
+			recoverConfiguration: config.recoverConfiguration ?? this.config.recoverConfiguration,
+			onConfigurationRecovered: config.onConfigurationRecovered ?? this.config.onConfigurationRecovered,
+		});
 		if (Object.prototype.hasOwnProperty.call(config, 'accessToken')) this.client.setAccessToken(config.accessToken ?? '');
 		if (Object.prototype.hasOwnProperty.call(config, 'downloadImages')) this.imageHandler.setDownloadEnabled(config.downloadImages ?? false);
+		if (Object.prototype.hasOwnProperty.call(config, 'imageQuality')) this.imageHandler.setImageQuality(config.imageQuality);
+		if (Object.prototype.hasOwnProperty.call(config, 'imageUpdateExisting')) this.imageHandler.setUpdateExisting(config.imageUpdateExisting);
 		if (Object.prototype.hasOwnProperty.call(config, 'subjectPathStates') && config.subjectPathStates) {
 			this.incrementalSync.setPathStates(config.subjectPathStates);
 		}
@@ -567,9 +627,17 @@ export class SyncManager {
 
 	private notifyManagerStateChanged(): void {
 		const state = this.getManagerState();
+		if (state === this.lastEmittedManagerState) return;
+		this.lastEmittedManagerState = state;
 		for (const listener of this.managerStateListeners) {
 			try { listener(state); } catch { /* A stale view must not interrupt manager transitions. */ }
 		}
+	}
+
+	private setBatchTransactionState(state: BatchTransactionState): void {
+		if (this.batchTransactionState === state) return;
+		this.batchTransactionState = state;
+		this.notifyManagerStateChanged();
 	}
 
 	private async persistPathStates(): Promise<void> {
@@ -599,6 +667,9 @@ export class SyncManager {
 		contentExpectations: RecoveryContentExpectation[];
 		forbiddenPathsAfterRollback: string[];
 		resourcePathsAfterRollback: string[];
+		updatedResourceExpectations: RecoveryBinaryContentExpectation[];
+		orphanTemporaryPaths: string[];
+		configurationFacts?: ConfigurationRecoveryFacts;
 		renameExpectations: RecoveryRenameExpectation[];
 	}> {
 		const contentExpectations: RecoveryContentExpectation[] = [];
@@ -614,6 +685,9 @@ export class SyncManager {
 			contentExpectations,
 			forbiddenPathsAfterRollback: Array.from(new Set(forbiddenPathsAfterRollback.map(normalizePath))),
 			resourcePathsAfterRollback: [...(this.activeRecoveryJournal?.createdResourcePaths ?? [])],
+			updatedResourceExpectations: (this.activeRecoveryJournal?.updatedResourceExpectations ?? []).map(item => ({ ...item })),
+			orphanTemporaryPaths: [...(this.activeRecoveryJournal?.orphanTemporaryPaths ?? [])],
+			configurationFacts: this.activeRecoveryJournal?.configurationFacts,
 			renameExpectations,
 		};
 	}
@@ -646,12 +720,29 @@ export class SyncManager {
 		await this.recoveryJournalStore.write(this.activeRecoveryJournal);
 	}
 
+	private async persistUpdatedResourceExpectation(path: string, originalContent: ArrayBuffer): Promise<void> {
+		if (!this.activeRecoveryJournal) throw new Error('Cannot update an existing binary without an active recovery journal.');
+		const normalized = normalizePath(path);
+		if (this.activeRecoveryJournal.updatedResourceExpectations.some(item => normalizePathCollisionKey(item.path) === normalizePathCollisionKey(normalized))) return;
+		const bytes = new Uint8Array(originalContent);
+		if (bytes.byteLength > MAX_BINARY_RECOVERY_BYTES) {
+			throw new Error(`Existing binary is ${bytes.byteLength} bytes; the transactional update limit is ${MAX_BINARY_RECOVERY_BYTES} bytes.`);
+		}
+		this.activeRecoveryJournal.updatedResourceExpectations.push({
+			path: normalized,
+			originalByteLength: bytes.byteLength,
+			originalSha256: await hashRecoveryBytes(bytes),
+			originalContentBase64: encodeRecoveryBase64(bytes),
+		});
+		await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+	}
+
 	private async beginCoverUpdateJournal(subjectId: number, file: TFile, originalContent: string): Promise<void> {
 		const now = Date.now();
-		this.activeRecoveryJournal = {
+		const journal: PersistentRecoveryJournal = {
 			schemaVersion: 1,
 			journalId: `cover-${subjectId}-${now}`,
-			pluginVersion: '6.11.0',
+			pluginVersion: '6.11.1',
 			state: 'active',
 			createdAt: now,
 			updatedAt: now,
@@ -669,10 +760,13 @@ export class SyncManager {
 			createdPathExpectations: [],
 			renameExpectations: [],
 			createdResourcePaths: [],
+			updatedResourceExpectations: [],
+			orphanTemporaryPaths: [],
 			resultSnapshot: this.captureResultSnapshot(this.createSyncResult(1), false),
 			attempts: [],
 		};
-		await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+		this.activeRecoveryJournal = journal;
+		await this.recoveryJournalStore.write(journal);
 	}
 
 	private journalFromPending(pending: PendingSyncTransaction, state: PersistentRecoveryJournal['state']): PersistentRecoveryJournal {
@@ -686,6 +780,9 @@ export class SyncManager {
 				.find(item => normalizePathCollisionKey(item.createdPath) === normalizePathCollisionKey(path))
 				?? { subjectId: -1, createdPath: path, expectedToExistAfterRollback: false }),
 			createdResourcePaths: [...pending.resourcePathsAfterRollback],
+			updatedResourceExpectations: pending.updatedResourceExpectations.map(item => ({ ...item })),
+			orphanTemporaryPaths: [...pending.orphanTemporaryPaths],
+			configurationFacts: pending.configurationFacts,
 			renameExpectations: pending.renameExpectations.map(item => ({ ...item })), resultSnapshot: pending.resultSnapshot,
 			attempts: this.recoveryRequired?.attempts.map(item => this.cloneRecoveryAttempt(item)) ?? current.attempts,
 			blockingIssue: pending.journalIssue,
@@ -697,13 +794,28 @@ export class SyncManager {
 		await this.recoveryJournalStore.write(this.activeRecoveryJournal);
 	}
 
-	private resolveRecoveryAction(action: RecoveryAction): Promise<RecoveryActionResult> {
+	private resolveRecoveryAction(action: RecoveryAction, manualOptions: ManualRecoveryOptions = {}): Promise<RecoveryActionResult> {
 		if (this.recoveryActionPromise) return this.recoveryActionPromise;
 		if (!this.recoveryRequired || !this.pendingTransaction) {
 			return Promise.resolve({ action, status: 'no-recovery', recovered: true, diagnostics: [] });
 		}
+		const policy = getRecoveryActionPolicy(this.recoveryRequired);
+		const allowed = action === 'retry-rollback' ? policy.allowRetryRollback
+			: action === 'confirm-manual' ? policy.allowManualConfirmation
+				: action === 'rescan' ? policy.allowRescan : false;
+		if (!allowed || (action === 'confirm-manual' && policy.requiresUnverifiableRiskAcceptance && !manualOptions.acceptUnverifiableJournalRisk)) {
+			const message = !allowed
+				? `${action} is not permitted for recovery reason ${this.recoveryRequired.reason}.`
+				: 'Explicit acceptance of unverifiable journal risk is required.';
+			return Promise.resolve({
+				action, status: 'blocked', recovered: false,
+				diagnostics: [{ code: 'blocking-local-file', path: '.bangumi-sync-recovery.json', message }],
+				recovery: this.getRecoveryRequired() ?? undefined,
+			});
+		}
 		const startedAt = Date.now();
-		const promise = this.performRecoveryAction(action, startedAt);
+		this.recoveryLifecycleState = action === 'rescan' ? 'validating' : 'retrying';
+		const promise = this.performRecoveryAction(action, startedAt, manualOptions);
 		this.recoveryActionPromise = promise;
 		promise.then(
 			() => { if (this.recoveryActionPromise === promise) this.recoveryActionPromise = null; },
@@ -712,7 +824,7 @@ export class SyncManager {
 		return promise;
 	}
 
-	private async performRecoveryAction(action: RecoveryAction, startedAt: number): Promise<RecoveryActionResult> {
+	private async performRecoveryAction(action: RecoveryAction, startedAt: number, manualOptions: ManualRecoveryOptions): Promise<RecoveryActionResult> {
 		const recovery = this.recoveryRequired;
 		const pending = this.pendingTransaction;
 		if (!recovery || !pending) return { action, status: 'no-recovery', recovered: true, diagnostics: [] };
@@ -720,7 +832,7 @@ export class SyncManager {
 		try {
 			if (action === 'retry-rollback') {
 				pending.state = 'rolling-back';
-				this.batchTransactionState = 'rolling-back';
+				this.setBatchTransactionState('rolling-back');
 				const decision = await this.rollbackPendingTransaction(pending);
 				const diagnostics = decision.status === 'rollback-failed'
 					? this.rollbackFailureDiagnostics(decision.rollback)
@@ -736,7 +848,7 @@ export class SyncManager {
 					recovery: this.getRecoveryRequired() ?? undefined,
 				};
 			} else if (action === 'confirm-manual') {
-				outcome = await this.performManualRecovery(recovery, pending);
+				outcome = await this.performManualRecovery(recovery, pending, manualOptions);
 			} else {
 				const diagnostics = await this.collectRecoveryDiagnostics(recovery);
 				outcome = {
@@ -778,8 +890,26 @@ export class SyncManager {
 		return outcome;
 	}
 
-	private async performManualRecovery(recovery: RecoveryRequiredState, pending: PendingSyncTransaction): Promise<RecoveryActionResult> {
-		let diagnostics = await this.collectRecoveryDiagnostics(recovery);
+	private async performManualRecovery(recovery: RecoveryRequiredState, pending: PendingSyncTransaction, options: ManualRecoveryOptions): Promise<RecoveryActionResult> {
+		let configurationReconciled = false;
+		if (recovery.reason === 'configuration-rollback-failed') {
+			if (!recovery.configurationFacts || !this.config.recoverConfiguration) {
+				const diagnostics: RecoveryDiagnostic[] = [{ code: 'persisted-state-mismatch', message: 'Configuration recovery facts or reconciliation handler are unavailable.' }];
+				return { action: 'confirm-manual', status: 'blocked', recovered: false, diagnostics, recovery: this.getRecoveryRequired() ?? undefined };
+			}
+			try {
+				const reconciledConfig = await this.config.recoverConfiguration(recovery.configurationFacts);
+				this.applyConfigSnapshot(reconciledConfig);
+				await reconciledConfig.onConfigurationRecovered?.();
+				configurationReconciled = true;
+			} catch (error) {
+				const diagnostics: RecoveryDiagnostic[] = [{ code: 'persisted-state-mismatch', message: errorMessage(error) }];
+				return { action: 'confirm-manual', status: 'failed', recovered: false, diagnostics, error: errorMessage(error), recovery: this.getRecoveryRequired() ?? undefined };
+			}
+		}
+		const ignoreJournalIssue = (recovery.reason === 'journal-corrupt' && options.acceptUnverifiableJournalRisk === true)
+			|| configurationReconciled;
+		let diagnostics = await this.collectRecoveryDiagnostics(recovery, { ignoreJournalIssue });
 		if (diagnostics.length > 0) {
 			return { action: 'confirm-manual', status: 'blocked', recovered: false, diagnostics, recovery: this.getRecoveryRequired() ?? undefined };
 		}
@@ -792,7 +922,7 @@ export class SyncManager {
 		if (!pathStatesEqual(this.config.subjectPathStates ?? {}, recovery.originalPathStates)) {
 			diagnostics.push({ code: 'persisted-state-mismatch', message: 'Persisted subject path states differ from the pre-batch snapshot.' });
 		}
-		if (diagnostics.length === 0) diagnostics = await this.collectRecoveryDiagnostics(recovery);
+		if (diagnostics.length === 0) diagnostics = await this.collectRecoveryDiagnostics(recovery, { ignoreJournalIssue });
 		if (diagnostics.length === 0) this.incrementalSync.setPathStates(recovery.originalPathStates);
 		if (diagnostics.length > 0) {
 			return { action: 'confirm-manual', status: 'blocked', recovered: false, diagnostics, recovery: this.getRecoveryRequired() ?? undefined };
@@ -810,10 +940,11 @@ export class SyncManager {
 		this.recoveryRequired = null;
 		this.pendingTransaction = null;
 		this.pendingDecisionPromise = null;
-		this.batchTransactionState = 'rolled-back';
+		this.setBatchTransactionState('rolled-back');
 		this.incrementalSync.clearBatch();
 		await this.recoveryJournalStore.clear();
 		this.activeRecoveryJournal = null;
+		this.recoveryLifecycleState = 'recovered';
 		this.notifyRecoveryStateChanged();
 		return {
 			action: 'confirm-manual', status: 'recovered', recovered: true, diagnostics: [], result, rollback: finalRollback,
@@ -864,13 +995,21 @@ export class SyncManager {
 		if (pending.state !== 'awaiting') return Promise.resolve({ status: 'busy' });
 
 		pending.state = action === 'commit' ? 'committing' : 'rolling-back';
-		this.batchTransactionState = action === 'commit' ? 'committing' : 'rolling-back';
-		this.notifyManagerStateChanged();
+		this.setBatchTransactionState(action === 'commit' ? 'committing' : 'rolling-back');
 		const promise = action === 'commit'
 			? this.commitPendingTransaction(pending)
 			: this.rollbackPendingTransaction(pending);
 		this.pendingDecisionPromise = promise;
-		promise.then(() => { this.pendingDecisionPromise = null; }, () => { this.pendingDecisionPromise = null; });
+		promise.then(
+			() => {
+				if (this.pendingDecisionPromise === promise) this.pendingDecisionPromise = null;
+				this.notifyManagerStateChanged();
+			},
+			() => {
+				if (this.pendingDecisionPromise === promise) this.pendingDecisionPromise = null;
+				this.notifyManagerStateChanged();
+			},
+		);
 		return promise;
 	}
 
@@ -881,7 +1020,7 @@ export class SyncManager {
 			for (const transaction of pending.transactions) transaction.commit();
 		} catch (error) {
 			pending.state = 'rolling-back';
-			this.batchTransactionState = 'rolling-back';
+			this.setBatchTransactionState('rolling-back');
 			return this.rollbackPendingTransaction(pending, error);
 		}
 		let warnings: SyncWarning[] = [];
@@ -895,7 +1034,7 @@ export class SyncManager {
 		const result = this.snapshotAfterDecision(pending, 'committed', undefined, warnings);
 		pending.state = 'committed';
 		this.pendingTransaction = null;
-		this.batchTransactionState = 'committed';
+		this.setBatchTransactionState('committed');
 		this.incrementalSync.finishBatch();
 		await this.recoveryJournalStore.clear();
 		this.activeRecoveryJournal = null;
@@ -941,12 +1080,28 @@ export class SyncManager {
 		this.incrementalSync.clearBatch();
 		this.markGroupsRolledBack(pending);
 		this.lastAutomaticRollback = result;
+		if (result.failed === 0) {
+			const validationRecovery: RecoveryRequiredState = this.recoveryRequired ?? {
+				reason: 'rollback-failed', rollback: result,
+				affectedSubjectIds: [...pending.affectedSubjectIds], originalPathStates: this.clonePathStates(pending.previousPathStates),
+				subjectExpectations: pending.subjectExpectations.map(item => ({ ...item })), scanRoot: pending.scanRootAtBatchStart,
+				contentExpectations: pending.contentExpectations.map(item => ({ ...item })),
+				forbiddenPathsAfterRollback: [...pending.forbiddenPathsAfterRollback], resourcePathsAfterRollback: [...pending.resourcePathsAfterRollback],
+				updatedResourceExpectations: pending.updatedResourceExpectations.map(item => ({ ...item })),
+				orphanTemporaryPaths: [...pending.orphanTemporaryPaths], configurationFacts: pending.configurationFacts,
+				renameExpectations: pending.renameExpectations.map(item => ({ ...item })), attempts: [], detectedAt: Date.now(), journalIssue: pending.journalIssue,
+			};
+			this.recoveryLifecycleState = 'validating';
+			const diagnostics = await this.collectRecoveryDiagnostics(validationRecovery);
+			for (const diagnostic of diagnostics) this.recordManagerRollbackFailure(result, 'post-validation', 'recovery', new Error(diagnostic.message));
+			if (diagnostics.length > 0) this.recoveryRequired = { ...validationRecovery, rollback: result };
+		}
 		const failed = result.failed > 0;
 		const snapshot = this.snapshotAfterDecision(pending, failed ? 'rollback-failed' : 'rolled-back', result,
 			cause ? [{ operation: 'commit', message: errorMessage(cause) }] : []);
 		if (failed) {
 			pending.state = 'rollback-failed';
-			this.batchTransactionState = 'rollback-failed';
+			this.setBatchTransactionState('rollback-failed');
 			const operations = new Set(result.failures?.map(item => item.operation));
 			const existingRecovery = this.recoveryRequired;
 			const automaticAttempt: RecoveryAttempt = {
@@ -965,6 +1120,9 @@ export class SyncManager {
 				contentExpectations: pending.contentExpectations.map(item => ({ ...item })),
 				forbiddenPathsAfterRollback: [...pending.forbiddenPathsAfterRollback],
 				resourcePathsAfterRollback: [...pending.resourcePathsAfterRollback],
+				updatedResourceExpectations: pending.updatedResourceExpectations.map(item => ({ ...item })),
+				orphanTemporaryPaths: [...pending.orphanTemporaryPaths],
+				configurationFacts: pending.configurationFacts,
 				renameExpectations: pending.renameExpectations.map(item => ({ ...item })),
 				attempts: existingRecovery?.attempts.map(item => this.cloneRecoveryAttempt(item)) ?? [automaticAttempt],
 				latestAttempt: existingRecovery?.latestAttempt ? this.cloneRecoveryAttempt(existingRecovery.latestAttempt) : automaticAttempt,
@@ -978,7 +1136,7 @@ export class SyncManager {
 		pending.state = 'rolled-back';
 		this.pendingTransaction = null;
 		this.recoveryRequired = null;
-		this.batchTransactionState = 'rolled-back';
+		this.setBatchTransactionState('rolled-back');
 		await this.recoveryJournalStore.clear();
 		this.activeRecoveryJournal = null;
 		this.notifyRecoveryStateChanged();
@@ -986,6 +1144,40 @@ export class SyncManager {
 	}
 
 	private async rollbackPersistentFacts(pending: PendingSyncTransaction, result: SyncRollbackResult): Promise<void> {
+		for (const rename of [...pending.renameExpectations].reverse()) {
+			const existingOriginal = this.findVaultFilesByCollisionPath(rename.originalPath)[0];
+			if (existingOriginal) {
+				try {
+					const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(existingOriginal));
+					if (identity.subjectId !== rename.subjectId) throw new Error(`Original path belongs to subject ${String(identity.subjectId)}, expected ${rename.subjectId}.`);
+				} catch (error) {
+					this.recordManagerRollbackFailure(result, 'restore-path', rename.originalPath, error);
+				}
+				continue;
+			}
+			const sourceFile = (rename.temporaryPath ? this.findVaultFilesByCollisionPath(rename.temporaryPath)[0] : null)
+				?? this.findVaultFilesByCollisionPath(rename.finalPath)[0];
+			const hiddenTemporaryPath = !sourceFile && rename.temporaryPath && await this.app.vault.adapter.exists(rename.temporaryPath)
+				? rename.temporaryPath
+				: null;
+			if (!sourceFile && !hiddenTemporaryPath) {
+				this.recordManagerRollbackFailure(result, 'restore-path', rename.originalPath, new Error('No recorded rename path exists.'));
+				continue;
+			}
+			try {
+				const content = sourceFile ? await this.app.vault.read(sourceFile) : await this.app.vault.adapter.read(hiddenTemporaryPath!);
+				const identity = this.documentService.getSubjectIdentityFromContent(content);
+				if (identity.subjectId !== rename.subjectId) throw new Error(`Rename source belongs to subject ${String(identity.subjectId)}, expected ${rename.subjectId}.`);
+				await this.fileManager.ensureDirectory(rename.originalPath);
+				if (sourceFile) await this.app.fileManager.renameFile(sourceFile, rename.originalPath);
+				else await this.app.vault.adapter.rename(hiddenTemporaryPath!, rename.originalPath);
+				result.attempted = true;
+				result.changed = true;
+				result.restoredPaths++;
+			} catch (error) {
+				this.recordManagerRollbackFailure(result, 'restore-path', rename.originalPath, error);
+			}
+		}
 		for (const path of [...pending.forbiddenPathsAfterRollback].reverse()) {
 			const file = this.findVaultFilesByCollisionPath(path)[0];
 			if (!file) continue;
@@ -999,7 +1191,10 @@ export class SyncManager {
 			}
 		}
 		for (const expectation of pending.contentExpectations) {
-			const file = this.findVaultFilesByCollisionPath(expectation.path)[0];
+			const rename = pending.renameExpectations.find(item => item.subjectId === expectation.subjectId);
+			const candidates = [expectation.path, rename?.expectedTerminalPath, rename?.temporaryPath, rename?.finalPath]
+				.filter((path): path is string => Boolean(path));
+			const file = candidates.flatMap(path => this.findVaultFilesByCollisionPath(path))[0];
 			if (!file) {
 				this.recordManagerRollbackFailure(result, 'restore-content', expectation.path, new Error('Original content file is missing.'));
 				continue;
@@ -1015,33 +1210,32 @@ export class SyncManager {
 				this.recordManagerRollbackFailure(result, 'restore-content', expectation.path, error);
 			}
 		}
-		for (const rename of [...pending.renameExpectations].reverse()) {
-			if (this.findVaultFilesByCollisionPath(rename.originalPath).length > 0) continue;
-			const sourceFile = (rename.temporaryPath ? this.findVaultFilesByCollisionPath(rename.temporaryPath)[0] : null)
-				?? this.findVaultFilesByCollisionPath(rename.finalPath)[0];
-			const hiddenTemporaryPath = !sourceFile && rename.temporaryPath && await this.app.vault.adapter.exists(rename.temporaryPath)
-				? rename.temporaryPath
-				: null;
-			if (!sourceFile && !hiddenTemporaryPath) {
-				this.recordManagerRollbackFailure(result, 'restore-path', rename.originalPath, new Error('No recorded rename path exists.'));
-				continue;
-			}
+		for (const expectation of pending.updatedResourceExpectations) {
 			try {
-				const content = sourceFile
-					? await this.app.vault.read(sourceFile)
-					: await this.app.vault.adapter.read(hiddenTemporaryPath!);
-				const identity = this.documentService.getSubjectIdentityFromContent(content);
-				if (identity.subjectId !== rename.subjectId) throw new Error(`Rename source belongs to subject ${String(identity.subjectId)}, expected ${rename.subjectId}.`);
-				await this.fileManager.ensureDirectory(rename.originalPath);
-				if (sourceFile) await this.app.fileManager.renameFile(sourceFile, rename.originalPath);
-				else await this.app.vault.adapter.rename(hiddenTemporaryPath!, rename.originalPath);
+				const file = this.findVaultFilesByAnyPath(expectation.path)[0];
+				if (!file) throw new Error('Updated binary resource is missing.');
+				const original = decodeRecoveryBase64(expectation.originalContentBase64);
+				if (original.byteLength !== expectation.originalByteLength) throw new Error('Recorded binary length does not match its recovery content.');
+				if (await hashRecoveryBytes(original) !== expectation.originalSha256) throw new Error('Recorded binary recovery content hash is invalid.');
+				await this.app.vault.modifyBinary(file, original.slice().buffer);
+				const restored = new Uint8Array(await this.app.vault.readBinary(file));
+				if (restored.byteLength !== expectation.originalByteLength || await hashRecoveryBytes(restored) !== expectation.originalSha256) {
+					throw new Error('Restored binary failed SHA-256 verification.');
+				}
 				result.attempted = true;
 				result.changed = true;
-				result.restoredPaths++;
+				result.restoredContents++;
 			} catch (error) {
-				this.recordManagerRollbackFailure(result, 'restore-path', rename.originalPath, error);
+				this.recordManagerRollbackFailure(result, 'restore-binary', expectation.path, error);
 			}
 		}
+	}
+
+	private findVaultFilesByAnyPath(path: string): TFile[] {
+		const normalized = normalizePath(path);
+		const exact = this.app.vault.getAbstractFileByPath(normalized);
+		const matches = this.app.vault.getFiles().filter(file => normalizePathCollisionKey(file.path) === normalizePathCollisionKey(normalized));
+		return exact instanceof TFile ? [exact, ...matches.filter(file => file !== exact)] : matches;
 	}
 
 	private recordManagerRollbackFailure(result: SyncRollbackResult, operation: RollbackFailure['operation'], path: string, error: unknown): void {
@@ -1105,9 +1299,9 @@ export class SyncManager {
 		});
 	}
 
-	private async collectRecoveryDiagnostics(recovery: RecoveryRequiredState): Promise<RecoveryDiagnostic[]> {
+	private async collectRecoveryDiagnostics(recovery: RecoveryRequiredState, options: { ignoreJournalIssue?: boolean } = {}): Promise<RecoveryDiagnostic[]> {
 		const diagnostics: RecoveryDiagnostic[] = [];
-		if (recovery.journalIssue) diagnostics.push({
+		if (recovery.journalIssue && !options.ignoreJournalIssue) diagnostics.push({
 			code: 'blocking-local-file', path: '.bangumi-sync-recovery.json', message: recovery.journalIssue,
 		});
 		try {
@@ -1158,6 +1352,22 @@ export class SyncManager {
 		for (const path of recovery.resourcePathsAfterRollback) {
 			if (await this.app.vault.adapter.exists(path)) diagnostics.push({
 				code: 'unexpected-created-path', path, message: `A cover resource created by the failed batch still exists: ${path}.`,
+			});
+		}
+		for (const expectation of recovery.updatedResourceExpectations) {
+			const matches = this.findVaultFilesByAnyPath(expectation.path);
+			this.recordAmbiguousConcretePath(expectation.path, matches, diagnostics);
+			const file = matches[0];
+			if (!file) {
+				diagnostics.push({ code: 'content-file-missing', subjectId: -1, path: expectation.path, message: 'The pre-update binary resource is missing.' });
+				continue;
+			}
+			const bytes = new Uint8Array(await this.app.vault.readBinary(file));
+			const actualHash = await hashRecoveryBytes(bytes);
+			if (bytes.byteLength !== expectation.originalByteLength || actualHash !== expectation.originalSha256) diagnostics.push({
+				code: 'content-mismatch', subjectId: -1, path: expectation.path,
+				expectedHash: expectation.originalSha256, actualHash,
+				message: `Original binary hash ${expectation.originalSha256.slice(0, 8)} does not match ${actualHash.slice(0, 8)}.`,
 			});
 		}
 		for (const rename of recovery.renameExpectations) {
@@ -1499,8 +1709,7 @@ export class SyncManager {
 	): Promise<{ wasCancelled: boolean; relations: Array<{ subjectId: number; filePath: string; relations: RelatedSubject[] }> }> {
 		this.lastAutomaticRollback = undefined;
 		this.assertNoPendingTransaction();
-		this.batchTransactionState = 'active';
-		this.notifyManagerStateChanged();
+		this.setBatchTransactionState('active');
 		const scanRootAtBatchStart = normalizePath(this.config.scanFolderPath || 'ACGN');
 		const previousPathStates = this.clonePathStates(this.config.subjectPathStates ?? {});
 		const originalRecords = new Map(Array.from(this.incrementalSync.getRegistry().idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
@@ -1509,13 +1718,15 @@ export class SyncManager {
 			...batch.renamed.map(item => item.subjectId),
 		]);
 		const now = Date.now();
-		this.activeRecoveryJournal = {
-			schemaVersion: 1, journalId: `sync-${now}`, pluginVersion: '6.11.0', state: 'active', createdAt: now, updatedAt: now,
+		const journal: PersistentRecoveryJournal = {
+			schemaVersion: 1, journalId: `sync-${now}`, pluginVersion: '6.11.1', state: 'active', createdAt: now, updatedAt: now,
 			scanRoot: scanRootAtBatchStart, affectedSubjectIds: Array.from(plannedSubjectIds), originalPathStates: previousPathStates,
 			subjectExpectations: this.recoveryExpectationsFor(plannedSubjectIds, originalRecords), contentExpectations: [],
-			createdPathExpectations: [], renameExpectations: [], createdResourcePaths: [], resultSnapshot: this.captureResultSnapshot(result, false), attempts: [],
+			createdPathExpectations: [], renameExpectations: [], createdResourcePaths: [], updatedResourceExpectations: [],
+			orphanTemporaryPaths: [], resultSnapshot: this.captureResultSnapshot(result, false), attempts: [],
 		};
-		await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+		this.activeRecoveryJournal = journal;
+		await this.recoveryJournalStore.write(journal);
 		for (const failure of batch.failures) this.recordPreparedFailure(result, failure);
 
 		let wasCancelled = false;
@@ -1663,8 +1874,7 @@ export class SyncManager {
 				state: 'awaiting',
 			};
 			await this.persistPendingJournal(this.pendingTransaction, 'awaiting-decision');
-			this.batchTransactionState = 'awaiting-user-decision';
-			this.notifyManagerStateChanged();
+			this.setBatchTransactionState('awaiting-user-decision');
 			return { wasCancelled, relations: [] };
 		}
 
@@ -1673,8 +1883,7 @@ export class SyncManager {
 				await this.persistPathStates();
 				for (const transaction of successfulTransactions) transaction.commit();
 				this.incrementalSync.finishBatch();
-				this.batchTransactionState = 'committed';
-				this.notifyManagerStateChanged();
+				this.setBatchTransactionState('committed');
 				await this.recoveryJournalStore.clear();
 				this.activeRecoveryJournal = null;
 			} catch {
@@ -1697,10 +1906,9 @@ export class SyncManager {
 			}
 		} else {
 			this.incrementalSync.clearBatch();
-			this.batchTransactionState = hadAutomaticRollback
+			this.setBatchTransactionState(hadAutomaticRollback
 				? automaticRollback.failed > 0 ? 'rollback-failed' : 'rolled-back'
-				: 'none';
-			this.notifyManagerStateChanged();
+				: 'none');
 			if (hadAutomaticRollback) this.lastAutomaticRollback = automaticRollback;
 			await this.recoveryJournalStore.clear();
 			this.activeRecoveryJournal = null;
@@ -2088,7 +2296,7 @@ export class SyncManager {
 	 * 下载并解析本地封面路径
 	 */
 	private async resolveLocalCoverPath(subject: Subject, typeLabel: string): Promise<string> {
-		const coverUrl = subject.images?.large || subject.images?.common || '';
+		const coverUrl = this.imageHandler.selectImageUrlByQuality(subject.images);
 		if (!this.config.downloadImages || !coverUrl) {
 			return '';
 		}
@@ -2679,8 +2887,7 @@ export class SyncManager {
 	 */
 	async batchDownloadCovers(): Promise<{ downloaded: number; skipped: number; failed: number }> {
 		this.ensureCanStartSync();
-		this.batchTransactionState = 'active';
-		this.notifyManagerStateChanged();
+		this.setBatchTransactionState('active');
 		const scanPath = this.config.scanFolderPath || 'ACGN';
 		try {
 			await this.incrementalSync.scanLocalFolder(scanPath);
@@ -2718,18 +2925,31 @@ export class SyncManager {
 				const name = this.extractFrontmatterString(content, '原名') || '';
 				const typeLabel = this.extractFrontmatterString(content, '作品大类') || '';
 
+				const coverVars = { name_cn, name, typeLabel };
+				const targetPath = this.imageHandler.getCoverTargetPath(coverValue, subjectId, this.config.imagePathTemplate, coverVars);
+				if (this.fileManager.getFile(targetPath) && !this.config.imageUpdateExisting) {
+					result.skipped++;
+					continue;
+				}
 				await this.beginCoverUpdateJournal(subjectId, file, content);
 
 				// 下载封面图片
-				const localPath = await this.imageHandler.downloadCover(
+				const coverDownload = await this.imageHandler.downloadCoverWithResult(
 					coverValue, subjectId, this.config.imagePathTemplate,
-					{ name_cn, name, typeLabel }
+					coverVars
 				);
+				const localPath = coverDownload.path;
 
 				if (!localPath || localPath.startsWith('http')) {
 					await this.recoveryJournalStore.clear();
 					this.activeRecoveryJournal = null;
 					result.failed++;
+					continue;
+				}
+				if (coverDownload.status === 'unchanged') {
+					await this.recoveryJournalStore.clear();
+					this.activeRecoveryJournal = null;
+					result.skipped++;
 					continue;
 				}
 
@@ -2765,8 +2985,7 @@ export class SyncManager {
 			return result;
 		} finally {
 			if (!this.recoveryRequired && this.batchTransactionState === 'active') {
-				this.batchTransactionState = 'none';
-				this.notifyManagerStateChanged();
+				this.setBatchTransactionState('none');
 			}
 		}
 	}

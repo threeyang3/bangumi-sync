@@ -55,7 +55,7 @@ function createManager(vault: InMemoryVault, subjects: Subject[], options: {
 } = {}): SyncManager {
 	const config: SyncManagerConfig = {
 		accessToken: 'test-token', pathTemplate: 'ACGN/music/{{name_cn}}.md',
-		imagePathTemplate: 'assets/{{id}}', downloadImages: false, scanFolderPath: 'ACGN',
+		imagePathTemplate: 'assets/{{id}}', downloadImages: false, imageQuality: 'large', imageUpdateExisting: false, scanFolderPath: 'ACGN',
 		enableRelatedLinks: false, subjectPathStates: {},
 		customTemplates: { musicTemplateConfig: '---\nid: {{id}}\n中文名: "{{name_cn}}"\n---\n{{summary}}' },
 		onPathStatesChanged: options.pathStateHandler ?? (options.onStates
@@ -69,7 +69,9 @@ function createManager(vault: InMemoryVault, subjects: Subject[], options: {
 
 interface CoverHandlerProbe {
 	beforeCreate: ((path: string) => Promise<void>) | null;
-	downloadCover: () => Promise<string>;
+	beforeUpdate: ((path: string, originalContent: ArrayBuffer) => Promise<void>) | null;
+	getCoverTargetPath: () => string;
+	downloadCoverWithResult: () => Promise<{ path: string; status: 'created' | 'updated' }>;
 }
 
 describe('SyncManager path transaction integration', () => {
@@ -80,10 +82,11 @@ describe('SyncManager path transaction integration', () => {
 		vault.addFile('ACGN/music/封面回滚.md', originalContent);
 		const manager = createManager(vault, [subject]);
 		const imageHandler = (manager as unknown as { imageHandler: CoverHandlerProbe }).imageHandler;
-		imageHandler.downloadCover = async () => {
+		imageHandler.getCoverTargetPath = () => 'assets/20.jpg';
+		imageHandler.downloadCoverWithResult = async () => {
 			await imageHandler.beforeCreate?.('assets/20.jpg');
 			vault.addFile('assets/20.jpg', 'binary');
-			return 'assets/20.jpg';
+			return { path: 'assets/20.jpg', status: 'created' };
 		};
 		const originalProcess = vault.app.vault.process.bind(vault.app.vault);
 		let failOnce = true;
@@ -131,11 +134,11 @@ describe('SyncManager path transaction integration', () => {
 		expect(() => manager.ensureCanStartSync()).toThrow(ConfigurationUpdateInProgressError);
 		await lease.commit({
 			accessToken: 'next', pathTemplate: 'ACGN/{{id}}.md', imagePathTemplate: 'assets/{{id}}.jpg',
-			downloadImages: false, scanFolderPath: 'ACGN',
+			downloadImages: false, imageQuality: 'large', imageUpdateExisting: false, scanFolderPath: 'ACGN',
 		});
 		lease.release();
 		unsubscribe();
-		expect(states).toEqual(['idle', 'configuration-updating', 'configuration-updating', 'idle']);
+		expect(states).toEqual(['idle', 'configuration-updating', 'idle']);
 	});
 
 	it('reloads an awaiting journal, blocks writes, and rolls persistent facts back', async () => {
@@ -188,6 +191,63 @@ describe('SyncManager path transaction integration', () => {
 		expect(() => manager.ensureCanStartSync()).toThrow(RecoveryRequiredError);
 		expect(Array.from(vault.files.keys()).some(path => path.startsWith('.bangumi-sync-recovery.corrupt-'))).toBe(true);
 		expect(await manager.confirmManualRecovery()).toMatchObject({ status: 'blocked', recovered: false });
+		expect(await manager.retryRecovery()).toMatchObject({ status: 'blocked', recovered: false });
+		expect(manager.getRecoveryRequired()).toMatchObject({ reason: 'journal-corrupt' });
+	});
+
+	it('counts an existing cover as skipped and creates no journal when updates are disabled', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2024-01-01', '已有封面跳过');
+		vault.addFile('ACGN/music/已有封面跳过.md', '---\nid: 20\n中文名: "已有封面跳过"\n封面: "https://example.com/20.jpg"\n---\n');
+		vault.addBinaryFile('assets/20.jpg', new Uint8Array([1, 2, 3]));
+		const manager = createManager(vault, [subject]);
+		const imageHandler = (manager as unknown as { imageHandler: CoverHandlerProbe }).imageHandler;
+		imageHandler.getCoverTargetPath = () => 'assets/20.jpg';
+		imageHandler.downloadCoverWithResult = () => Promise.reject(new Error('download must not run for an existing disabled target'));
+
+		expect(await manager.batchDownloadCovers()).toEqual({ downloaded: 0, skipped: 1, failed: 0 });
+		expect(Array.from(vault.binaryContents.get('assets/20.jpg') ?? [])).toEqual([1, 2, 3]);
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+	});
+
+	it('restores an existing cover binary when the following Markdown write fails', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2024-01-01', '已有封面回滚');
+		const originalContent = '---\nid: 20\n中文名: "已有封面回滚"\n封面: "https://example.com/20.jpg"\n---\n';
+		vault.addFile('ACGN/music/已有封面回滚.md', originalContent);
+		vault.addBinaryFile('assets/20.jpg', new Uint8Array([1, 2, 3]));
+		const manager = createManager(vault, [subject]);
+		manager.updateConfig({ imageUpdateExisting: true }, ['imageUpdateExisting']);
+		const imageHandler = (manager as unknown as { imageHandler: CoverHandlerProbe }).imageHandler;
+		imageHandler.getCoverTargetPath = () => 'assets/20.jpg';
+		imageHandler.downloadCoverWithResult = async () => {
+			await imageHandler.beforeUpdate?.('assets/20.jpg', new Uint8Array([1, 2, 3]).buffer);
+			vault.binaryContents.set('assets/20.jpg', new Uint8Array([9, 9, 9]));
+			return { path: 'assets/20.jpg', status: 'updated' };
+		};
+		const originalProcess = vault.app.vault.process.bind(vault.app.vault);
+		let failOnce = true;
+		vault.app.vault.process = (file, updater) => failOnce
+			? (failOnce = false, Promise.reject(new Error('Injected Markdown failure after modifyBinary')))
+			: originalProcess(file, updater);
+
+		const result = await manager.batchDownloadCovers();
+
+		expect(result).toMatchObject({ downloaded: 0, failed: 1 });
+		expect(Array.from(vault.binaryContents.get('assets/20.jpg') ?? [])).toEqual([1, 2, 3]);
+		expect(vault.contents.get('ACGN/music/已有封面回滚.md')).toBe(originalContent);
+		expect(manager.getRecoveryRequired()).toBeNull();
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+	});
+
+	it('turns a parseable malformed schema-1 journal into a blocking recovery without throwing at startup', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, JSON.stringify({ schemaVersion: 1 }));
+		const manager = createManager(vault, []);
+		await expect(manager.initializeRecovery()).resolves.toBeUndefined();
+		expect(manager.getRecoveryRequired()).toMatchObject({ reason: 'journal-corrupt' });
+		expect(() => manager.ensureCanStartSync()).toThrow(RecoveryRequiredError);
+		expect(Array.from(vault.files.keys()).some(path => path.includes('corrupt-structure'))).toBe(true);
 	});
 
 	it('blocks an orphan temporary file without deleting it and clears after manual repair', async () => {
@@ -197,8 +257,12 @@ describe('SyncManager path transaction integration', () => {
 		await manager.initializeRecovery();
 
 		expect(manager.getRecoveryRequired()).toMatchObject({ reason: 'orphan-temporary' });
+		expect(manager.getRecoveryRequired()?.orphanTemporaryPaths).toEqual([orphan.path]);
 		expect(vault.files.has(orphan.path)).toBe(true);
+		expect(await manager.retryRecovery()).toMatchObject({ status: 'blocked', recovered: false });
+		expect(() => manager.ensureCanStartSync()).toThrow(RecoveryRequiredError);
 		await vault.app.fileManager.trashFile(orphan);
+		expect(await manager.rescanRecovery()).toMatchObject({ status: 'blocked', recovered: false, diagnostics: [] });
 		expect(await manager.confirmManualRecovery()).toMatchObject({ status: 'recovered', recovered: true });
 		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
 	});
@@ -498,6 +562,56 @@ describe('SyncManager path transaction integration', () => {
 		release();
 		expect(await commit).toMatchObject({ status: 'committed' });
 		expect(vault.files.has('ACGN/music/成功.md')).toBe(true);
+	});
+
+	it('broadcasts the committed terminal idle state to every live subscriber', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '成功');
+		const second = makeSubject(11, '2021-01-01', '失败');
+		const manager = createManager(vault, [first, second], { failures: new Set([11]) });
+		const firstStates: string[] = [];
+		const secondStates: string[] = [];
+		const closedStates: string[] = [];
+		manager.subscribeManagerState(state => firstStates.push(state));
+		manager.subscribeManagerState(state => secondStates.push(state));
+		const close = manager.subscribeManagerState(state => closedStates.push(state));
+		close();
+		await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+		expect(await manager.commitPendingBatch()).toMatchObject({ status: 'committed' });
+		await Promise.resolve();
+		expect(firstStates).toEqual(['idle', 'running', 'awaiting-decision', 'committing', 'idle']);
+		expect(secondStates).toEqual(firstStates);
+		expect(closedStates).toEqual(['idle']);
+		expect(manager.getManagerState()).toBe('idle');
+	});
+
+	it('broadcasts the successful rollback terminal idle state', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '成功');
+		const second = makeSubject(11, '2021-01-01', '失败');
+		const manager = createManager(vault, [first, second], { failures: new Set([11]) });
+		const states: string[] = [];
+		manager.subscribeManagerState(state => states.push(state));
+
+		await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+		expect(await manager.rollbackBatch()).toMatchObject({ status: 'rolled-back' });
+		await Promise.resolve();
+		expect(states).toEqual(['idle', 'running', 'awaiting-decision', 'rolling-back', 'idle']);
+	});
+
+	it('broadcasts recovery-required as the terminal rollback-failure state', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '成功');
+		const second = makeSubject(11, '2021-01-01', '失败');
+		vault.app.fileManager.trashFile = () => Promise.reject(new Error('injected trash failure'));
+		const manager = createManager(vault, [first, second], { failures: new Set([11]) });
+		const states: string[] = [];
+		manager.subscribeManagerState(state => states.push(state));
+
+		await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+		expect(await manager.rollbackBatch()).toMatchObject({ status: 'rollback-failed' });
+		await Promise.resolve();
+		expect(states).toEqual(['idle', 'running', 'awaiting-decision', 'rolling-back', 'recovery-required']);
 	});
 
 	it('defers related-link postprocessing until a partial batch is committed', async () => {

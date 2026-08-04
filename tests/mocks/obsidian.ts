@@ -77,6 +77,17 @@ export function normalizePath(path: string): string {
 	return path.replace(/\\/g, '/').replace(/\/{2,}/g, '/').replace(/^\.\//, '').replace(/\/$/, '');
 }
 
+let requestUrlHandler: (options: { url: string; method?: string }) => Promise<{ status: number; arrayBuffer: ArrayBuffer }> =
+	() => Promise.reject(new Error('Unexpected requestUrl call in test.'));
+
+export function setRequestUrlHandler(handler: typeof requestUrlHandler): void {
+	requestUrlHandler = handler;
+}
+
+export function requestUrl(options: { url: string; method?: string }): Promise<{ status: number; arrayBuffer: ArrayBuffer }> {
+	return requestUrlHandler(options);
+}
+
 export interface App {
 	vault: {
 		read(file: TFile): Promise<string>;

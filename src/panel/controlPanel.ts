@@ -23,6 +23,7 @@ import { isMobile } from '../utils/mobile';
 import { LocalSubjectSnapshotSession } from '../document/localSubjectSnapshotSession';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 import { StatusSyncService } from '../sync/statusSyncService';
+import { isControlPanelActionBlocked } from './controlPanelState';
 import {
         StatusSyncFieldSelection,
         StatusSyncScope,
@@ -447,7 +448,7 @@ export class ControlPanel extends Modal {
 	}
 
 	private isActionBlocked(action: ControlPanelActionDescriptor): boolean {
-		return this.managerState !== 'idle' && action.key !== 'refresh';
+		return isControlPanelActionBlocked(this.managerState, action.key === 'refresh' ? 'refresh' : 'write-action');
 	}
 
         private getToolbarActions(hasSelection: boolean): ControlPanelActionDescriptor[] {

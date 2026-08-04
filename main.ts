@@ -12,6 +12,7 @@ import { Plugin, Notice, TFile } from 'obsidian';
 import { BangumiPluginSettings, DEFAULT_SETTINGS, PanelFilters } from './src/settings/settings';
 import { BangumiSettingTab } from './src/settings/settingsTab';
 import { persistStableManagerSettings, SettingsPersistenceCoordinator } from './src/settings/settingsLifecycle';
+import { applySettingsPatch, SettingsPatch } from './src/settings/settingsPatch';
 import { ConfigurationChangeBlockedError, PendingDecisionInProgressError, PendingSyncTransactionError, RecoveryRequiredError, SyncConfigField, SyncManager, SyncManagerConfig } from './src/sync/syncManager';
 import { SyncModal } from './src/ui/syncModal';
 import { SyncOptionsModal, SyncOptionsInput } from './src/ui/syncOptionsModal';
@@ -189,7 +190,7 @@ export default class BangumiPlugin extends Plugin {
 			this.app,
 			this,
 			this.settings,
-			candidate => this.applySettingsChanges(candidate),
+			patch => this.applySettingsChanges(patch),
 			() => this.openPathDiagnostic(),
 			() => this.openPathMigrationPreview(),
 		));
@@ -227,7 +228,7 @@ export default class BangumiPlugin extends Plugin {
 		new RecoveryCenterModal(this.app, {
 			getRecovery: () => manager.getRecoveryRequired(),
 			retryRollback: () => manager.retryRecovery(),
-			confirmManual: () => manager.confirmManualRecovery(),
+			confirmManual: acceptRisk => manager.confirmManualRecovery({ acceptUnverifiableJournalRisk: acceptRisk }),
 			rescan: () => manager.rescanRecovery(),
 			subscribe: listener => manager.subscribeRecoveryState(listener),
 		}).open();
@@ -373,6 +374,8 @@ export default class BangumiPlugin extends Plugin {
 			imagePathTemplate: settings.imagePathTemplate,
 			notePathTemplate: settings.notePathTemplate,
 			downloadImages: settings.downloadImages,
+			imageQuality: settings.imageQuality,
+			imageUpdateExisting: settings.imageUpdateExisting,
 			scanFolderPath: settings.scanFolderPath,
 			coverLinkType: settings.coverLinkType,
 			customTemplates: templates,
@@ -380,6 +383,7 @@ export default class BangumiPlugin extends Plugin {
 			dataProtection: settings.dataProtection,
 			subjectPathStates: settings.subjectPathStates,
 			pathNamingStrategy: settings.pathNamingStrategy,
+			recoverConfiguration: async facts => this.reconcileConfigurationRecovery(facts),
 			onPathStatesChanged: async states => {
 				this.settings.subjectPathStates = states;
 				await this.saveSettings();
@@ -401,7 +405,7 @@ export default class BangumiPlugin extends Plugin {
 		const fields: SyncConfigField[] = [
 			'accessToken', 'scanFolderPath', 'pathTemplate', 'pathTemplateByType', 'pathNamingStrategy',
 			'subjectPathStates', 'imagePathTemplate', 'notePathTemplate', 'coverLinkType', 'dataProtection',
-			'downloadImages', 'enableRelatedLinks', 'customTemplates',
+			'downloadImages', 'imageQuality', 'imageUpdateExisting', 'enableRelatedLinks', 'customTemplates',
 		];
 		return fields.filter(field => !syncConfigFieldEqual(previous, next, field));
 	}
@@ -410,9 +414,13 @@ export default class BangumiPlugin extends Plugin {
 		this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.cloneSettings(settings));
 	}
 
-	private async applySettingsChanges(candidate: BangumiPluginSettings): Promise<{ applied: boolean; settings: BangumiPluginSettings }> {
+	private applySettingsChanges(patch: SettingsPatch): Promise<{ applied: boolean; settings: BangumiPluginSettings }> {
+		return this.settingsPersistence.enqueue(() => this.applySettingsChangesNow(patch));
+	}
+
+	private async applySettingsChangesNow(patch: SettingsPatch): Promise<{ applied: boolean; settings: BangumiPluginSettings }> {
 		const previousSettings = this.cloneSettings(this.settings);
-		candidate.subjectPathStates = this.cloneSettings(this.settings).subjectPathStates;
+		const candidate = applySettingsPatch(previousSettings, patch);
 		const nextConfig = await this.buildSyncManagerConfig(candidate);
 		const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, nextConfig);
 		const outcome = await persistStableManagerSettings({
@@ -421,11 +429,20 @@ export default class BangumiPlugin extends Plugin {
 			nextConfig,
 			changedFields,
 			manager: this.syncManager,
-			save: settings => this.settingsPersistence.enqueue(() => this.saveData(this.cloneSettings(settings))),
+			save: settings => this.saveData(this.cloneSettings(settings)),
 			restore: snapshot => this.restoreSettings(snapshot),
 			applyDependentServices: settings => { if (this.syncManager) this.refreshDependentServices(this.syncManager, settings); },
 			restoreDependentServices: settings => { if (this.syncManager) this.refreshDependentServices(this.syncManager, settings); },
-			onRollbackFailure: error => this.syncManager?.requireConfigurationRecovery(error),
+			onRollbackFailure: async (error, facts) => {
+				const diskSettings: unknown = await this.loadData();
+				await this.syncManager?.requireConfigurationRecovery(error, {
+					previousSettings: this.cloneSettings(facts.previousSettings),
+					candidateSettings: this.cloneSettings(facts.candidateSettings),
+					currentSettings: this.cloneSettings(this.settings),
+					diskSettings,
+					managerConfig: cloneSyncManagerConfig(this.appliedSyncConfig ?? facts.nextConfig),
+				});
+			},
 		});
 		if (outcome.applied) {
 			this.appliedSyncConfig = cloneSyncManagerConfig(nextConfig);
@@ -435,6 +452,21 @@ export default class BangumiPlugin extends Plugin {
 		if (outcome.error instanceof ConfigurationChangeBlockedError) new Notice(outcome.error.message);
 		else new Notice(`Failed to save settings: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`);
 		return { applied: false, settings: this.cloneSettings(this.settings) };
+	}
+
+	private async reconcileConfigurationRecovery(facts: import('./src/sync/recoveryJournal').ConfigurationRecoveryFacts): Promise<SyncManagerConfig> {
+		const previous = this.cloneSettings(facts.previousSettings as BangumiPluginSettings);
+		await this.saveData(previous);
+		const disk: unknown = await this.loadData();
+		if (JSON.stringify(disk) !== JSON.stringify(previous)) throw new Error('Persisted settings do not match the selected previous settings snapshot.');
+		this.restoreSettings(previous);
+		const config = await this.buildSyncManagerConfig(previous);
+		config.onConfigurationRecovered = () => {
+			if (this.syncManager) this.refreshDependentServices(this.syncManager, previous);
+		};
+		this.lastSavedSettings = this.cloneSettings(previous);
+		this.appliedSyncConfig = cloneSyncManagerConfig(config);
+		return config;
 	}
 
 	private async initOrUpdateSyncManager(): Promise<void> {
