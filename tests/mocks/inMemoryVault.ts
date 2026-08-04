@@ -33,11 +33,48 @@ export class InMemoryVault {
 		this.folders.set('', createFolder(''));
 		const vault = {
 			adapter: {
+				list: (path: string) => {
+					const directory = normalizePath(path);
+					const prefix = directory ? `${directory}/` : '';
+					const files = Array.from(this.files.keys()).filter(item => item.startsWith(prefix) && !item.slice(prefix.length).includes('/'));
+					const folders = Array.from(this.folders.keys()).filter(item => item.startsWith(prefix) && item !== directory && !item.slice(prefix.length).includes('/'));
+					return Promise.resolve({ files, folders });
+				},
 				exists: (path: string) => Promise.resolve(
 					this.files.has(normalizePath(path)) || this.folders.has(normalizePath(path)),
 				),
+				read: (path: string) => {
+					const normalized = normalizePath(path);
+					if (!this.contents.has(normalized)) return Promise.reject(new Error(`File not found: ${normalized}`));
+					return Promise.resolve(this.contents.get(normalized) ?? '');
+				},
+				write: (path: string, content: string) => {
+					const normalized = normalizePath(path);
+					if (!this.files.has(normalized)) this.addFile(normalized, content);
+					else this.contents.set(normalized, content);
+					return Promise.resolve();
+				},
+				rename: (from: string, to: string) => {
+					const source = normalizePath(from);
+					const target = normalizePath(to);
+					const file = this.files.get(source);
+					if (!file) return Promise.reject(new Error(`File not found: ${source}`));
+					if (this.files.has(target)) return Promise.reject(new Error(`File exists: ${target}`));
+					const content = this.contents.get(source) ?? '';
+					this.files.delete(source); this.contents.delete(source);
+					updateFilePath(file, target); this.files.set(target, file); this.contents.set(target, content);
+					return Promise.resolve();
+				},
+				remove: (path: string) => {
+					const normalized = normalizePath(path);
+					this.files.delete(normalized); this.contents.delete(normalized);
+					return Promise.resolve();
+				},
 			},
-			getMarkdownFiles: () => Array.from(this.files.values()).filter(file => file.extension === 'md'),
+			configDir: ['.', 'obsidian'].join(''),
+			getMarkdownFiles: () => Array.from(this.files.values()).filter(file =>
+				file.extension === 'md' && !file.path.split('/').some(segment => segment.startsWith('.')),
+			),
 			getAbstractFileByPath: (path: string) => this.files.get(normalizePath(path)) ?? this.folders.get(normalizePath(path)) ?? null,
 			read: (file: TFile) => Promise.resolve(this.contents.get(file.path) ?? ''),
 			create: (path: string, content: string) => Promise.resolve(this.addFile(path, content)),

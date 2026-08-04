@@ -1,12 +1,12 @@
 # Bangumi Sync
 
-## 运行期恢复所有权（6.10.5+）
+## 稳定恢复闭环（6.11.0+）
 
-插件运行期间只保留一个稳定的 `SyncManager`。设置保存通过原位 `updateConfig()` 更新现有客户端和图片配置，不会丢失 pending transaction、recovery context 或全局写门禁。事务或恢复进行中，扫描目录、路径模板、分类型模板、命名策略、路径状态及其他会改变恢复语义的配置会被冻结；Access Token 等安全字段仍可保存。
+插件只保留一个稳定的 `SyncManager`。设置页编辑候选副本，配置 lease、串行持久化、manager 应用和依赖刷新全部成功后才替换正式设置；失败会恢复磁盘、内存和运行时配置。同步或恢复进行中，所有 Vault 写入口与危险配置修改都会被统一阻止。
 
-恢复始终使用批次开始时固定的 scan root。人工确认会严格核对被覆盖文件的原始内容指纹，并按批次实际创建的具体路径检查残留，即使残留文件的 Subject ID 被修改也不会放行。界面区分历史失败尝试与当前终态；人工验证成功后的当前失败数为 0，所有已打开的恢复窗口会同步失效旧操作。
+事务在首次 Vault 修改前写入独立的 `.bangumi-sync-recovery.json`，记录原始内容、Subject ID、路径状态、创建路径、封面资源以及 rename 的 original/temporary/final 路径。内容使用原始 UTF-8 字节的标准 SHA-256；CRLF 与 LF 不等价。插件重载后会恢复门禁和 Recovery Center 上下文，journal 只在明确提交、完整回滚或人工验证通过后删除。
 
-6.10.5 不包含磁盘事务日志或插件重启后的自动恢复；该工作继续由 [Issue #5](https://github.com/threeyang3/bangumi-sync/issues/5) 跟踪。
+损坏或不支持的 journal 会保留时间戳备份并阻止写入；Vault 任意目录中的孤立 `.bangumi-sync-*.tmp.md` 也会进入恢复状态，不会自动删除。详细操作见 [恢复指南](docs/RECOVERY_GUIDE.md)。升级到 6.11.0 不需要迁移 Markdown。
 
 一个用于 Obsidian 的插件，可以将你在 Bangumi（番组计划）上的收藏同步到 Obsidian 笔记中。
 
@@ -527,4 +527,4 @@ MIT License
 
 存在 `recovery-required` 时，收藏/单条同步、路径迁移应用、封面下载、关联链接写回、状态同步、批量编辑与撤销、用户数据导入/导出、集数状态、吐槽和共享笔记写入均被统一阻止；本地诊断、恢复扫描和只读预览仍可使用。恢复重试与人工确认共用同一个互斥动作，不能并发改动磁盘。
 
-6.10.4 的恢复上下文仍只存在于当前插件运行期，不包含插件重启后的自动恢复或磁盘事务日志；持久化事务日志继续由 [Issue #5](https://github.com/threeyang3/bangumi-sync/issues/5) 跟踪。
+6.11.0 会把活动事务写入独立 journal。插件或 Obsidian 重载后仍保持写门禁，并可从 Recovery Center 继续重试或人工验证；journal 仅在明确终态后清理。损坏 journal 会备份原始内容，孤立 temporary file 不会被自动删除。完整说明见 [docs/RECOVERY_GUIDE.md](docs/RECOVERY_GUIDE.md)。

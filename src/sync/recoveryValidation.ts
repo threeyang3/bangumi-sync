@@ -82,12 +82,12 @@ export function collectSubjectExpectationDiagnostics(
 	return diagnostics;
 }
 
-function normalizedPathState(state: SubjectPathState): SubjectPathState {
-	return {
-		...state,
-		currentPath: normalizePathCollisionKey(state.currentPath),
-		...(state.lastManagedPath ? { lastManagedPath: normalizePathCollisionKey(state.lastManagedPath) } : {}),
-	};
+export function subjectPathStateEqual(left: SubjectPathState, right: SubjectPathState): boolean {
+	return left.subjectId === right.subjectId
+		&& normalizePathCollisionKey(left.currentPath) === normalizePathCollisionKey(right.currentPath)
+		&& (left.lastManagedPath ? normalizePathCollisionKey(left.lastManagedPath) : undefined)
+			=== (right.lastManagedPath ? normalizePathCollisionKey(right.lastManagedPath) : undefined)
+		&& left.namingState === right.namingState;
 }
 
 export function pathStatesEqual(
@@ -97,5 +97,5 @@ export function pathStatesEqual(
 	const leftKeys = Object.keys(left).sort();
 	const rightKeys = Object.keys(right).sort();
 	if (leftKeys.length !== rightKeys.length || leftKeys.some((key, index) => key !== rightKeys[index])) return false;
-	return leftKeys.every(key => JSON.stringify(normalizedPathState(left[key])) === JSON.stringify(normalizedPathState(right[key])));
+	return leftKeys.every(key => subjectPathStateEqual(left[key], right[key]));
 }

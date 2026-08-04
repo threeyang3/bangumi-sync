@@ -1,10 +1,12 @@
 # 开发指南
 
-## 6.10.5 恢复安全开发约束
+## 6.11.0 恢复安全开发约束
 
-- 设置变更必须经过 `persistStableManagerSettings()` 和 `SyncManager.assertConfigurationChangeAllowed()`；禁止在设置回调中重建 manager。
-- manager 配置只能用 `updateConfig(config, changedFields)` 原位更新；事务活动时不得重新初始化。
-- 恢复验证必须使用 pending 捕获的固定 scan root、严格内容指纹和 concrete created path，不得从当前配置或修改后的 ID 反推批次事实。
+- 设置变更必须经过 candidate、`persistStableManagerSettings()`、配置 lease 与串行保存队列；禁止在设置回调中原地修改正式对象或重建 manager。
+- manager 配置必须由 `cloneSyncManagerConfig()` 生成独立快照；不得共享嵌套对象引用。
+- 所有 Vault 修改前必须持久化可验证恢复事实；内容指纹使用原始 UTF-8 的 SHA-256，concrete path 不得受 scan root 限制。
+- 新写入口必须通过 `SubjectDocumentService` 在 `vault.process()` 回调内复核 Subject ID，并接入全局写门禁。
+- journal 只能在 committed、完整 rolled-back 或 manual verification 终态清理；损坏 journal 和 orphan temp 必须阻断写入。
 - 新增恢复状态必须通知订阅者，并分别断言历史尝试与当前终态统计。
 - 发布前运行 `npm ci`、`npm run lint`、`npm run test`、`npm run build`、`git diff --check`，再完成 Windows Obsidian Sandbox 回归。
 
@@ -20,7 +22,7 @@
 
 ## 环境要求
 
-- Node.js 16+
+- Node.js 22（与 `package.json` engines 一致）
 - npm 或 pnpm
 
 ## 开发命令

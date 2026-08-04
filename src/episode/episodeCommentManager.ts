@@ -5,6 +5,7 @@
 
 import { App, TFile } from 'obsidian';
 import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
+import { SubjectDocumentService } from '../document/subjectDocumentService';
 
 /**
  * 插入结果
@@ -20,9 +21,11 @@ export interface InsertResult {
  */
 export class EpisodeCommentManager {
 	private app: App;
+	private readonly documentService: SubjectDocumentService;
 
 	constructor(app: App) {
 		this.app = app;
+		this.documentService = new SubjectDocumentService(app);
 	}
 
 	/**
@@ -35,6 +38,8 @@ export class EpisodeCommentManager {
 	): Promise<InsertResult> {
 		assertWriteOperationAllowed('episode-comment');
 		const content = await this.app.vault.read(file);
+		const identity = this.documentService.getSubjectIdentityFromContent(content);
+		if (identity.subjectId === null || identity.conflicts?.length) throw new Error(`Cannot safely write an episode comment to ${file.path}: subject ID is missing or conflicting.`);
 
 		// 查找"记录"部分
 		const recordMatch = this.findRecordSection(content);
@@ -60,7 +65,7 @@ export class EpisodeCommentManager {
 		const cursorPosition = this.calculateCursorPosition(newContent, calloutStart, callout);
 
 		// 写入文件
-		await this.app.vault.process(file, () => newContent);
+		await this.documentService.processSubjectFile(file, identity.subjectId, () => newContent);
 
 		return {
 			success: true,

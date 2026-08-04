@@ -32,6 +32,7 @@ export interface BatchEditTargetItem {
 
 export interface BatchPerItemUpdate {
 	filePath: string;
+	subjectId?: number;
 	properties: Record<string, unknown>;
 }
 
@@ -545,36 +546,35 @@ export class BatchEditorModal extends Modal {
 			new Notice(tn('recoveryCenter', 'writeBlocked'));
 			return;
 		}
-		if (this.mode === 'uniform') {
-			if (this.operations.length === 0) {
-				new Notice(tn('batchEditor', 'noticeNoOp'));
+		try {
+			if (this.mode === 'uniform') {
+				if (this.operations.length === 0) {
+					new Notice(tn('batchEditor', 'noticeNoOp'));
+					return;
+				}
+
+				await this.onConfirm({ mode: 'uniform', operations: this.operations });
+				this.close();
 				return;
 			}
 
-			await this.onConfirm({
-				mode: 'uniform',
-				operations: this.operations,
-			});
+			if (this.selectedProperties.length === 0) {
+				new Notice(tn('batchEditor', 'noticeSelectProperty'));
+				return;
+			}
+
+			const perItemUpdates = this.buildPerItemUpdates();
+			if (perItemUpdates.length === 0) {
+				new Notice(tn('batchEditor', 'noticeNothingChanged'));
+				return;
+			}
+
+			await this.onConfirm({ mode: 'per_item', perItemUpdates });
 			this.close();
-			return;
+		} catch (error) {
+			console.error('[Bangumi Sync] Batch edit failed:', error);
+			new Notice(error instanceof Error ? error.message : String(error));
 		}
-
-		if (this.selectedProperties.length === 0) {
-			new Notice(tn('batchEditor', 'noticeSelectProperty'));
-			return;
-		}
-
-		const perItemUpdates = this.buildPerItemUpdates();
-		if (perItemUpdates.length === 0) {
-			new Notice(tn('batchEditor', 'noticeNothingChanged'));
-			return;
-		}
-
-		await this.onConfirm({
-			mode: 'per_item',
-			perItemUpdates,
-		});
-		this.close();
 	}
 
 	private buildPerItemUpdates(): BatchPerItemUpdate[] {
@@ -603,6 +603,7 @@ export class BatchEditorModal extends Modal {
 			if (Object.keys(properties).length > 0) {
 				updates.push({
 					filePath: item.filePath,
+					subjectId: item.subjectId,
 					properties,
 				});
 			}
@@ -678,16 +679,19 @@ export class BatchEditorModal extends Modal {
  */
 export class FrontmatterEditor {
 	private app: App;
+	private readonly documentService: SubjectDocumentService;
 	private history: BatchEditHistory[] = [];
 	private maxHistory = 10;
 
 	constructor(app: App) {
 		this.app = app;
+		this.documentService = new SubjectDocumentService(app);
 	}
 
 	async batchModify(
 		filePaths: string[],
-		operations: BatchEditOperation[]
+		operations: BatchEditOperation[],
+		expectedSubjectIds: ReadonlyMap<string, number> = new Map(),
 	): Promise<{ success: number; failed: number }> {
 		assertWriteOperationAllowed('batch-edit');
 		const originalContents = await this.captureOriginalContents(filePaths);
@@ -696,7 +700,7 @@ export class FrontmatterEditor {
 		let failed = 0;
 
 		for (const path of filePaths) {
-			const result = await this.applyUniformOperations(path, operations);
+			const result = await this.applyUniformOperations(path, operations, expectedSubjectIds.get(path));
 			if (result) {
 				success++;
 				affectedFiles.push(path);
@@ -748,7 +752,9 @@ export class FrontmatterEditor {
 		for (const [path, content] of lastOperation.originalContent) {
 			const file = this.app.vault.getAbstractFileByPath(path);
 			if (file instanceof TFile && lastOperation.affectedFiles.includes(path)) {
-				await this.app.vault.process(file, () => content);
+				const identity = this.documentService.getSubjectIdentityFromContent(content);
+				if (identity.subjectId === null || identity.conflicts?.length) continue;
+				await this.documentService.processSubjectFile(file, identity.subjectId, () => content);
 				restored++;
 			}
 		}
@@ -762,7 +768,8 @@ export class FrontmatterEditor {
 
 	private async applyUniformOperations(
 		filePath: string,
-		operations: BatchEditOperation[]
+		operations: BatchEditOperation[],
+		expectedSubjectId?: number,
 	): Promise<boolean> {
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 		if (!(file instanceof TFile)) {
@@ -770,16 +777,20 @@ export class FrontmatterEditor {
 		}
 
 		try {
-			await this.app.fileManager.processFrontMatter(file, frontmatter => {
-				const frontmatterRecord = frontmatter as Record<string, unknown>;
+			const identity = await this.documentService.getSubjectIdentity(file);
+			const subjectId = expectedSubjectId ?? identity.subjectId;
+			if (subjectId === null || identity.subjectId !== subjectId || identity.conflicts?.length) return false;
+			await this.documentService.processSubjectFile(file, subjectId, content => {
+				let updated = content;
 				for (const operation of operations) {
 					if (operation.type === 'delete') {
-						delete frontmatterRecord[operation.property];
+						updated = this.documentService.removeFrontmatterField(updated, operation.property);
 						continue;
 					}
 
-					frontmatterRecord[operation.property] = operation.value ?? '';
+					updated = this.documentService.updateFrontmatterField(updated, operation.property, operation.value ?? '');
 				}
+				return updated;
 			});
 			return true;
 		} catch (error) {
@@ -795,11 +806,13 @@ export class FrontmatterEditor {
 		}
 
 		try {
-			await this.app.fileManager.processFrontMatter(file, frontmatter => {
-				const frontmatterRecord = frontmatter as Record<string, unknown>;
+			if (update.subjectId === undefined) return false;
+			await this.documentService.processSubjectFile(file, update.subjectId, content => {
+				let updated = content;
 				for (const [property, value] of Object.entries(update.properties)) {
-					frontmatterRecord[property] = value;
+					updated = this.documentService.updateFrontmatterField(updated, property, value);
 				}
+				return updated;
 			});
 			return true;
 		} catch (error) {

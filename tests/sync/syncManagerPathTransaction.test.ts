@@ -2,9 +2,10 @@ import { Vault } from 'obsidian';
 import { describe, expect, it, vi } from 'vitest';
 import { BangumiClient } from '../../src/api/client';
 import { CollectionType, Subject, SubjectType, UserCollection } from '../../common/api/types';
-import { ConfigurationChangeBlockedError, ManagerReinitializationBlockedError, PendingSyncTransactionError, RecoveryRequiredError, SyncManager, SyncManagerConfig } from '../../src/sync/syncManager';
+import { ConfigurationChangeBlockedError, ConfigurationUpdateInProgressError, ManagerReinitializationBlockedError, PendingSyncTransactionError, RecoveryRequiredError, SyncManager, SyncManagerConfig } from '../../src/sync/syncManager';
 import { SubjectPathState } from '../../src/sync/localSubjectRegistry';
 import { InMemoryVault } from '../mocks/inMemoryVault';
+import { RECOVERY_JOURNAL_PATH } from '../../src/sync/recoveryJournal';
 
 function makeSubject(id: number, date: string, name = '乱马'): Subject {
 	return {
@@ -66,7 +67,141 @@ function createManager(vault: InMemoryVault, subjects: Subject[], options: {
 	return manager;
 }
 
+interface CoverHandlerProbe {
+	beforeCreate: ((path: string) => Promise<void>) | null;
+	downloadCover: () => Promise<string>;
+}
+
 describe('SyncManager path transaction integration', () => {
+	it('journals and removes an unreferenced cover when the Markdown update fails', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2024-01-01', '封面回滚');
+		const originalContent = '---\nid: 20\n中文名: "封面回滚"\n封面: "https://example.com/20.jpg"\n---\n![](https://example.com/20.jpg)';
+		vault.addFile('ACGN/music/封面回滚.md', originalContent);
+		const manager = createManager(vault, [subject]);
+		const imageHandler = (manager as unknown as { imageHandler: CoverHandlerProbe }).imageHandler;
+		imageHandler.downloadCover = async () => {
+			await imageHandler.beforeCreate?.('assets/20.jpg');
+			vault.addFile('assets/20.jpg', 'binary');
+			return 'assets/20.jpg';
+		};
+		const originalProcess = vault.app.vault.process.bind(vault.app.vault);
+		let failOnce = true;
+		vault.app.vault.process = (file, updater) => {
+			if (failOnce) {
+				failOnce = false;
+				return Promise.reject(new Error('Injected Markdown cover update failure'));
+			}
+			return originalProcess(file, updater);
+		};
+
+		const result = await manager.batchDownloadCovers();
+
+		expect(result).toMatchObject({ downloaded: 0, failed: 1 });
+		expect(vault.files.has('assets/20.jpg')).toBe(false);
+		expect(vault.contents.get('ACGN/music/封面回滚.md')).toBe(originalContent);
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+		expect(manager.getRecoveryRequired()).toBeNull();
+	});
+
+	it('persists a recovery journal before the first Markdown Vault mutation', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2024-01-01', '写前日志');
+		const manager = createManager(vault, [subject]);
+		const originalCreate = vault.app.vault.create.bind(vault.app.vault);
+		let journalExistedBeforeWrite = false;
+		vault.app.vault.create = async (path, content) => {
+			journalExistedBeforeWrite = await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH);
+			return originalCreate(path, content);
+		};
+
+		await manager.syncByCollections([makeCollection(subject)], { concurrency: 1 });
+
+		expect(journalExistedBeforeWrite).toBe(true);
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+	});
+
+	it('publishes configuration-updating state and blocks Vault work for the full lease', async () => {
+		const vault = new InMemoryVault();
+		const manager = createManager(vault, []);
+		const states: string[] = [];
+		const unsubscribe = manager.subscribeManagerState(state => states.push(state));
+		const lease = manager.beginConfigurationUpdate(['accessToken']);
+		expect(manager.getManagerState()).toBe('configuration-updating');
+		expect(() => manager.ensureCanStartSync()).toThrow(ConfigurationUpdateInProgressError);
+		await lease.commit({
+			accessToken: 'next', pathTemplate: 'ACGN/{{id}}.md', imagePathTemplate: 'assets/{{id}}.jpg',
+			downloadImages: false, scanFolderPath: 'ACGN',
+		});
+		lease.release();
+		unsubscribe();
+		expect(states).toEqual(['idle', 'configuration-updating', 'configuration-updating', 'idle']);
+	});
+
+	it('reloads an awaiting journal, blocks writes, and rolls persistent facts back', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(20, '2024-01-01', '重载成功项');
+		const failed = makeSubject(21, '2024-01-02', '重载失败项');
+		const manager = createManager(vault, [first, failed], { failures: new Set([21]) });
+		await manager.syncByCollections([makeCollection(first), makeCollection(failed)], { concurrency: 1 });
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(true);
+
+		const reloaded = createManager(vault, []);
+		await reloaded.initializeRecovery();
+		expect(() => reloaded.ensureCanStartSync()).toThrow(RecoveryRequiredError);
+		const recovered = await reloaded.retryRecovery();
+
+		expect(recovered).toMatchObject({ status: 'rolled-back', recovered: true });
+		expect(Array.from(vault.files.keys()).filter(path => path.endsWith('.md'))).toEqual([]);
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+	});
+
+	it('validates concrete recovery paths outside the fixed scan root', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(30, '2024-01-01', '根外文件');
+		const failed = makeSubject(31, '2024-01-02', '失败项');
+		const manager = createManager(vault, [first, failed], { failures: new Set([31]) });
+		manager.updateConfig({ pathTemplate: 'Notes/{{name_cn}}.md' }, ['pathTemplate']);
+		const originalTrash = vault.app.fileManager.trashFile.bind(vault.app.fileManager);
+		vault.app.fileManager.trashFile = () => Promise.reject(new Error('injected delete failure'));
+
+		await manager.syncByCollections([makeCollection(first), makeCollection(failed)], { concurrency: 1 });
+		expect(await manager.rollbackBatch()).toMatchObject({ status: 'rollback-failed' });
+		vault.app.fileManager.trashFile = originalTrash;
+		const blocked = await manager.confirmManualRecovery();
+
+		expect(blocked).toMatchObject({ status: 'blocked', recovered: false });
+		expect(blocked.diagnostics).toEqual(expect.arrayContaining([
+			expect.objectContaining({ code: 'unexpected-created-path', path: 'Notes/根外文件.md' }),
+		]));
+		await originalTrash(vault.files.get('Notes/根外文件.md')!);
+		expect(await manager.confirmManualRecovery()).toMatchObject({ status: 'recovered', recovered: true });
+	});
+
+	it('blocks startup on a corrupt journal and preserves a diagnostic backup', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, '{broken');
+		const manager = createManager(vault, []);
+		await manager.initializeRecovery();
+
+		expect(manager.getRecoveryRequired()).toMatchObject({ reason: 'journal-corrupt' });
+		expect(() => manager.ensureCanStartSync()).toThrow(RecoveryRequiredError);
+		expect(Array.from(vault.files.keys()).some(path => path.startsWith('.bangumi-sync-recovery.corrupt-'))).toBe(true);
+		expect(await manager.confirmManualRecovery()).toMatchObject({ status: 'blocked', recovered: false });
+	});
+
+	it('blocks an orphan temporary file without deleting it and clears after manual repair', async () => {
+		const vault = new InMemoryVault();
+		const orphan = vault.addFile('Outside/.bangumi-sync-9-0-0.tmp.md', '---\nid: 9\n---\n');
+		const manager = createManager(vault, []);
+		await manager.initializeRecovery();
+
+		expect(manager.getRecoveryRequired()).toMatchObject({ reason: 'orphan-temporary' });
+		expect(vault.files.has(orphan.path)).toBe(true);
+		await vault.app.fileManager.trashFile(orphan);
+		expect(await manager.confirmManualRecovery()).toMatchObject({ status: 'recovered', recovered: true });
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+	});
 	it('runs the normal bulk entry through the shared planner and transaction', async () => {
 		const vault = new InMemoryVault();
 		const subject = makeSubject(20, '2022-01-01', '普通同步');
@@ -516,7 +651,11 @@ describe('SyncManager path transaction integration', () => {
 		expect(recovered.diagnostics).toEqual([]);
 		expect(recovered).toMatchObject({ status: 'recovered', recovered: true });
 		expect(recovered.rollback).toMatchObject({ failed: 0, failures: [] });
-		expect(recovered.resolution).toMatchObject({ method: 'manual-verification', currentFailed: 0, verifiedContents: 1, verifiedAbsentPaths: 1 });
+		expect(recovered.resolution).toMatchObject({
+			method: 'manual-verification', currentFailed: 0,
+			automaticallyRestoredContents: 0, automaticallyRestoredPaths: 0,
+			manuallyVerifiedContents: 1, manuallyVerifiedAbsentPaths: 1,
+		});
 		expect(recovered.attempts?.some(attempt => (attempt.rollback?.failed ?? 0) > 0)).toBe(true);
 		expect(recovered.attempts?.at(-1)).toMatchObject({ action: 'confirm-manual', status: 'recovered' });
 	});

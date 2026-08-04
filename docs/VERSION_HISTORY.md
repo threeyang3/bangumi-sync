@@ -1,5 +1,17 @@
 # 版本历史
 
+## v6.11.0
+
+### 稳定性与恢复
+- 配置改为不可变快照；设置页使用 candidate、manager lease 与串行持久化，失败时原子恢复磁盘和运行时状态。
+- 新增原子持久恢复 journal，记录内容、路径状态、created/rename/temporary/封面资源和恢复尝试；插件重载后继续阻断写入并恢复 Recovery Center 上下文。
+- 内容完整性改用标准 SHA-256；concrete path 在整个 Vault 中直接验证，隐藏 temporary file 通过 adapter 枚举发现。
+- 状态同步、批量编辑、导入、封面、关联链接、单集状态/评论和共享笔记统一在写入时复核 Subject ID。
+- 恢复统计区分自动执行与人工验证，多个窗口通过 manager state 同步禁用过期操作。
+
+### 兼容性
+- 无需迁移 Markdown 或 Subject ID；最低 Obsidian 版本仍为 1.8.7。
+
 ## v6.10.5
 
 ### 修复

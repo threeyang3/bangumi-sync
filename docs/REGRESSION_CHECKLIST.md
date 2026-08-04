@@ -1,5 +1,13 @@
 # 回归清单
 
+## 6.11.0 stable recovery
+
+- [x] 生产构建在 Obsidian 1.13.4 Sandbox 加载，插件命令完整且无启动错误。
+- [x] 损坏 journal 重载后保留 `.corrupt-<timestamp>.json`，建立恢复门禁并拒绝写入口。
+- [x] Vault adapter 创建的隐藏 orphan temp 重载后被发现，建立 journal 且不自动删除；人工清理后重载恢复正常。
+- [x] 自动化覆盖配置 lease/回滚、journal 原子轮换、重载恢复、scan root 外路径、rename、SHA-256、ID-safe write 与封面孤儿回滚。
+- [ ] 需要真实 Bangumi Token 的正常同步、搜索添加与云端状态写回在发布后续人工验收中继续保留。
+
 ## 6.10.5 manager / recovery
 
 - [ ] pending decision 时保存 Access Token，确认 manager identity 不变且原窗口仍能回滚原事务。

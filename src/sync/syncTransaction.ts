@@ -36,12 +36,24 @@ export interface RecoveryContentExpectation {
 	path: string;
 	expectedContentHash: string;
 	originalContentLength: number;
+	originalContent: string;
+}
+
+export interface RecoveryRenameExpectation {
+	subjectId: number;
+	originalPath: string;
+	temporaryPath?: string;
+	finalPath: string;
+	expectedTerminalPath: string;
 }
 
 export interface TransactionRecoveryExpectations {
 	createdFiles: RecoveryCreatedFileExpectation[];
 	updatedContents: RecoveryContentExpectation[];
+	renames: RecoveryRenameExpectation[];
 }
+
+export type BeforeVaultMutation = (expectations: TransactionRecoveryExpectations) => Promise<void>;
 
 type RenamePhase = 'original' | 'temporary' | 'final';
 
@@ -57,11 +69,13 @@ export class SyncTransaction {
 	private readonly createdFiles: Array<{ file: TFile; subjectId: number; createdPath: string }> = [];
 	private readonly updatedContents = new Map<TFile, { content: string; subjectId: number; path: string }>();
 	private readonly renames: StagedRename[] = [];
+	private readonly plannedCreatedFiles: RecoveryCreatedFileExpectation[] = [];
 	private state: SyncTransactionState = 'active';
 
 	constructor(
 		private readonly app: App,
 		private readonly fileManager: FileManager,
+		private readonly beforeVaultMutation?: BeforeVaultMutation,
 	) {}
 
 	getState(): SyncTransactionState {
@@ -94,22 +108,30 @@ export class SyncTransaction {
 		return this.renames.filter(rename => rename.phase === 'final').length;
 	}
 
-	getRecoveryExpectations(): TransactionRecoveryExpectations {
-		const createdFiles = this.createdFiles.map(item => ({
+	async getRecoveryExpectations(): Promise<TransactionRecoveryExpectations> {
+		const createdFiles = [...this.createdFiles.map(item => ({
 			subjectId: item.subjectId,
 			createdPath: item.createdPath,
 			expectedToExistAfterRollback: false as const,
-		}));
-		const updatedContents = Array.from(this.updatedContents, ([file, original]) => {
+		})), ...this.plannedCreatedFiles.map(item => ({ ...item }))];
+		const updatedContents = await Promise.all(Array.from(this.updatedContents, async ([file, original]) => {
 			const rename = this.renames.find(item => item.file === file);
 			return {
 				subjectId: original.subjectId,
 				path: rename?.from ?? original.path,
-				expectedContentHash: hashRecoveryContent(original.content),
+				expectedContentHash: await hashRecoveryContent(original.content),
 				originalContentLength: original.content.length,
+				originalContent: original.content,
 			};
-		});
-		return { createdFiles, updatedContents };
+		}));
+		const renames = this.renames.map(rename => ({
+			subjectId: rename.subjectId,
+			originalPath: rename.from,
+			temporaryPath: rename.temporaryPath,
+			finalPath: rename.to,
+			expectedTerminalPath: rename.from,
+		}));
+		return { createdFiles, updatedContents, renames };
 	}
 
 	async executeRenames(renames: TransactionRename[]): Promise<void> {
@@ -141,7 +163,10 @@ export class SyncTransaction {
 		let index = 0;
 		for (const entry of sources.values()) {
 			entry.temporaryPath = await this.findTemporaryPath(entry.from, entry.subjectId, index++);
-			await this.app.fileManager.renameFile(entry.file, entry.temporaryPath);
+		}
+		await this.beforeVaultMutation?.(await this.getRecoveryExpectations());
+		for (const entry of sources.values()) {
+			await this.app.fileManager.renameFile(entry.file, entry.temporaryPath!);
 			entry.phase = 'temporary';
 		}
 		for (const entry of sources.values()) {
@@ -165,7 +190,15 @@ export class SyncTransaction {
 				path: existing.path,
 			});
 		}
-		const result = await this.fileManager.createOrUpdateFile(path, content, options);
+		const planned = existing ? null : { subjectId: options.subjectId, createdPath: normalizePath(path), expectedToExistAfterRollback: false as const };
+		if (planned) this.plannedCreatedFiles.push(planned);
+		await this.beforeVaultMutation?.(await this.getRecoveryExpectations());
+		let result: FileWriteResult;
+		try {
+			result = await this.fileManager.createOrUpdateFile(path, content, options);
+		} finally {
+			if (planned) this.plannedCreatedFiles.splice(this.plannedCreatedFiles.indexOf(planned), 1);
+		}
 		if (result.status === 'created') this.createdFiles.push({ file: result.file, subjectId: options.subjectId, createdPath: normalizePath(path) });
 		if (result.status !== 'updated' && existing) this.updatedContents.delete(existing);
 		return result;

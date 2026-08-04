@@ -60,7 +60,7 @@ export class SubjectNoteManager {
 			? await this.updateExistingNote(match, candidateIds, context.heading)
 			: await this.createNewNote(context, candidateIds);
 
-		await this.updateLocalNoteLink(localFile, targetFile.path, context.heading);
+		await this.updateLocalNoteLink(localFile, context.subject.id, targetFile.path, context.heading);
 		await this.app.workspace.openLinkText(
 			`${targetFile.path.replace(/\.md$/i, '')}#${context.heading}`,
 			localFile.path,
@@ -262,11 +262,11 @@ export class SubjectNoteManager {
 		});
 	}
 
-	private async updateLocalNoteLink(localFile: TFile, notePath: string, heading: string): Promise<void> {
+	private async updateLocalNoteLink(localFile: TFile, subjectId: number, notePath: string, heading: string): Promise<void> {
 		const noteTarget = notePath.replace(/\.md$/i, '');
 		const noteLink = `[[${noteTarget}#${heading}|${heading}笔记]]`;
 
-		await this.app.vault.process(localFile, (content) => this.upsertFrontmatterField(content, '笔记', noteLink));
+		await this.documentService.processSubjectFile(localFile, subjectId, content => this.upsertFrontmatterField(content, '笔记', noteLink));
 	}
 
 	private async ensureParentFolder(filePath: string): Promise<void> {

@@ -1,5 +1,11 @@
 # 路径模型升级与迁移指南
 
+## 从 6.10.x 升级到 6.11.0
+
+无需迁移 Markdown、frontmatter 或 Subject ID。6.11.0 首次启动会启用独立恢复 journal；正常情况下该文件只在活动事务期间短暂存在。
+
+如果启动时检测到未完成 journal、损坏 journal 或 `.bangumi-sync-*.tmp.md`，插件会阻止所有写操作并提示打开 Recovery Center。不要直接删除未知文件：先导出/保留诊断，按 [RECOVERY_GUIDE.md](./RECOVERY_GUIDE.md) 重试自动回滚或核对后人工确认。损坏 journal 会自动备份为带时间戳的 `.corrupt-*.json`。
+
 ## 从 6.10.0–6.10.4 升级到 6.10.5
 
 无需迁移 Markdown 或 Subject ID。6.10.5 只收紧运行期事务所有权：设置保存不再替换 manager；pending/recovery 时路径、模板、命名策略和路径状态等配置会暂时冻结。请先在原同步窗口或 Recovery Center 完成保留/回滚/人工恢复，再修改这些设置。

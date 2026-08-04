@@ -2598,10 +2598,18 @@ var TEMPLATE_TYPES = [
 var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
   constructor(app, plugin, settings, onSave, onDiagnose, onPreviewMigration) {
     super(app, plugin);
-    this.settings = settings;
-    this.onSave = onSave;
+    this.settings = this.cloneSettings(settings);
+    this.onSave = async () => {
+      const outcome = await onSave(this.cloneSettings(this.settings));
+      this.settings = this.cloneSettings(outcome.settings);
+      if (!outcome.applied)
+        this.display();
+    };
     this.onDiagnose = onDiagnose;
     this.onPreviewMigration = onPreviewMigration;
+  }
+  cloneSettings(settings) {
+    return JSON.parse(JSON.stringify(settings));
   }
   display() {
     const { containerEl } = this;
@@ -3474,21 +3482,56 @@ var TemplateEditorModal = class extends import_obsidian2.Modal {
 };
 
 // src/settings/settingsLifecycle.ts
-async function persistStableManagerSettings(update) {
-  var _a, _b;
-  try {
-    (_a = update.manager) == null ? void 0 : _a.assertConfigurationChangeAllowed(update.changedFields);
-  } catch (error) {
-    update.restore(update.previousSettings);
-    return { applied: false, error };
+var SettingsPersistenceCoordinator = class {
+  constructor() {
+    this.queue = Promise.resolve();
   }
+  enqueue(task) {
+    const run = this.queue.then(task);
+    this.queue = run.then(() => void 0, () => void 0);
+    return run;
+  }
+};
+var SettingsRollbackError = class extends Error {
+  constructor(applyError, rollbackError) {
+    super("Settings update failed and the previous persisted state could not be fully restored.");
+    this.applyError = applyError;
+    this.rollbackError = rollbackError;
+    this.name = "SettingsRollbackError";
+  }
+};
+async function persistStableManagerSettings(update) {
+  var _a, _b, _c, _d, _e;
+  let lease = null;
+  let persistedCandidate = false;
   try {
+    lease = (_b = (_a = update.manager) == null ? void 0 : _a.beginConfigurationUpdate(update.changedFields)) != null ? _b : null;
     await update.save(update.settings);
-    (_b = update.manager) == null ? void 0 : _b.updateConfig(update.nextConfig, update.changedFields);
+    persistedCandidate = true;
+    await (lease == null ? void 0 : lease.commit(update.nextConfig));
+    await ((_c = update.applyDependentServices) == null ? void 0 : _c.call(update, update.settings));
+    update.restore(update.settings);
+    lease == null ? void 0 : lease.release();
     return { applied: true };
   } catch (error) {
-    update.restore(update.previousSettings);
-    throw error;
+    try {
+      if (persistedCandidate)
+        await update.save(update.previousSettings);
+      await (lease == null ? void 0 : lease.rollback());
+      update.restore(update.previousSettings);
+      await ((_d = update.restoreDependentServices) == null ? void 0 : _d.call(update, update.previousSettings));
+    } catch (rollbackError) {
+      const settingsError = new SettingsRollbackError(error, rollbackError);
+      try {
+        await ((_e = update.onRollbackFailure) == null ? void 0 : _e.call(update, settingsError));
+      } catch (recoveryError) {
+        console.error("Failed to persist the settings recovery gate.", recoveryError);
+      }
+      return { applied: false, error: settingsError };
+    } finally {
+      lease == null ? void 0 : lease.release();
+    }
+    return { applied: false, error };
   }
 }
 
@@ -4664,6 +4707,15 @@ function parsePositiveSubjectId(value) {
 }
 
 // src/document/subjectDocumentService.ts
+var SubjectIdentityMismatchError = class extends Error {
+  constructor(path, expectedSubjectId, actualSubjectId) {
+    super(`${path} belongs to subject ${String(actualSubjectId)}, expected subject ${expectedSubjectId}.`);
+    this.path = path;
+    this.expectedSubjectId = expectedSubjectId;
+    this.actualSubjectId = actualSubjectId;
+    this.name = "SubjectIdentityMismatchError";
+  }
+};
 var SubjectDocumentService = class {
   constructor(app, episodeStatusManager) {
     this.app = app;
@@ -4701,6 +4753,22 @@ var SubjectDocumentService = class {
   }
   async getSubjectIdentity(file) {
     return this.getSubjectIdentityFromContent(await this.app.vault.read(file));
+  }
+  assertContentSubjectId(content, expectedSubjectId, path) {
+    var _a;
+    const identity = this.getSubjectIdentityFromContent(content);
+    if (identity.subjectId !== expectedSubjectId || ((_a = identity.conflicts) == null ? void 0 : _a.length)) {
+      throw new SubjectIdentityMismatchError(path, expectedSubjectId, identity.subjectId);
+    }
+  }
+  async assertFileSubjectId(file, expectedSubjectId) {
+    this.assertContentSubjectId(await this.app.vault.read(file), expectedSubjectId, file.path);
+  }
+  async processSubjectFile(file, expectedSubjectId, updater) {
+    await this.app.vault.process(file, (content) => {
+      this.assertContentSubjectId(content, expectedSubjectId, file.path);
+      return updater(content);
+    });
   }
   async readSnapshot(file, subjectType) {
     const content = await this.app.vault.read(file);
@@ -4786,6 +4854,9 @@ var SubjectDocumentService = class {
   }
   addFrontmatterField(content, field, value) {
     return addFrontmatterField(content, field, value);
+  }
+  removeFrontmatterField(content, field) {
+    return removeFrontmatterField(content, field);
   }
   extractFrontmatterRecord(content) {
     return extractFrontmatterRecord(content);
@@ -5105,6 +5176,7 @@ var ImageHandler = class {
       quality: "large",
       updateExisting: false
     };
+    this.beforeCreate = null;
     this.app = app;
     this.fileManager = fileManager;
   }
@@ -5125,6 +5197,9 @@ var ImageHandler = class {
    */
   setUpdateExisting(update) {
     this.imageSettings.updateExisting = update;
+  }
+  setBeforeCreateHook(hook) {
+    this.beforeCreate = hook;
   }
   /**
    * 获取当前图片设置
@@ -5158,6 +5233,7 @@ var ImageHandler = class {
    * 下载图片
    */
   async downloadImage(imageUrl, targetPath) {
+    var _a;
     if (!this.downloadEnabled) {
       return imageUrl;
     }
@@ -5177,6 +5253,7 @@ var ImageHandler = class {
       if (existingFile) {
         await this.app.vault.modifyBinary(existingFile, arrayBuffer);
       } else {
+        await ((_a = this.beforeCreate) == null ? void 0 : _a.call(this, normalizedPath));
         await this.app.vault.createBinary(normalizedPath, arrayBuffer);
       }
       return normalizedPath;
@@ -7387,28 +7464,151 @@ var SubjectPathResolver = class {
 var import_obsidian10 = require("obsidian");
 
 // src/sync/recoveryContent.ts
-function hashRecoveryContent(content) {
-  const bytes = new TextEncoder().encode(content);
-  const words = Array.from({ length: 8 }, (_, index) => (2166136261 ^ Math.imul(index + 1, 2654435761)) >>> 0);
-  for (const byte of bytes) {
-    for (let index = 0; index < words.length; index++) {
-      let value = words[index] ^ byte + index * 17;
-      value = Math.imul(value, 16777619 ^ index * 2);
-      value ^= value >>> 13;
-      words[index] = value >>> 0;
+var SHA256_INITIAL = [
+  1779033703,
+  3144134277,
+  1013904242,
+  2773480762,
+  1359893119,
+  2600822924,
+  528734635,
+  1541459225
+];
+var SHA256_ROUND = [
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+];
+function rotateRight(value, count) {
+  return value >>> count | value << 32 - count;
+}
+function sha256Fallback(bytes) {
+  const bitLength = bytes.length * 8;
+  const paddedLength = Math.ceil((bytes.length + 9) / 64) * 64;
+  const padded = new Uint8Array(paddedLength);
+  padded.set(bytes);
+  padded[bytes.length] = 128;
+  const view = new DataView(padded.buffer);
+  view.setUint32(paddedLength - 8, Math.floor(bitLength / 4294967296), false);
+  view.setUint32(paddedLength - 4, bitLength >>> 0, false);
+  const hash = [...SHA256_INITIAL];
+  const words = new Uint32Array(64);
+  for (let offset = 0; offset < paddedLength; offset += 64) {
+    for (let index = 0; index < 16; index++)
+      words[index] = view.getUint32(offset + index * 4, false);
+    for (let index = 16; index < 64; index++) {
+      const s0 = rotateRight(words[index - 15], 7) ^ rotateRight(words[index - 15], 18) ^ words[index - 15] >>> 3;
+      const s1 = rotateRight(words[index - 2], 17) ^ rotateRight(words[index - 2], 19) ^ words[index - 2] >>> 10;
+      words[index] = words[index - 16] + s0 + words[index - 7] + s1 >>> 0;
     }
+    let [a, b, c, d, e, f, g, h] = hash;
+    for (let index = 0; index < 64; index++) {
+      const sum1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
+      const choice = e & f ^ ~e & g;
+      const temp1 = h + sum1 + choice + SHA256_ROUND[index] + words[index] >>> 0;
+      const sum0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
+      const majority = a & b ^ a & c ^ b & c;
+      const temp2 = sum0 + majority >>> 0;
+      h = g;
+      g = f;
+      f = e;
+      e = d + temp1 >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = temp1 + temp2 >>> 0;
+    }
+    hash[0] = hash[0] + a >>> 0;
+    hash[1] = hash[1] + b >>> 0;
+    hash[2] = hash[2] + c >>> 0;
+    hash[3] = hash[3] + d >>> 0;
+    hash[4] = hash[4] + e >>> 0;
+    hash[5] = hash[5] + f >>> 0;
+    hash[6] = hash[6] + g >>> 0;
+    hash[7] = hash[7] + h >>> 0;
   }
-  return words.map((value) => value.toString(16).padStart(8, "0")).join("");
+  return hash.map((value) => value.toString(16).padStart(8, "0")).join("");
+}
+async function hashRecoveryContent(content) {
+  const bytes = new TextEncoder().encode(content);
+  const subtle = typeof crypto === "undefined" ? void 0 : crypto.subtle;
+  if (!subtle)
+    return sha256Fallback(bytes);
+  const digest = await subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 // src/sync/syncTransaction.ts
 var SyncTransaction = class {
-  constructor(app, fileManager) {
+  constructor(app, fileManager, beforeVaultMutation) {
     this.app = app;
     this.fileManager = fileManager;
+    this.beforeVaultMutation = beforeVaultMutation;
     this.createdFiles = [];
     this.updatedContents = /* @__PURE__ */ new Map();
     this.renames = [];
+    this.plannedCreatedFiles = [];
     this.state = "active";
   }
   getState() {
@@ -7431,25 +7631,34 @@ var SyncTransaction = class {
   getRenameCount() {
     return this.renames.filter((rename) => rename.phase === "final").length;
   }
-  getRecoveryExpectations() {
-    const createdFiles = this.createdFiles.map((item) => ({
+  async getRecoveryExpectations() {
+    const createdFiles = [...this.createdFiles.map((item) => ({
       subjectId: item.subjectId,
       createdPath: item.createdPath,
       expectedToExistAfterRollback: false
-    }));
-    const updatedContents = Array.from(this.updatedContents, ([file, original]) => {
+    })), ...this.plannedCreatedFiles.map((item) => ({ ...item }))];
+    const updatedContents = await Promise.all(Array.from(this.updatedContents, async ([file, original]) => {
       var _a;
       const rename = this.renames.find((item) => item.file === file);
       return {
         subjectId: original.subjectId,
         path: (_a = rename == null ? void 0 : rename.from) != null ? _a : original.path,
-        expectedContentHash: hashRecoveryContent(original.content),
-        originalContentLength: original.content.length
+        expectedContentHash: await hashRecoveryContent(original.content),
+        originalContentLength: original.content.length,
+        originalContent: original.content
       };
-    });
-    return { createdFiles, updatedContents };
+    }));
+    const renames = this.renames.map((rename) => ({
+      subjectId: rename.subjectId,
+      originalPath: rename.from,
+      temporaryPath: rename.temporaryPath,
+      finalPath: rename.to,
+      expectedTerminalPath: rename.from
+    }));
+    return { createdFiles, updatedContents, renames };
   }
   async executeRenames(renames) {
+    var _a;
     this.assertActive();
     if (renames.length === 0)
       return;
@@ -7478,6 +7687,9 @@ var SyncTransaction = class {
     let index = 0;
     for (const entry of sources.values()) {
       entry.temporaryPath = await this.findTemporaryPath(entry.from, entry.subjectId, index++);
+    }
+    await ((_a = this.beforeVaultMutation) == null ? void 0 : _a.call(this, await this.getRecoveryExpectations()));
+    for (const entry of sources.values()) {
       await this.app.fileManager.renameFile(entry.file, entry.temporaryPath);
       entry.phase = "temporary";
     }
@@ -7488,6 +7700,7 @@ var SyncTransaction = class {
     }
   }
   async createOrUpdateFile(path, content, options) {
+    var _a;
     this.assertActive();
     const existing = await this.fileManager.assertPathOwnership(path, options.subjectId);
     if (existing && !this.updatedContents.has(existing)) {
@@ -7497,7 +7710,17 @@ var SyncTransaction = class {
         path: existing.path
       });
     }
-    const result = await this.fileManager.createOrUpdateFile(path, content, options);
+    const planned = existing ? null : { subjectId: options.subjectId, createdPath: (0, import_obsidian10.normalizePath)(path), expectedToExistAfterRollback: false };
+    if (planned)
+      this.plannedCreatedFiles.push(planned);
+    await ((_a = this.beforeVaultMutation) == null ? void 0 : _a.call(this, await this.getRecoveryExpectations()));
+    let result;
+    try {
+      result = await this.fileManager.createOrUpdateFile(path, content, options);
+    } finally {
+      if (planned)
+        this.plannedCreatedFiles.splice(this.plannedCreatedFiles.indexOf(planned), 1);
+    }
     if (result.status === "created")
       this.createdFiles.push({ file: result.file, subjectId: options.subjectId, createdPath: (0, import_obsidian10.normalizePath)(path) });
     if (result.status !== "updated" && existing)
@@ -7588,37 +7811,6 @@ var SyncTransaction = class {
   }
 };
 
-// src/sync/pathDiagnostics.ts
-function formatDiagnosticReport(report) {
-  var _a;
-  const lines = [
-    "# Bangumi Sync local subject diagnostic",
-    "",
-    `- Generated: ${report.generatedAt}`,
-    `- Scan root: ${report.scanRoot}`,
-    `- Valid subjects: ${report.validSubjects}`,
-    `- Issues: ${report.issues.length}`,
-    "",
-    "## Issues",
-    ""
-  ];
-  if (report.issues.length === 0) {
-    lines.push("No issues found.");
-  } else {
-    for (const issue of report.issues) {
-      const identity = issue.subjectId ? ` subject=${issue.subjectId}` : "";
-      const path = issue.path ? ` path=${issue.path}` : "";
-      lines.push(`- **${issue.severity} / ${issue.code}**${identity}${path}: ${issue.message}`);
-      if ((_a = issue.relatedPaths) == null ? void 0 : _a.length) {
-        for (const relatedPath of issue.relatedPaths)
-          lines.push(`  - ${relatedPath}`);
-      }
-    }
-  }
-  return `${lines.join("\n")}
-`;
-}
-
 // src/sync/recoveryValidation.ts
 function collectSubjectExpectationDiagnostics(expectations, registry) {
   var _a;
@@ -7672,19 +7864,161 @@ function collectSubjectExpectationDiagnostics(expectations, registry) {
   }
   return diagnostics;
 }
-function normalizedPathState(state) {
-  return {
-    ...state,
-    currentPath: normalizePathCollisionKey(state.currentPath),
-    ...state.lastManagedPath ? { lastManagedPath: normalizePathCollisionKey(state.lastManagedPath) } : {}
-  };
+function subjectPathStateEqual(left, right) {
+  return left.subjectId === right.subjectId && normalizePathCollisionKey(left.currentPath) === normalizePathCollisionKey(right.currentPath) && (left.lastManagedPath ? normalizePathCollisionKey(left.lastManagedPath) : void 0) === (right.lastManagedPath ? normalizePathCollisionKey(right.lastManagedPath) : void 0) && left.namingState === right.namingState;
 }
 function pathStatesEqual(left, right) {
   const leftKeys = Object.keys(left).sort();
   const rightKeys = Object.keys(right).sort();
   if (leftKeys.length !== rightKeys.length || leftKeys.some((key, index) => key !== rightKeys[index]))
     return false;
-  return leftKeys.every((key) => JSON.stringify(normalizedPathState(left[key])) === JSON.stringify(normalizedPathState(right[key])));
+  return leftKeys.every((key) => subjectPathStateEqual(left[key], right[key]));
+}
+
+// src/sync/syncConfig.ts
+function cloneRecord(value) {
+  return value ? { ...value } : void 0;
+}
+function cloneSyncManagerConfig(config) {
+  return {
+    ...config,
+    pathTemplateByType: cloneRecord(config.pathTemplateByType),
+    customTemplates: cloneRecord(config.customTemplates),
+    dataProtection: config.dataProtection ? { ...config.dataProtection } : void 0,
+    subjectPathStates: config.subjectPathStates ? Object.fromEntries(Object.entries(config.subjectPathStates).map(([key, state]) => [key, { ...state }])) : void 0
+  };
+}
+function recordsEqual(left, right) {
+  if (left === right)
+    return true;
+  if (!left || !right)
+    return false;
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index] && left[key] === right[key]);
+}
+function syncConfigFieldEqual(left, right, field) {
+  var _a, _b;
+  switch (field) {
+    case "pathTemplateByType":
+    case "customTemplates":
+      return recordsEqual(left[field], right[field]);
+    case "subjectPathStates":
+      return pathStatesEqual((_a = left.subjectPathStates) != null ? _a : {}, (_b = right.subjectPathStates) != null ? _b : {});
+    case "dataProtection": {
+      const a = left.dataProtection;
+      const b = right.dataProtection;
+      return a === b || Boolean(a && b && a.preserveRatingDetails === b.preserveRatingDetails && a.preserveCustomProperties === b.preserveCustomProperties && a.preserveRecord === b.preserveRecord && a.preserveThoughts === b.preserveThoughts);
+    }
+    default:
+      return left[field] === right[field];
+  }
+}
+
+// src/sync/recoveryJournal.ts
+var RECOVERY_JOURNAL_PATH = ".bangumi-sync-recovery.json";
+var RECOVERY_JOURNAL_TEMP_PATH = ".bangumi-sync-recovery.tmp.json";
+var RECOVERY_JOURNAL_PREVIOUS_PATH = ".bangumi-sync-recovery.previous.json";
+var RecoveryJournalStore = class {
+  constructor(app) {
+    this.app = app;
+    this.writeQueue = Promise.resolve();
+  }
+  write(journal) {
+    const run = this.writeQueue.then(() => this.writeNow(journal));
+    this.writeQueue = run.then(() => void 0, () => void 0);
+    return run;
+  }
+  async writeNow(journal) {
+    const adapter = this.app.vault.adapter;
+    const serialized = JSON.stringify({ ...journal, updatedAt: Date.now() }, null, 2);
+    await adapter.write(RECOVERY_JOURNAL_TEMP_PATH, serialized);
+    if (await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH))
+      await adapter.remove(RECOVERY_JOURNAL_PREVIOUS_PATH);
+    if (await adapter.exists(RECOVERY_JOURNAL_PATH))
+      await adapter.rename(RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH);
+    try {
+      await adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PATH);
+    } catch (error) {
+      if (!await adapter.exists(RECOVERY_JOURNAL_PATH) && await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH)) {
+        await adapter.rename(RECOVERY_JOURNAL_PREVIOUS_PATH, RECOVERY_JOURNAL_PATH);
+      }
+      throw error;
+    }
+    if (await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH))
+      await adapter.remove(RECOVERY_JOURNAL_PREVIOUS_PATH);
+  }
+  async load() {
+    const adapter = this.app.vault.adapter;
+    const hasCurrent = await adapter.exists(RECOVERY_JOURNAL_PATH);
+    const hasPrevious = await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH);
+    const temporaryFilePresent = await adapter.exists(RECOVERY_JOURNAL_TEMP_PATH);
+    if (!hasCurrent && !hasPrevious && temporaryFilePresent) {
+      const backupPath = `.bangumi-sync-recovery.corrupt-temp-${Date.now()}.json`;
+      await adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, backupPath);
+      return { status: "corrupt", message: "Only an interrupted temporary recovery journal remained.", backupPath };
+    }
+    if (!hasCurrent && !hasPrevious)
+      return { status: "none" };
+    if (temporaryFilePresent) {
+      const interruptedPath = `.bangumi-sync-recovery.interrupted-${Date.now()}.json`;
+      await adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, interruptedPath);
+    }
+    const sourcePath = hasCurrent ? RECOVERY_JOURNAL_PATH : RECOVERY_JOURNAL_PREVIOUS_PATH;
+    let parsed;
+    try {
+      parsed = JSON.parse(await adapter.read(sourcePath));
+    } catch (error) {
+      const backupPath = `.bangumi-sync-recovery.corrupt-${Date.now()}.json`;
+      await adapter.rename(sourcePath, backupPath);
+      return { status: "corrupt", message: error instanceof Error ? error.message : String(error), backupPath };
+    }
+    const schemaVersion = parsed == null ? void 0 : parsed.schemaVersion;
+    if (schemaVersion !== 1) {
+      const backupPath = `.bangumi-sync-recovery.unsupported-${Date.now()}.json`;
+      await adapter.rename(sourcePath, backupPath);
+      return { status: "unsupported", schemaVersion, backupPath };
+    }
+    return { status: "loaded", journal: parsed, recoveredFromPrevious: !hasCurrent, temporaryFilePresent };
+  }
+  async clear() {
+    await this.writeQueue;
+    for (const path of [RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH]) {
+      if (await this.app.vault.adapter.exists(path))
+        await this.app.vault.adapter.remove(path);
+    }
+  }
+};
+
+// src/sync/pathDiagnostics.ts
+function formatDiagnosticReport(report) {
+  var _a;
+  const lines = [
+    "# Bangumi Sync local subject diagnostic",
+    "",
+    `- Generated: ${report.generatedAt}`,
+    `- Scan root: ${report.scanRoot}`,
+    `- Valid subjects: ${report.validSubjects}`,
+    `- Issues: ${report.issues.length}`,
+    "",
+    "## Issues",
+    ""
+  ];
+  if (report.issues.length === 0) {
+    lines.push("No issues found.");
+  } else {
+    for (const issue of report.issues) {
+      const identity = issue.subjectId ? ` subject=${issue.subjectId}` : "";
+      const path = issue.path ? ` path=${issue.path}` : "";
+      lines.push(`- **${issue.severity} / ${issue.code}**${identity}${path}: ${issue.message}`);
+      if ((_a = issue.relatedPaths) == null ? void 0 : _a.length) {
+        for (const relatedPath of issue.relatedPaths)
+          lines.push(`  - ${relatedPath}`);
+      }
+    }
+  }
+  return `${lines.join("\n")}
+`;
 }
 
 // src/sync/syncManager.ts
@@ -7730,6 +8064,12 @@ var ConfigurationChangeBlockedError = class extends Error {
     this.name = "ConfigurationChangeBlockedError";
   }
 };
+var ConfigurationUpdateInProgressError = class extends Error {
+  constructor() {
+    super("A settings update is in progress. Vault writes and concurrent settings saves are temporarily blocked.");
+    this.name = "ConfigurationUpdateInProgressError";
+  }
+};
 var ManagerReinitializationBlockedError = class extends Error {
   constructor() {
     super("SyncManager cannot be reinitialized while transaction or recovery state is active.");
@@ -7738,6 +8078,7 @@ var ManagerReinitializationBlockedError = class extends Error {
 };
 var SyncManager = class {
   constructor(app, config) {
+    this.activeRecoveryJournal = null;
     this.cancellationSignal = null;
     this.pathResolver = new SubjectPathResolver();
     this.pendingTransaction = null;
@@ -7746,17 +8087,126 @@ var SyncManager = class {
     this.recoveryActionPromise = null;
     this.recoveryRequired = null;
     this.recoveryStateListeners = /* @__PURE__ */ new Set();
+    this.managerStateListeners = /* @__PURE__ */ new Set();
+    this.configurationUpdateState = "idle";
     var _a;
     this.app = app;
-    this.config = config;
+    this.config = cloneSyncManagerConfig(config);
     this.client = new BangumiClient(config.accessToken);
     this.fileManager = new FileManager(app);
     this.imageHandler = new ImageHandler(app, this.fileManager);
+    this.imageHandler.setBeforeCreateHook((path) => this.persistCreatedResourcePath(path));
     this.imageHandler.setDownloadEnabled(config.downloadImages);
     this.incrementalSync = new IncrementalSync(app);
     this.incrementalSync.setPathStates((_a = config.subjectPathStates) != null ? _a : {});
     this.userDataExtractor = new UserDataExtractor(app);
     this.userDataMerger = new UserDataMerger(app);
+    this.documentService = new SubjectDocumentService(app);
+    this.recoveryJournalStore = new RecoveryJournalStore(app);
+  }
+  async initializeRecovery() {
+    const loaded = await this.recoveryJournalStore.load();
+    if (loaded.status === "loaded") {
+      this.restorePersistentJournal(loaded.journal);
+      return;
+    }
+    if (loaded.status === "corrupt" || loaded.status === "unsupported") {
+      const message = loaded.status === "corrupt" ? `Recovery journal was corrupt and was backed up to ${loaded.backupPath}: ${loaded.message}` : `Recovery journal schema ${String(loaded.schemaVersion)} is unsupported and was backed up to ${loaded.backupPath}.`;
+      const journal = this.createEmptyRecoveryJournal("recovery-required", message);
+      await this.recoveryJournalStore.write(journal);
+      this.restorePersistentJournal(journal, "journal-corrupt");
+      return;
+    }
+    const orphanTemps = await this.findTransactionTemporaryPaths();
+    if (orphanTemps.length > 0) {
+      const journal = this.createEmptyRecoveryJournal("recovery-required");
+      await this.recoveryJournalStore.write(journal);
+      this.restorePersistentJournal(journal, "orphan-temporary");
+    }
+  }
+  async findTransactionTemporaryPaths() {
+    const found = [];
+    const visit = async (directory) => {
+      const listed = await this.app.vault.adapter.list(directory);
+      for (const path of listed.files) {
+        if (/(^|\/)\.bangumi-sync-\d+-\d+-\d+\.tmp\.md$/u.test(path))
+          found.push((0, import_obsidian11.normalizePath)(path));
+      }
+      for (const folder of listed.folders) {
+        if (normalizePathCollisionKey(folder) === normalizePathCollisionKey(this.app.vault.configDir))
+          continue;
+        await visit(folder);
+      }
+    };
+    await visit("");
+    return found;
+  }
+  async requireConfigurationRecovery(error) {
+    const message = `Settings persistence rollback failed: ${errorMessage(error)}`;
+    const journal = this.createEmptyRecoveryJournal("recovery-required", message);
+    this.restorePersistentJournal(journal, "configuration-rollback-failed");
+    await this.recoveryJournalStore.write(journal);
+  }
+  createEmptyRecoveryJournal(state, blockingIssue) {
+    var _a;
+    const now = Date.now();
+    return {
+      schemaVersion: 1,
+      journalId: `recovery-${now}`,
+      pluginVersion: "6.11.0",
+      state,
+      createdAt: now,
+      updatedAt: now,
+      scanRoot: (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN"),
+      affectedSubjectIds: [],
+      originalPathStates: this.clonePathStates((_a = this.config.subjectPathStates) != null ? _a : {}),
+      subjectExpectations: [],
+      contentExpectations: [],
+      createdPathExpectations: [],
+      renameExpectations: [],
+      createdResourcePaths: [],
+      resultSnapshot: this.captureResultSnapshot(this.createSyncResult(), false),
+      attempts: [],
+      blockingIssue
+    };
+  }
+  restorePersistentJournal(journal, forcedReason = "journal-recovered") {
+    this.activeRecoveryJournal = journal;
+    const pending = {
+      transactions: [],
+      groups: [],
+      previousPathStates: this.clonePathStates(journal.originalPathStates),
+      affectedSubjectIds: [...journal.affectedSubjectIds],
+      subjectExpectations: journal.subjectExpectations.map((item) => ({ ...item })),
+      scanRootAtBatchStart: journal.scanRoot,
+      contentExpectations: journal.contentExpectations.map((item) => ({ ...item })),
+      forbiddenPathsAfterRollback: journal.createdPathExpectations.map((item) => item.createdPath),
+      resourcePathsAfterRollback: [...journal.createdResourcePaths],
+      renameExpectations: journal.renameExpectations.map((item) => ({ ...item })),
+      deferredRelations: [],
+      resultSnapshot: journal.resultSnapshot,
+      createdAt: journal.createdAt,
+      state: "rollback-failed",
+      journalIssue: journal.blockingIssue
+    };
+    this.pendingTransaction = pending;
+    this.batchTransactionState = "rollback-failed";
+    this.recoveryRequired = {
+      reason: forcedReason,
+      rollback: this.emptyRollbackResult(),
+      affectedSubjectIds: [...journal.affectedSubjectIds],
+      originalPathStates: this.clonePathStates(journal.originalPathStates),
+      subjectExpectations: journal.subjectExpectations.map((item) => ({ ...item })),
+      scanRoot: journal.scanRoot,
+      contentExpectations: journal.contentExpectations.map((item) => ({ ...item })),
+      forbiddenPathsAfterRollback: journal.createdPathExpectations.map((item) => item.createdPath),
+      resourcePathsAfterRollback: [...journal.createdResourcePaths],
+      renameExpectations: journal.renameExpectations.map((item) => ({ ...item })),
+      attempts: journal.attempts.map((item) => this.cloneRecoveryAttempt(item)),
+      detectedAt: Date.now(),
+      journalIssue: journal.blockingIssue
+    };
+    this.notifyRecoveryStateChanged();
   }
   /**
    * 设置进度回调
@@ -7784,6 +8234,8 @@ var SyncManager = class {
   }
   ensureCanStartSync() {
     var _a, _b;
+    if (this.configurationUpdateState !== "idle")
+      throw new ConfigurationUpdateInProgressError();
     if (this.recoveryRequired)
       throw new RecoveryRequiredError(this.recoveryRequired);
     if (this.pendingDecisionPromise || this.recoveryActionPromise || ((_a = this.pendingTransaction) == null ? void 0 : _a.state) === "committing" || ((_b = this.pendingTransaction) == null ? void 0 : _b.state) === "rolling-back") {
@@ -7793,16 +8245,50 @@ var SyncManager = class {
       throw new PendingSyncTransactionError();
   }
   hasActiveTransactionState() {
-    return this.batchTransactionState === "active" || this.pendingTransaction !== null || this.pendingDecisionPromise !== null || this.recoveryRequired !== null || this.recoveryActionPromise !== null;
+    return this.batchTransactionState === "active" || this.pendingTransaction !== null || this.pendingDecisionPromise !== null || this.recoveryRequired !== null || this.recoveryActionPromise !== null || this.configurationUpdateState !== "idle";
   }
   assertConfigurationChangeAllowed(changedFields) {
     var _a, _b;
+    if (this.configurationUpdateState !== "idle")
+      throw new ConfigurationUpdateInProgressError();
     if (changedFields.length === 0 || !this.hasActiveTransactionState())
       return;
     const actionInProgress = this.batchTransactionState === "active" || this.pendingDecisionPromise !== null || this.recoveryActionPromise !== null || ((_a = this.pendingTransaction) == null ? void 0 : _a.state) === "committing" || ((_b = this.pendingTransaction) == null ? void 0 : _b.state) === "rolling-back";
     const blocked = actionInProgress ? changedFields : changedFields.filter((field) => TRANSACTION_SENSITIVE_CONFIG_FIELDS.has(field));
     if (blocked.length > 0)
       throw new ConfigurationChangeBlockedError(blocked);
+  }
+  beginConfigurationUpdate(changedFields) {
+    this.assertConfigurationChangeAllowed(changedFields);
+    const previousConfig = cloneSyncManagerConfig(this.config);
+    this.configurationUpdateState = "persisting";
+    this.notifyManagerStateChanged();
+    let active = true;
+    return {
+      commit: (config) => {
+        if (!active)
+          throw new Error("Configuration update lease has already been released.");
+        this.configurationUpdateState = "applying";
+        this.notifyManagerStateChanged();
+        this.applyConfigSnapshot(config);
+        return Promise.resolve();
+      },
+      rollback: () => {
+        if (!active)
+          return Promise.resolve();
+        this.configurationUpdateState = "rolling-back";
+        this.notifyManagerStateChanged();
+        this.applyConfigSnapshot(previousConfig);
+        return Promise.resolve();
+      },
+      release: () => {
+        if (!active)
+          return;
+        active = false;
+        this.configurationUpdateState = "idle";
+        this.notifyManagerStateChanged();
+      }
+    };
   }
   assertCanReinitialize() {
     if (this.hasActiveTransactionState())
@@ -7811,6 +8297,31 @@ var SyncManager = class {
   subscribeRecoveryState(listener) {
     this.recoveryStateListeners.add(listener);
     return () => this.recoveryStateListeners.delete(listener);
+  }
+  getManagerState() {
+    if (this.configurationUpdateState !== "idle")
+      return "configuration-updating";
+    if (this.recoveryRequired)
+      return "recovery-required";
+    switch (this.batchTransactionState) {
+      case "active":
+        return "running";
+      case "awaiting-user-decision":
+        return "awaiting-decision";
+      case "committing":
+        return "committing";
+      case "rolling-back":
+        return "rolling-back";
+      case "rollback-failed":
+        return "recovery-required";
+      default:
+        return "idle";
+    }
+  }
+  subscribeManagerState(listener) {
+    this.managerStateListeners.add(listener);
+    listener(this.getManagerState());
+    return () => this.managerStateListeners.delete(listener);
   }
   getRecoveryRequired() {
     var _a;
@@ -7822,6 +8333,8 @@ var SyncManager = class {
       subjectExpectations: this.recoveryRequired.subjectExpectations.map((item) => ({ ...item })),
       contentExpectations: this.recoveryRequired.contentExpectations.map((item) => ({ ...item })),
       forbiddenPathsAfterRollback: [...this.recoveryRequired.forbiddenPathsAfterRollback],
+      resourcePathsAfterRollback: [...this.recoveryRequired.resourcePathsAfterRollback],
+      renameExpectations: this.recoveryRequired.renameExpectations.map((item) => ({ ...item })),
       attempts: this.recoveryRequired.attempts.map((item) => this.cloneRecoveryAttempt(item)),
       latestAttempt: this.recoveryRequired.latestAttempt ? this.cloneRecoveryAttempt(this.recoveryRequired.latestAttempt) : void 0
     } : null;
@@ -7839,9 +8352,12 @@ var SyncManager = class {
    * 更新配置
    */
   updateConfig(config, changedFields = Object.keys(config)) {
-    var _a, _b;
     this.assertConfigurationChangeAllowed(changedFields);
-    this.config = { ...this.config, ...config };
+    this.applyConfigSnapshot({ ...this.config, ...config });
+  }
+  applyConfigSnapshot(config) {
+    var _a, _b;
+    this.config = cloneSyncManagerConfig(config);
     if (Object.prototype.hasOwnProperty.call(config, "accessToken"))
       this.client.setAccessToken((_a = config.accessToken) != null ? _a : "");
     if (Object.prototype.hasOwnProperty.call(config, "downloadImages"))
@@ -7858,6 +8374,16 @@ var SyncManager = class {
       } catch (e) {
       }
     }
+    this.notifyManagerStateChanged();
+  }
+  notifyManagerStateChanged() {
+    const state = this.getManagerState();
+    for (const listener of this.managerStateListeners) {
+      try {
+        listener(state);
+      } catch (e) {
+      }
+    }
   }
   async persistPathStates() {
     const states = this.incrementalSync.exportPathStates();
@@ -7866,7 +8392,7 @@ var SyncManager = class {
   async persistSpecificPathStates(states) {
     var _a, _b;
     await ((_b = (_a = this.config).onPathStatesChanged) == null ? void 0 : _b.call(_a, states));
-    this.config.subjectPathStates = this.clonePathStates(states);
+    this.config = cloneSyncManagerConfig({ ...this.config, subjectPathStates: this.clonePathStates(states) });
     this.incrementalSync.setPathStates(states);
   }
   clonePathStates(states) {
@@ -7880,18 +8406,110 @@ var SyncManager = class {
       rollback: attempt.rollback ? { ...attempt.rollback, failures: (_a = attempt.rollback.failures) == null ? void 0 : _a.map((item) => ({ ...item })) } : void 0
     };
   }
-  captureTransactionRecoveryFacts(transactions) {
+  async captureTransactionRecoveryFacts(transactions) {
+    var _a, _b;
     const contentExpectations = [];
     const forbiddenPathsAfterRollback = [];
+    const renameExpectations = [];
     for (const transaction of transactions) {
-      const expectations = transaction.getRecoveryExpectations();
+      const expectations = await transaction.getRecoveryExpectations();
       contentExpectations.push(...expectations.updatedContents.map((item) => ({ ...item })));
       forbiddenPathsAfterRollback.push(...expectations.createdFiles.map((item) => item.createdPath));
+      renameExpectations.push(...expectations.renames.map((item) => ({ ...item })));
     }
     return {
       contentExpectations,
-      forbiddenPathsAfterRollback: Array.from(new Set(forbiddenPathsAfterRollback.map(import_obsidian11.normalizePath)))
+      forbiddenPathsAfterRollback: Array.from(new Set(forbiddenPathsAfterRollback.map(import_obsidian11.normalizePath))),
+      resourcePathsAfterRollback: [...(_b = (_a = this.activeRecoveryJournal) == null ? void 0 : _a.createdResourcePaths) != null ? _b : []],
+      renameExpectations
     };
+  }
+  mergeActiveJournalFacts(facts) {
+    if (!this.activeRecoveryJournal)
+      return;
+    const byCreatedPath = new Map(this.activeRecoveryJournal.createdPathExpectations.map((item) => [normalizePathCollisionKey(item.createdPath), item]));
+    for (const item of facts.createdFiles)
+      byCreatedPath.set(normalizePathCollisionKey(item.createdPath), { ...item });
+    this.activeRecoveryJournal.createdPathExpectations = Array.from(byCreatedPath.values());
+    const byContentPath = new Map(this.activeRecoveryJournal.contentExpectations.map((item) => [normalizePathCollisionKey(item.path), item]));
+    for (const item of facts.updatedContents)
+      byContentPath.set(normalizePathCollisionKey(item.path), { ...item });
+    this.activeRecoveryJournal.contentExpectations = Array.from(byContentPath.values());
+    const byRename = new Map(this.activeRecoveryJournal.renameExpectations.map((item) => [item.subjectId, item]));
+    for (const item of facts.renames)
+      byRename.set(item.subjectId, { ...item });
+    this.activeRecoveryJournal.renameExpectations = Array.from(byRename.values());
+  }
+  async persistBeforeVaultMutation(facts) {
+    if (!this.activeRecoveryJournal)
+      throw new Error("Recovery journal is not active before a Vault mutation.");
+    this.mergeActiveJournalFacts(facts);
+    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+  }
+  async persistCreatedResourcePath(path) {
+    if (!this.activeRecoveryJournal)
+      return;
+    const normalized = (0, import_obsidian11.normalizePath)(path);
+    if (!this.activeRecoveryJournal.createdResourcePaths.some((item) => normalizePathCollisionKey(item) === normalizePathCollisionKey(normalized))) {
+      this.activeRecoveryJournal.createdResourcePaths.push(normalized);
+    }
+    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+  }
+  async beginCoverUpdateJournal(subjectId, file, originalContent) {
+    var _a;
+    const now = Date.now();
+    this.activeRecoveryJournal = {
+      schemaVersion: 1,
+      journalId: `cover-${subjectId}-${now}`,
+      pluginVersion: "6.11.0",
+      state: "active",
+      createdAt: now,
+      updatedAt: now,
+      scanRoot: (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN"),
+      affectedSubjectIds: [subjectId],
+      originalPathStates: this.clonePathStates((_a = this.config.subjectPathStates) != null ? _a : {}),
+      subjectExpectations: [{ subjectId, expectedToExist: true, expectedPath: file.path, expectedSubjectId: subjectId }],
+      contentExpectations: [{
+        subjectId,
+        path: file.path,
+        expectedContentHash: await hashRecoveryContent(originalContent),
+        originalContentLength: originalContent.length,
+        originalContent
+      }],
+      createdPathExpectations: [],
+      renameExpectations: [],
+      createdResourcePaths: [],
+      resultSnapshot: this.captureResultSnapshot(this.createSyncResult(1), false),
+      attempts: []
+    };
+    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+  }
+  journalFromPending(pending, state) {
+    var _a, _b, _c;
+    const current = (_a = this.activeRecoveryJournal) != null ? _a : this.createEmptyRecoveryJournal(state);
+    return {
+      ...current,
+      state,
+      updatedAt: Date.now(),
+      scanRoot: pending.scanRootAtBatchStart,
+      affectedSubjectIds: [...pending.affectedSubjectIds],
+      originalPathStates: this.clonePathStates(pending.previousPathStates),
+      subjectExpectations: pending.subjectExpectations.map((item) => ({ ...item })),
+      contentExpectations: pending.contentExpectations.map((item) => ({ ...item })),
+      createdPathExpectations: pending.forbiddenPathsAfterRollback.map((path) => {
+        var _a2;
+        return (_a2 = current.createdPathExpectations.find((item) => normalizePathCollisionKey(item.createdPath) === normalizePathCollisionKey(path))) != null ? _a2 : { subjectId: -1, createdPath: path, expectedToExistAfterRollback: false };
+      }),
+      createdResourcePaths: [...pending.resourcePathsAfterRollback],
+      renameExpectations: pending.renameExpectations.map((item) => ({ ...item })),
+      resultSnapshot: pending.resultSnapshot,
+      attempts: (_c = (_b = this.recoveryRequired) == null ? void 0 : _b.attempts.map((item) => this.cloneRecoveryAttempt(item))) != null ? _c : current.attempts,
+      blockingIssue: pending.journalIssue
+    };
+  }
+  async persistPendingJournal(pending, state) {
+    this.activeRecoveryJournal = this.journalFromPending(pending, state);
+    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
   }
   resolveRecoveryAction(action) {
     if (this.recoveryActionPromise)
@@ -7973,6 +8591,7 @@ var SyncManager = class {
       this.recoveryRequired.latestAttempt = attempt;
       outcome.recovery = (_d = this.getRecoveryRequired()) != null ? _d : void 0;
       this.notifyRecoveryStateChanged();
+      await this.persistPendingJournal(pending, "recovery-required");
     } else if (outcome.recovered) {
       outcome.attempts = [...recovery.attempts, attempt].map((item) => this.cloneRecoveryAttempt(item));
     }
@@ -8001,11 +8620,11 @@ var SyncManager = class {
       return { action: "confirm-manual", status: "blocked", recovered: false, diagnostics, recovery: (_d = this.getRecoveryRequired()) != null ? _d : void 0 };
     }
     const finalRollback = {
-      attempted: true,
-      changed: true,
-      deletedCreatedFiles: recovery.forbiddenPathsAfterRollback.length,
-      restoredContents: recovery.contentExpectations.length,
-      restoredPaths: recovery.subjectExpectations.filter((item) => item.expectedToExist && item.expectedPath).length,
+      attempted: false,
+      changed: false,
+      deletedCreatedFiles: 0,
+      restoredContents: 0,
+      restoredPaths: 0,
       failed: 0,
       failures: []
     };
@@ -8015,6 +8634,8 @@ var SyncManager = class {
     this.pendingDecisionPromise = null;
     this.batchTransactionState = "rolled-back";
     this.incrementalSync.clearBatch();
+    await this.recoveryJournalStore.clear();
+    this.activeRecoveryJournal = null;
     this.notifyRecoveryStateChanged();
     return {
       action: "confirm-manual",
@@ -8026,9 +8647,14 @@ var SyncManager = class {
       resolution: {
         method: "manual-verification",
         currentFailed: 0,
-        verifiedSubjects: recovery.subjectExpectations.length,
-        verifiedContents: recovery.contentExpectations.length,
-        verifiedAbsentPaths: recovery.forbiddenPathsAfterRollback.length
+        automaticallyDeletedCreatedFiles: 0,
+        automaticallyRestoredContents: 0,
+        automaticallyRestoredPaths: 0,
+        manuallyVerifiedSubjects: recovery.subjectExpectations.length,
+        manuallyVerifiedContents: recovery.contentExpectations.length,
+        manuallyVerifiedAbsentPaths: recovery.forbiddenPathsAfterRollback.length + recovery.resourcePathsAfterRollback.length,
+        manuallyVerifiedRenames: recovery.renameExpectations.length,
+        historicalFailedAttempts: recovery.attempts.filter((attempt) => attempt.status === "rollback-failed" || attempt.status === "failed").length
       }
     };
   }
@@ -8063,6 +8689,7 @@ var SyncManager = class {
       return Promise.resolve({ status: "busy" });
     pending.state = action === "commit" ? "committing" : "rolling-back";
     this.batchTransactionState = action === "commit" ? "committing" : "rolling-back";
+    this.notifyManagerStateChanged();
     const promise = action === "commit" ? this.commitPendingTransaction(pending) : this.rollbackPendingTransaction(pending);
     this.pendingDecisionPromise = promise;
     promise.then(() => {
@@ -8074,6 +8701,7 @@ var SyncManager = class {
   }
   async commitPendingTransaction(pending) {
     try {
+      await this.persistPendingJournal(pending, "awaiting-decision");
       await this.persistPathStates();
       for (const transaction of pending.transactions)
         transaction.commit();
@@ -8093,16 +8721,36 @@ var SyncManager = class {
     this.pendingTransaction = null;
     this.batchTransactionState = "committed";
     this.incrementalSync.finishBatch();
+    await this.recoveryJournalStore.clear();
+    this.activeRecoveryJournal = null;
     return { status: "committed", result, warnings };
   }
   async rollbackPendingTransaction(pending, cause) {
     var _a, _b, _c;
     const result = this.emptyRollbackResult();
+    await this.persistPendingJournal(pending, "rolling-back");
     for (const transaction of [...pending.transactions].reverse()) {
       try {
         this.mergeRollbackResult(result, await transaction.rollback());
       } catch (error) {
         this.recordManagerRollbackFailure(result, "restore-content", "transaction", error);
+      }
+    }
+    if (pending.transactions.length === 0)
+      await this.rollbackPersistentFacts(pending, result);
+    for (const path of [...pending.resourcePathsAfterRollback].reverse()) {
+      try {
+        if (!await this.app.vault.adapter.exists(path))
+          continue;
+        const referenced = (await Promise.all(this.app.vault.getMarkdownFiles().map((file) => this.app.vault.read(file)))).some((content) => content.includes(path));
+        if (referenced)
+          continue;
+        await this.app.vault.adapter.remove(path);
+        result.attempted = true;
+        result.changed = true;
+        result.deletedCreatedFiles++;
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "delete-created", path, error);
       }
     }
     try {
@@ -8148,10 +8796,14 @@ var SyncManager = class {
         scanRoot: pending.scanRootAtBatchStart,
         contentExpectations: pending.contentExpectations.map((item) => ({ ...item })),
         forbiddenPathsAfterRollback: [...pending.forbiddenPathsAfterRollback],
+        resourcePathsAfterRollback: [...pending.resourcePathsAfterRollback],
+        renameExpectations: pending.renameExpectations.map((item) => ({ ...item })),
         attempts: (_b = existingRecovery == null ? void 0 : existingRecovery.attempts.map((item) => this.cloneRecoveryAttempt(item))) != null ? _b : [automaticAttempt],
         latestAttempt: (existingRecovery == null ? void 0 : existingRecovery.latestAttempt) ? this.cloneRecoveryAttempt(existingRecovery.latestAttempt) : automaticAttempt,
-        detectedAt: (_c = existingRecovery == null ? void 0 : existingRecovery.detectedAt) != null ? _c : Date.now()
+        detectedAt: (_c = existingRecovery == null ? void 0 : existingRecovery.detectedAt) != null ? _c : Date.now(),
+        journalIssue: pending.journalIssue
       };
+      await this.persistPendingJournal(pending, "rollback-failed");
       this.notifyRecoveryStateChanged();
       return { status: "rollback-failed", result: snapshot, rollback: result, error: cause ? errorMessage(cause) : void 0 };
     }
@@ -8159,8 +8811,70 @@ var SyncManager = class {
     this.pendingTransaction = null;
     this.recoveryRequired = null;
     this.batchTransactionState = "rolled-back";
+    await this.recoveryJournalStore.clear();
+    this.activeRecoveryJournal = null;
     this.notifyRecoveryStateChanged();
     return { status: "rolled-back", result: snapshot, rollback: result, error: cause ? errorMessage(cause) : void 0 };
+  }
+  async rollbackPersistentFacts(pending, result) {
+    var _a;
+    for (const path of [...pending.forbiddenPathsAfterRollback].reverse()) {
+      const file = this.findVaultFilesByCollisionPath(path)[0];
+      if (!file)
+        continue;
+      try {
+        await this.app.fileManager.trashFile(file);
+        result.attempted = true;
+        result.changed = true;
+        result.deletedCreatedFiles++;
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "delete-created", path, error);
+      }
+    }
+    for (const expectation of pending.contentExpectations) {
+      const file = this.findVaultFilesByCollisionPath(expectation.path)[0];
+      if (!file) {
+        this.recordManagerRollbackFailure(result, "restore-content", expectation.path, new Error("Original content file is missing."));
+        continue;
+      }
+      try {
+        const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(file));
+        if (identity.subjectId !== expectation.subjectId)
+          throw new Error(`File belongs to subject ${String(identity.subjectId)}, expected ${expectation.subjectId}.`);
+        await this.app.vault.process(file, () => expectation.originalContent);
+        result.attempted = true;
+        result.changed = true;
+        result.restoredContents++;
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "restore-content", expectation.path, error);
+      }
+    }
+    for (const rename of [...pending.renameExpectations].reverse()) {
+      if (this.findVaultFilesByCollisionPath(rename.originalPath).length > 0)
+        continue;
+      const sourceFile = (_a = rename.temporaryPath ? this.findVaultFilesByCollisionPath(rename.temporaryPath)[0] : null) != null ? _a : this.findVaultFilesByCollisionPath(rename.finalPath)[0];
+      const hiddenTemporaryPath = !sourceFile && rename.temporaryPath && await this.app.vault.adapter.exists(rename.temporaryPath) ? rename.temporaryPath : null;
+      if (!sourceFile && !hiddenTemporaryPath) {
+        this.recordManagerRollbackFailure(result, "restore-path", rename.originalPath, new Error("No recorded rename path exists."));
+        continue;
+      }
+      try {
+        const content = sourceFile ? await this.app.vault.read(sourceFile) : await this.app.vault.adapter.read(hiddenTemporaryPath);
+        const identity = this.documentService.getSubjectIdentityFromContent(content);
+        if (identity.subjectId !== rename.subjectId)
+          throw new Error(`Rename source belongs to subject ${String(identity.subjectId)}, expected ${rename.subjectId}.`);
+        await this.fileManager.ensureDirectory(rename.originalPath);
+        if (sourceFile)
+          await this.app.fileManager.renameFile(sourceFile, rename.originalPath);
+        else
+          await this.app.vault.adapter.rename(hiddenTemporaryPath, rename.originalPath);
+        result.attempted = true;
+        result.changed = true;
+        result.restoredPaths++;
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "restore-path", rename.originalPath, error);
+      }
+    }
   }
   recordManagerRollbackFailure(result, operation, path, error) {
     var _a;
@@ -8201,8 +8915,33 @@ var SyncManager = class {
     snapshot.success = completion === "committed" && snapshot.failed === 0;
     return snapshot;
   }
+  findVaultFilesByCollisionPath(path) {
+    const normalized = (0, import_obsidian11.normalizePath)(path);
+    const exact = this.app.vault.getAbstractFileByPath(normalized);
+    const matches = this.app.vault.getMarkdownFiles().filter((file) => normalizePathCollisionKey(file.path) === normalizePathCollisionKey(normalized));
+    if (exact instanceof import_obsidian11.TFile) {
+      return [exact, ...matches.filter((file) => file !== exact)];
+    }
+    return matches;
+  }
+  recordAmbiguousConcretePath(path, files, diagnostics) {
+    if (files.length <= 1)
+      return;
+    diagnostics.push({
+      code: "blocking-local-file",
+      path,
+      message: `Multiple case-equivalent files match the recovery path: ${files.map((file) => file.path).join(", ")}.`
+    });
+  }
   async collectRecoveryDiagnostics(recovery) {
+    var _a, _b, _c;
     const diagnostics = [];
+    if (recovery.journalIssue)
+      diagnostics.push({
+        code: "blocking-local-file",
+        path: ".bangumi-sync-recovery.json",
+        message: recovery.journalIssue
+      });
     try {
       await this.incrementalSync.scanLocalFolder(recovery.scanRoot);
     } catch (error) {
@@ -8221,25 +8960,23 @@ var SyncManager = class {
         paths: [...paths],
         message: `Subject ${subjectId} appears in multiple files.`
       });
-    const scanRootKey = normalizePathCollisionKey(recovery.scanRoot);
-    const scanRootSegments = (0, import_obsidian11.normalizePath)(recovery.scanRoot).split("/").filter(Boolean).length;
-    const filesInScanRoot = this.app.vault.getMarkdownFiles().filter((file) => {
-      const ancestor = (0, import_obsidian11.normalizePath)(file.path).split("/").slice(0, scanRootSegments).join("/");
-      return normalizePathCollisionKey(ancestor) === scanRootKey;
-    });
-    for (const file of filesInScanRoot) {
-      if (/(^|\/)\.bangumi-sync-\d+-\d+-\d+\.tmp\.md$/u.test(file.path))
-        diagnostics.push({ code: "temporary-file", path: file.path, message: "Temporary transaction file remains in the vault." });
-    }
+    for (const path of await this.findTransactionTemporaryPaths())
+      diagnostics.push({
+        code: "temporary-file",
+        path,
+        message: "Temporary transaction file remains in the vault."
+      });
     diagnostics.push(...collectSubjectExpectationDiagnostics(recovery.subjectExpectations, registry));
     for (const expectation of recovery.contentExpectations) {
-      const file = filesInScanRoot.find((item) => normalizePathCollisionKey(item.path) === normalizePathCollisionKey(expectation.path));
+      const matches = this.findVaultFilesByCollisionPath(expectation.path);
+      this.recordAmbiguousConcretePath(expectation.path, matches, diagnostics);
+      const file = matches[0];
       if (!file) {
         diagnostics.push({ code: "content-file-missing", subjectId: expectation.subjectId, path: expectation.path, message: "The pre-batch file is missing." });
         continue;
       }
       const content = await this.app.vault.read(file);
-      const actualHash = hashRecoveryContent(content);
+      const actualHash = await hashRecoveryContent(content);
       if (actualHash !== expectation.expectedContentHash || content.length !== expectation.originalContentLength)
         diagnostics.push({
           code: "content-mismatch",
@@ -8251,15 +8988,66 @@ var SyncManager = class {
         });
     }
     for (const path of recovery.forbiddenPathsAfterRollback) {
-      const file = filesInScanRoot.find((item) => normalizePathCollisionKey(item.path) === normalizePathCollisionKey(path));
+      const matches = this.findVaultFilesByCollisionPath(path);
+      this.recordAmbiguousConcretePath(path, matches, diagnostics);
+      const file = matches[0];
       if (!file)
         continue;
+      const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(file));
       diagnostics.push({
         code: "unexpected-created-path",
         path,
-        actualSubjectId: registry.getPathOwner(path),
+        actualSubjectId: (_a = identity.subjectId) != null ? _a : void 0,
         message: `The concrete path created by the failed batch still exists: ${file.path}.`
       });
+    }
+    for (const path of recovery.resourcePathsAfterRollback) {
+      if (await this.app.vault.adapter.exists(path))
+        diagnostics.push({
+          code: "unexpected-created-path",
+          path,
+          message: `A cover resource created by the failed batch still exists: ${path}.`
+        });
+    }
+    for (const rename of recovery.renameExpectations) {
+      const originals = this.findVaultFilesByCollisionPath(rename.expectedTerminalPath);
+      this.recordAmbiguousConcretePath(rename.expectedTerminalPath, originals, diagnostics);
+      const original = originals[0];
+      if (!original) {
+        diagnostics.push({
+          code: "missing-subject-file",
+          subjectId: rename.subjectId,
+          expectedPath: rename.expectedTerminalPath,
+          message: `Renamed subject ${rename.subjectId} is not at its expected recovery path.`
+        });
+      } else {
+        const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(original));
+        if (identity.subjectId !== rename.subjectId)
+          diagnostics.push({
+            code: "subject-identity-mismatch",
+            subjectId: rename.subjectId,
+            expectedPath: rename.expectedTerminalPath,
+            actualSubjectId: (_b = identity.subjectId) != null ? _b : -1,
+            message: `${original.path} does not belong to renamed subject ${rename.subjectId}.`
+          });
+      }
+      if (rename.temporaryPath) {
+        if (await this.app.vault.adapter.exists(rename.temporaryPath))
+          diagnostics.push({
+            code: "temporary-file",
+            path: rename.temporaryPath,
+            message: "A recorded rename temporary path still exists."
+          });
+      }
+      if (normalizePathCollisionKey(rename.finalPath) !== normalizePathCollisionKey(rename.expectedTerminalPath)) {
+        for (const final of this.findVaultFilesByCollisionPath(rename.finalPath))
+          diagnostics.push({
+            code: "unexpected-created-path",
+            path: final.path,
+            actualSubjectId: (_c = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(final)).subjectId) != null ? _c : void 0,
+            message: "The failed rename final path still exists."
+          });
+      }
     }
     const seen = /* @__PURE__ */ new Set();
     return diagnostics.filter((item) => {
@@ -8545,9 +9333,34 @@ var SyncManager = class {
     this.lastAutomaticRollback = void 0;
     this.assertNoPendingTransaction();
     this.batchTransactionState = "active";
+    this.notifyManagerStateChanged();
     const scanRootAtBatchStart = (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN");
     const previousPathStates = this.clonePathStates((_a = this.config.subjectPathStates) != null ? _a : {});
     const originalRecords = new Map(Array.from(this.incrementalSync.getRegistry().idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
+    const plannedSubjectIds = /* @__PURE__ */ new Set([
+      ...batch.prepared.map((item) => item.collection.subject_id),
+      ...batch.renamed.map((item) => item.subjectId)
+    ]);
+    const now = Date.now();
+    this.activeRecoveryJournal = {
+      schemaVersion: 1,
+      journalId: `sync-${now}`,
+      pluginVersion: "6.11.0",
+      state: "active",
+      createdAt: now,
+      updatedAt: now,
+      scanRoot: scanRootAtBatchStart,
+      affectedSubjectIds: Array.from(plannedSubjectIds),
+      originalPathStates: previousPathStates,
+      subjectExpectations: this.recoveryExpectationsFor(plannedSubjectIds, originalRecords),
+      contentExpectations: [],
+      createdPathExpectations: [],
+      renameExpectations: [],
+      createdResourcePaths: [],
+      resultSnapshot: this.captureResultSnapshot(result, false),
+      attempts: []
+    };
+    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
     for (const failure of batch.failures)
       this.recordPreparedFailure(result, failure);
     let wasCancelled = false;
@@ -8601,7 +9414,7 @@ var SyncManager = class {
         var _a2;
         return ((_a2 = batch.groupKeyBySubjectId.get(rename.subjectId)) != null ? _a2 : `subject:${rename.subjectId}`) === groupKey;
       });
-      const transaction = new SyncTransaction(this.app, this.fileManager);
+      const transaction = new SyncTransaction(this.app, this.fileManager, (facts) => this.persistBeforeVaultMutation(facts));
       const groupOutcomeStart = result.outcomes.length;
       const written = [];
       const writeFailures = /* @__PURE__ */ new Set();
@@ -8670,7 +9483,7 @@ var SyncManager = class {
     if (fatalRollbackFailure) {
       this.finalizeSyncResult(result, wasCancelled);
       const subjectExpectations = this.recoveryExpectationsFor(affectedSubjectIds, originalRecords);
-      const recoveryFacts = this.captureTransactionRecoveryFacts(successfulTransactions);
+      const recoveryFacts = await this.captureTransactionRecoveryFacts(successfulTransactions);
       const pending = {
         transactions: successfulTransactions,
         groups: successfulGroups,
@@ -8685,6 +9498,7 @@ var SyncManager = class {
         state: "rolling-back"
       };
       this.pendingTransaction = pending;
+      await this.persistPendingJournal(pending, "rolling-back");
       const decision = await this.rollbackPendingTransaction(pending);
       this.markOutcomeIndexesRolledBack(result, successfulGroups);
       this.lastAutomaticRollback = (_c = decision.rollback) != null ? _c : automaticRollback;
@@ -8693,7 +9507,7 @@ var SyncManager = class {
     const hasPendingChanges = successfulTransactions.some((transaction) => transaction.hasChanges());
     if (hasPendingChanges && (result.failed > 0 || wasCancelled)) {
       this.finalizeSyncResult(result, wasCancelled);
-      const recoveryFacts = this.captureTransactionRecoveryFacts(successfulTransactions);
+      const recoveryFacts = await this.captureTransactionRecoveryFacts(successfulTransactions);
       this.pendingTransaction = {
         transactions: successfulTransactions,
         groups: successfulGroups,
@@ -8707,7 +9521,9 @@ var SyncManager = class {
         createdAt: Date.now(),
         state: "awaiting"
       };
+      await this.persistPendingJournal(this.pendingTransaction, "awaiting-decision");
       this.batchTransactionState = "awaiting-user-decision";
+      this.notifyManagerStateChanged();
       return { wasCancelled, relations: [] };
     }
     if (successfulTransactions.length > 0) {
@@ -8717,9 +9533,12 @@ var SyncManager = class {
           transaction.commit();
         this.incrementalSync.finishBatch();
         this.batchTransactionState = "committed";
+        this.notifyManagerStateChanged();
+        await this.recoveryJournalStore.clear();
+        this.activeRecoveryJournal = null;
       } catch (e) {
         this.finalizeSyncResult(result, wasCancelled);
-        const recoveryFacts = this.captureTransactionRecoveryFacts(successfulTransactions);
+        const recoveryFacts = await this.captureTransactionRecoveryFacts(successfulTransactions);
         const pending = {
           transactions: successfulTransactions,
           groups: successfulGroups,
@@ -8734,6 +9553,7 @@ var SyncManager = class {
           state: "rolling-back"
         };
         this.pendingTransaction = pending;
+        await this.persistPendingJournal(pending, "rolling-back");
         const decision = await this.rollbackPendingTransaction(pending);
         this.lastAutomaticRollback = decision.rollback;
         this.markOutcomeIndexesRolledBack(result, successfulGroups);
@@ -8741,8 +9561,11 @@ var SyncManager = class {
     } else {
       this.incrementalSync.clearBatch();
       this.batchTransactionState = hadAutomaticRollback ? automaticRollback.failed > 0 ? "rollback-failed" : "rolled-back" : "none";
+      this.notifyManagerStateChanged();
       if (hadAutomaticRollback)
         this.lastAutomaticRollback = automaticRollback;
+      await this.recoveryJournalStore.clear();
+      this.activeRecoveryJournal = null;
     }
     return { wasCancelled, relations: result.failed === 0 ? relations : [] };
   }
@@ -9436,7 +10259,7 @@ var SyncManager = class {
     const updatedContent = this.incrementalSync.updateRelated(content, links);
     if (updatedContent === content)
       return;
-    await this.app.vault.process(file, () => updatedContent);
+    await this.documentService.processSubjectFile(file, subjectId, () => updatedContent);
     console.debug(`[Bangumi Sync] \u5DF2\u66F4\u65B0\u76F8\u5173\u94FE\u63A5: ${path} (+${links.length})`);
   }
   /**
@@ -9517,63 +10340,83 @@ var SyncManager = class {
    */
   async batchDownloadCovers() {
     this.ensureCanStartSync();
+    this.batchTransactionState = "active";
+    this.notifyManagerStateChanged();
     const scanPath = this.config.scanFolderPath || "ACGN";
-    await this.incrementalSync.scanLocalFolder(scanPath);
-    const localSubjects = this.incrementalSync.getLocalSubjects();
-    const result = { downloaded: 0, skipped: 0, failed: 0 };
-    let processed = 0;
-    for (const [subjectId, info] of localSubjects) {
-      processed++;
-      this.reportProgress({
-        status: "processing",
-        current: processed,
-        total: localSubjects.size,
-        currentItem: info.name_cn || String(subjectId)
-      });
-      try {
-        const file = this.app.vault.getAbstractFileByPath(info.path);
-        if (!(file instanceof import_obsidian11.TFile)) {
-          result.skipped++;
-          continue;
-        }
-        const content = await this.app.vault.read(file);
-        const coverValue = this.extractCoverValue(content);
-        if (!coverValue || !coverValue.startsWith("http")) {
-          result.skipped++;
-          continue;
-        }
-        const name_cn = this.extractFrontmatterString(content, "\u4E2D\u6587\u540D") || info.name_cn;
-        const name = this.extractFrontmatterString(content, "\u539F\u540D") || "";
-        const typeLabel = this.extractFrontmatterString(content, "\u4F5C\u54C1\u5927\u7C7B") || "";
-        const localPath = await this.imageHandler.downloadCover(
-          coverValue,
-          subjectId,
-          this.config.imagePathTemplate,
-          { name_cn, name, typeLabel }
-        );
-        if (!localPath || localPath.startsWith("http")) {
+    try {
+      await this.incrementalSync.scanLocalFolder(scanPath);
+      const localSubjects = this.incrementalSync.getLocalSubjects();
+      const result = { downloaded: 0, skipped: 0, failed: 0 };
+      let processed = 0;
+      for (const [subjectId, info] of Array.from(localSubjects)) {
+        processed++;
+        this.reportProgress({
+          status: "processing",
+          current: processed,
+          total: localSubjects.size,
+          currentItem: info.name_cn || String(subjectId)
+        });
+        try {
+          const file = this.app.vault.getAbstractFileByPath(info.path);
+          if (!(file instanceof import_obsidian11.TFile)) {
+            result.skipped++;
+            continue;
+          }
+          const content = await this.app.vault.read(file);
+          const coverValue = this.extractCoverValue(content);
+          if (!coverValue || !coverValue.startsWith("http")) {
+            result.skipped++;
+            continue;
+          }
+          const name_cn = this.extractFrontmatterString(content, "\u4E2D\u6587\u540D") || info.name_cn;
+          const name = this.extractFrontmatterString(content, "\u539F\u540D") || "";
+          const typeLabel = this.extractFrontmatterString(content, "\u4F5C\u54C1\u5927\u7C7B") || "";
+          await this.beginCoverUpdateJournal(subjectId, file, content);
+          const localPath = await this.imageHandler.downloadCover(
+            coverValue,
+            subjectId,
+            this.config.imagePathTemplate,
+            { name_cn, name, typeLabel }
+          );
+          if (!localPath || localPath.startsWith("http")) {
+            await this.recoveryJournalStore.clear();
+            this.activeRecoveryJournal = null;
+            result.failed++;
+            continue;
+          }
+          let updatedContent = this.replaceCoverInFrontmatter(content, localPath);
+          updatedContent = this.replaceCoverInBody(updatedContent, localPath);
+          await this.documentService.processSubjectFile(file, subjectId, () => updatedContent);
+          await this.recoveryJournalStore.clear();
+          this.activeRecoveryJournal = null;
+          result.downloaded++;
+          console.debug(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5B8C\u6210: ${info.name_cn} -> ${localPath}`);
+        } catch (error) {
+          console.error(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5931\u8D25: ${info.name_cn}`, error);
           result.failed++;
-          continue;
+          if (this.activeRecoveryJournal) {
+            this.restorePersistentJournal(this.activeRecoveryJournal);
+            const recovery = await this.retryRecovery();
+            if (!recovery.recovered)
+              break;
+          }
         }
-        let updatedContent = this.replaceCoverInFrontmatter(content, localPath);
-        updatedContent = this.replaceCoverInBody(updatedContent, localPath);
-        await this.app.vault.process(file, () => updatedContent);
-        result.downloaded++;
-        console.debug(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5B8C\u6210: ${info.name_cn} -> ${localPath}`);
-      } catch (error) {
-        console.error(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5931\u8D25: ${info.name_cn}`, error);
-        result.failed++;
+      }
+      this.reportProgress({
+        status: "completed",
+        message: tnFormat("notices", "coverDownloadComplete", {
+          downloaded: result.downloaded,
+          skipped: result.skipped,
+          failed: result.failed
+        })
+      });
+      return result;
+    } finally {
+      if (!this.recoveryRequired && this.batchTransactionState === "active") {
+        this.batchTransactionState = "none";
+        this.notifyManagerStateChanged();
       }
     }
-    this.reportProgress({
-      status: "completed",
-      message: tnFormat("notices", "coverDownloadComplete", {
-        downloaded: result.downloaded,
-        skipped: result.skipped,
-        failed: result.failed
-      })
-    });
-    return result;
   }
   /**
    * 扫描所有本地已同步条目，为相关条目补充双向链接
@@ -9682,7 +10525,7 @@ var SyncManager = class {
           }
         }
         if (missingLinks.length > 0) {
-          updatesByFile.set(info.path, missingLinks);
+          updatesByFile.set(info.path, { subjectId: id, links: missingLinks });
           console.debug(`[Bangumi Sync] ${info.name_cn || id}: \u8865\u5145 ${missingLinks.length} \u4E2A\u94FE\u63A5`);
         } else {
           alreadyCorrect++;
@@ -9691,8 +10534,9 @@ var SyncManager = class {
     }
     result.skipped = alreadyCorrect;
     console.debug(`[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u9700\u8981\u66F4\u65B0 ${updatesByFile.size} \u4E2A\u6587\u4EF6`);
-    for (const [path, links] of updatesByFile) {
+    for (const [path, update] of updatesByFile) {
       try {
+        const { subjectId, links } = update;
         const file = this.app.vault.getAbstractFileByPath(path);
         if (!(file instanceof import_obsidian11.TFile)) {
           console.warn(`[Bangumi Sync] \u6587\u4EF6\u4E0D\u5B58\u5728\u6216\u975E TFile: ${path}`);
@@ -9702,7 +10546,7 @@ var SyncManager = class {
         const content = await this.app.vault.read(file);
         const updatedContent = this.incrementalSync.updateRelated(content, links);
         if (updatedContent !== content) {
-          await this.app.vault.process(file, () => updatedContent);
+          await this.documentService.processSubjectFile(file, subjectId, () => updatedContent);
           result.linked++;
           const name = this.extractFrontmatterString(content, "\u4E2D\u6587\u540D") || file.basename;
           const addedNames = links.map((link) => {
@@ -11593,32 +12437,31 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
       new import_obsidian18.Notice(tn("recoveryCenter", "writeBlocked"));
       return;
     }
-    if (this.mode === "uniform") {
-      if (this.operations.length === 0) {
-        new import_obsidian18.Notice(tn("batchEditor", "noticeNoOp"));
+    try {
+      if (this.mode === "uniform") {
+        if (this.operations.length === 0) {
+          new import_obsidian18.Notice(tn("batchEditor", "noticeNoOp"));
+          return;
+        }
+        await this.onConfirm({ mode: "uniform", operations: this.operations });
+        this.close();
         return;
       }
-      await this.onConfirm({
-        mode: "uniform",
-        operations: this.operations
-      });
+      if (this.selectedProperties.length === 0) {
+        new import_obsidian18.Notice(tn("batchEditor", "noticeSelectProperty"));
+        return;
+      }
+      const perItemUpdates = this.buildPerItemUpdates();
+      if (perItemUpdates.length === 0) {
+        new import_obsidian18.Notice(tn("batchEditor", "noticeNothingChanged"));
+        return;
+      }
+      await this.onConfirm({ mode: "per_item", perItemUpdates });
       this.close();
-      return;
+    } catch (error) {
+      console.error("[Bangumi Sync] Batch edit failed:", error);
+      new import_obsidian18.Notice(error instanceof Error ? error.message : String(error));
     }
-    if (this.selectedProperties.length === 0) {
-      new import_obsidian18.Notice(tn("batchEditor", "noticeSelectProperty"));
-      return;
-    }
-    const perItemUpdates = this.buildPerItemUpdates();
-    if (perItemUpdates.length === 0) {
-      new import_obsidian18.Notice(tn("batchEditor", "noticeNothingChanged"));
-      return;
-    }
-    await this.onConfirm({
-      mode: "per_item",
-      perItemUpdates
-    });
-    this.close();
   }
   buildPerItemUpdates() {
     var _a, _b;
@@ -11641,6 +12484,7 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
       if (Object.keys(properties).length > 0) {
         updates.push({
           filePath: item.filePath,
+          subjectId: item.subjectId,
           properties
         });
       }
@@ -11708,15 +12552,16 @@ var FrontmatterEditor = class {
     this.history = [];
     this.maxHistory = 10;
     this.app = app;
+    this.documentService = new SubjectDocumentService(app);
   }
-  async batchModify(filePaths, operations) {
+  async batchModify(filePaths, operations, expectedSubjectIds = /* @__PURE__ */ new Map()) {
     assertWriteOperationAllowed("batch-edit");
     const originalContents = await this.captureOriginalContents(filePaths);
     const affectedFiles = [];
     let success = 0;
     let failed = 0;
     for (const path of filePaths) {
-      const result = await this.applyUniformOperations(path, operations);
+      const result = await this.applyUniformOperations(path, operations, expectedSubjectIds.get(path));
       if (result) {
         success++;
         affectedFiles.push(path);
@@ -11747,6 +12592,7 @@ var FrontmatterEditor = class {
     return { success, failed };
   }
   async undo() {
+    var _a;
     assertWriteOperationAllowed("batch-edit");
     if (this.history.length === 0) {
       return false;
@@ -11759,7 +12605,10 @@ var FrontmatterEditor = class {
     for (const [path, content] of lastOperation.originalContent) {
       const file = this.app.vault.getAbstractFileByPath(path);
       if (file instanceof import_obsidian18.TFile && lastOperation.affectedFiles.includes(path)) {
-        await this.app.vault.process(file, () => content);
+        const identity = this.documentService.getSubjectIdentityFromContent(content);
+        if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length))
+          continue;
+        await this.documentService.processSubjectFile(file, identity.subjectId, () => content);
         restored++;
       }
     }
@@ -11768,22 +12617,28 @@ var FrontmatterEditor = class {
   canUndo() {
     return this.history.length > 0;
   }
-  async applyUniformOperations(filePath, operations) {
+  async applyUniformOperations(filePath, operations, expectedSubjectId) {
+    var _a;
     const file = this.app.vault.getAbstractFileByPath(filePath);
     if (!(file instanceof import_obsidian18.TFile)) {
       return false;
     }
     try {
-      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-        var _a;
-        const frontmatterRecord = frontmatter;
+      const identity = await this.documentService.getSubjectIdentity(file);
+      const subjectId = expectedSubjectId != null ? expectedSubjectId : identity.subjectId;
+      if (subjectId === null || identity.subjectId !== subjectId || ((_a = identity.conflicts) == null ? void 0 : _a.length))
+        return false;
+      await this.documentService.processSubjectFile(file, subjectId, (content) => {
+        var _a2;
+        let updated = content;
         for (const operation of operations) {
           if (operation.type === "delete") {
-            delete frontmatterRecord[operation.property];
+            updated = this.documentService.removeFrontmatterField(updated, operation.property);
             continue;
           }
-          frontmatterRecord[operation.property] = (_a = operation.value) != null ? _a : "";
+          updated = this.documentService.updateFrontmatterField(updated, operation.property, (_a2 = operation.value) != null ? _a2 : "");
         }
+        return updated;
       });
       return true;
     } catch (error) {
@@ -11797,11 +12652,14 @@ var FrontmatterEditor = class {
       return false;
     }
     try {
-      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-        const frontmatterRecord = frontmatter;
+      if (update.subjectId === void 0)
+        return false;
+      await this.documentService.processSubjectFile(file, update.subjectId, (content) => {
+        let updated = content;
         for (const [property, value] of Object.entries(update.properties)) {
-          frontmatterRecord[property] = value;
+          updated = this.documentService.updateFrontmatterField(updated, property, value);
         }
+        return updated;
       });
       return true;
     } catch (error) {
@@ -12307,18 +13165,24 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       new import_obsidian19.Notice(tn("recoveryCenter", "writeBlocked"));
       return;
     }
-    this.statusEl.setText(tn("statusSyncModal", "syncProgress"));
-    const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
-    const summary = tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount));
-    const message = successCount > 0 && failCount > 0 ? `${tn("syncModal", "partialSuccess")}: ${summary}` : summary;
-    this.statusEl.setText(message);
-    if (successCount > 0) {
-      new import_obsidian19.Notice(message);
-      this.onComplete();
-      this.close();
-      return;
+    try {
+      this.statusEl.setText(tn("statusSyncModal", "syncProgress"));
+      const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
+      const summary = tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount));
+      const message = successCount > 0 && failCount > 0 ? `${tn("syncModal", "partialSuccess")}: ${summary}` : summary;
+      this.statusEl.setText(message);
+      if (successCount > 0) {
+        new import_obsidian19.Notice(message);
+        this.onComplete();
+        this.close();
+        return;
+      }
+      new import_obsidian19.Notice(tn("statusSyncModal", "syncFailed"));
+    } catch (error) {
+      console.error("[Bangumi Sync] Status sync failed:", error);
+      this.statusEl.setText(tn("statusSyncModal", "syncFailed"));
+      new import_obsidian19.Notice(`${tn("statusSyncModal", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
-    new import_obsidian19.Notice(tn("statusSyncModal", "syncFailed"));
   }
   scheduleRender() {
     if (this.renderTimer !== null || this.isDisposedFlag) {
@@ -13192,7 +14056,7 @@ var StatusSyncExecutor = class {
     }
     if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== "skip" && this.episodeStatusManager) {
       if (content !== originalContent) {
-        await this.app.vault.process(file, () => content);
+        await this.documentService.processSubjectFile(file, diff.subjectId, () => content);
         content = await this.app.vault.read(file);
       }
       if (diff.episodeStatus.decision === "local") {
@@ -13212,7 +14076,7 @@ var StatusSyncExecutor = class {
       content = await this.applyPlatformSync(diff, file, content);
     }
     if (content !== originalContent) {
-      await this.app.vault.process(file, () => content);
+      await this.documentService.processSubjectFile(file, diff.subjectId, () => content);
     }
   }
   async applyPlatformSync(diff, file, content) {
@@ -13511,6 +14375,8 @@ var StatusSyncService = class {
 var ControlPanel = class extends import_obsidian24.Modal {
   constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, onOpenSyncOptions, onBatchDownloadCovers, onScanAndLinkRelated, subjectNoteManager, episodeStatusManager, autoSyncSelection) {
     super(app);
+    this.managerState = "idle";
+    this.unsubscribeManagerState = null;
     // 分页
     this.currentPage = 1;
     this.pageSize = 50;
@@ -13588,6 +14454,12 @@ var ControlPanel = class extends import_obsidian24.Modal {
     this.renderFilterBar();
     this.actionBarEl = contentEl.createDiv({ cls: "bangumi-panel-action-bar" });
     this.renderActionBar();
+    this.unsubscribeManagerState = this.syncManager.subscribeManagerState((state) => {
+      var _a;
+      this.managerState = state;
+      if ((_a = this.actionBarEl) == null ? void 0 : _a.isConnected)
+        this.renderActionBar();
+    });
     this.tableEl = contentEl.createDiv({ cls: "bangumi-panel-table" });
     this.footerBarEl = contentEl.createDiv({ cls: "bangumi-panel-footer-bar" });
     this.statusEl = this.footerBarEl.createDiv({ cls: "bangumi-panel-status" });
@@ -13605,6 +14477,9 @@ var ControlPanel = class extends import_obsidian24.Modal {
     this.setupSwipeToClose();
   }
   onClose() {
+    var _a;
+    (_a = this.unsubscribeManagerState) == null ? void 0 : _a.call(this);
+    this.unsubscribeManagerState = null;
     this.subjectSnapshotSession.cancelWarmup();
     if (this.touchStartHandler) {
       this.contentEl.removeEventListener("touchstart", this.touchStartHandler);
@@ -13722,13 +14597,22 @@ var ControlPanel = class extends import_obsidian24.Modal {
       });
       this.decorateMobileButton(button, action.mobileLabel, action.label);
       button.addEventListener("click", (evt) => {
+        if (this.isActionBlocked(action)) {
+          new import_obsidian24.Notice(tn("recoveryCenter", "writeBlocked"));
+          return;
+        }
         action.run(evt);
       });
-      if (action.key === "undo") {
+      if (this.isActionBlocked(action)) {
+        button.disabled = true;
+      } else if (action.key === "undo") {
         button.disabled = !this.frontmatterEditor.canUndo();
       }
     }
     this.updateSelectedCount();
+  }
+  isActionBlocked(action) {
+    return this.managerState !== "idle" && action.key !== "refresh";
   }
   getToolbarActions(hasSelection) {
     const actionMap = new Map(this.getActionDescriptors().map((action) => [action.key, action]));
@@ -13907,7 +14791,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
         menu.addSeparator();
       }
       for (const action of sectionActions) {
-        const disabled = !!action.requiresSelection && !hasSelection;
+        const disabled = this.isActionBlocked(action) || !!action.requiresSelection && !hasSelection;
         menu.addItem((item) => {
           item.setTitle(disabled ? `${action.label} (${tn("controlPanel", "selectFirst")})` : action.label).setDisabled(disabled).onClick(() => action.run());
         });
@@ -14455,7 +15339,8 @@ var ControlPanel = class extends import_obsidian24.Modal {
         var _a, _b;
         const result = submission.mode === "uniform" ? await this.frontmatterEditor.batchModify(
           targetItems.map((item) => item.filePath),
-          (_a = submission.operations) != null ? _a : []
+          (_a = submission.operations) != null ? _a : [],
+          new Map(targetItems.flatMap((item) => item.subjectId === void 0 ? [] : [[item.filePath, item.subjectId]]))
         ) : await this.frontmatterEditor.batchApplyPerItemUpdates((_b = submission.perItemUpdates) != null ? _b : []);
         new import_obsidian24.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
         for (const item of targetItems) {
@@ -15343,7 +16228,7 @@ var UserDataImporter = class {
           );
         }
       }
-      await this.app.vault.process(localFile, () => content);
+      await this.documentService.processSubjectFile(localFile, subjectId, () => content);
     }
   }
   async applyImportDecisions(diffs, options = {
@@ -15384,7 +16269,7 @@ var UserDataImporter = class {
         }
       }
       if (changed) {
-        await this.app.vault.process(localFile, () => content);
+        await this.documentService.processSubjectFile(localFile, item.subjectId, () => content);
         applied++;
       }
     }
@@ -15678,7 +16563,7 @@ var UserDataImporter = class {
       );
     }
     if (changed || updatedContent !== originalContent) {
-      await this.app.vault.process(localFile, () => updatedContent);
+      await this.documentService.processSubjectFile(localFile, subjectId, () => updatedContent);
       return true;
     }
     return false;
@@ -17008,6 +17893,14 @@ var EpisodeStatusManager = class {
   constructor(app, client) {
     this.app = app;
     this.client = client;
+    this.documentService = new SubjectDocumentService(app);
+  }
+  async processKnownSubjectFile(file, updater) {
+    var _a;
+    const identity = await this.documentService.getSubjectIdentity(file);
+    if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length))
+      throw new Error(`Cannot safely write episode status to ${file.path}: subject ID is missing or conflicting.`);
+    await this.documentService.processSubjectFile(file, identity.subjectId, updater);
   }
   /**
    * 从文件中读取单集状态映射
@@ -17070,7 +17963,7 @@ var EpisodeStatusManager = class {
    */
   async updateLocalStatus(file, episodeId, epNumber, status) {
     assertWriteOperationAllowed("episode-status");
-    await this.app.vault.process(file, (content) => {
+    await this.processKnownSubjectFile(file, (content) => {
       return this.updateEpStatusInContent(content, episodeId, epNumber, status);
     });
   }
@@ -17079,7 +17972,7 @@ var EpisodeStatusManager = class {
    */
   async updateMultipleStatuses(file, episodes) {
     assertWriteOperationAllowed("episode-status");
-    await this.app.vault.process(file, (content) => {
+    await this.processKnownSubjectFile(file, (content) => {
       return this.applyEpisodeStatusUpdates(content, episodes);
     });
   }
@@ -17297,7 +18190,7 @@ ${statusLines}`;
     assertWriteOperationAllowed("episode-status");
     try {
       const userEpisodes = await this.client.getUserEpisodeStatus(subjectId);
-      await this.app.vault.process(file, (content) => {
+      await this.processKnownSubjectFile(file, (content) => {
         const episodes = userEpisodes.filter((userEp) => userEp.type !== 0 && userEp.episode).map((userEp) => ({
           episodeId: userEp.episode.id,
           epNumber: userEp.episode.ep || userEp.episode.sort || 0,
@@ -17323,7 +18216,7 @@ ${statusLines}`;
    */
   async clearAllStatuses(file) {
     assertWriteOperationAllowed("episode-status");
-    await this.app.vault.process(file, (content) => {
+    await this.processKnownSubjectFile(file, (content) => {
       const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
       if (!frontmatterMatch)
         return content;
@@ -17338,14 +18231,19 @@ ${statusLines}`;
 var EpisodeCommentManager = class {
   constructor(app) {
     this.app = app;
+    this.documentService = new SubjectDocumentService(app);
   }
   /**
    * 插入单集吐槽 callout
    * 返回插入位置信息，用于光标定位
    */
   async insertEpisodeComment(file, epNumber) {
+    var _a;
     assertWriteOperationAllowed("episode-comment");
     const content = await this.app.vault.read(file);
+    const identity = this.documentService.getSubjectIdentityFromContent(content);
+    if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length))
+      throw new Error(`Cannot safely write an episode comment to ${file.path}: subject ID is missing or conflicting.`);
     const recordMatch = this.findRecordSection(content);
     const callout = this.buildEpisodeCommentCallout(epNumber);
     let newContent;
@@ -17360,7 +18258,7 @@ var EpisodeCommentManager = class {
       calloutStart = created.calloutStart;
     }
     const cursorPosition = this.calculateCursorPosition(newContent, calloutStart, callout);
-    await this.app.vault.process(file, () => newContent);
+    await this.documentService.processSubjectFile(file, identity.subjectId, () => newContent);
     return {
       success: true,
       insertLine: cursorPosition.line,
@@ -17507,7 +18405,7 @@ var SubjectNoteManager = class {
     const candidateIds = await this.buildCandidateIds(context.subject, localFile);
     const match = await this.findExistingNote(context.subject.id, candidateIds);
     const targetFile = match ? await this.updateExistingNote(match, candidateIds, context.heading) : await this.createNewNote(context, candidateIds);
-    await this.updateLocalNoteLink(localFile, targetFile.path, context.heading);
+    await this.updateLocalNoteLink(localFile, context.subject.id, targetFile.path, context.heading);
     await this.app.workspace.openLinkText(
       `${targetFile.path.replace(/\.md$/i, "")}#${context.heading}`,
       localFile.path,
@@ -17672,10 +18570,10 @@ var SubjectNoteManager = class {
       entry_heading: heading
     });
   }
-  async updateLocalNoteLink(localFile, notePath, heading) {
+  async updateLocalNoteLink(localFile, subjectId, notePath, heading) {
     const noteTarget = notePath.replace(/\.md$/i, "");
     const noteLink = `[[${noteTarget}#${heading}|${heading}\u7B14\u8BB0]]`;
-    await this.app.vault.process(localFile, (content) => this.upsertFrontmatterField(content, "\u7B14\u8BB0", noteLink));
+    await this.documentService.processSubjectFile(localFile, subjectId, (content) => this.upsertFrontmatterField(content, "\u7B14\u8BB0", noteLink));
   }
   async ensureParentFolder(filePath) {
     const slashIndex = filePath.lastIndexOf("/");
@@ -18065,6 +18963,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     this.controlPanel = null;
     this.appliedSyncConfig = null;
     this.lastSavedSettings = null;
+    this.settingsPersistence = new SettingsPersistenceCoordinator();
     // 单集功能
     this.episodeStatusManager = null;
     this.episodeCommentManager = null;
@@ -18158,9 +19057,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       this.app,
       this,
       this.settings,
-      async () => {
-        await this.applySettingsChanges();
-      },
+      (candidate) => this.applySettingsChanges(candidate),
       () => this.openPathDiagnostic(),
       () => this.openPathMigrationPreview()
     ));
@@ -18313,33 +19210,34 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
    * 保存设置
    */
   async saveSettings() {
-    await this.saveData(this.settings);
-    this.lastSavedSettings = this.cloneSettings(this.settings);
+    const snapshot = this.cloneSettings(this.settings);
+    await this.settingsPersistence.enqueue(() => this.saveData(snapshot));
+    this.lastSavedSettings = snapshot;
   }
   /**
    * 初始化同步管理器
    */
-  async buildSyncManagerConfig() {
-    const templates = await this.getTemplates();
-    return {
-      accessToken: this.settings.accessToken,
-      pathTemplate: this.settings.syncPathTemplate,
-      pathTemplateByType: this.settings.pathTemplateByType,
-      imagePathTemplate: this.settings.imagePathTemplate,
-      notePathTemplate: this.settings.notePathTemplate,
-      downloadImages: this.settings.downloadImages,
-      scanFolderPath: this.settings.scanFolderPath,
-      coverLinkType: this.settings.coverLinkType,
+  async buildSyncManagerConfig(settings = this.settings) {
+    const templates = await this.getTemplates(settings);
+    return cloneSyncManagerConfig({
+      accessToken: settings.accessToken,
+      pathTemplate: settings.syncPathTemplate,
+      pathTemplateByType: settings.pathTemplateByType,
+      imagePathTemplate: settings.imagePathTemplate,
+      notePathTemplate: settings.notePathTemplate,
+      downloadImages: settings.downloadImages,
+      scanFolderPath: settings.scanFolderPath,
+      coverLinkType: settings.coverLinkType,
       customTemplates: templates,
-      enableRelatedLinks: this.settings.enableRelatedLinks,
-      dataProtection: this.settings.dataProtection,
-      subjectPathStates: this.settings.subjectPathStates,
-      pathNamingStrategy: this.settings.pathNamingStrategy,
+      enableRelatedLinks: settings.enableRelatedLinks,
+      dataProtection: settings.dataProtection,
+      subjectPathStates: settings.subjectPathStates,
+      pathNamingStrategy: settings.pathNamingStrategy,
       onPathStatesChanged: async (states) => {
         this.settings.subjectPathStates = states;
         await this.saveSettings();
       }
-    };
+    });
   }
   cloneSettings(settings) {
     return JSON.parse(JSON.stringify(settings));
@@ -18367,45 +19265,62 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       "enableRelatedLinks",
       "customTemplates"
     ];
-    return fields.filter((field) => JSON.stringify(previous[field]) !== JSON.stringify(next[field]));
+    return fields.filter((field) => !syncConfigFieldEqual(previous, next, field));
   }
-  refreshDependentServices(manager) {
-    this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.settings);
+  refreshDependentServices(manager, settings = this.settings) {
+    this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.cloneSettings(settings));
   }
-  async applySettingsChanges() {
-    const previousSettings = this.lastSavedSettings ? this.cloneSettings(this.lastSavedSettings) : this.cloneSettings(this.settings);
-    const nextConfig = await this.buildSyncManagerConfig();
+  async applySettingsChanges(candidate) {
+    const previousSettings = this.cloneSettings(this.settings);
+    candidate.subjectPathStates = this.cloneSettings(this.settings).subjectPathStates;
+    const nextConfig = await this.buildSyncManagerConfig(candidate);
     const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, nextConfig);
     const outcome = await persistStableManagerSettings({
-      settings: this.settings,
+      settings: this.cloneSettings(candidate),
       previousSettings,
       nextConfig,
       changedFields,
       manager: this.syncManager,
-      save: (settings) => this.saveData(settings),
-      restore: (snapshot) => this.restoreSettings(snapshot)
+      save: (settings) => this.settingsPersistence.enqueue(() => this.saveData(this.cloneSettings(settings))),
+      restore: (snapshot) => this.restoreSettings(snapshot),
+      applyDependentServices: (settings) => {
+        if (this.syncManager)
+          this.refreshDependentServices(this.syncManager, settings);
+      },
+      restoreDependentServices: (settings) => {
+        if (this.syncManager)
+          this.refreshDependentServices(this.syncManager, settings);
+      },
+      onRollbackFailure: (error) => {
+        var _a;
+        return (_a = this.syncManager) == null ? void 0 : _a.requireConfigurationRecovery(error);
+      }
     });
     if (outcome.applied) {
-      this.appliedSyncConfig = nextConfig;
+      this.appliedSyncConfig = cloneSyncManagerConfig(nextConfig);
       this.lastSavedSettings = this.cloneSettings(this.settings);
-      if (this.syncManager)
-        this.refreshDependentServices(this.syncManager);
-      return;
+      return { applied: true, settings: this.cloneSettings(this.settings) };
     }
     if (outcome.error instanceof ConfigurationChangeBlockedError)
       new import_obsidian32.Notice(outcome.error.message);
+    else
+      new import_obsidian32.Notice(`Failed to save settings: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`);
+    return { applied: false, settings: this.cloneSettings(this.settings) };
   }
   async initOrUpdateSyncManager() {
     const config = await this.buildSyncManagerConfig();
     if (this.syncManager) {
       const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, config);
       this.syncManager.updateConfig(config, changedFields);
-      this.appliedSyncConfig = config;
+      this.appliedSyncConfig = cloneSyncManagerConfig(config);
       this.refreshDependentServices(this.syncManager);
       return;
     }
     this.syncManager = new SyncManager(this.app, config);
-    this.appliedSyncConfig = config;
+    await this.syncManager.initializeRecovery();
+    if (this.syncManager.getRecoveryRequired())
+      new import_obsidian32.Notice(tn("recoveryCenter", "writeBlocked"));
+    this.appliedSyncConfig = cloneSyncManagerConfig(config);
     this.lastSavedSettings = this.cloneSettings(this.settings);
     const manager = this.syncManager;
     setWriteOperationGuard(() => manager.ensureCanStartSync());
@@ -18445,7 +19360,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
   /**
    * 获取各类型模板
    */
-  async getTemplates() {
+  async getTemplates(settings = this.settings) {
     const templates = {};
     const templateKeys = [
       "animeTemplateConfig",
@@ -18457,30 +19372,30 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       "realTemplateConfig"
     ];
     for (const templateKey of templateKeys) {
-      templates[getTemplateFallbackLookupKey(templateKey)] = await this.resolveTemplate(templateKey);
+      templates[getTemplateFallbackLookupKey(templateKey)] = await this.resolveTemplate(templateKey, settings);
     }
     for (const categoryOption of TEMPLATE_CATEGORY_OPTIONS) {
-      templates[categoryOption.category] = await this.resolveTemplateForCategory(categoryOption.key);
+      templates[categoryOption.category] = await this.resolveTemplateForCategory(categoryOption.key, settings);
     }
     return templates;
   }
   /**
    * 解析单个模板配置
    */
-  async resolveTemplate(configKey) {
-    return this.resolveTemplateFromConfig(this.settings[configKey], configKey);
+  async resolveTemplate(configKey, settings = this.settings) {
+    return this.resolveTemplateFromConfig(settings[configKey], configKey);
   }
-  async resolveTemplateForCategory(categoryKey) {
+  async resolveTemplateForCategory(categoryKey, settings = this.settings) {
     var _a;
     const categoryOption = TEMPLATE_CATEGORY_OPTIONS_BY_KEY[categoryKey];
     if (!categoryOption) {
       return "";
     }
-    const categoryConfig = (_a = this.settings.templateConfigByCategory) == null ? void 0 : _a[categoryKey];
+    const categoryConfig = (_a = settings.templateConfigByCategory) == null ? void 0 : _a[categoryKey];
     if (categoryConfig) {
       return this.resolveTemplateFromConfig(categoryConfig, categoryOption.templateKey);
     }
-    return this.resolveTemplate(categoryOption.templateKey);
+    return this.resolveTemplate(categoryOption.templateKey, settings);
   }
   async resolveTemplateFromConfig(config, defaultTemplateKey) {
     switch (config.source) {
@@ -18611,7 +19526,10 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       this.syncManager,
       (filters) => {
         this.settings.panelFilters = filters;
-        void this.saveSettings();
+        void this.saveSettings().catch((error) => {
+          console.error("[Bangumi Sync] Failed to persist panel filters:", error);
+          new import_obsidian32.Notice(`Failed to save settings: ${error instanceof Error ? error.message : String(error)}`);
+        });
       },
       cachedPanelData,
       (data) => {
