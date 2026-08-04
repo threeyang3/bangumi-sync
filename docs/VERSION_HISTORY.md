@@ -1,5 +1,19 @@
 # 版本历史
 
+## v6.11.1
+
+### 修复
+- recovery journal 增加完整运行时结构校验；合法 JSON 但字段错误的 schema-1 journal 会备份并进入安全门禁，不再中断启动。
+- recovery reason/action 改为明确策略；corrupt、orphan temporary 和 configuration rollback failure 不能通过空 Retry 清除，所有恢复成功前执行完整二次诊断。
+- 重启回滚固定先恢复 rename，再删除 created Markdown、恢复原内容和已有 binary；final/temporary 路径一次 Retry 即可完成。
+- `imageQuality` 与 `imageUpdateExisting` 接入稳定 manager 配置；关闭已有图片更新时不下载、不改 binary、不建 journal。
+- 已有封面更新前持久化原 binary、长度与 SHA-256，自动/重启回滚会写回并复核 hash；超过 16 MiB 的已有资源拒绝事务外覆盖。
+- manager 提交、回滚和恢复终态统一通知，控制面板不会停在 committing。
+- 设置页改为字段 patch，对最新正式设置应用变更；保存失败后 UI 也从当前正式值重绘。
+
+### 兼容性
+- 无需迁移 Markdown、Subject ID 或设置；最低 Obsidian 版本仍为 1.8.7。
+
 ## v6.11.0
 
 ### 稳定性与恢复

@@ -24,6 +24,7 @@ function updateFilePath(file: TFile, path: string): void {
 
 export class InMemoryVault {
 	readonly contents = new Map<string, string>();
+	readonly binaryContents = new Map<string, Uint8Array>();
 	readonly files = new Map<string, TFile>();
 	readonly folders = new Map<string, TFolder>();
 	readonly trashed: string[] = [];
@@ -48,6 +49,16 @@ export class InMemoryVault {
 					if (!this.contents.has(normalized)) return Promise.reject(new Error(`File not found: ${normalized}`));
 					return Promise.resolve(this.contents.get(normalized) ?? '');
 				},
+				readBinary: (path: string) => {
+					const bytes = this.binaryContents.get(normalizePath(path));
+					return bytes ? Promise.resolve(bytes.slice().buffer) : Promise.reject(new Error(`Binary file not found: ${path}`));
+				},
+				writeBinary: (path: string, content: ArrayBuffer) => {
+					const normalized = normalizePath(path);
+					if (!this.files.has(normalized)) this.addBinaryFile(normalized, new Uint8Array(content));
+					else this.binaryContents.set(normalized, new Uint8Array(content).slice());
+					return Promise.resolve();
+				},
 				write: (path: string, content: string) => {
 					const normalized = normalizePath(path);
 					if (!this.files.has(normalized)) this.addFile(normalized, content);
@@ -60,14 +71,17 @@ export class InMemoryVault {
 					const file = this.files.get(source);
 					if (!file) return Promise.reject(new Error(`File not found: ${source}`));
 					if (this.files.has(target)) return Promise.reject(new Error(`File exists: ${target}`));
-					const content = this.contents.get(source) ?? '';
-					this.files.delete(source); this.contents.delete(source);
-					updateFilePath(file, target); this.files.set(target, file); this.contents.set(target, content);
+					const content = this.contents.get(source);
+					const binary = this.binaryContents.get(source);
+					this.files.delete(source); this.contents.delete(source); this.binaryContents.delete(source);
+					updateFilePath(file, target); this.files.set(target, file);
+					if (content !== undefined) this.contents.set(target, content);
+					if (binary) this.binaryContents.set(target, binary);
 					return Promise.resolve();
 				},
 				remove: (path: string) => {
 					const normalized = normalizePath(path);
-					this.files.delete(normalized); this.contents.delete(normalized);
+					this.files.delete(normalized); this.contents.delete(normalized); this.binaryContents.delete(normalized);
 					return Promise.resolve();
 				},
 			},
@@ -75,9 +89,16 @@ export class InMemoryVault {
 			getMarkdownFiles: () => Array.from(this.files.values()).filter(file =>
 				file.extension === 'md' && !file.path.split('/').some(segment => segment.startsWith('.')),
 			),
+			getFiles: () => Array.from(this.files.values()),
 			getAbstractFileByPath: (path: string) => this.files.get(normalizePath(path)) ?? this.folders.get(normalizePath(path)) ?? null,
 			read: (file: TFile) => Promise.resolve(this.contents.get(file.path) ?? ''),
 			create: (path: string, content: string) => Promise.resolve(this.addFile(path, content)),
+			createBinary: (path: string, content: ArrayBuffer) => Promise.resolve(this.addBinaryFile(path, new Uint8Array(content))),
+			readBinary: (file: TFile) => Promise.resolve((this.binaryContents.get(file.path) ?? new Uint8Array()).slice().buffer),
+			modifyBinary: (file: TFile, content: ArrayBuffer) => {
+				this.binaryContents.set(file.path, new Uint8Array(content).slice());
+				return Promise.resolve();
+			},
 			createFolder: (path: string) => {
 				this.addFolder(path);
 				return Promise.resolve();
@@ -104,17 +125,21 @@ export class InMemoryVault {
 					this.trashed.push(file.path);
 					this.files.delete(file.path);
 					this.contents.delete(file.path);
+					this.binaryContents.delete(file.path);
 					return Promise.resolve();
 				},
 				renameFile: (file: TFile, newPath: string) => {
 					const normalized = normalizePath(newPath);
 					if (this.files.has(normalized)) throw new Error(`File exists: ${normalized}`);
-					const content = this.contents.get(file.path) ?? '';
+					const content = this.contents.get(file.path);
+					const binary = this.binaryContents.get(file.path);
 					this.files.delete(file.path);
 					this.contents.delete(file.path);
+					this.binaryContents.delete(file.path);
 					updateFilePath(file, normalized);
 					this.files.set(normalized, file);
-					this.contents.set(normalized, content);
+					if (content !== undefined) this.contents.set(normalized, content);
+					if (binary) this.binaryContents.set(normalized, binary);
 					return Promise.resolve();
 				},
 			},
@@ -140,6 +165,17 @@ export class InMemoryVault {
 		const file = createFile(normalized);
 		this.files.set(normalized, file);
 		this.contents.set(normalized, content);
+		return file;
+	}
+
+	addBinaryFile(path: string, content: Uint8Array): TFile {
+		const normalized = normalizePath(path);
+		if (this.files.has(normalized)) throw new Error(`File exists: ${normalized}`);
+		const slash = normalized.lastIndexOf('/');
+		if (slash >= 0) this.addFolder(normalized.slice(0, slash));
+		const file = createFile(normalized);
+		this.files.set(normalized, file);
+		this.binaryContents.set(normalized, content.slice());
 		return file;
 	}
 }

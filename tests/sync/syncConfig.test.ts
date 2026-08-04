@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { SyncManagerConfig } from '../../src/sync/syncManager';
 import { cloneSyncManagerConfig, deepFreezeSyncManagerConfig } from '../../src/sync/syncConfig';
+import { SyncManager } from '../../src/sync/syncManager';
+import { InMemoryVault } from '../mocks/inMemoryVault';
 
 function config(): SyncManagerConfig {
 	return {
 		accessToken: 'token', pathTemplate: 'A/{{id}}.md', imagePathTemplate: 'A/{{id}}.jpg',
-		downloadImages: true, scanFolderPath: 'A', pathTemplateByType: { anime: 'Anime/{{id}}.md' },
+		downloadImages: true, imageQuality: 'large', imageUpdateExisting: false, scanFolderPath: 'A', pathTemplateByType: { anime: 'Anime/{{id}}.md' },
 		customTemplates: { anime: '{{id}}' },
 		dataProtection: { preserveRatingDetails: true, preserveCustomProperties: true, preserveRecord: true, preserveThoughts: true },
 		subjectPathStates: { '1': { subjectId: 1, currentPath: 'A/1.md', namingState: 'managed' } },
@@ -29,5 +31,17 @@ describe('immutable sync configuration snapshots', () => {
 		const frozen = deepFreezeSyncManagerConfig(cloneSyncManagerConfig(config()));
 		expect(Object.isFrozen(frozen)).toBe(true);
 		expect(Object.isFrozen(frozen.subjectPathStates?.['1'])).toBe(true);
+	});
+
+	it('applies image quality and existing-image behavior on construction and config updates', () => {
+		const vault = new InMemoryVault();
+		const initial = config();
+		initial.imageQuality = 'small';
+		initial.imageUpdateExisting = true;
+		const manager = new SyncManager(vault.app, initial);
+		const imageHandler = (manager as unknown as { imageHandler: { imageSettings: { quality: string; updateExisting: boolean } } }).imageHandler;
+		expect(imageHandler.imageSettings).toEqual({ quality: 'small', updateExisting: true });
+		manager.updateConfig({ imageQuality: 'medium', imageUpdateExisting: false }, ['imageQuality', 'imageUpdateExisting']);
+		expect(imageHandler.imageSettings).toEqual({ quality: 'medium', updateExisting: false });
 	});
 });

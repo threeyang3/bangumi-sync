@@ -10,7 +10,7 @@ export interface TransactionRename {
 }
 
 export interface RollbackFailure {
-	operation: 'delete-created' | 'restore-content' | 'stage-path' | 'restore-path' | 'rescan' | 'restore-path-states';
+	operation: 'delete-created' | 'restore-content' | 'stage-path' | 'restore-path' | 'rescan' | 'restore-path-states' | 'restore-binary' | 'post-validation';
 	path: string;
 	message: string;
 }
