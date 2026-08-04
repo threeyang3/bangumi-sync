@@ -56,9 +56,49 @@ export function sha256Fallback(bytes: Uint8Array): string {
 
 /** Standard SHA-256 over the exact, unnormalized UTF-8 bytes. */
 export async function hashRecoveryContent(content: string): Promise<string> {
-	const bytes = new TextEncoder().encode(content);
+	return hashRecoveryBytes(new TextEncoder().encode(content));
+}
+
+/** Standard SHA-256 over the exact bytes of a binary recovery resource. */
+export async function hashRecoveryBytes(bytes: Uint8Array): Promise<string> {
 	const subtle = typeof crypto === 'undefined' ? undefined : crypto.subtle;
 	if (!subtle) return sha256Fallback(bytes);
-	const digest = await subtle.digest('SHA-256', bytes);
+	const digest = await subtle.digest('SHA-256', bytes.slice().buffer);
 	return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+export function encodeRecoveryBase64(bytes: Uint8Array): string {
+	let encoded = '';
+	for (let index = 0; index < bytes.length; index += 3) {
+		const first = bytes[index];
+		const second = bytes[index + 1];
+		const third = bytes[index + 2];
+		const chunk = (first << 16) | ((second ?? 0) << 8) | (third ?? 0);
+		encoded += BASE64_ALPHABET[(chunk >>> 18) & 63];
+		encoded += BASE64_ALPHABET[(chunk >>> 12) & 63];
+		encoded += second === undefined ? '=' : BASE64_ALPHABET[(chunk >>> 6) & 63];
+		encoded += third === undefined ? '=' : BASE64_ALPHABET[chunk & 63];
+	}
+	return encoded;
+}
+
+export function decodeRecoveryBase64(value: string): Uint8Array {
+	if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(value)) {
+		throw new Error('Invalid base64 recovery content.');
+	}
+	const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0;
+	const bytes = new Uint8Array((value.length / 4) * 3 - padding);
+	let offset = 0;
+	for (let index = 0; index < value.length; index += 4) {
+		const chunk = (BASE64_ALPHABET.indexOf(value[index]) << 18)
+			| (BASE64_ALPHABET.indexOf(value[index + 1]) << 12)
+			| ((value[index + 2] === '=' ? 0 : BASE64_ALPHABET.indexOf(value[index + 2])) << 6)
+			| (value[index + 3] === '=' ? 0 : BASE64_ALPHABET.indexOf(value[index + 3]));
+		if (offset < bytes.length) bytes[offset++] = (chunk >>> 16) & 0xff;
+		if (offset < bytes.length) bytes[offset++] = (chunk >>> 8) & 0xff;
+		if (offset < bytes.length) bytes[offset++] = chunk & 0xff;
+	}
+	return bytes;
 }

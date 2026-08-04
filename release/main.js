@@ -942,6 +942,9 @@ var en = {
     rescan: "Rescan local state",
     close: "Close",
     working: "Checking local recovery\u2026",
+    factsInsufficient: "The original transaction facts are incomplete. Back up the vault and complete a full diagnostic scan before accepting the unverifiable risk.",
+    corruptRiskPrompt: "The recovery journal is corrupt. Confirm that you backed up the vault and accept that original content cannot be verified.",
+    orphanPaths: "Orphan temporary paths",
     recovered: "Local recovery completed. Write operations are available again.",
     currentFailures: "Current failures",
     blocked: "Recovery is still blocked. Resolve the diagnostics below and rescan.",
@@ -1596,6 +1599,9 @@ var zhCN = {
     rescan: "\u91CD\u65B0\u626B\u63CF\u672C\u5730\u72B6\u6001",
     close: "\u5173\u95ED",
     working: "\u6B63\u5728\u68C0\u67E5\u672C\u5730\u6062\u590D\u72B6\u6001\u2026",
+    factsInsufficient: "\u539F\u4E8B\u52A1\u4E8B\u5B9E\u4E0D\u5B8C\u6574\u3002\u8BF7\u5148\u5907\u4EFD Vault\uFF0C\u5E76\u5B8C\u6210\u5168\u5C40\u8BCA\u65AD\u540E\u518D\u660E\u786E\u63A5\u53D7\u65E0\u6CD5\u9A8C\u8BC1\u539F\u5185\u5BB9\u7684\u98CE\u9669\u3002",
+    corruptRiskPrompt: "\u6062\u590D\u65E5\u5FD7\u5DF2\u635F\u574F\u3002\u8BF7\u786E\u8BA4\u5DF2\u7ECF\u5907\u4EFD Vault\uFF0C\u5E76\u63A5\u53D7\u539F\u59CB\u5185\u5BB9\u65E0\u6CD5\u9A8C\u8BC1\u7684\u98CE\u9669\u3002",
+    orphanPaths: "\u5B64\u7ACB\u4E34\u65F6\u8DEF\u5F84",
     recovered: "\u672C\u5730\u6062\u590D\u5DF2\u5B8C\u6210\uFF0C\u5199\u5165\u64CD\u4F5C\u5DF2\u91CD\u65B0\u5F00\u653E\u3002",
     currentFailures: "\u5F53\u524D\u5931\u8D25",
     blocked: "\u6062\u590D\u4ECD\u88AB\u963B\u585E\u3002\u8BF7\u5904\u7406\u4E0B\u65B9\u8BCA\u65AD\u540E\u91CD\u65B0\u626B\u63CF\u3002",
@@ -2585,6 +2591,45 @@ function getTypeLabel(subjectType, category) {
   }
 }
 
+// src/settings/settingsPatch.ts
+function reconcileSettingsDraft(outcome) {
+  const draft = cloneValue(outcome.settings);
+  return { draft, submitted: cloneValue(outcome.settings), shouldRerender: !outcome.applied };
+}
+function cloneValue(value) {
+  return value === void 0 ? value : JSON.parse(JSON.stringify(value));
+}
+function valuesEqual(left, right) {
+  if (left === right)
+    return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((item, index) => valuesEqual(item, right[index]));
+  }
+  if (!left || !right || typeof left !== "object" || typeof right !== "object")
+    return false;
+  const leftRecord = left;
+  const rightRecord = right;
+  const leftKeys = Object.keys(leftRecord).sort();
+  const rightKeys = Object.keys(rightRecord).sort();
+  return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index] && valuesEqual(leftRecord[key], rightRecord[key]));
+}
+function createSettingsPatch(base, draft) {
+  const changedFields = Object.keys(draft).filter((field) => !valuesEqual(base[field], draft[field]));
+  const values = {};
+  for (const field of changedFields)
+    Object.assign(values, { [field]: cloneValue(draft[field]) });
+  return { changedFields, values };
+}
+function applySettingsPatch(current, patch) {
+  const candidate = cloneValue(current);
+  for (const field of patch.changedFields) {
+    if (!Object.prototype.hasOwnProperty.call(patch.values, field))
+      throw new Error(`Settings patch is missing ${field}.`);
+    Object.assign(candidate, { [field]: cloneValue(patch.values[field]) });
+  }
+  return candidate;
+}
+
 // src/settings/settingsTab.ts
 var TEMPLATE_TYPES = [
   { key: "animeTemplateConfig", nameKey: "animeTemplate" },
@@ -2599,10 +2644,17 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
   constructor(app, plugin, settings, onSave, onDiagnose, onPreviewMigration) {
     super(app, plugin);
     this.settings = this.cloneSettings(settings);
+    this.submittedSettings = this.cloneSettings(settings);
     this.onSave = async () => {
-      const outcome = await onSave(this.cloneSettings(this.settings));
-      this.settings = this.cloneSettings(outcome.settings);
-      if (!outcome.applied)
+      const patch = createSettingsPatch(this.submittedSettings, this.settings);
+      if (patch.changedFields.length === 0)
+        return;
+      this.submittedSettings = this.cloneSettings(this.settings);
+      const outcome = await onSave(patch);
+      const reconciled = reconcileSettingsDraft(outcome);
+      this.settings = reconciled.draft;
+      this.submittedSettings = reconciled.submitted;
+      if (reconciled.shouldRerender)
         this.display();
     };
     this.onDiagnose = onDiagnose;
@@ -3523,7 +3575,11 @@ async function persistStableManagerSettings(update) {
     } catch (rollbackError) {
       const settingsError = new SettingsRollbackError(error, rollbackError);
       try {
-        await ((_e = update.onRollbackFailure) == null ? void 0 : _e.call(update, settingsError));
+        await ((_e = update.onRollbackFailure) == null ? void 0 : _e.call(update, settingsError, {
+          previousSettings: update.previousSettings,
+          candidateSettings: update.settings,
+          nextConfig: update.nextConfig
+        }));
       } catch (recoveryError) {
         console.error("Failed to persist the settings recovery gate.", recoveryError);
       }
@@ -5177,6 +5233,7 @@ var ImageHandler = class {
       updateExisting: false
     };
     this.beforeCreate = null;
+    this.beforeUpdate = null;
     this.app = app;
     this.fileManager = fileManager;
   }
@@ -5200,6 +5257,9 @@ var ImageHandler = class {
   }
   setBeforeCreateHook(hook) {
     this.beforeCreate = hook;
+  }
+  setBeforeUpdateHook(hook) {
+    this.beforeUpdate = hook;
   }
   /**
    * 获取当前图片设置
@@ -5233,33 +5293,42 @@ var ImageHandler = class {
    * 下载图片
    */
   async downloadImage(imageUrl, targetPath) {
-    var _a;
+    return (await this.downloadImageWithResult(imageUrl, targetPath)).path;
+  }
+  async downloadImageWithResult(imageUrl, targetPath) {
+    var _a, _b;
     if (!this.downloadEnabled) {
-      return imageUrl;
+      return { path: imageUrl, status: "failed" };
     }
     try {
+      const normalizedPath = (0, import_obsidian6.normalizePath)(targetPath);
+      const existingFile = this.fileManager.getFile(normalizedPath);
+      if (existingFile && !this.imageSettings.updateExisting) {
+        return { path: normalizedPath, status: "unchanged" };
+      }
       const response = await (0, import_obsidian6.requestUrl)({
         url: imageUrl,
         method: "GET"
       });
       if (response.status !== 200) {
         console.error(`Failed to download image: ${response.status}`);
-        return imageUrl;
+        return { path: imageUrl, status: "failed" };
       }
       const arrayBuffer = response.arrayBuffer;
       await this.fileManager.ensureDirectory(targetPath);
-      const normalizedPath = (0, import_obsidian6.normalizePath)(targetPath);
-      const existingFile = this.fileManager.getFile(normalizedPath);
       if (existingFile) {
+        const originalContent = await this.app.vault.readBinary(existingFile);
+        await ((_a = this.beforeUpdate) == null ? void 0 : _a.call(this, normalizedPath, originalContent));
         await this.app.vault.modifyBinary(existingFile, arrayBuffer);
+        return { path: normalizedPath, status: "updated" };
       } else {
-        await ((_a = this.beforeCreate) == null ? void 0 : _a.call(this, normalizedPath));
+        await ((_b = this.beforeCreate) == null ? void 0 : _b.call(this, normalizedPath));
         await this.app.vault.createBinary(normalizedPath, arrayBuffer);
+        return { path: normalizedPath, status: "created" };
       }
-      return normalizedPath;
     } catch (error) {
       console.error("Error downloading image:", error);
-      return imageUrl;
+      return { path: imageUrl, status: "failed" };
     }
   }
   /**
@@ -5270,14 +5339,20 @@ var ImageHandler = class {
    * @param extraVars 额外的模板变量（如 name_cn, typeLabel）
    */
   async downloadCover(imageUrl, subjectId, imagePathTemplate, extraVars) {
+    return (await this.downloadCoverWithResult(imageUrl, subjectId, imagePathTemplate, extraVars)).path;
+  }
+  async downloadCoverWithResult(imageUrl, subjectId, imagePathTemplate, extraVars) {
     if (!imageUrl) {
-      return "";
+      return { path: "", status: "failed" };
     }
+    const finalPath = this.getCoverTargetPath(imageUrl, subjectId, imagePathTemplate, extraVars);
+    return this.downloadImageWithResult(imageUrl, finalPath);
+  }
+  getCoverTargetPath(imageUrl, subjectId, imagePathTemplate, extraVars) {
     let targetPath = imagePathTemplate.replace(/\{\{id\}\}/g, String(subjectId)).replace(/\{\{type\}\}/g, "cover").replace(/\{\{name_cn\}\}/g, (extraVars == null ? void 0 : extraVars.name_cn) || "").replace(/\{\{name\}\}/g, (extraVars == null ? void 0 : extraVars.name) || "").replace(/\{\{typeLabel\}\}/g, (extraVars == null ? void 0 : extraVars.typeLabel) || "");
     targetPath = this.sanitizePath(targetPath);
     const ext = this.getImageExtension(imageUrl);
-    const finalPath = targetPath.replace(/\.\w+$/, `.${ext}`);
-    return this.downloadImage(imageUrl, finalPath);
+    return (0, import_obsidian6.normalizePath)(targetPath.replace(/\.\w+$/, `.${ext}`));
   }
   /**
    * 清理路径中的非法字符
@@ -7591,12 +7666,47 @@ function sha256Fallback(bytes) {
   return hash.map((value) => value.toString(16).padStart(8, "0")).join("");
 }
 async function hashRecoveryContent(content) {
-  const bytes = new TextEncoder().encode(content);
+  return hashRecoveryBytes(new TextEncoder().encode(content));
+}
+async function hashRecoveryBytes(bytes) {
   const subtle = typeof crypto === "undefined" ? void 0 : crypto.subtle;
   if (!subtle)
     return sha256Fallback(bytes);
-  const digest = await subtle.digest("SHA-256", bytes);
+  const digest = await subtle.digest("SHA-256", bytes.slice().buffer);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+var BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+function encodeRecoveryBase64(bytes) {
+  let encoded = "";
+  for (let index = 0; index < bytes.length; index += 3) {
+    const first = bytes[index];
+    const second = bytes[index + 1];
+    const third = bytes[index + 2];
+    const chunk = first << 16 | (second != null ? second : 0) << 8 | (third != null ? third : 0);
+    encoded += BASE64_ALPHABET[chunk >>> 18 & 63];
+    encoded += BASE64_ALPHABET[chunk >>> 12 & 63];
+    encoded += second === void 0 ? "=" : BASE64_ALPHABET[chunk >>> 6 & 63];
+    encoded += third === void 0 ? "=" : BASE64_ALPHABET[chunk & 63];
+  }
+  return encoded;
+}
+function decodeRecoveryBase64(value) {
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(value)) {
+    throw new Error("Invalid base64 recovery content.");
+  }
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  const bytes = new Uint8Array(value.length / 4 * 3 - padding);
+  let offset = 0;
+  for (let index = 0; index < value.length; index += 4) {
+    const chunk = BASE64_ALPHABET.indexOf(value[index]) << 18 | BASE64_ALPHABET.indexOf(value[index + 1]) << 12 | (value[index + 2] === "=" ? 0 : BASE64_ALPHABET.indexOf(value[index + 2])) << 6 | (value[index + 3] === "=" ? 0 : BASE64_ALPHABET.indexOf(value[index + 3]));
+    if (offset < bytes.length)
+      bytes[offset++] = chunk >>> 16 & 255;
+    if (offset < bytes.length)
+      bytes[offset++] = chunk >>> 8 & 255;
+    if (offset < bytes.length)
+      bytes[offset++] = chunk & 255;
+  }
+  return bytes;
 }
 
 // src/sync/syncTransaction.ts
@@ -7919,6 +8029,297 @@ function syncConfigFieldEqual(left, right, field) {
 var RECOVERY_JOURNAL_PATH = ".bangumi-sync-recovery.json";
 var RECOVERY_JOURNAL_TEMP_PATH = ".bangumi-sync-recovery.tmp.json";
 var RECOVERY_JOURNAL_PREVIOUS_PATH = ".bangumi-sync-recovery.previous.json";
+function isRecord(value) {
+  if (value === null || typeof value !== "object")
+    return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function finiteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+function nonNegativeInteger(value) {
+  return finiteNumber(value) && Number.isInteger(value) && value >= 0;
+}
+function positiveSubjectId(value) {
+  return finiteNumber(value) && Number.isInteger(value) && value > 0;
+}
+function validateString(value, path, errors, nonEmpty = false) {
+  if (typeof value !== "string" || nonEmpty && value.trim().length === 0) {
+    errors.push(`${path} must be ${nonEmpty ? "a non-empty " : "a "}string.`);
+    return false;
+  }
+  return true;
+}
+function validateArray(value, path, errors) {
+  if (!Array.isArray(value)) {
+    errors.push(`${path} must be an array.`);
+    return false;
+  }
+  return true;
+}
+function validatePathState(value, path, errors) {
+  if (!isRecord(value)) {
+    errors.push(`${path} must be a plain object.`);
+    return;
+  }
+  if (!positiveSubjectId(value.subjectId))
+    errors.push(`${path}.subjectId must be a positive integer.`);
+  validateString(value.currentPath, `${path}.currentPath`, errors);
+  if (value.lastManagedPath !== void 0)
+    validateString(value.lastManagedPath, `${path}.lastManagedPath`, errors);
+  if (!["managed", "user-renamed"].includes(String(value.namingState)))
+    errors.push(`${path}.namingState is invalid.`);
+}
+function validateRollback(value, path, errors) {
+  if (!isRecord(value)) {
+    errors.push(`${path} must be a plain object.`);
+    return;
+  }
+  for (const field of ["attempted", "changed"])
+    if (typeof value[field] !== "boolean")
+      errors.push(`${path}.${field} must be boolean.`);
+  for (const field of ["deletedCreatedFiles", "restoredContents", "restoredPaths", "failed"]) {
+    if (!nonNegativeInteger(value[field]))
+      errors.push(`${path}.${field} must be a non-negative integer.`);
+  }
+  if (value.failures !== void 0 && validateArray(value.failures, `${path}.failures`, errors)) {
+    value.failures.forEach((item, index) => {
+      if (!isRecord(item)) {
+        errors.push(`${path}.failures[${index}] must be a plain object.`);
+        return;
+      }
+      if (!["delete-created", "restore-content", "stage-path", "restore-path", "rescan", "restore-path-states", "restore-binary", "post-validation"].includes(String(item.operation)))
+        errors.push(`${path}.failures[${index}].operation is invalid.`);
+      validateString(item.path, `${path}.failures[${index}].path`, errors);
+      validateString(item.message, `${path}.failures[${index}].message`, errors);
+    });
+  }
+}
+function validateResultSnapshot(value, errors) {
+  const path = "resultSnapshot";
+  if (!isRecord(value)) {
+    errors.push(`${path} must be a plain object.`);
+    return;
+  }
+  for (const field of ["total", "added", "skipped", "errors", "created", "updated", "unchanged", "renamed", "collisionResolved", "failed", "duration", "rolledBack"]) {
+    if (!nonNegativeInteger(value[field]))
+      errors.push(`${path}.${field} must be a non-negative integer.`);
+  }
+  if (typeof value.success !== "boolean")
+    errors.push(`${path}.success must be boolean.`);
+  if (typeof value.wasCancelled !== "boolean")
+    errors.push(`${path}.wasCancelled must be boolean.`);
+  if (typeof value.canRollback !== "boolean")
+    errors.push(`${path}.canRollback must be boolean.`);
+  if (!["success", "partial-success", "failed", "cancelled", "rolled-back", "rollback-failed"].includes(String(value.completion)))
+    errors.push(`${path}.completion is invalid.`);
+  for (const field of ["errorDetails", "outcomes", "warnings", "batchFiles"])
+    validateArray(value[field], `${path}.${field}`, errors);
+  if (Array.isArray(value.errorDetails))
+    value.errorDetails.forEach((item, index) => validateString(item, `${path}.errorDetails[${index}]`, errors));
+  for (const field of ["outcomes", "warnings", "batchFiles"]) {
+    if (Array.isArray(value[field]))
+      value[field].forEach((item, index) => {
+        if (!isRecord(item))
+          errors.push(`${path}.${field}[${index}] must be a plain object.`);
+      });
+  }
+  if (value.rollback !== void 0)
+    validateRollback(value.rollback, `${path}.rollback`, errors);
+}
+function validateDiagnostics(value, path, errors) {
+  if (!validateArray(value, path, errors))
+    return;
+  const allowedCodes = /* @__PURE__ */ new Set([
+    "rollback-step-failed",
+    "rescan-failed",
+    "state-restore-failed",
+    "persisted-state-mismatch",
+    "incremental-state-mismatch",
+    "blocking-local-file",
+    "duplicate-subject-id",
+    "temporary-file",
+    "unexpected-subject-file",
+    "missing-subject-file",
+    "subject-path-mismatch",
+    "subject-identity-mismatch",
+    "content-mismatch",
+    "content-file-missing",
+    "unexpected-created-path"
+  ]);
+  value.forEach((item, index) => {
+    if (!isRecord(item)) {
+      errors.push(`${path}[${index}] must be a plain object.`);
+      return;
+    }
+    if (!validateString(item.code, `${path}[${index}].code`, errors, true) || !allowedCodes.has(item.code)) {
+      errors.push(`${path}[${index}].code is invalid.`);
+    }
+    validateString(item.message, `${path}[${index}].message`, errors);
+  });
+}
+function validateBase64(value, path, expectedByteLength, errors) {
+  if (!validateString(value, path, errors))
+    return;
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(value)) {
+    errors.push(`${path} must be canonical base64.`);
+    return;
+  }
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  const decodedLength = value.length === 0 ? 0 : value.length / 4 * 3 - padding;
+  if (nonNegativeInteger(expectedByteLength) && decodedLength !== expectedByteLength) {
+    errors.push(`${path} decoded length must equal originalByteLength.`);
+  }
+}
+function validatePersistentRecoveryJournal(value) {
+  var _a, _b;
+  const errors = [];
+  if (!isRecord(value))
+    return { valid: false, errors: ["journal must be a plain object."] };
+  if (value.schemaVersion !== 1)
+    errors.push("schemaVersion must equal 1.");
+  validateString(value.journalId, "journalId", errors, true);
+  validateString(value.pluginVersion, "pluginVersion", errors);
+  if (!["active", "awaiting-decision", "rolling-back", "rollback-failed", "recovery-required"].includes(String(value.state)))
+    errors.push("state is invalid.");
+  for (const field of ["createdAt", "updatedAt"])
+    if (!finiteNumber(value[field]))
+      errors.push(`${field} must be a finite number.`);
+  validateString(value.scanRoot, "scanRoot", errors);
+  if (validateArray(value.affectedSubjectIds, "affectedSubjectIds", errors))
+    value.affectedSubjectIds.forEach((id, index) => {
+      if (!positiveSubjectId(id))
+        errors.push(`affectedSubjectIds[${index}] must be a positive integer.`);
+    });
+  if (!isRecord(value.originalPathStates))
+    errors.push("originalPathStates must be a plain object.");
+  else
+    Object.entries(value.originalPathStates).forEach(([key, state]) => validatePathState(state, `originalPathStates.${key}`, errors));
+  if (validateArray(value.subjectExpectations, "subjectExpectations", errors))
+    value.subjectExpectations.forEach((item, index) => {
+      const path = `subjectExpectations[${index}]`;
+      if (!isRecord(item)) {
+        errors.push(`${path} must be a plain object.`);
+        return;
+      }
+      if (!positiveSubjectId(item.subjectId))
+        errors.push(`${path}.subjectId must be a positive integer.`);
+      if (typeof item.expectedToExist !== "boolean")
+        errors.push(`${path}.expectedToExist must be boolean.`);
+      if (item.expectedPath !== void 0)
+        validateString(item.expectedPath, `${path}.expectedPath`, errors);
+      if (item.expectedSubjectId !== void 0 && !positiveSubjectId(item.expectedSubjectId))
+        errors.push(`${path}.expectedSubjectId must be a positive integer.`);
+    });
+  if (validateArray(value.contentExpectations, "contentExpectations", errors))
+    value.contentExpectations.forEach((item, index) => {
+      const path = `contentExpectations[${index}]`;
+      if (!isRecord(item)) {
+        errors.push(`${path} must be a plain object.`);
+        return;
+      }
+      if (!positiveSubjectId(item.subjectId))
+        errors.push(`${path}.subjectId must be a positive integer.`);
+      validateString(item.path, `${path}.path`, errors);
+      if (typeof item.expectedContentHash !== "string" || !/^[a-f0-9]{64}$/iu.test(item.expectedContentHash))
+        errors.push(`${path}.expectedContentHash must be a 64-character SHA-256 hex string.`);
+      if (!nonNegativeInteger(item.originalContentLength))
+        errors.push(`${path}.originalContentLength must be a non-negative integer.`);
+      if (validateString(item.originalContent, `${path}.originalContent`, errors) && nonNegativeInteger(item.originalContentLength) && item.originalContent.length !== item.originalContentLength) {
+        errors.push(`${path}.originalContentLength must equal originalContent.length.`);
+      }
+    });
+  if (validateArray(value.createdPathExpectations, "createdPathExpectations", errors))
+    value.createdPathExpectations.forEach((item, index) => {
+      const path = `createdPathExpectations[${index}]`;
+      if (!isRecord(item)) {
+        errors.push(`${path} must be a plain object.`);
+        return;
+      }
+      if (!(positiveSubjectId(item.subjectId) || item.subjectId === -1))
+        errors.push(`${path}.subjectId must be positive or the internal -1 sentinel.`);
+      validateString(item.createdPath, `${path}.createdPath`, errors);
+      if (item.expectedToExistAfterRollback !== false)
+        errors.push(`${path}.expectedToExistAfterRollback must be false.`);
+    });
+  if (validateArray(value.renameExpectations, "renameExpectations", errors))
+    value.renameExpectations.forEach((item, index) => {
+      const path = `renameExpectations[${index}]`;
+      if (!isRecord(item)) {
+        errors.push(`${path} must be a plain object.`);
+        return;
+      }
+      if (!positiveSubjectId(item.subjectId))
+        errors.push(`${path}.subjectId must be a positive integer.`);
+      for (const field of ["originalPath", "finalPath", "expectedTerminalPath"])
+        validateString(item[field], `${path}.${field}`, errors);
+      if (item.temporaryPath !== void 0)
+        validateString(item.temporaryPath, `${path}.temporaryPath`, errors);
+    });
+  if (validateArray(value.createdResourcePaths, "createdResourcePaths", errors))
+    value.createdResourcePaths.forEach((item, index) => validateString(item, `createdResourcePaths[${index}]`, errors));
+  const updatedResources = (_a = value.updatedResourceExpectations) != null ? _a : [];
+  if (validateArray(updatedResources, "updatedResourceExpectations", errors))
+    updatedResources.forEach((item, index) => {
+      const path = `updatedResourceExpectations[${index}]`;
+      if (!isRecord(item)) {
+        errors.push(`${path} must be a plain object.`);
+        return;
+      }
+      validateString(item.path, `${path}.path`, errors);
+      if (!nonNegativeInteger(item.originalByteLength))
+        errors.push(`${path}.originalByteLength must be a non-negative integer.`);
+      if (typeof item.originalSha256 !== "string" || !/^[a-f0-9]{64}$/iu.test(item.originalSha256))
+        errors.push(`${path}.originalSha256 must be a 64-character SHA-256 hex string.`);
+      validateBase64(item.originalContentBase64, `${path}.originalContentBase64`, item.originalByteLength, errors);
+    });
+  const orphanPaths = (_b = value.orphanTemporaryPaths) != null ? _b : [];
+  if (validateArray(orphanPaths, "orphanTemporaryPaths", errors))
+    orphanPaths.forEach((item, index) => validateString(item, `orphanTemporaryPaths[${index}]`, errors));
+  if (value.configurationFacts !== void 0) {
+    if (!isRecord(value.configurationFacts))
+      errors.push("configurationFacts must be a plain object.");
+    else
+      for (const field of ["previousSettings", "candidateSettings", "currentSettings", "diskSettings", "managerConfig"]) {
+        if (!isRecord(value.configurationFacts[field]))
+          errors.push(`configurationFacts.${field} must be a plain object.`);
+      }
+  }
+  validateResultSnapshot(value.resultSnapshot, errors);
+  if (validateArray(value.attempts, "attempts", errors))
+    value.attempts.forEach((item, index) => {
+      const path = `attempts[${index}]`;
+      if (!isRecord(item)) {
+        errors.push(`${path} must be a plain object.`);
+        return;
+      }
+      if (!["automatic-rollback", "retry-rollback", "confirm-manual", "rescan"].includes(String(item.action)))
+        errors.push(`${path}.action is invalid.`);
+      if (!["rolled-back", "rollback-failed", "recovered", "blocked", "failed", "no-recovery"].includes(String(item.status)))
+        errors.push(`${path}.status is invalid.`);
+      for (const field of ["startedAt", "finishedAt"])
+        if (!finiteNumber(item[field]))
+          errors.push(`${path}.${field} must be a finite number.`);
+      validateDiagnostics(item.diagnostics, `${path}.diagnostics`, errors);
+      if (item.rollback !== void 0)
+        validateRollback(item.rollback, `${path}.rollback`, errors);
+      if (item.error !== void 0)
+        validateString(item.error, `${path}.error`, errors);
+    });
+  if (value.blockingIssue !== void 0)
+    validateString(value.blockingIssue, "blockingIssue", errors);
+  if (errors.length > 0)
+    return { valid: false, errors };
+  return {
+    valid: true,
+    journal: {
+      ...value,
+      updatedResourceExpectations: updatedResources,
+      orphanTemporaryPaths: orphanPaths
+    }
+  };
+}
 var RecoveryJournalStore = class {
   constructor(app) {
     this.app = app;
@@ -7979,7 +8380,13 @@ var RecoveryJournalStore = class {
       await adapter.rename(sourcePath, backupPath);
       return { status: "unsupported", schemaVersion, backupPath };
     }
-    return { status: "loaded", journal: parsed, recoveredFromPrevious: !hasCurrent, temporaryFilePresent };
+    const validation = validatePersistentRecoveryJournal(parsed);
+    if (!validation.valid) {
+      const backupPath = `.bangumi-sync-recovery.corrupt-structure-${Date.now()}.json`;
+      await adapter.rename(sourcePath, backupPath);
+      return { status: "corrupt", message: validation.errors.slice(0, 8).join(" "), backupPath };
+    }
+    return { status: "loaded", journal: validation.journal, recoveredFromPrevious: !hasCurrent, temporaryFilePresent };
   }
   async clear() {
     await this.writeQueue;
@@ -8021,7 +8428,58 @@ function formatDiagnosticReport(report) {
 `;
 }
 
+// src/sync/recoveryPolicy.ts
+function getVisibleRecoveryActions(policy) {
+  const actions = [];
+  if (policy.allowRetryRollback)
+    actions.push("retry-rollback");
+  if (policy.allowManualConfirmation)
+    actions.push("confirm-manual");
+  if (policy.allowRescan)
+    actions.push("rescan");
+  return actions;
+}
+function getRecoveryActionPolicy(recovery) {
+  const hasRollbackFacts = recovery.renameExpectations.length > 0 || recovery.contentExpectations.length > 0 || recovery.forbiddenPathsAfterRollback.length > 0 || recovery.resourcePathsAfterRollback.length > 0 || recovery.updatedResourceExpectations.length > 0;
+  switch (recovery.reason) {
+    case "journal-corrupt":
+      return {
+        allowRetryRollback: false,
+        allowManualConfirmation: true,
+        allowRescan: true,
+        retryRequiresPostValidation: true,
+        requiresUnverifiableRiskAcceptance: true
+      };
+    case "orphan-temporary":
+    case "configuration-rollback-failed":
+      return {
+        allowRetryRollback: false,
+        allowManualConfirmation: true,
+        allowRescan: true,
+        retryRequiresPostValidation: true,
+        requiresUnverifiableRiskAcceptance: false
+      };
+    case "journal-recovered":
+      return {
+        allowRetryRollback: hasRollbackFacts,
+        allowManualConfirmation: true,
+        allowRescan: true,
+        retryRequiresPostValidation: true,
+        requiresUnverifiableRiskAcceptance: false
+      };
+    default:
+      return {
+        allowRetryRollback: true,
+        allowManualConfirmation: true,
+        allowRescan: true,
+        retryRequiresPostValidation: true,
+        requiresUnverifiableRiskAcceptance: false
+      };
+  }
+}
+
 // src/sync/syncManager.ts
+var MAX_BINARY_RECOVERY_BYTES = 16 * 1024 * 1024;
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -8036,7 +8494,9 @@ var TRANSACTION_SENSITIVE_CONFIG_FIELDS = /* @__PURE__ */ new Set([
   "coverLinkType",
   "dataProtection",
   "enableRelatedLinks",
-  "customTemplates"
+  "customTemplates",
+  "imageQuality",
+  "imageUpdateExisting"
 ]);
 var PendingSyncTransactionError = class extends Error {
   constructor() {
@@ -8085,9 +8545,11 @@ var SyncManager = class {
     this.batchTransactionState = "none";
     this.pendingDecisionPromise = null;
     this.recoveryActionPromise = null;
+    this.recoveryLifecycleState = "none";
     this.recoveryRequired = null;
     this.recoveryStateListeners = /* @__PURE__ */ new Set();
     this.managerStateListeners = /* @__PURE__ */ new Set();
+    this.lastEmittedManagerState = null;
     this.configurationUpdateState = "idle";
     var _a;
     this.app = app;
@@ -8096,7 +8558,10 @@ var SyncManager = class {
     this.fileManager = new FileManager(app);
     this.imageHandler = new ImageHandler(app, this.fileManager);
     this.imageHandler.setBeforeCreateHook((path) => this.persistCreatedResourcePath(path));
+    this.imageHandler.setBeforeUpdateHook((path, originalContent) => this.persistUpdatedResourceExpectation(path, originalContent));
     this.imageHandler.setDownloadEnabled(config.downloadImages);
+    this.imageHandler.setImageQuality(config.imageQuality);
+    this.imageHandler.setUpdateExisting(config.imageUpdateExisting);
     this.incrementalSync = new IncrementalSync(app);
     this.incrementalSync.setPathStates((_a = config.subjectPathStates) != null ? _a : {});
     this.userDataExtractor = new UserDataExtractor(app);
@@ -8120,6 +8585,7 @@ var SyncManager = class {
     const orphanTemps = await this.findTransactionTemporaryPaths();
     if (orphanTemps.length > 0) {
       const journal = this.createEmptyRecoveryJournal("recovery-required");
+      journal.orphanTemporaryPaths = [...orphanTemps];
       await this.recoveryJournalStore.write(journal);
       this.restorePersistentJournal(journal, "orphan-temporary");
     }
@@ -8141,9 +8607,10 @@ var SyncManager = class {
     await visit("");
     return found;
   }
-  async requireConfigurationRecovery(error) {
+  async requireConfigurationRecovery(error, facts) {
     const message = `Settings persistence rollback failed: ${errorMessage(error)}`;
     const journal = this.createEmptyRecoveryJournal("recovery-required", message);
+    journal.configurationFacts = facts;
     this.restorePersistentJournal(journal, "configuration-rollback-failed");
     await this.recoveryJournalStore.write(journal);
   }
@@ -8153,7 +8620,7 @@ var SyncManager = class {
     return {
       schemaVersion: 1,
       journalId: `recovery-${now}`,
-      pluginVersion: "6.11.0",
+      pluginVersion: "6.11.1",
       state,
       createdAt: now,
       updatedAt: now,
@@ -8165,6 +8632,8 @@ var SyncManager = class {
       createdPathExpectations: [],
       renameExpectations: [],
       createdResourcePaths: [],
+      updatedResourceExpectations: [],
+      orphanTemporaryPaths: [],
       resultSnapshot: this.captureResultSnapshot(this.createSyncResult(), false),
       attempts: [],
       blockingIssue
@@ -8182,6 +8651,9 @@ var SyncManager = class {
       contentExpectations: journal.contentExpectations.map((item) => ({ ...item })),
       forbiddenPathsAfterRollback: journal.createdPathExpectations.map((item) => item.createdPath),
       resourcePathsAfterRollback: [...journal.createdResourcePaths],
+      updatedResourceExpectations: journal.updatedResourceExpectations.map((item) => ({ ...item })),
+      orphanTemporaryPaths: [...journal.orphanTemporaryPaths],
+      configurationFacts: journal.configurationFacts,
       renameExpectations: journal.renameExpectations.map((item) => ({ ...item })),
       deferredRelations: [],
       resultSnapshot: journal.resultSnapshot,
@@ -8190,7 +8662,6 @@ var SyncManager = class {
       journalIssue: journal.blockingIssue
     };
     this.pendingTransaction = pending;
-    this.batchTransactionState = "rollback-failed";
     this.recoveryRequired = {
       reason: forcedReason,
       rollback: this.emptyRollbackResult(),
@@ -8201,11 +8672,15 @@ var SyncManager = class {
       contentExpectations: journal.contentExpectations.map((item) => ({ ...item })),
       forbiddenPathsAfterRollback: journal.createdPathExpectations.map((item) => item.createdPath),
       resourcePathsAfterRollback: [...journal.createdResourcePaths],
+      updatedResourceExpectations: journal.updatedResourceExpectations.map((item) => ({ ...item })),
+      orphanTemporaryPaths: [...journal.orphanTemporaryPaths],
+      configurationFacts: journal.configurationFacts,
       renameExpectations: journal.renameExpectations.map((item) => ({ ...item })),
       attempts: journal.attempts.map((item) => this.cloneRecoveryAttempt(item)),
       detectedAt: Date.now(),
       journalIssue: journal.blockingIssue
     };
+    this.setBatchTransactionState("rollback-failed");
     this.notifyRecoveryStateChanged();
   }
   /**
@@ -8334,6 +8809,9 @@ var SyncManager = class {
       contentExpectations: this.recoveryRequired.contentExpectations.map((item) => ({ ...item })),
       forbiddenPathsAfterRollback: [...this.recoveryRequired.forbiddenPathsAfterRollback],
       resourcePathsAfterRollback: [...this.recoveryRequired.resourcePathsAfterRollback],
+      updatedResourceExpectations: this.recoveryRequired.updatedResourceExpectations.map((item) => ({ ...item })),
+      orphanTemporaryPaths: [...this.recoveryRequired.orphanTemporaryPaths],
+      configurationFacts: this.recoveryRequired.configurationFacts,
       renameExpectations: this.recoveryRequired.renameExpectations.map((item) => ({ ...item })),
       attempts: this.recoveryRequired.attempts.map((item) => this.cloneRecoveryAttempt(item)),
       latestAttempt: this.recoveryRequired.latestAttempt ? this.cloneRecoveryAttempt(this.recoveryRequired.latestAttempt) : void 0
@@ -8342,11 +8820,26 @@ var SyncManager = class {
   retryRecovery() {
     return this.resolveRecoveryAction("retry-rollback");
   }
-  confirmManualRecovery() {
-    return this.resolveRecoveryAction("confirm-manual");
+  confirmManualRecovery(options = {}) {
+    return this.resolveRecoveryAction("confirm-manual", options);
   }
   rescanRecovery() {
     return this.resolveRecoveryAction("rescan");
+  }
+  getRecoveryActionPolicy() {
+    return this.recoveryRequired ? getRecoveryActionPolicy(this.recoveryRequired) : null;
+  }
+  getRecoveryLifecycleState() {
+    if (this.recoveryActionPromise)
+      return this.recoveryLifecycleState;
+    if (!this.recoveryRequired)
+      return this.recoveryLifecycleState === "recovered" ? "recovered" : "none";
+    const policy = getRecoveryActionPolicy(this.recoveryRequired);
+    if (policy.allowRetryRollback)
+      return "rollback-available";
+    if (policy.allowManualConfirmation)
+      return "manual-only";
+    return "diagnostic-only";
   }
   /**
    * 更新配置
@@ -8356,12 +8849,20 @@ var SyncManager = class {
     this.applyConfigSnapshot({ ...this.config, ...config });
   }
   applyConfigSnapshot(config) {
-    var _a, _b;
-    this.config = cloneSyncManagerConfig(config);
+    var _a, _b, _c, _d;
+    this.config = cloneSyncManagerConfig({
+      ...config,
+      recoverConfiguration: (_a = config.recoverConfiguration) != null ? _a : this.config.recoverConfiguration,
+      onConfigurationRecovered: (_b = config.onConfigurationRecovered) != null ? _b : this.config.onConfigurationRecovered
+    });
     if (Object.prototype.hasOwnProperty.call(config, "accessToken"))
-      this.client.setAccessToken((_a = config.accessToken) != null ? _a : "");
+      this.client.setAccessToken((_c = config.accessToken) != null ? _c : "");
     if (Object.prototype.hasOwnProperty.call(config, "downloadImages"))
-      this.imageHandler.setDownloadEnabled((_b = config.downloadImages) != null ? _b : false);
+      this.imageHandler.setDownloadEnabled((_d = config.downloadImages) != null ? _d : false);
+    if (Object.prototype.hasOwnProperty.call(config, "imageQuality"))
+      this.imageHandler.setImageQuality(config.imageQuality);
+    if (Object.prototype.hasOwnProperty.call(config, "imageUpdateExisting"))
+      this.imageHandler.setUpdateExisting(config.imageUpdateExisting);
     if (Object.prototype.hasOwnProperty.call(config, "subjectPathStates") && config.subjectPathStates) {
       this.incrementalSync.setPathStates(config.subjectPathStates);
     }
@@ -8378,12 +8879,21 @@ var SyncManager = class {
   }
   notifyManagerStateChanged() {
     const state = this.getManagerState();
+    if (state === this.lastEmittedManagerState)
+      return;
+    this.lastEmittedManagerState = state;
     for (const listener of this.managerStateListeners) {
       try {
         listener(state);
       } catch (e) {
       }
     }
+  }
+  setBatchTransactionState(state) {
+    if (this.batchTransactionState === state)
+      return;
+    this.batchTransactionState = state;
+    this.notifyManagerStateChanged();
   }
   async persistPathStates() {
     const states = this.incrementalSync.exportPathStates();
@@ -8407,7 +8917,7 @@ var SyncManager = class {
     };
   }
   async captureTransactionRecoveryFacts(transactions) {
-    var _a, _b;
+    var _a, _b, _c, _d, _e, _f, _g;
     const contentExpectations = [];
     const forbiddenPathsAfterRollback = [];
     const renameExpectations = [];
@@ -8421,6 +8931,9 @@ var SyncManager = class {
       contentExpectations,
       forbiddenPathsAfterRollback: Array.from(new Set(forbiddenPathsAfterRollback.map(import_obsidian11.normalizePath))),
       resourcePathsAfterRollback: [...(_b = (_a = this.activeRecoveryJournal) == null ? void 0 : _a.createdResourcePaths) != null ? _b : []],
+      updatedResourceExpectations: ((_d = (_c = this.activeRecoveryJournal) == null ? void 0 : _c.updatedResourceExpectations) != null ? _d : []).map((item) => ({ ...item })),
+      orphanTemporaryPaths: [...(_f = (_e = this.activeRecoveryJournal) == null ? void 0 : _e.orphanTemporaryPaths) != null ? _f : []],
+      configurationFacts: (_g = this.activeRecoveryJournal) == null ? void 0 : _g.configurationFacts,
       renameExpectations
     };
   }
@@ -8455,13 +8968,31 @@ var SyncManager = class {
     }
     await this.recoveryJournalStore.write(this.activeRecoveryJournal);
   }
+  async persistUpdatedResourceExpectation(path, originalContent) {
+    if (!this.activeRecoveryJournal)
+      throw new Error("Cannot update an existing binary without an active recovery journal.");
+    const normalized = (0, import_obsidian11.normalizePath)(path);
+    if (this.activeRecoveryJournal.updatedResourceExpectations.some((item) => normalizePathCollisionKey(item.path) === normalizePathCollisionKey(normalized)))
+      return;
+    const bytes = new Uint8Array(originalContent);
+    if (bytes.byteLength > MAX_BINARY_RECOVERY_BYTES) {
+      throw new Error(`Existing binary is ${bytes.byteLength} bytes; the transactional update limit is ${MAX_BINARY_RECOVERY_BYTES} bytes.`);
+    }
+    this.activeRecoveryJournal.updatedResourceExpectations.push({
+      path: normalized,
+      originalByteLength: bytes.byteLength,
+      originalSha256: await hashRecoveryBytes(bytes),
+      originalContentBase64: encodeRecoveryBase64(bytes)
+    });
+    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+  }
   async beginCoverUpdateJournal(subjectId, file, originalContent) {
     var _a;
     const now = Date.now();
-    this.activeRecoveryJournal = {
+    const journal = {
       schemaVersion: 1,
       journalId: `cover-${subjectId}-${now}`,
-      pluginVersion: "6.11.0",
+      pluginVersion: "6.11.1",
       state: "active",
       createdAt: now,
       updatedAt: now,
@@ -8479,10 +9010,13 @@ var SyncManager = class {
       createdPathExpectations: [],
       renameExpectations: [],
       createdResourcePaths: [],
+      updatedResourceExpectations: [],
+      orphanTemporaryPaths: [],
       resultSnapshot: this.captureResultSnapshot(this.createSyncResult(1), false),
       attempts: []
     };
-    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+    this.activeRecoveryJournal = journal;
+    await this.recoveryJournalStore.write(journal);
   }
   journalFromPending(pending, state) {
     var _a, _b, _c;
@@ -8501,6 +9035,9 @@ var SyncManager = class {
         return (_a2 = current.createdPathExpectations.find((item) => normalizePathCollisionKey(item.createdPath) === normalizePathCollisionKey(path))) != null ? _a2 : { subjectId: -1, createdPath: path, expectedToExistAfterRollback: false };
       }),
       createdResourcePaths: [...pending.resourcePathsAfterRollback],
+      updatedResourceExpectations: pending.updatedResourceExpectations.map((item) => ({ ...item })),
+      orphanTemporaryPaths: [...pending.orphanTemporaryPaths],
+      configurationFacts: pending.configurationFacts,
       renameExpectations: pending.renameExpectations.map((item) => ({ ...item })),
       resultSnapshot: pending.resultSnapshot,
       attempts: (_c = (_b = this.recoveryRequired) == null ? void 0 : _b.attempts.map((item) => this.cloneRecoveryAttempt(item))) != null ? _c : current.attempts,
@@ -8511,14 +9048,28 @@ var SyncManager = class {
     this.activeRecoveryJournal = this.journalFromPending(pending, state);
     await this.recoveryJournalStore.write(this.activeRecoveryJournal);
   }
-  resolveRecoveryAction(action) {
+  resolveRecoveryAction(action, manualOptions = {}) {
+    var _a;
     if (this.recoveryActionPromise)
       return this.recoveryActionPromise;
     if (!this.recoveryRequired || !this.pendingTransaction) {
       return Promise.resolve({ action, status: "no-recovery", recovered: true, diagnostics: [] });
     }
+    const policy = getRecoveryActionPolicy(this.recoveryRequired);
+    const allowed = action === "retry-rollback" ? policy.allowRetryRollback : action === "confirm-manual" ? policy.allowManualConfirmation : action === "rescan" ? policy.allowRescan : false;
+    if (!allowed || action === "confirm-manual" && policy.requiresUnverifiableRiskAcceptance && !manualOptions.acceptUnverifiableJournalRisk) {
+      const message = !allowed ? `${action} is not permitted for recovery reason ${this.recoveryRequired.reason}.` : "Explicit acceptance of unverifiable journal risk is required.";
+      return Promise.resolve({
+        action,
+        status: "blocked",
+        recovered: false,
+        diagnostics: [{ code: "blocking-local-file", path: ".bangumi-sync-recovery.json", message }],
+        recovery: (_a = this.getRecoveryRequired()) != null ? _a : void 0
+      });
+    }
     const startedAt = Date.now();
-    const promise = this.performRecoveryAction(action, startedAt);
+    this.recoveryLifecycleState = action === "rescan" ? "validating" : "retrying";
+    const promise = this.performRecoveryAction(action, startedAt, manualOptions);
     this.recoveryActionPromise = promise;
     promise.then(
       () => {
@@ -8532,7 +9083,7 @@ var SyncManager = class {
     );
     return promise;
   }
-  async performRecoveryAction(action, startedAt) {
+  async performRecoveryAction(action, startedAt, manualOptions) {
     var _a, _b, _c, _d;
     const recovery = this.recoveryRequired;
     const pending = this.pendingTransaction;
@@ -8542,7 +9093,7 @@ var SyncManager = class {
     try {
       if (action === "retry-rollback") {
         pending.state = "rolling-back";
-        this.batchTransactionState = "rolling-back";
+        this.setBatchTransactionState("rolling-back");
         const decision = await this.rollbackPendingTransaction(pending);
         const diagnostics = decision.status === "rollback-failed" ? this.rollbackFailureDiagnostics(decision.rollback) : [];
         outcome = {
@@ -8556,7 +9107,7 @@ var SyncManager = class {
           recovery: (_a = this.getRecoveryRequired()) != null ? _a : void 0
         };
       } else if (action === "confirm-manual") {
-        outcome = await this.performManualRecovery(recovery, pending);
+        outcome = await this.performManualRecovery(recovery, pending, manualOptions);
       } else {
         const diagnostics = await this.collectRecoveryDiagnostics(recovery);
         outcome = {
@@ -8597,27 +9148,44 @@ var SyncManager = class {
     }
     return outcome;
   }
-  async performManualRecovery(recovery, pending) {
-    var _a, _b, _c, _d;
-    let diagnostics = await this.collectRecoveryDiagnostics(recovery);
+  async performManualRecovery(recovery, pending, options) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    let configurationReconciled = false;
+    if (recovery.reason === "configuration-rollback-failed") {
+      if (!recovery.configurationFacts || !this.config.recoverConfiguration) {
+        const diagnostics2 = [{ code: "persisted-state-mismatch", message: "Configuration recovery facts or reconciliation handler are unavailable." }];
+        return { action: "confirm-manual", status: "blocked", recovered: false, diagnostics: diagnostics2, recovery: (_a = this.getRecoveryRequired()) != null ? _a : void 0 };
+      }
+      try {
+        const reconciledConfig = await this.config.recoverConfiguration(recovery.configurationFacts);
+        this.applyConfigSnapshot(reconciledConfig);
+        await ((_b = reconciledConfig.onConfigurationRecovered) == null ? void 0 : _b.call(reconciledConfig));
+        configurationReconciled = true;
+      } catch (error) {
+        const diagnostics2 = [{ code: "persisted-state-mismatch", message: errorMessage(error) }];
+        return { action: "confirm-manual", status: "failed", recovered: false, diagnostics: diagnostics2, error: errorMessage(error), recovery: (_c = this.getRecoveryRequired()) != null ? _c : void 0 };
+      }
+    }
+    const ignoreJournalIssue = recovery.reason === "journal-corrupt" && options.acceptUnverifiableJournalRisk === true || configurationReconciled;
+    let diagnostics = await this.collectRecoveryDiagnostics(recovery, { ignoreJournalIssue });
     if (diagnostics.length > 0) {
-      return { action: "confirm-manual", status: "blocked", recovered: false, diagnostics, recovery: (_a = this.getRecoveryRequired()) != null ? _a : void 0 };
+      return { action: "confirm-manual", status: "blocked", recovered: false, diagnostics, recovery: (_d = this.getRecoveryRequired()) != null ? _d : void 0 };
     }
     try {
       await this.persistSpecificPathStates(recovery.originalPathStates);
     } catch (error) {
       diagnostics = [{ code: "state-restore-failed", message: errorMessage(error) }];
-      return { action: "confirm-manual", status: "failed", recovered: false, diagnostics, error: errorMessage(error), recovery: (_b = this.getRecoveryRequired()) != null ? _b : void 0 };
+      return { action: "confirm-manual", status: "failed", recovered: false, diagnostics, error: errorMessage(error), recovery: (_e = this.getRecoveryRequired()) != null ? _e : void 0 };
     }
-    if (!pathStatesEqual((_c = this.config.subjectPathStates) != null ? _c : {}, recovery.originalPathStates)) {
+    if (!pathStatesEqual((_f = this.config.subjectPathStates) != null ? _f : {}, recovery.originalPathStates)) {
       diagnostics.push({ code: "persisted-state-mismatch", message: "Persisted subject path states differ from the pre-batch snapshot." });
     }
     if (diagnostics.length === 0)
-      diagnostics = await this.collectRecoveryDiagnostics(recovery);
+      diagnostics = await this.collectRecoveryDiagnostics(recovery, { ignoreJournalIssue });
     if (diagnostics.length === 0)
       this.incrementalSync.setPathStates(recovery.originalPathStates);
     if (diagnostics.length > 0) {
-      return { action: "confirm-manual", status: "blocked", recovered: false, diagnostics, recovery: (_d = this.getRecoveryRequired()) != null ? _d : void 0 };
+      return { action: "confirm-manual", status: "blocked", recovered: false, diagnostics, recovery: (_g = this.getRecoveryRequired()) != null ? _g : void 0 };
     }
     const finalRollback = {
       attempted: false,
@@ -8632,10 +9200,11 @@ var SyncManager = class {
     this.recoveryRequired = null;
     this.pendingTransaction = null;
     this.pendingDecisionPromise = null;
-    this.batchTransactionState = "rolled-back";
+    this.setBatchTransactionState("rolled-back");
     this.incrementalSync.clearBatch();
     await this.recoveryJournalStore.clear();
     this.activeRecoveryJournal = null;
+    this.recoveryLifecycleState = "recovered";
     this.notifyRecoveryStateChanged();
     return {
       action: "confirm-manual",
@@ -8688,15 +9257,21 @@ var SyncManager = class {
     if (pending.state !== "awaiting")
       return Promise.resolve({ status: "busy" });
     pending.state = action === "commit" ? "committing" : "rolling-back";
-    this.batchTransactionState = action === "commit" ? "committing" : "rolling-back";
-    this.notifyManagerStateChanged();
+    this.setBatchTransactionState(action === "commit" ? "committing" : "rolling-back");
     const promise = action === "commit" ? this.commitPendingTransaction(pending) : this.rollbackPendingTransaction(pending);
     this.pendingDecisionPromise = promise;
-    promise.then(() => {
-      this.pendingDecisionPromise = null;
-    }, () => {
-      this.pendingDecisionPromise = null;
-    });
+    promise.then(
+      () => {
+        if (this.pendingDecisionPromise === promise)
+          this.pendingDecisionPromise = null;
+        this.notifyManagerStateChanged();
+      },
+      () => {
+        if (this.pendingDecisionPromise === promise)
+          this.pendingDecisionPromise = null;
+        this.notifyManagerStateChanged();
+      }
+    );
     return promise;
   }
   async commitPendingTransaction(pending) {
@@ -8707,7 +9282,7 @@ var SyncManager = class {
         transaction.commit();
     } catch (error) {
       pending.state = "rolling-back";
-      this.batchTransactionState = "rolling-back";
+      this.setBatchTransactionState("rolling-back");
       return this.rollbackPendingTransaction(pending, error);
     }
     let warnings = [];
@@ -8719,14 +9294,14 @@ var SyncManager = class {
     const result = this.snapshotAfterDecision(pending, "committed", void 0, warnings);
     pending.state = "committed";
     this.pendingTransaction = null;
-    this.batchTransactionState = "committed";
+    this.setBatchTransactionState("committed");
     this.incrementalSync.finishBatch();
     await this.recoveryJournalStore.clear();
     this.activeRecoveryJournal = null;
     return { status: "committed", result, warnings };
   }
   async rollbackPendingTransaction(pending, cause) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const result = this.emptyRollbackResult();
     await this.persistPendingJournal(pending, "rolling-back");
     for (const transaction of [...pending.transactions].reverse()) {
@@ -8767,6 +9342,32 @@ var SyncManager = class {
     this.incrementalSync.clearBatch();
     this.markGroupsRolledBack(pending);
     this.lastAutomaticRollback = result;
+    if (result.failed === 0) {
+      const validationRecovery = (_a = this.recoveryRequired) != null ? _a : {
+        reason: "rollback-failed",
+        rollback: result,
+        affectedSubjectIds: [...pending.affectedSubjectIds],
+        originalPathStates: this.clonePathStates(pending.previousPathStates),
+        subjectExpectations: pending.subjectExpectations.map((item) => ({ ...item })),
+        scanRoot: pending.scanRootAtBatchStart,
+        contentExpectations: pending.contentExpectations.map((item) => ({ ...item })),
+        forbiddenPathsAfterRollback: [...pending.forbiddenPathsAfterRollback],
+        resourcePathsAfterRollback: [...pending.resourcePathsAfterRollback],
+        updatedResourceExpectations: pending.updatedResourceExpectations.map((item) => ({ ...item })),
+        orphanTemporaryPaths: [...pending.orphanTemporaryPaths],
+        configurationFacts: pending.configurationFacts,
+        renameExpectations: pending.renameExpectations.map((item) => ({ ...item })),
+        attempts: [],
+        detectedAt: Date.now(),
+        journalIssue: pending.journalIssue
+      };
+      this.recoveryLifecycleState = "validating";
+      const diagnostics = await this.collectRecoveryDiagnostics(validationRecovery);
+      for (const diagnostic of diagnostics)
+        this.recordManagerRollbackFailure(result, "post-validation", "recovery", new Error(diagnostic.message));
+      if (diagnostics.length > 0)
+        this.recoveryRequired = { ...validationRecovery, rollback: result };
+    }
     const failed = result.failed > 0;
     const snapshot = this.snapshotAfterDecision(
       pending,
@@ -8776,8 +9377,8 @@ var SyncManager = class {
     );
     if (failed) {
       pending.state = "rollback-failed";
-      this.batchTransactionState = "rollback-failed";
-      const operations = new Set((_a = result.failures) == null ? void 0 : _a.map((item) => item.operation));
+      this.setBatchTransactionState("rollback-failed");
+      const operations = new Set((_b = result.failures) == null ? void 0 : _b.map((item) => item.operation));
       const existingRecovery = this.recoveryRequired;
       const automaticAttempt = {
         action: "automatic-rollback",
@@ -8797,10 +9398,13 @@ var SyncManager = class {
         contentExpectations: pending.contentExpectations.map((item) => ({ ...item })),
         forbiddenPathsAfterRollback: [...pending.forbiddenPathsAfterRollback],
         resourcePathsAfterRollback: [...pending.resourcePathsAfterRollback],
+        updatedResourceExpectations: pending.updatedResourceExpectations.map((item) => ({ ...item })),
+        orphanTemporaryPaths: [...pending.orphanTemporaryPaths],
+        configurationFacts: pending.configurationFacts,
         renameExpectations: pending.renameExpectations.map((item) => ({ ...item })),
-        attempts: (_b = existingRecovery == null ? void 0 : existingRecovery.attempts.map((item) => this.cloneRecoveryAttempt(item))) != null ? _b : [automaticAttempt],
+        attempts: (_c = existingRecovery == null ? void 0 : existingRecovery.attempts.map((item) => this.cloneRecoveryAttempt(item))) != null ? _c : [automaticAttempt],
         latestAttempt: (existingRecovery == null ? void 0 : existingRecovery.latestAttempt) ? this.cloneRecoveryAttempt(existingRecovery.latestAttempt) : automaticAttempt,
-        detectedAt: (_c = existingRecovery == null ? void 0 : existingRecovery.detectedAt) != null ? _c : Date.now(),
+        detectedAt: (_d = existingRecovery == null ? void 0 : existingRecovery.detectedAt) != null ? _d : Date.now(),
         journalIssue: pending.journalIssue
       };
       await this.persistPendingJournal(pending, "rollback-failed");
@@ -8810,7 +9414,7 @@ var SyncManager = class {
     pending.state = "rolled-back";
     this.pendingTransaction = null;
     this.recoveryRequired = null;
-    this.batchTransactionState = "rolled-back";
+    this.setBatchTransactionState("rolled-back");
     await this.recoveryJournalStore.clear();
     this.activeRecoveryJournal = null;
     this.notifyRecoveryStateChanged();
@@ -8818,40 +9422,18 @@ var SyncManager = class {
   }
   async rollbackPersistentFacts(pending, result) {
     var _a;
-    for (const path of [...pending.forbiddenPathsAfterRollback].reverse()) {
-      const file = this.findVaultFilesByCollisionPath(path)[0];
-      if (!file)
-        continue;
-      try {
-        await this.app.fileManager.trashFile(file);
-        result.attempted = true;
-        result.changed = true;
-        result.deletedCreatedFiles++;
-      } catch (error) {
-        this.recordManagerRollbackFailure(result, "delete-created", path, error);
-      }
-    }
-    for (const expectation of pending.contentExpectations) {
-      const file = this.findVaultFilesByCollisionPath(expectation.path)[0];
-      if (!file) {
-        this.recordManagerRollbackFailure(result, "restore-content", expectation.path, new Error("Original content file is missing."));
-        continue;
-      }
-      try {
-        const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(file));
-        if (identity.subjectId !== expectation.subjectId)
-          throw new Error(`File belongs to subject ${String(identity.subjectId)}, expected ${expectation.subjectId}.`);
-        await this.app.vault.process(file, () => expectation.originalContent);
-        result.attempted = true;
-        result.changed = true;
-        result.restoredContents++;
-      } catch (error) {
-        this.recordManagerRollbackFailure(result, "restore-content", expectation.path, error);
-      }
-    }
     for (const rename of [...pending.renameExpectations].reverse()) {
-      if (this.findVaultFilesByCollisionPath(rename.originalPath).length > 0)
+      const existingOriginal = this.findVaultFilesByCollisionPath(rename.originalPath)[0];
+      if (existingOriginal) {
+        try {
+          const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(existingOriginal));
+          if (identity.subjectId !== rename.subjectId)
+            throw new Error(`Original path belongs to subject ${String(identity.subjectId)}, expected ${rename.subjectId}.`);
+        } catch (error) {
+          this.recordManagerRollbackFailure(result, "restore-path", rename.originalPath, error);
+        }
         continue;
+      }
       const sourceFile = (_a = rename.temporaryPath ? this.findVaultFilesByCollisionPath(rename.temporaryPath)[0] : null) != null ? _a : this.findVaultFilesByCollisionPath(rename.finalPath)[0];
       const hiddenTemporaryPath = !sourceFile && rename.temporaryPath && await this.app.vault.adapter.exists(rename.temporaryPath) ? rename.temporaryPath : null;
       if (!sourceFile && !hiddenTemporaryPath) {
@@ -8875,6 +9457,67 @@ var SyncManager = class {
         this.recordManagerRollbackFailure(result, "restore-path", rename.originalPath, error);
       }
     }
+    for (const path of [...pending.forbiddenPathsAfterRollback].reverse()) {
+      const file = this.findVaultFilesByCollisionPath(path)[0];
+      if (!file)
+        continue;
+      try {
+        await this.app.fileManager.trashFile(file);
+        result.attempted = true;
+        result.changed = true;
+        result.deletedCreatedFiles++;
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "delete-created", path, error);
+      }
+    }
+    for (const expectation of pending.contentExpectations) {
+      const rename = pending.renameExpectations.find((item) => item.subjectId === expectation.subjectId);
+      const candidates = [expectation.path, rename == null ? void 0 : rename.expectedTerminalPath, rename == null ? void 0 : rename.temporaryPath, rename == null ? void 0 : rename.finalPath].filter((path) => Boolean(path));
+      const file = candidates.flatMap((path) => this.findVaultFilesByCollisionPath(path))[0];
+      if (!file) {
+        this.recordManagerRollbackFailure(result, "restore-content", expectation.path, new Error("Original content file is missing."));
+        continue;
+      }
+      try {
+        const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(file));
+        if (identity.subjectId !== expectation.subjectId)
+          throw new Error(`File belongs to subject ${String(identity.subjectId)}, expected ${expectation.subjectId}.`);
+        await this.app.vault.process(file, () => expectation.originalContent);
+        result.attempted = true;
+        result.changed = true;
+        result.restoredContents++;
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "restore-content", expectation.path, error);
+      }
+    }
+    for (const expectation of pending.updatedResourceExpectations) {
+      try {
+        const file = this.findVaultFilesByAnyPath(expectation.path)[0];
+        if (!file)
+          throw new Error("Updated binary resource is missing.");
+        const original = decodeRecoveryBase64(expectation.originalContentBase64);
+        if (original.byteLength !== expectation.originalByteLength)
+          throw new Error("Recorded binary length does not match its recovery content.");
+        if (await hashRecoveryBytes(original) !== expectation.originalSha256)
+          throw new Error("Recorded binary recovery content hash is invalid.");
+        await this.app.vault.modifyBinary(file, original.slice().buffer);
+        const restored = new Uint8Array(await this.app.vault.readBinary(file));
+        if (restored.byteLength !== expectation.originalByteLength || await hashRecoveryBytes(restored) !== expectation.originalSha256) {
+          throw new Error("Restored binary failed SHA-256 verification.");
+        }
+        result.attempted = true;
+        result.changed = true;
+        result.restoredContents++;
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "restore-binary", expectation.path, error);
+      }
+    }
+  }
+  findVaultFilesByAnyPath(path) {
+    const normalized = (0, import_obsidian11.normalizePath)(path);
+    const exact = this.app.vault.getAbstractFileByPath(normalized);
+    const matches = this.app.vault.getFiles().filter((file) => normalizePathCollisionKey(file.path) === normalizePathCollisionKey(normalized));
+    return exact instanceof import_obsidian11.TFile ? [exact, ...matches.filter((file) => file !== exact)] : matches;
   }
   recordManagerRollbackFailure(result, operation, path, error) {
     var _a;
@@ -8933,10 +9576,10 @@ var SyncManager = class {
       message: `Multiple case-equivalent files match the recovery path: ${files.map((file) => file.path).join(", ")}.`
     });
   }
-  async collectRecoveryDiagnostics(recovery) {
+  async collectRecoveryDiagnostics(recovery, options = {}) {
     var _a, _b, _c;
     const diagnostics = [];
-    if (recovery.journalIssue)
+    if (recovery.journalIssue && !options.ignoreJournalIssue)
       diagnostics.push({
         code: "blocking-local-file",
         path: ".bangumi-sync-recovery.json",
@@ -9007,6 +9650,26 @@ var SyncManager = class {
           code: "unexpected-created-path",
           path,
           message: `A cover resource created by the failed batch still exists: ${path}.`
+        });
+    }
+    for (const expectation of recovery.updatedResourceExpectations) {
+      const matches = this.findVaultFilesByAnyPath(expectation.path);
+      this.recordAmbiguousConcretePath(expectation.path, matches, diagnostics);
+      const file = matches[0];
+      if (!file) {
+        diagnostics.push({ code: "content-file-missing", subjectId: -1, path: expectation.path, message: "The pre-update binary resource is missing." });
+        continue;
+      }
+      const bytes = new Uint8Array(await this.app.vault.readBinary(file));
+      const actualHash = await hashRecoveryBytes(bytes);
+      if (bytes.byteLength !== expectation.originalByteLength || actualHash !== expectation.originalSha256)
+        diagnostics.push({
+          code: "content-mismatch",
+          subjectId: -1,
+          path: expectation.path,
+          expectedHash: expectation.originalSha256,
+          actualHash,
+          message: `Original binary hash ${expectation.originalSha256.slice(0, 8)} does not match ${actualHash.slice(0, 8)}.`
         });
     }
     for (const rename of recovery.renameExpectations) {
@@ -9332,8 +9995,7 @@ var SyncManager = class {
     var _a, _b, _c;
     this.lastAutomaticRollback = void 0;
     this.assertNoPendingTransaction();
-    this.batchTransactionState = "active";
-    this.notifyManagerStateChanged();
+    this.setBatchTransactionState("active");
     const scanRootAtBatchStart = (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN");
     const previousPathStates = this.clonePathStates((_a = this.config.subjectPathStates) != null ? _a : {});
     const originalRecords = new Map(Array.from(this.incrementalSync.getRegistry().idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
@@ -9342,10 +10004,10 @@ var SyncManager = class {
       ...batch.renamed.map((item) => item.subjectId)
     ]);
     const now = Date.now();
-    this.activeRecoveryJournal = {
+    const journal = {
       schemaVersion: 1,
       journalId: `sync-${now}`,
-      pluginVersion: "6.11.0",
+      pluginVersion: "6.11.1",
       state: "active",
       createdAt: now,
       updatedAt: now,
@@ -9357,10 +10019,13 @@ var SyncManager = class {
       createdPathExpectations: [],
       renameExpectations: [],
       createdResourcePaths: [],
+      updatedResourceExpectations: [],
+      orphanTemporaryPaths: [],
       resultSnapshot: this.captureResultSnapshot(result, false),
       attempts: []
     };
-    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+    this.activeRecoveryJournal = journal;
+    await this.recoveryJournalStore.write(journal);
     for (const failure of batch.failures)
       this.recordPreparedFailure(result, failure);
     let wasCancelled = false;
@@ -9522,8 +10187,7 @@ var SyncManager = class {
         state: "awaiting"
       };
       await this.persistPendingJournal(this.pendingTransaction, "awaiting-decision");
-      this.batchTransactionState = "awaiting-user-decision";
-      this.notifyManagerStateChanged();
+      this.setBatchTransactionState("awaiting-user-decision");
       return { wasCancelled, relations: [] };
     }
     if (successfulTransactions.length > 0) {
@@ -9532,8 +10196,7 @@ var SyncManager = class {
         for (const transaction of successfulTransactions)
           transaction.commit();
         this.incrementalSync.finishBatch();
-        this.batchTransactionState = "committed";
-        this.notifyManagerStateChanged();
+        this.setBatchTransactionState("committed");
         await this.recoveryJournalStore.clear();
         this.activeRecoveryJournal = null;
       } catch (e) {
@@ -9560,8 +10223,7 @@ var SyncManager = class {
       }
     } else {
       this.incrementalSync.clearBatch();
-      this.batchTransactionState = hadAutomaticRollback ? automaticRollback.failed > 0 ? "rollback-failed" : "rolled-back" : "none";
-      this.notifyManagerStateChanged();
+      this.setBatchTransactionState(hadAutomaticRollback ? automaticRollback.failed > 0 ? "rollback-failed" : "rolled-back" : "none");
       if (hadAutomaticRollback)
         this.lastAutomaticRollback = automaticRollback;
       await this.recoveryJournalStore.clear();
@@ -9873,8 +10535,7 @@ var SyncManager = class {
    * 下载并解析本地封面路径
    */
   async resolveLocalCoverPath(subject, typeLabel) {
-    var _a, _b;
-    const coverUrl = ((_a = subject.images) == null ? void 0 : _a.large) || ((_b = subject.images) == null ? void 0 : _b.common) || "";
+    const coverUrl = this.imageHandler.selectImageUrlByQuality(subject.images);
     if (!this.config.downloadImages || !coverUrl) {
       return "";
     }
@@ -10340,8 +11001,7 @@ var SyncManager = class {
    */
   async batchDownloadCovers() {
     this.ensureCanStartSync();
-    this.batchTransactionState = "active";
-    this.notifyManagerStateChanged();
+    this.setBatchTransactionState("active");
     const scanPath = this.config.scanFolderPath || "ACGN";
     try {
       await this.incrementalSync.scanLocalFolder(scanPath);
@@ -10371,17 +11031,30 @@ var SyncManager = class {
           const name_cn = this.extractFrontmatterString(content, "\u4E2D\u6587\u540D") || info.name_cn;
           const name = this.extractFrontmatterString(content, "\u539F\u540D") || "";
           const typeLabel = this.extractFrontmatterString(content, "\u4F5C\u54C1\u5927\u7C7B") || "";
+          const coverVars = { name_cn, name, typeLabel };
+          const targetPath = this.imageHandler.getCoverTargetPath(coverValue, subjectId, this.config.imagePathTemplate, coverVars);
+          if (this.fileManager.getFile(targetPath) && !this.config.imageUpdateExisting) {
+            result.skipped++;
+            continue;
+          }
           await this.beginCoverUpdateJournal(subjectId, file, content);
-          const localPath = await this.imageHandler.downloadCover(
+          const coverDownload = await this.imageHandler.downloadCoverWithResult(
             coverValue,
             subjectId,
             this.config.imagePathTemplate,
-            { name_cn, name, typeLabel }
+            coverVars
           );
+          const localPath = coverDownload.path;
           if (!localPath || localPath.startsWith("http")) {
             await this.recoveryJournalStore.clear();
             this.activeRecoveryJournal = null;
             result.failed++;
+            continue;
+          }
+          if (coverDownload.status === "unchanged") {
+            await this.recoveryJournalStore.clear();
+            this.activeRecoveryJournal = null;
+            result.skipped++;
             continue;
           }
           let updatedContent = this.replaceCoverInFrontmatter(content, localPath);
@@ -10413,8 +11086,7 @@ var SyncManager = class {
       return result;
     } finally {
       if (!this.recoveryRequired && this.batchTransactionState === "active") {
-        this.batchTransactionState = "none";
-        this.notifyManagerStateChanged();
+        this.setBatchTransactionState("none");
       }
     }
   }
@@ -14371,6 +15043,11 @@ var StatusSyncService = class {
   }
 };
 
+// src/panel/controlPanelState.ts
+function isControlPanelActionBlocked(managerState, action) {
+  return managerState !== "idle" && action !== "refresh";
+}
+
 // src/panel/controlPanel.ts
 var ControlPanel = class extends import_obsidian24.Modal {
   constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, onOpenSyncOptions, onBatchDownloadCovers, onScanAndLinkRelated, subjectNoteManager, episodeStatusManager, autoSyncSelection) {
@@ -14612,7 +15289,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
     this.updateSelectedCount();
   }
   isActionBlocked(action) {
-    return this.managerState !== "idle" && action.key !== "refresh";
+    return isControlPanelActionBlocked(this.managerState, action.key === "refresh" ? "refresh" : "write-action");
   }
   getToolbarActions(hasSelection) {
     const actionMap = new Map(this.getActionDescriptors().map((action) => [action.key, action]));
@@ -18855,6 +19532,13 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
     this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "cause")}: ${recovery.reason}` });
     this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "detectedAt")}: ${new Date(recovery.detectedAt).toLocaleString()}` });
     this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "affectedSubjects")}: ${recovery.affectedSubjectIds.join(", ")}` });
+    if (recovery.orphanTemporaryPaths.length > 0) {
+      this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "orphanPaths")}: ${recovery.orphanTemporaryPaths.join(", ")}` });
+    }
+    const policy = getRecoveryActionPolicy(recovery);
+    if (policy.requiresUnverifiableRiskAcceptance) {
+      this.contentEl.createEl("p", { text: tn("recoveryCenter", "factsInsufficient"), cls: "bangumi-sync-error" });
+    }
     const expectations = this.contentEl.createEl("details", { attr: { open: "" } });
     expectations.createEl("summary", { text: `${tn("recoveryCenter", "expectations")} (${recovery.subjectExpectations.length})` });
     const expectationList = expectations.createEl("ul");
@@ -18882,9 +19566,11 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
     if (this.working)
       this.contentEl.createEl("p", { text: tn("recoveryCenter", "working") });
     const actions = this.contentEl.createDiv({ cls: "bangumi-sync-actions" });
-    this.addActionButton(actions, tn("recoveryCenter", "retryRollback"), "retry-rollback", "mod-warning");
-    this.addActionButton(actions, tn("recoveryCenter", "confirmManual"), "confirm-manual", "mod-cta");
-    this.addActionButton(actions, tn("recoveryCenter", "rescan"), "rescan", "");
+    for (const action of getVisibleRecoveryActions(policy)) {
+      const label = action === "retry-rollback" ? tn("recoveryCenter", "retryRollback") : action === "confirm-manual" ? tn("recoveryCenter", "confirmManual") : tn("recoveryCenter", "rescan");
+      const cls = action === "retry-rollback" ? "mod-warning" : action === "confirm-manual" ? "mod-cta" : "";
+      this.addActionButton(actions, label, action, cls);
+    }
     this.addCloseButton(actions);
   }
   renderAttemptHistory(attempts) {
@@ -18907,13 +19593,18 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
     button.addEventListener("click", () => this.close());
   }
   async runAction(action) {
+    var _a;
     if (this.working)
       return;
     this.working = true;
     this.actionError = null;
     this.render();
     try {
-      this.lastResult = action === "retry-rollback" ? await this.handlers.retryRollback() : action === "confirm-manual" ? await this.handlers.confirmManual() : await this.handlers.rescan();
+      const recovery = this.handlers.getRecovery();
+      const acceptsRisk = action === "confirm-manual" && (recovery == null ? void 0 : recovery.reason) === "journal-corrupt" ? ((_a = this.contentEl.ownerDocument.defaultView) == null ? void 0 : _a.confirm(tn("recoveryCenter", "corruptRiskPrompt"))) === true : false;
+      if (action === "confirm-manual" && (recovery == null ? void 0 : recovery.reason) === "journal-corrupt" && !acceptsRisk)
+        return;
+      this.lastResult = action === "retry-rollback" ? await this.handlers.retryRollback() : action === "confirm-manual" ? await this.handlers.confirmManual(acceptsRisk) : await this.handlers.rescan();
     } catch (error) {
       this.actionError = error instanceof Error ? error.message : String(error);
     } finally {
@@ -19057,7 +19748,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       this.app,
       this,
       this.settings,
-      (candidate) => this.applySettingsChanges(candidate),
+      (patch) => this.applySettingsChanges(patch),
       () => this.openPathDiagnostic(),
       () => this.openPathMigrationPreview()
     ));
@@ -19093,7 +19784,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     new RecoveryCenterModal(this.app, {
       getRecovery: () => manager.getRecoveryRequired(),
       retryRollback: () => manager.retryRecovery(),
-      confirmManual: () => manager.confirmManualRecovery(),
+      confirmManual: (acceptRisk) => manager.confirmManualRecovery({ acceptUnverifiableJournalRisk: acceptRisk }),
       rescan: () => manager.rescanRecovery(),
       subscribe: (listener) => manager.subscribeRecoveryState(listener)
     }).open();
@@ -19226,6 +19917,8 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       imagePathTemplate: settings.imagePathTemplate,
       notePathTemplate: settings.notePathTemplate,
       downloadImages: settings.downloadImages,
+      imageQuality: settings.imageQuality,
+      imageUpdateExisting: settings.imageUpdateExisting,
       scanFolderPath: settings.scanFolderPath,
       coverLinkType: settings.coverLinkType,
       customTemplates: templates,
@@ -19233,6 +19926,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       dataProtection: settings.dataProtection,
       subjectPathStates: settings.subjectPathStates,
       pathNamingStrategy: settings.pathNamingStrategy,
+      recoverConfiguration: async (facts) => this.reconcileConfigurationRecovery(facts),
       onPathStatesChanged: async (states) => {
         this.settings.subjectPathStates = states;
         await this.saveSettings();
@@ -19262,6 +19956,8 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       "coverLinkType",
       "dataProtection",
       "downloadImages",
+      "imageQuality",
+      "imageUpdateExisting",
       "enableRelatedLinks",
       "customTemplates"
     ];
@@ -19270,9 +19966,12 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
   refreshDependentServices(manager, settings = this.settings) {
     this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.cloneSettings(settings));
   }
-  async applySettingsChanges(candidate) {
+  applySettingsChanges(patch) {
+    return this.settingsPersistence.enqueue(() => this.applySettingsChangesNow(patch));
+  }
+  async applySettingsChangesNow(patch) {
     const previousSettings = this.cloneSettings(this.settings);
-    candidate.subjectPathStates = this.cloneSettings(this.settings).subjectPathStates;
+    const candidate = applySettingsPatch(previousSettings, patch);
     const nextConfig = await this.buildSyncManagerConfig(candidate);
     const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, nextConfig);
     const outcome = await persistStableManagerSettings({
@@ -19281,7 +19980,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       nextConfig,
       changedFields,
       manager: this.syncManager,
-      save: (settings) => this.settingsPersistence.enqueue(() => this.saveData(this.cloneSettings(settings))),
+      save: (settings) => this.saveData(this.cloneSettings(settings)),
       restore: (snapshot) => this.restoreSettings(snapshot),
       applyDependentServices: (settings) => {
         if (this.syncManager)
@@ -19291,9 +19990,16 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         if (this.syncManager)
           this.refreshDependentServices(this.syncManager, settings);
       },
-      onRollbackFailure: (error) => {
-        var _a;
-        return (_a = this.syncManager) == null ? void 0 : _a.requireConfigurationRecovery(error);
+      onRollbackFailure: async (error, facts) => {
+        var _a, _b;
+        const diskSettings = await this.loadData();
+        await ((_b = this.syncManager) == null ? void 0 : _b.requireConfigurationRecovery(error, {
+          previousSettings: this.cloneSettings(facts.previousSettings),
+          candidateSettings: this.cloneSettings(facts.candidateSettings),
+          currentSettings: this.cloneSettings(this.settings),
+          diskSettings,
+          managerConfig: cloneSyncManagerConfig((_a = this.appliedSyncConfig) != null ? _a : facts.nextConfig)
+        }));
       }
     });
     if (outcome.applied) {
@@ -19306,6 +20012,22 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     else
       new import_obsidian32.Notice(`Failed to save settings: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`);
     return { applied: false, settings: this.cloneSettings(this.settings) };
+  }
+  async reconcileConfigurationRecovery(facts) {
+    const previous = this.cloneSettings(facts.previousSettings);
+    await this.saveData(previous);
+    const disk = await this.loadData();
+    if (JSON.stringify(disk) !== JSON.stringify(previous))
+      throw new Error("Persisted settings do not match the selected previous settings snapshot.");
+    this.restoreSettings(previous);
+    const config = await this.buildSyncManagerConfig(previous);
+    config.onConfigurationRecovered = () => {
+      if (this.syncManager)
+        this.refreshDependentServices(this.syncManager, previous);
+    };
+    this.lastSavedSettings = this.cloneSettings(previous);
+    this.appliedSyncConfig = cloneSyncManagerConfig(config);
+    return config;
   }
   async initOrUpdateSyncManager() {
     const config = await this.buildSyncManagerConfig();

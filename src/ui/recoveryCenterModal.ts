@@ -9,11 +9,12 @@ import type {
 	RecoveryRequiredState,
 	RecoveryStateListener,
 } from '../sync/syncManager';
+import { getRecoveryActionPolicy, getVisibleRecoveryActions } from '../sync/recoveryPolicy';
 
 export interface RecoveryCenterHandlers {
 	getRecovery: () => RecoveryRequiredState | null;
 	retryRollback: () => Promise<RecoveryActionResult>;
-	confirmManual: () => Promise<RecoveryActionResult>;
+	confirmManual: (acceptUnverifiableJournalRisk?: boolean) => Promise<RecoveryActionResult>;
 	rescan: () => Promise<RecoveryActionResult>;
 	subscribe: (listener: RecoveryStateListener) => () => void;
 }
@@ -56,6 +57,13 @@ export class RecoveryCenterModal extends Modal {
 		this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'cause')}: ${recovery.reason}` });
 		this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'detectedAt')}: ${new Date(recovery.detectedAt).toLocaleString()}` });
 		this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'affectedSubjects')}: ${recovery.affectedSubjectIds.join(', ')}` });
+		if (recovery.orphanTemporaryPaths.length > 0) {
+			this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'orphanPaths')}: ${recovery.orphanTemporaryPaths.join(', ')}` });
+		}
+		const policy = getRecoveryActionPolicy(recovery);
+		if (policy.requiresUnverifiableRiskAcceptance) {
+			this.contentEl.createEl('p', { text: tn('recoveryCenter', 'factsInsufficient'), cls: 'bangumi-sync-error' });
+		}
 
 		const expectations = this.contentEl.createEl('details', { attr: { open: '' } });
 		expectations.createEl('summary', { text: `${tn('recoveryCenter', 'expectations')} (${recovery.subjectExpectations.length})` });
@@ -84,9 +92,13 @@ export class RecoveryCenterModal extends Modal {
 		if (this.working) this.contentEl.createEl('p', { text: tn('recoveryCenter', 'working') });
 
 		const actions = this.contentEl.createDiv({ cls: 'bangumi-sync-actions' });
-		this.addActionButton(actions, tn('recoveryCenter', 'retryRollback'), 'retry-rollback', 'mod-warning');
-		this.addActionButton(actions, tn('recoveryCenter', 'confirmManual'), 'confirm-manual', 'mod-cta');
-		this.addActionButton(actions, tn('recoveryCenter', 'rescan'), 'rescan', '');
+		for (const action of getVisibleRecoveryActions(policy)) {
+			const label = action === 'retry-rollback' ? tn('recoveryCenter', 'retryRollback')
+				: action === 'confirm-manual' ? tn('recoveryCenter', 'confirmManual')
+					: tn('recoveryCenter', 'rescan');
+			const cls = action === 'retry-rollback' ? 'mod-warning' : action === 'confirm-manual' ? 'mod-cta' : '';
+			this.addActionButton(actions, label, action, cls);
+		}
 		this.addCloseButton(actions);
 	}
 
@@ -116,10 +128,15 @@ export class RecoveryCenterModal extends Modal {
 		this.actionError = null;
 		this.render();
 		try {
+			const recovery = this.handlers.getRecovery();
+			const acceptsRisk = action === 'confirm-manual' && recovery?.reason === 'journal-corrupt'
+				? this.contentEl.ownerDocument.defaultView?.confirm(tn('recoveryCenter', 'corruptRiskPrompt')) === true
+				: false;
+			if (action === 'confirm-manual' && recovery?.reason === 'journal-corrupt' && !acceptsRisk) return;
 			this.lastResult = action === 'retry-rollback'
 				? await this.handlers.retryRollback()
 				: action === 'confirm-manual'
-					? await this.handlers.confirmManual()
+					? await this.handlers.confirmManual(acceptsRisk)
 					: await this.handlers.rescan();
 		} catch (error) {
 			this.actionError = error instanceof Error ? error.message : String(error);

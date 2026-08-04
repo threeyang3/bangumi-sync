@@ -1,31 +1,88 @@
 # 恢复指南
 
-Bangumi Sync 6.11.0 在首次 Vault 修改前写入根目录 `.bangumi-sync-recovery.json`。它保存批次前内容、Subject ID、路径状态、具体创建路径、rename 阶段、封面资源与恢复尝试，不包含 Access Token。正常提交、完整回滚或人工验证通过后才删除。
+Bangumi Sync 6.11.1 在首次 Vault 修改前写入根目录 `.bangumi-sync-recovery.json`。journal 保存批次前内容、Subject ID、路径状态、created/rename 事实、封面资源和恢复尝试，不保存 Access Token。所有恢复成功路径都会重新扫描并执行完整诊断，只有诊断为零且路径状态持久化成功后才清除 journal 和写门禁。
 
-## 启动时进入恢复状态
+## 启动校验
 
-插件检测到以下任一情况时会阻止所有 Vault 写入口：
+启动时会验证 journal 根字段、普通对象、数组成员、有限时间、正整数 Subject ID、合法枚举、路径、SHA-256、原内容长度、binary base64、result snapshot、attempt action/status/diagnostics 和配置恢复事实。
 
-- 未完成或 rollback-failed journal；
-- 无法解析或 schema 不支持的 journal；
-- Vault 任意目录中的 `.bangumi-sync-*.tmp.md`。
+- JSON 无法解析：备份为 `.bangumi-sync-recovery.corrupt-<timestamp>.json`。
+- schema-1 JSON 可解析但结构错误：备份为 `.bangumi-sync-recovery.corrupt-structure-<timestamp>.json`。
+- schema 不支持：备份为 `.bangumi-sync-recovery.unsupported-<timestamp>.json`。
+- 只有中断的 temp journal：备份为 `.bangumi-sync-recovery.corrupt-temp-<timestamp>.json`。
 
-损坏 journal 会先备份为 `.bangumi-sync-recovery.corrupt-<timestamp>.json`，不会静默删除。孤立 temporary file 也不会自动删除。
+这些情况不会中断插件加载；Recovery Center 仍可打开，所有 Vault 写入口继续受阻。
 
-## 推荐处理顺序
+## 动作矩阵
 
-1. 从命令面板打开“Bangumi Sync: 打开恢复中心”。
-2. 先选择“重试回滚”。插件会按 journal 恢复原内容、原路径和路径状态，并删除本批次创建且未被 Markdown 引用的封面。
-3. 如果仍失败，查看 operation、path、message 和诊断列表，备份相关文件后手工修复。
-4. 手工修复完成后选择“重新扫描”；没有 temporary、重复 ID、内容/路径不匹配或资源残留时，再执行“确认人工恢复”。
-5. 只有当前诊断为零且原路径状态重新持久化成功，门禁和 journal 才会清除。
+| Recovery reason | Retry rollback | Rescan | Manual confirm |
+|---|---|---|---|
+| `rollback-failed` | 允许 | 允许 | 允许，诊断为零后完成 |
+| `rescan-failed` | 允许 | 允许 | 允许，诊断为零后完成 |
+| `state-restore-failed` | 允许 | 允许 | 允许，诊断为零后完成 |
+| `journal-recovered` | 仅有 rename/content/created/resource/binary 事实时允许 | 允许 | 允许，诊断为零后完成 |
+| `orphan-temporary` | 禁止 | 允许诊断 | 手工处理真实路径、Rescan 后允许 |
+| `journal-corrupt` | 禁止 | 允许全局诊断 | 仅在备份 Vault、明确接受原事务不可验证风险且诊断为零后允许 |
+| `configuration-rollback-failed` | 禁止 | 允许诊断 | 仅在磁盘、正式 settings 与 manager config 重新对齐后允许 |
 
-不要仅修改残留文件的 frontmatter ID 来绕过检查。created path、rename original/temporary/final、封面资源和原始内容 SHA-256 都会独立验证。CRLF 与 LF 被视为不同内容。
+Recovery Center 只显示策略允许的按钮；直接调用服务 API 也执行同一策略，不能绕过 UI。
 
-## 损坏 journal
+## 常规回滚与重启恢复
 
-保留 `.corrupt-*.json` 供诊断。当前阻断 journal 带有损坏原因，不能靠普通同步覆盖。如果自动恢复没有足够事实，请先备份 Vault，核对临时文件、最近创建/改名文件和路径状态；完成明确人工处理后再移除阻断文件并重载插件。
+持久恢复固定按以下顺序执行：
+
+1. 按 Subject ID 核对并恢复 original/temporary/final rename 路径；
+2. 删除本批次创建的 Markdown；
+3. 在 original、temporary、final 候选中解析正确身份并恢复原内容；
+4. 删除本批次新建且未被引用的资源；
+5. 写回本批次前已有 binary，并重新读取验证长度和 SHA-256；
+6. 恢复并持久化 `subjectPathStates`；
+7. 重新扫描固定的批次 scan root；
+8. 执行完整诊断；
+9. 仅在无诊断时清 journal。
+
+路径比较使用与 Vault 一致的大小写等价规则，但恢复后仍回到 journal 记录的规范路径。路径属于其他 Subject ID、重复 ID、内容 hash 不符、binary hash 不符或任何回滚步骤失败都会保留 gate 与 journal。
+
+## Orphan temporary
+
+启动扫描会保存每个 `.bangumi-sync-*.tmp.md` 的真实路径。插件不会根据孤立文件猜测事务方向，也不会自动删除或 rename。
+
+1. 备份并检查 Recovery Center 列出的路径；
+2. 判断应删除、恢复为原文件还是保留为正式文件，并手工处理；
+3. 执行 Rescan；
+4. 诊断清零后执行 Manual Confirm。
+
+普通 Retry 不可用，空 rollback 不能解除门禁。
+
+## Corrupt journal
+
+原事务事实可能已丢失，因此不能宣称完成自动回滚。先备份 Vault，检查 `.corrupt-*` 文件、所有 orphan temp、重复 ID、阻塞身份冲突和最近创建/改名文件。Rescan 只更新诊断，不清 gate。Manual Confirm 会再次要求明确接受“原内容无法验证”的风险，并只在全局诊断为零时完成。
+
+## Configuration rollback failure
+
+journal 保存 previous、candidate、当前正式、磁盘 settings 与 manager config。Manual Confirm 会：
+
+1. 再次调用 `loadData()` 读取真实磁盘状态；
+2. 明确选择 previous settings 作为一致终态；
+3. 保存并重新读取以验证磁盘；
+4. 更新正式内存 settings；
+5. 构建并应用 manager config；
+6. 刷新依赖服务；
+7. 完整诊断后解除 gate。
+
+任何一步失败都会保留 recovery-required。Retry 不可用。
+
+## 封面 binary 恢复
+
+- 新建封面只记录在 `createdResourcePaths`，回滚时仅删除本批次新建且未被 Markdown 引用的资源。
+- 已有封面只在 `imageUpdateExisting=true` 时更新；修改前把原 binary、长度和 SHA-256 写入 `updatedResourceExpectations`。
+- 已有 binary 超过 16 MiB 时拒绝更新，不执行事务外覆盖。
+- 更新后的 Markdown 写入失败或插件重载后，回滚写回原 binary 并复核 hash；失败则保持 gate。
+- `imageUpdateExisting=false` 时已有封面计为 skipped，不发网络请求、不修改 binary、不创建 journal。
 
 ## 安全边界
 
-恢复诊断只读取本地 Vault，不请求 Bangumi API。Recovery Center、SyncModal 和控制面板订阅同一 manager 状态；恢复或配置更新期间旧窗口不能继续执行写操作。
+- 诊断与恢复扫描只读取本地 Vault，不请求 Bangumi API。
+- 不要修改残留文件 ID 来绕过检查；created path、rename 路径、内容和 binary 会独立验证。
+- CRLF 与 LF 是不同内容。
+- Recovery Center、SyncModal 与控制面板订阅同一 manager 状态；提交/回滚结束会广播 idle，恢复未完成则广播 recovery-required。

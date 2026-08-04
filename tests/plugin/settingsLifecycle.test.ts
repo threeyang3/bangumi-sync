@@ -13,6 +13,8 @@ function config(scanFolderPath = 'ACGN', accessToken = 'old-token'): SyncManager
 		pathTemplate: 'ACGN/{{type}}/{{name_cn_with_type}}.md',
 		imagePathTemplate: 'ACGN/assets/{{name_cn}}.jpg',
 		downloadImages: false,
+		imageQuality: 'large',
+		imageUpdateExisting: false,
 		scanFolderPath,
 	};
 }

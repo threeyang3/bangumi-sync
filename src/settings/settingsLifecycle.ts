@@ -3,7 +3,7 @@ import type { ConfigurationUpdateLease, SyncConfigField, SyncManager, SyncManage
 export class SettingsPersistenceCoordinator {
 	private queue: Promise<void> = Promise.resolve();
 
-	enqueue(task: () => Promise<void>): Promise<void> {
+	enqueue<T>(task: () => Promise<T>): Promise<T> {
 		const run = this.queue.then(task);
 		this.queue = run.then(() => undefined, () => undefined);
 		return run;
@@ -27,7 +27,11 @@ export interface StableManagerSettingsUpdate<TSettings> {
 	restore: (snapshot: TSettings) => void;
 	applyDependentServices?: (settings: TSettings) => Promise<void> | void;
 	restoreDependentServices?: (settings: TSettings) => Promise<void> | void;
-	onRollbackFailure?: (error: SettingsRollbackError) => Promise<void> | void;
+	onRollbackFailure?: (error: SettingsRollbackError, facts: {
+		previousSettings: TSettings;
+		candidateSettings: TSettings;
+		nextConfig: SyncManagerConfig;
+	}) => Promise<void> | void;
 }
 
 export async function persistStableManagerSettings<TSettings>(
@@ -53,7 +57,11 @@ export async function persistStableManagerSettings<TSettings>(
 		} catch (rollbackError) {
 			const settingsError = new SettingsRollbackError(error, rollbackError);
 			try {
-				await update.onRollbackFailure?.(settingsError);
+				await update.onRollbackFailure?.(settingsError, {
+					previousSettings: update.previousSettings,
+					candidateSettings: update.settings,
+					nextConfig: update.nextConfig,
+				});
 			} catch (recoveryError) {
 				console.error('Failed to persist the settings recovery gate.', recoveryError);
 			}

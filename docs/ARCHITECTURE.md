@@ -1,10 +1,10 @@
 # 项目架构与模块说明
 
-## 6.11.0 稳定事务与持久恢复
+## 6.11.1 稳定事务与持久恢复
 
-`BangumiPlugin` 持有稳定的 `SyncManager`。设置 UI 编辑 candidate，`SettingsPersistenceCoordinator` 串行磁盘写入，manager 配置 lease 在任何 `await` 前取得；持久化、不可变配置快照应用与依赖刷新全部成功后才提交。失败时恢复磁盘、manager、正式设置和依赖服务，回滚持久化再次失败则建立 recovery-required journal。
+`BangumiPlugin` 持有稳定的 `SyncManager`。设置 UI 提交字段 patch，主入口在串行队列内把 patch 应用到最新正式 settings；manager 配置 lease 在任何 `await` 前取得。持久化、不可变配置快照应用与依赖刷新全部成功后才提交。失败时恢复磁盘、manager、正式设置、依赖服务和设置 UI；回滚持久化再次失败则记录 previous/candidate/current/disk/manager facts 并建立 recovery-required journal。
 
-`RecoveryJournalStore` 用 temp/current/previous 轮换原子保存事务事实，并在首次 Vault 修改、rename 阶段、创建、覆盖、awaiting、rollback 和 recovery attempt 前后刷新。启动时恢复 journal；损坏版本先备份再阻断。具体事务路径在 Vault 全局直接验证，adapter 递归扫描可发现 Obsidian 索引不可见的点前缀 temporary file。统一 manager state 事件同步 SyncModal、Recovery Center 和控制面板。
+`RecoveryJournalStore` 用 temp/current/previous 轮换原子保存事务事实，并在首次 Vault 修改、rename 阶段、创建、覆盖、awaiting、rollback 和 recovery attempt 前后刷新。启动时先执行完整运行时结构校验；损坏 JSON、结构错误 schema-1 和不支持版本分别备份再阻断。具体事务路径在 Vault 全局直接验证，adapter 递归扫描可发现 Obsidian 索引不可见的点前缀 temporary file。恢复 action policy 同时控制 UI 与服务 API，所有成功路径在清 journal 前重新扫描并完整诊断。统一 manager state setter 保证 SyncModal、Recovery Center 和控制面板收到 commit/rollback/recovery 终态。
 
 本文档描述 Bangumi Sync 当前代码结构、主要模块职责、核心运行链路，以及模块之间如何协作。
 
@@ -98,10 +98,13 @@ common/
 插件加载时，`main.ts` 的主流程是：
 
 1. `loadSettings()`
-2. `initSyncManager()`
-3. `initEpisodeFeatures()`
-4. 注册命令、Ribbon、设置面板
-5. 如果开启自动同步，则 `setupAutoSync()`
+2. `buildSyncManagerConfig()`
+3. 创建稳定的 `SyncManager`
+4. `initializeRecovery()` 校验/恢复 journal 与 orphan temporary
+5. 安装全局写门禁
+6. 初始化单集、笔记等依赖服务
+7. 注册命令、Ribbon、Recovery Center 与设置面板
+8. 如果开启自动同步，则 `setupAutoSync()`
 
 其中比较重要的初始化点：
 
@@ -193,19 +196,21 @@ SyncManager
 
 这是“本地事实层”。
 
-它维护三类状态：
+它围绕 `LocalSubjectRegistry` 维护三类状态：
 
-- 历史已同步条目 `localSubjects`
-- 当前批次刚同步成功的条目 `batchSyncedItems`
-- id→path 反转索引 `metadataIdIndex`（扫描后从 metadataCache 构建）
+- 历史已同步条目的 ID/path registry；
+- 当前批次刚同步成功的 `batchSyncedItems`；
+- 持久 `subjectPathStates` 与扫描事实的 reconciliation。
 
 主要职责：
 
-- 扫描目录并识别本地已同步条目（优先使用 metadataCache，减少文件读取）
-- 构建 id→path 反转索引，供 `resolvePathByMetadataCache()` O(1) 查找
+- 逐个 Markdown 文件解析身份，拒绝重复 ID、缺失 ID 和身份冲突；
+- 构建 ID/path registry，按 Bangumi ID 解析真实文件路径；
 - 计算远程收藏与本地文件的差异
-- 维护相关链接、批次内索引、少量兼容包装
+- reconcile managed/user-renamed/unknown path state，并维护批次内 registry；
 - 当前正文 / frontmatter 的实际读写已逐步下沉到 `src/document/subjectDocumentService.ts`
+
+它不再依赖 `metadataIdIndex`、`resolvePathByMetadataCache()` 或“优先 metadataCache 避免读取文件”的旧模型。
 
 ### 5.4 `src/document/`
 
@@ -571,4 +576,4 @@ SearchModal
 
 Retry、Manual Confirm 与 Rescan 共用单个运行时互斥 Promise。人工确认依次执行本地扫描与矩阵校验、保存原始 `subjectPathStates`、比较配置和 `IncrementalSync` 状态、再次扫描与复核；任何一步失败都保留上下文。Recovery Center 是可重开的独立 Modal，SyncModal 的 rollback-failed 终态提供稳定入口。
 
-`writeOperationGate` 在 UI 与写服务两层阻止收藏/单条同步、迁移应用、封面、关联链接、状态同步、批量编辑、导入导出、集数、吐槽和共享笔记写入。恢复诊断不依赖网络。6.11.0 将上下文写入独立 journal，重启后加载为 recovery-required；干净提交、完整回滚或人工验证通过后才清除。
+`writeOperationGate` 在 UI 与写服务两层阻止收藏/单条同步、迁移应用、封面、关联链接、状态同步、批量编辑、导入导出、集数、吐槽和共享笔记写入。恢复诊断不依赖网络。6.11.1 会先验证独立 journal 的完整结构，重启后按原因加载为 recovery-required；只有干净提交或完整诊断通过的回滚/人工恢复才清除。

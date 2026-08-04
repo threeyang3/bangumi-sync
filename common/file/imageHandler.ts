@@ -20,6 +20,11 @@ export interface ImageSettings {
 	updateExisting: boolean;
 }
 
+export interface ImageDownloadResult {
+	path: string;
+	status: 'created' | 'updated' | 'unchanged' | 'failed';
+}
+
 export class ImageHandler {
 	private app: App;
 	private fileManager: FileManager;
@@ -29,6 +34,7 @@ export class ImageHandler {
 		updateExisting: false,
 	};
 	private beforeCreate: ((path: string) => Promise<void>) | null = null;
+	private beforeUpdate: ((path: string, originalContent: ArrayBuffer) => Promise<void>) | null = null;
 
 	constructor(app: App, fileManager: FileManager) {
 		this.app = app;
@@ -58,6 +64,10 @@ export class ImageHandler {
 
 	setBeforeCreateHook(hook: ((path: string) => Promise<void>) | null): void {
 		this.beforeCreate = hook;
+	}
+
+	setBeforeUpdateHook(hook: ((path: string, originalContent: ArrayBuffer) => Promise<void>) | null): void {
+		this.beforeUpdate = hook;
 	}
 
 	/**
@@ -99,11 +109,20 @@ export class ImageHandler {
 		imageUrl: string,
 		targetPath: string
 	): Promise<string> {
+		return (await this.downloadImageWithResult(imageUrl, targetPath)).path;
+	}
+
+	async downloadImageWithResult(imageUrl: string, targetPath: string): Promise<ImageDownloadResult> {
 		if (!this.downloadEnabled) {
-			return imageUrl;
+			return { path: imageUrl, status: 'failed' };
 		}
 
 		try {
+			const normalizedPath = normalizePath(targetPath);
+			const existingFile = this.fileManager.getFile(normalizedPath);
+			if (existingFile && !this.imageSettings.updateExisting) {
+				return { path: normalizedPath, status: 'unchanged' };
+			}
 			// 下载图片
 			const response = await requestUrl({
 				url: imageUrl,
@@ -112,7 +131,7 @@ export class ImageHandler {
 
 			if (response.status !== 200) {
 				console.error(`Failed to download image: ${response.status}`);
-				return imageUrl;
+				return { path: imageUrl, status: 'failed' };
 			}
 
 			// 获取 array buffer
@@ -122,22 +141,19 @@ export class ImageHandler {
 			await this.fileManager.ensureDirectory(targetPath);
 
 			// 保存图片
-			const normalizedPath = normalizePath(targetPath);
-			const existingFile = this.fileManager.getFile(normalizedPath);
-
 			if (existingFile) {
-				// 文件已存在，更新
+				const originalContent = await this.app.vault.readBinary(existingFile);
+				await this.beforeUpdate?.(normalizedPath, originalContent);
 				await this.app.vault.modifyBinary(existingFile, arrayBuffer);
+				return { path: normalizedPath, status: 'updated' };
 			} else {
-				// 创建新文件
 				await this.beforeCreate?.(normalizedPath);
 				await this.app.vault.createBinary(normalizedPath, arrayBuffer);
+				return { path: normalizedPath, status: 'created' };
 			}
-
-			return normalizedPath;
 		} catch (error) {
 			console.error('Error downloading image:', error);
-			return imageUrl;
+			return { path: imageUrl, status: 'failed' };
 		}
 	}
 
@@ -158,11 +174,29 @@ export class ImageHandler {
 			typeLabel?: string;
 		}
 	): Promise<string> {
+		return (await this.downloadCoverWithResult(imageUrl, subjectId, imagePathTemplate, extraVars)).path;
+	}
+
+	async downloadCoverWithResult(
+		imageUrl: string | undefined,
+		subjectId: number,
+		imagePathTemplate: string,
+		extraVars?: { name_cn?: string; name?: string; typeLabel?: string },
+	): Promise<ImageDownloadResult> {
 		if (!imageUrl) {
-			return '';
+			return { path: '', status: 'failed' };
 		}
 
-		// 生成目标路径，替换模板变量
+		const finalPath = this.getCoverTargetPath(imageUrl, subjectId, imagePathTemplate, extraVars);
+		return this.downloadImageWithResult(imageUrl, finalPath);
+	}
+
+	getCoverTargetPath(
+		imageUrl: string,
+		subjectId: number,
+		imagePathTemplate: string,
+		extraVars?: { name_cn?: string; name?: string; typeLabel?: string },
+	): string {
 		let targetPath = imagePathTemplate
 			.replace(/\{\{id\}\}/g, String(subjectId))
 			.replace(/\{\{type\}\}/g, 'cover')
@@ -175,9 +209,7 @@ export class ImageHandler {
 
 		// 确定文件扩展名
 		const ext = this.getImageExtension(imageUrl);
-		const finalPath = targetPath.replace(/\.\w+$/, `.${ext}`);
-
-		return this.downloadImage(imageUrl, finalPath);
+		return normalizePath(targetPath.replace(/\.\w+$/, `.${ext}`));
 	}
 
 	/**

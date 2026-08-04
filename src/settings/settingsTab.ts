@@ -14,6 +14,7 @@ import {
 	TemplateCategoryOption,
 	TemplateKey,
 } from '../../common/template/templateRegistry';
+import { createSettingsPatch, reconcileSettingsDraft, SettingsPatch, SettingsSaveOutcome } from './settingsPatch';
 
 /**
  * 模板类型配置
@@ -38,6 +39,7 @@ const TEMPLATE_TYPES: TemplateTypeOption[] = [
  */
 export class BangumiSettingTab extends PluginSettingTab {
 	private settings: BangumiPluginSettings;
+	private submittedSettings: BangumiPluginSettings;
 	private onSave: () => Promise<void>;
 	private onDiagnose: () => Promise<void>;
 	private onPreviewMigration: () => Promise<void>;
@@ -46,16 +48,22 @@ export class BangumiSettingTab extends PluginSettingTab {
 		app: App,
 		plugin: Plugin,
 		settings: BangumiPluginSettings,
-		onSave: (candidate: BangumiPluginSettings) => Promise<{ applied: boolean; settings: BangumiPluginSettings }>,
+		onSave: (patch: SettingsPatch) => Promise<SettingsSaveOutcome>,
 		onDiagnose: () => Promise<void>,
 		onPreviewMigration: () => Promise<void>,
 	) {
 		super(app, plugin);
 		this.settings = this.cloneSettings(settings);
+		this.submittedSettings = this.cloneSettings(settings);
 		this.onSave = async () => {
-			const outcome = await onSave(this.cloneSettings(this.settings));
-			this.settings = this.cloneSettings(outcome.settings);
-			if (!outcome.applied) this.display();
+			const patch = createSettingsPatch(this.submittedSettings, this.settings);
+			if (patch.changedFields.length === 0) return;
+			this.submittedSettings = this.cloneSettings(this.settings);
+			const outcome = await onSave(patch);
+			const reconciled = reconcileSettingsDraft(outcome);
+			this.settings = reconciled.draft;
+			this.submittedSettings = reconciled.submitted;
+			if (reconciled.shouldRerender) this.display();
 		};
 		this.onDiagnose = onDiagnose;
 		this.onPreviewMigration = onPreviewMigration;
