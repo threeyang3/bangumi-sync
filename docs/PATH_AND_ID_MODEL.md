@@ -1,10 +1,10 @@
 # Bangumi 条目身份与路径模型
 
-## 恢复路径事实（6.10.5）
+## 恢复路径事实（6.11.0）
 
 Subject ID 仍是条目身份，但 expected-absent 恢复不能只查询 ID。事务会记录每个新建文件的 concrete created path，人工确认按 `normalizePathCollisionKey()` 检查该路径是否仍被占用；因此修改残留文件的 frontmatter ID 不能绕过恢复。Windows/macOS 风格的大小写等价路径视为同一目标。
 
-对批次前已存在且被覆盖的文件，事务从同一次读取中保存严格字符串内容的长度与 256 位确定性指纹；CRLF 与 LF 视为不同内容。验证路径与扫描范围来自批次开始时固定的 scan root，而不是恢复时的可变设置。
+对批次前已存在且被覆盖的文件，事务从同一次读取中保存原文、长度与标准 SHA-256；CRLF 与 LF 视为不同内容。固定 scan root 只用于 registry 扫描，created/content/rename/resource 事实按 Vault 全局 concrete path 验证。original、temporary、final 与期望终态均写入持久 journal。
 
 ## 核心不变量
 
@@ -67,4 +67,4 @@ Bangumi Subject ID 是本地条目的唯一身份；Markdown 路径只是当前�
 
 人工确认还会阻止临时事务文件、重复 ID 和 blocking local file。矩阵通过后重新持久化批次前 `subjectPathStates`，用规范化路径比较配置状态与 `IncrementalSync.exportPathStates()`，再次扫描并复核；只有全部相等才清除 pending/recovery。Retry、Manual Confirm、Rescan 共享互斥锁，历史 attempts 与 latest attempt 分离，最新失败不会混入旧失败列表。
 
-恢复期统一写门禁覆盖收藏/单条同步、路径迁移应用、封面与关联写回、状态同步、批量编辑、用户数据导入导出、集数状态、吐槽和共享笔记。诊断与确认只使用本地数据，不调用网络。6.10.4 不包含磁盘事务日志或插件重启后的自动恢复，后续由 Issue #5 跟踪。
+恢复期统一写门禁覆盖收藏/单条同步、路径迁移应用、封面与关联写回、状态同步、批量编辑、用户数据导入导出、集数状态、吐槽和共享笔记。诊断与确认只使用本地数据，不调用网络。6.11.0 的 journal 在插件重载后重新建立 recovery-required，封面资源也作为事务事实记录、回滚和诊断。

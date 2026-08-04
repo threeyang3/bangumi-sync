@@ -281,7 +281,7 @@ export class UserDataImporter {
 				}
 			}
 
-			await this.app.vault.process(localFile, () => content);
+			await this.documentService.processSubjectFile(localFile, subjectId, () => content);
 		}
 	}
 
@@ -337,7 +337,7 @@ export class UserDataImporter {
 			}
 
 			if (changed) {
-				await this.app.vault.process(localFile, () => content);
+				await this.documentService.processSubjectFile(localFile, item.subjectId, () => content);
 				applied++;
 			}
 		}
@@ -706,11 +706,10 @@ export class UserDataImporter {
 		}
 
 		if (changed || updatedContent !== originalContent) {
-			await this.app.vault.process(localFile, () => updatedContent);
+			await this.documentService.processSubjectFile(localFile, subjectId, () => updatedContent);
 			return true;
 		}
 
-		void subjectId;
 		return false;
 	}
 

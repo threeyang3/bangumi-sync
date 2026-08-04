@@ -118,7 +118,7 @@ export class StatusSyncExecutor {
 
 		if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== 'skip' && this.episodeStatusManager) {
 			if (content !== originalContent) {
-				await this.app.vault.process(file, () => content);
+				await this.documentService.processSubjectFile(file, diff.subjectId, () => content);
 				content = await this.app.vault.read(file);
 			}
 
@@ -141,7 +141,7 @@ export class StatusSyncExecutor {
 		}
 
 		if (content !== originalContent) {
-			await this.app.vault.process(file, () => content);
+			await this.documentService.processSubjectFile(file, diff.subjectId, () => content);
 		}
 	}
 

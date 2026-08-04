@@ -8,6 +8,7 @@ import { BangumiClient } from '../api/client';
 import { LocalEpisodeStatus, EpisodeStatusType, getEpisodeStatusText } from './types';
 import { delay } from '../../common/utils/timing';
 import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
+import { SubjectDocumentService } from '../document/subjectDocumentService';
 
 /**
  * 单集状态管理器
@@ -15,10 +16,18 @@ import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
 export class EpisodeStatusManager {
 	private app: App;
 	private client: BangumiClient;
+	private readonly documentService: SubjectDocumentService;
 
 	constructor(app: App, client: BangumiClient) {
 		this.app = app;
 		this.client = client;
+		this.documentService = new SubjectDocumentService(app);
+	}
+
+	private async processKnownSubjectFile(file: TFile, updater: (content: string) => string): Promise<void> {
+		const identity = await this.documentService.getSubjectIdentity(file);
+		if (identity.subjectId === null || identity.conflicts?.length) throw new Error(`Cannot safely write episode status to ${file.path}: subject ID is missing or conflicting.`);
+		await this.documentService.processSubjectFile(file, identity.subjectId, updater);
 	}
 
 	/**
@@ -109,7 +118,7 @@ export class EpisodeStatusManager {
 		status: EpisodeStatusType
 	): Promise<void> {
 		assertWriteOperationAllowed('episode-status');
-		await this.app.vault.process(file, (content) => {
+		await this.processKnownSubjectFile(file, (content) => {
 			// 单条更新走细粒度 updateEpStatusInContent，避免触发 applyEpisodeStatusUpdates
 			// 的"先清空再重建"流程把其他集的状态也清掉。
 			return this.updateEpStatusInContent(content, episodeId, epNumber, status);
@@ -124,7 +133,7 @@ export class EpisodeStatusManager {
 		episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>
 	): Promise<void> {
 		assertWriteOperationAllowed('episode-status');
-		await this.app.vault.process(file, (content) => {
+		await this.processKnownSubjectFile(file, (content) => {
 			return this.applyEpisodeStatusUpdates(content, episodes);
 		});
 	}
@@ -426,7 +435,7 @@ export class EpisodeStatusManager {
 			const userEpisodes = await this.client.getUserEpisodeStatus(subjectId);
 
 			// 更新本地文件
-			await this.app.vault.process(file, (content) => {
+			await this.processKnownSubjectFile(file, (content) => {
 				const episodes = userEpisodes
 					.filter(userEp => userEp.type !== 0 && userEp.episode)
 					.map(userEp => ({
@@ -458,7 +467,7 @@ export class EpisodeStatusManager {
 	 */
 	async clearAllStatuses(file: TFile): Promise<void> {
 		assertWriteOperationAllowed('episode-status');
-		await this.app.vault.process(file, (content) => {
+		await this.processKnownSubjectFile(file, (content) => {
 			const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
 			if (!frontmatterMatch) return content;
 

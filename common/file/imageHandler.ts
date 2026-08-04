@@ -28,6 +28,7 @@ export class ImageHandler {
 		quality: 'large',
 		updateExisting: false,
 	};
+	private beforeCreate: ((path: string) => Promise<void>) | null = null;
 
 	constructor(app: App, fileManager: FileManager) {
 		this.app = app;
@@ -53,6 +54,10 @@ export class ImageHandler {
 	 */
 	setUpdateExisting(update: boolean): void {
 		this.imageSettings.updateExisting = update;
+	}
+
+	setBeforeCreateHook(hook: ((path: string) => Promise<void>) | null): void {
+		this.beforeCreate = hook;
 	}
 
 	/**
@@ -125,6 +130,7 @@ export class ImageHandler {
 				await this.app.vault.modifyBinary(existingFile, arrayBuffer);
 			} else {
 				// 创建新文件
+				await this.beforeCreate?.(normalizedPath);
 				await this.app.vault.createBinary(normalizedPath, arrayBuffer);
 			}
 

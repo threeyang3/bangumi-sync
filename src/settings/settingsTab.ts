@@ -46,15 +46,23 @@ export class BangumiSettingTab extends PluginSettingTab {
 		app: App,
 		plugin: Plugin,
 		settings: BangumiPluginSettings,
-		onSave: () => Promise<void>,
+		onSave: (candidate: BangumiPluginSettings) => Promise<{ applied: boolean; settings: BangumiPluginSettings }>,
 		onDiagnose: () => Promise<void>,
 		onPreviewMigration: () => Promise<void>,
 	) {
 		super(app, plugin);
-		this.settings = settings;
-		this.onSave = onSave;
+		this.settings = this.cloneSettings(settings);
+		this.onSave = async () => {
+			const outcome = await onSave(this.cloneSettings(this.settings));
+			this.settings = this.cloneSettings(outcome.settings);
+			if (!outcome.applied) this.display();
+		};
 		this.onDiagnose = onDiagnose;
 		this.onPreviewMigration = onPreviewMigration;
+	}
+
+	private cloneSettings(settings: BangumiPluginSettings): BangumiPluginSettings {
+		return JSON.parse(JSON.stringify(settings)) as BangumiPluginSettings;
 	}
 
 	display(): void {

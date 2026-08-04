@@ -1,10 +1,10 @@
 # 项目架构与模块说明
 
-## 6.10.5 manager 生命周期与恢复快照
+## 6.11.0 稳定事务与持久恢复
 
-`BangumiPlugin` 在一次运行期内持有稳定的 `SyncManager`；设置保存构建新配置后调用 `updateConfig(config, changedFields)`，不会重建 registry、IncrementalSync 或事务所有者。全局写门禁、SyncModal 与 Recovery Center 都捕获同一个 manager。`assertConfigurationChangeAllowed()` 在 pending/recovery 时冻结事务敏感字段，服务层再次校验，拒绝时先恢复设置内存且不调用 `saveData()`。
+`BangumiPlugin` 持有稳定的 `SyncManager`。设置 UI 编辑 candidate，`SettingsPersistenceCoordinator` 串行磁盘写入，manager 配置 lease 在任何 `await` 前取得；持久化、不可变配置快照应用与依赖刷新全部成功后才提交。失败时恢复磁盘、manager、正式设置和依赖服务，回滚持久化再次失败则建立 recovery-required journal。
 
-pending 快照保存 `scanRootAtBatchStart`、原始内容指纹和长度、以及批次新建的具体路径。RecoveryRequiredState 复制这些事实，后续 rescan、tmp 检查、内容/路径验证均使用固定根目录。恢复事件订阅使多个窗口同步终态；历史 `RecoveryAttempt` 与人工验证产生的当前零失败 rollback summary 分开保存。本架构仍不提供跨重启事务日志，后续由 Issue #5 跟踪。
+`RecoveryJournalStore` 用 temp/current/previous 轮换原子保存事务事实，并在首次 Vault 修改、rename 阶段、创建、覆盖、awaiting、rollback 和 recovery attempt 前后刷新。启动时恢复 journal；损坏版本先备份再阻断。具体事务路径在 Vault 全局直接验证，adapter 递归扫描可发现 Obsidian 索引不可见的点前缀 temporary file。统一 manager state 事件同步 SyncModal、Recovery Center 和控制面板。
 
 本文档描述 Bangumi Sync 当前代码结构、主要模块职责、核心运行链路，以及模块之间如何协作。
 
@@ -571,4 +571,4 @@ SearchModal
 
 Retry、Manual Confirm 与 Rescan 共用单个运行时互斥 Promise。人工确认依次执行本地扫描与矩阵校验、保存原始 `subjectPathStates`、比较配置和 `IncrementalSync` 状态、再次扫描与复核；任何一步失败都保留上下文。Recovery Center 是可重开的独立 Modal，SyncModal 的 rollback-failed 终态提供稳定入口。
 
-`writeOperationGate` 在 UI 与写服务两层阻止收藏/单条同步、迁移应用、封面、关联链接、状态同步、批量编辑、导入导出、集数、吐槽和共享笔记写入。恢复诊断不依赖网络。上下文仍未持久化到磁盘，重启后自动恢复由 Issue #5 跟踪。
+`writeOperationGate` 在 UI 与写服务两层阻止收藏/单条同步、迁移应用、封面、关联链接、状态同步、批量编辑、导入导出、集数、吐槽和共享笔记写入。恢复诊断不依赖网络。6.11.0 将上下文写入独立 journal，重启后加载为 recovery-required；干净提交、完整回滚或人工验证通过后才清除。

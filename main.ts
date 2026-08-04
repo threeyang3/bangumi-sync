@@ -11,7 +11,7 @@
 import { Plugin, Notice, TFile } from 'obsidian';
 import { BangumiPluginSettings, DEFAULT_SETTINGS, PanelFilters } from './src/settings/settings';
 import { BangumiSettingTab } from './src/settings/settingsTab';
-import { persistStableManagerSettings } from './src/settings/settingsLifecycle';
+import { persistStableManagerSettings, SettingsPersistenceCoordinator } from './src/settings/settingsLifecycle';
 import { ConfigurationChangeBlockedError, PendingDecisionInProgressError, PendingSyncTransactionError, RecoveryRequiredError, SyncConfigField, SyncManager, SyncManagerConfig } from './src/sync/syncManager';
 import { SyncModal } from './src/ui/syncModal';
 import { SyncOptionsModal, SyncOptionsInput } from './src/ui/syncOptionsModal';
@@ -40,6 +40,7 @@ import { StatusSyncFieldSelection } from './src/sync/statusSyncTypes';
 import { PathDiagnosticModal, PathMigrationPreviewModal } from './src/ui/pathToolsModal';
 import { RecoveryCenterModal } from './src/ui/recoveryCenterModal';
 import { assertWriteOperationAllowed, setWriteOperationGuard, WriteOperation } from './src/sync/writeOperationGate';
+import { cloneSyncManagerConfig, syncConfigFieldEqual } from './src/sync/syncConfig';
 
 /**
  * 缓存数据结构
@@ -65,6 +66,7 @@ export default class BangumiPlugin extends Plugin {
 	private controlPanel: ControlPanel | null = null;
 	private appliedSyncConfig: SyncManagerConfig | null = null;
 	private lastSavedSettings: BangumiPluginSettings | null = null;
+	private readonly settingsPersistence = new SettingsPersistenceCoordinator();
 
 	// 单集功能
 	episodeStatusManager: EpisodeStatusManager | null = null;
@@ -187,9 +189,7 @@ export default class BangumiPlugin extends Plugin {
 			this.app,
 			this,
 			this.settings,
-			async () => {
-				await this.applySettingsChanges();
-			},
+			candidate => this.applySettingsChanges(candidate),
 			() => this.openPathDiagnostic(),
 			() => this.openPathMigrationPreview(),
 		));
@@ -356,34 +356,35 @@ export default class BangumiPlugin extends Plugin {
 	 * 保存设置
 	 */
 	async saveSettings() {
-		await this.saveData(this.settings);
-		this.lastSavedSettings = this.cloneSettings(this.settings);
+		const snapshot = this.cloneSettings(this.settings);
+		await this.settingsPersistence.enqueue(() => this.saveData(snapshot));
+		this.lastSavedSettings = snapshot;
 	}
 
 	/**
 	 * 初始化同步管理器
 	 */
-	private async buildSyncManagerConfig(): Promise<SyncManagerConfig> {
-		const templates = await this.getTemplates();
-		return {
-			accessToken: this.settings.accessToken,
-			pathTemplate: this.settings.syncPathTemplate,
-			pathTemplateByType: this.settings.pathTemplateByType,
-			imagePathTemplate: this.settings.imagePathTemplate,
-			notePathTemplate: this.settings.notePathTemplate,
-			downloadImages: this.settings.downloadImages,
-			scanFolderPath: this.settings.scanFolderPath,
-			coverLinkType: this.settings.coverLinkType,
+	private async buildSyncManagerConfig(settings: BangumiPluginSettings = this.settings): Promise<SyncManagerConfig> {
+		const templates = await this.getTemplates(settings);
+		return cloneSyncManagerConfig({
+			accessToken: settings.accessToken,
+			pathTemplate: settings.syncPathTemplate,
+			pathTemplateByType: settings.pathTemplateByType,
+			imagePathTemplate: settings.imagePathTemplate,
+			notePathTemplate: settings.notePathTemplate,
+			downloadImages: settings.downloadImages,
+			scanFolderPath: settings.scanFolderPath,
+			coverLinkType: settings.coverLinkType,
 			customTemplates: templates,
-			enableRelatedLinks: this.settings.enableRelatedLinks,
-			dataProtection: this.settings.dataProtection,
-			subjectPathStates: this.settings.subjectPathStates,
-			pathNamingStrategy: this.settings.pathNamingStrategy,
+			enableRelatedLinks: settings.enableRelatedLinks,
+			dataProtection: settings.dataProtection,
+			subjectPathStates: settings.subjectPathStates,
+			pathNamingStrategy: settings.pathNamingStrategy,
 			onPathStatesChanged: async states => {
 				this.settings.subjectPathStates = states;
 				await this.saveSettings();
 			},
-		};
+		});
 	}
 
 	private cloneSettings(settings: BangumiPluginSettings): BangumiPluginSettings {
@@ -402,33 +403,38 @@ export default class BangumiPlugin extends Plugin {
 			'subjectPathStates', 'imagePathTemplate', 'notePathTemplate', 'coverLinkType', 'dataProtection',
 			'downloadImages', 'enableRelatedLinks', 'customTemplates',
 		];
-		return fields.filter(field => JSON.stringify(previous[field]) !== JSON.stringify(next[field]));
+		return fields.filter(field => !syncConfigFieldEqual(previous, next, field));
 	}
 
-	private refreshDependentServices(manager: SyncManager): void {
-		this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.settings);
+	private refreshDependentServices(manager: SyncManager, settings: BangumiPluginSettings = this.settings): void {
+		this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.cloneSettings(settings));
 	}
 
-	private async applySettingsChanges(): Promise<void> {
-		const previousSettings = this.lastSavedSettings ? this.cloneSettings(this.lastSavedSettings) : this.cloneSettings(this.settings);
-		const nextConfig = await this.buildSyncManagerConfig();
+	private async applySettingsChanges(candidate: BangumiPluginSettings): Promise<{ applied: boolean; settings: BangumiPluginSettings }> {
+		const previousSettings = this.cloneSettings(this.settings);
+		candidate.subjectPathStates = this.cloneSettings(this.settings).subjectPathStates;
+		const nextConfig = await this.buildSyncManagerConfig(candidate);
 		const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, nextConfig);
 		const outcome = await persistStableManagerSettings({
-			settings: this.settings,
+			settings: this.cloneSettings(candidate),
 			previousSettings,
 			nextConfig,
 			changedFields,
 			manager: this.syncManager,
-			save: settings => this.saveData(settings),
+			save: settings => this.settingsPersistence.enqueue(() => this.saveData(this.cloneSettings(settings))),
 			restore: snapshot => this.restoreSettings(snapshot),
+			applyDependentServices: settings => { if (this.syncManager) this.refreshDependentServices(this.syncManager, settings); },
+			restoreDependentServices: settings => { if (this.syncManager) this.refreshDependentServices(this.syncManager, settings); },
+			onRollbackFailure: error => this.syncManager?.requireConfigurationRecovery(error),
 		});
 		if (outcome.applied) {
-			this.appliedSyncConfig = nextConfig;
+			this.appliedSyncConfig = cloneSyncManagerConfig(nextConfig);
 			this.lastSavedSettings = this.cloneSettings(this.settings);
-			if (this.syncManager) this.refreshDependentServices(this.syncManager);
-			return;
+			return { applied: true, settings: this.cloneSettings(this.settings) };
 		}
 		if (outcome.error instanceof ConfigurationChangeBlockedError) new Notice(outcome.error.message);
+		else new Notice(`Failed to save settings: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`);
+		return { applied: false, settings: this.cloneSettings(this.settings) };
 	}
 
 	private async initOrUpdateSyncManager(): Promise<void> {
@@ -436,13 +442,15 @@ export default class BangumiPlugin extends Plugin {
 		if (this.syncManager) {
 			const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, config);
 			this.syncManager.updateConfig(config, changedFields);
-			this.appliedSyncConfig = config;
+			this.appliedSyncConfig = cloneSyncManagerConfig(config);
 			this.refreshDependentServices(this.syncManager);
 			return;
 		}
 
 		this.syncManager = new SyncManager(this.app, config);
-		this.appliedSyncConfig = config;
+		await this.syncManager.initializeRecovery();
+		if (this.syncManager.getRecoveryRequired()) new Notice(tn('recoveryCenter', 'writeBlocked'));
+		this.appliedSyncConfig = cloneSyncManagerConfig(config);
 		this.lastSavedSettings = this.cloneSettings(this.settings);
 		const manager = this.syncManager;
 		setWriteOperationGuard(() => manager.ensureCanStartSync());
@@ -484,7 +492,7 @@ export default class BangumiPlugin extends Plugin {
 	/**
 	 * 获取各类型模板
 	 */
-	private async getTemplates(): Promise<TemplatesMap> {
+	private async getTemplates(settings: BangumiPluginSettings = this.settings): Promise<TemplatesMap> {
 		const templates: TemplatesMap = {};
 		const templateKeys: TemplateKey[] = [
 			'animeTemplateConfig',
@@ -497,11 +505,11 @@ export default class BangumiPlugin extends Plugin {
 		];
 
 		for (const templateKey of templateKeys) {
-			templates[getTemplateFallbackLookupKey(templateKey)] = await this.resolveTemplate(templateKey);
+			templates[getTemplateFallbackLookupKey(templateKey)] = await this.resolveTemplate(templateKey, settings);
 		}
 
 		for (const categoryOption of TEMPLATE_CATEGORY_OPTIONS) {
-			templates[categoryOption.category] = await this.resolveTemplateForCategory(categoryOption.key);
+			templates[categoryOption.category] = await this.resolveTemplateForCategory(categoryOption.key, settings);
 		}
 
 		return templates;
@@ -510,22 +518,22 @@ export default class BangumiPlugin extends Plugin {
 	/**
 	 * 解析单个模板配置
 	 */
-	private async resolveTemplate(configKey: TemplateKey): Promise<string> {
-		return this.resolveTemplateFromConfig(this.settings[configKey], configKey);
+	private async resolveTemplate(configKey: TemplateKey, settings: BangumiPluginSettings = this.settings): Promise<string> {
+		return this.resolveTemplateFromConfig(settings[configKey], configKey);
 	}
 
-	private async resolveTemplateForCategory(categoryKey: string): Promise<string> {
+	private async resolveTemplateForCategory(categoryKey: string, settings: BangumiPluginSettings = this.settings): Promise<string> {
 		const categoryOption = TEMPLATE_CATEGORY_OPTIONS_BY_KEY[categoryKey];
 		if (!categoryOption) {
 			return '';
 		}
 
-		const categoryConfig = this.settings.templateConfigByCategory?.[categoryKey];
+		const categoryConfig = settings.templateConfigByCategory?.[categoryKey];
 		if (categoryConfig) {
 			return this.resolveTemplateFromConfig(categoryConfig, categoryOption.templateKey);
 		}
 
-		return this.resolveTemplate(categoryOption.templateKey);
+		return this.resolveTemplate(categoryOption.templateKey, settings);
 	}
 
 	private async resolveTemplateFromConfig(
@@ -675,7 +683,10 @@ export default class BangumiPlugin extends Plugin {
 			(filters: PanelFilters) => {
 				// 保存筛选条件
 				this.settings.panelFilters = filters;
-				void this.saveSettings();
+				void this.saveSettings().catch(error => {
+					console.error('[Bangumi Sync] Failed to persist panel filters:', error);
+					new Notice(`Failed to save settings: ${error instanceof Error ? error.message : String(error)}`);
+				});
 			},
 			cachedPanelData,
                         (data) => {

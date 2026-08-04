@@ -82,7 +82,15 @@ export interface App {
 		read(file: TFile): Promise<string>;
 		getMarkdownFiles(): TFile[];
 		getAbstractFileByPath(path: string): TAbstractFile | null;
-		adapter: { exists(path: string): Promise<boolean> };
+		adapter: {
+			list(path: string): Promise<{ files: string[]; folders: string[] }>;
+			exists(path: string): Promise<boolean>;
+			read(path: string): Promise<string>;
+			write(path: string, content: string): Promise<void>;
+			rename(from: string, to: string): Promise<void>;
+			remove(path: string): Promise<void>;
+		};
+		configDir: string;
 		create(path: string, content: string): Promise<TFile>;
 		createFolder(path: string): Promise<void>;
 		process(file: TFile, updater: (content: string) => string): Promise<void>;

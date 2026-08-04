@@ -12,20 +12,34 @@ describe('SyncTransaction staged rename log', () => {
 
 		await transaction.createOrUpdateFile('A/existing.md', '---\nid: 1\n---\nchanged', { overwrite: true, subjectId: 1 });
 		await transaction.createOrUpdateFile('A/created.md', '---\nid: 2\n---\ncreated', { overwrite: false, subjectId: 2 });
-		const expectations = transaction.getRecoveryExpectations();
+		const expectations = await transaction.getRecoveryExpectations();
 
 		expect(expectations.createdFiles).toEqual([{ subjectId: 2, createdPath: 'A/created.md', expectedToExistAfterRollback: false }]);
 		expect(expectations.updatedContents).toHaveLength(1);
 		expect(expectations.updatedContents[0]).toMatchObject({ subjectId: 1, path: 'A/existing.md', originalContentLength: original.length });
+		expect(expectations.updatedContents[0].originalContent).toBe(original);
 		expect(expectations.updatedContents[0].expectedContentHash).toMatch(/^[a-f0-9]{64}$/u);
 
 		const lfVault = new InMemoryVault();
 		lfVault.addFile('A/existing.md', '---\nid: 1\n---\noriginal');
 		const lfTransaction = new SyncTransaction(lfVault.app, new FileManager(lfVault.app));
 		await lfTransaction.createOrUpdateFile('A/existing.md', 'changed', { overwrite: true, subjectId: 1 });
-		const lfExpectations = lfTransaction.getRecoveryExpectations();
+		const lfExpectations = await lfTransaction.getRecoveryExpectations();
 		expect(lfExpectations.updatedContents[0].expectedContentHash)
 			.not.toBe(expectations.updatedContents[0].expectedContentHash);
+	});
+
+	it('records original, temporary, final, and terminal rename paths', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile('A/one.md', '---\nid: 1\n---\none');
+		const transaction = new SyncTransaction(vault.app, new FileManager(vault.app));
+		await transaction.executeRenames([{ subjectId: 1, from: 'A/one.md', to: 'B/one.md' }]);
+
+		const [rename] = (await transaction.getRecoveryExpectations()).renames;
+		expect(rename).toMatchObject({
+			subjectId: 1, originalPath: 'A/one.md', finalPath: 'B/one.md', expectedTerminalPath: 'A/one.md',
+		});
+		expect(rename.temporaryPath).toContain('.bangumi-sync-1-');
 	});
 
 	it('does not report an empty transaction as an attempted rollback', async () => {

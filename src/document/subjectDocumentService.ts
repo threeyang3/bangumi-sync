@@ -32,6 +32,13 @@ import {
 } from './types';
 import { SubjectIdentity, SubjectIdentityConflict, SubjectIdentitySource, parsePositiveSubjectId } from './subjectIdentity';
 
+export class SubjectIdentityMismatchError extends Error {
+	constructor(readonly path: string, readonly expectedSubjectId: number, readonly actualSubjectId: number | null) {
+		super(`${path} belongs to subject ${String(actualSubjectId)}, expected subject ${expectedSubjectId}.`);
+		this.name = 'SubjectIdentityMismatchError';
+	}
+}
+
 export class SubjectDocumentService {
 	private app: App;
 	private episodeStatusManager: EpisodeStatusManager | null;
@@ -85,6 +92,28 @@ export class SubjectDocumentService {
 
 	async getSubjectIdentity(file: TFile): Promise<SubjectIdentity> {
 		return this.getSubjectIdentityFromContent(await this.app.vault.read(file));
+	}
+
+	assertContentSubjectId(content: string, expectedSubjectId: number, path: string): void {
+		const identity = this.getSubjectIdentityFromContent(content);
+		if (identity.subjectId !== expectedSubjectId || identity.conflicts?.length) {
+			throw new SubjectIdentityMismatchError(path, expectedSubjectId, identity.subjectId);
+		}
+	}
+
+	async assertFileSubjectId(file: TFile, expectedSubjectId: number): Promise<void> {
+		this.assertContentSubjectId(await this.app.vault.read(file), expectedSubjectId, file.path);
+	}
+
+	async processSubjectFile(
+		file: TFile,
+		expectedSubjectId: number,
+		updater: (content: string) => string,
+	): Promise<void> {
+		await this.app.vault.process(file, content => {
+			this.assertContentSubjectId(content, expectedSubjectId, file.path);
+			return updater(content);
+		});
 	}
 
 	async readSnapshot(file: TFile, subjectType: SubjectType): Promise<LocalSubjectSnapshot> {
@@ -197,6 +226,10 @@ export class SubjectDocumentService {
 
 	addFrontmatterField(content: string, field: string, value: unknown): string {
 		return addFrontmatterField(content, field, value);
+	}
+
+	removeFrontmatterField(content: string, field: string): string {
+		return removeFrontmatterField(content, field);
 	}
 
 	extractFrontmatterRecord(content: string): Record<string, unknown> {
