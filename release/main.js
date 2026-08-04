@@ -28,7 +28,7 @@ __export(main_exports, {
   default: () => BangumiPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian28 = require("obsidian");
+var import_obsidian32 = require("obsidian");
 
 // common/api/types.ts
 var SubjectType = /* @__PURE__ */ ((SubjectType3) => {
@@ -304,7 +304,9 @@ var DEFAULT_SETTINGS = {
   // 相关条目链接
   enableRelatedLinks: true,
   // 数据保护设置
-  dataProtection: { ...DEFAULT_DATA_PROTECTION_SETTINGS }
+  dataProtection: { ...DEFAULT_DATA_PROTECTION_SETTINGS },
+  pathNamingStrategy: "simple-until-collision",
+  subjectPathStates: {}
 };
 
 // src/settings/settingsTab.ts
@@ -323,7 +325,10 @@ var en = {
     checkAndSyncStatus: "Check and sync status",
     createSubjectNote: "Create or append subject note",
     batchDownloadCovers: "Batch download cover images",
-    scanAndLinkRelated: "Scan and link related subjects"
+    scanAndLinkRelated: "Scan and link related subjects",
+    diagnoseLocalSubjects: "Check local Bangumi subjects",
+    previewPathMigration: "Preview and apply current path template",
+    openRecoveryCenter: "Open Bangumi Sync Recovery Center"
   },
   ribbon: {
     collectionManager: "Bangumi collection manager"
@@ -371,7 +376,7 @@ var en = {
     enterAccessToken: "Enter Access token",
     pathSettings: "Path settings",
     filePathTemplate: "File path template",
-    filePathTemplateDesc: "Supported variables: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}",
+    filePathTemplateDesc: "Supported variables: {{type}}, {{category}}, {{platform}}, {{name}}, {{name_cn}}, {{name_cn_with_type}}, {{year}}, {{author}}, {{id}}",
     pathTemplateByType: "Per-type path templates",
     pathTemplateByTypeDesc: "Optional overrides; empty falls back to the default template above",
     scanFolderPath: "Scan folder path",
@@ -395,6 +400,15 @@ var en = {
     notePathTemplateDesc: "Full shared note file path template. Example: \u6536\u96C6\u7BB1/\u7B14\u8BB0/ACGN/{{name_cn}}.md",
     noteTemplateContent: "Note template content",
     noteTemplateContentDesc: "Template used when creating a new shared note file. Supported variables: {{id_yaml}}, {{primary_id}}, {{name}}, {{name_cn}}, {{entry_heading}}",
+    pathNamingStrategy: "Naming strategy",
+    pathNamingStrategyDesc: "Existing subjects keep their current ID-linked path; collision suffixes are added at runtime.",
+    pathNamingSimple: "Simple names; disambiguate on collision",
+    pathNamingYear: "Always append year",
+    pathNamingId: "Always append Bangumi ID",
+    pathNamingCustom: "Use custom template",
+    pathTemplateRisk: "This template omits {{id}}. Runtime year/ID disambiguation still protects collisions.",
+    previewNormal: "Normal",
+    previewCollision: "On collision",
     templateSettings: "Template settings",
     templateVarTip: "Template variable tip: {{tags}} uses your own tags, empty if none",
     templateSyntax: "Template syntax",
@@ -513,9 +527,19 @@ var en = {
     paused: "Paused",
     syncing: "Syncing",
     rollback: "Rollback",
-    rollbackComplete: "Rollback complete: {deleted} deleted, {failed} failed",
+    rollbackComplete: "Rollback complete: {deleted} created files deleted, {contents} contents and {paths} paths restored, {failed} failed",
     rollbackFailed: "Rollback failed",
+    rollbackAvailable: "This cancelled batch changed local files and can be rolled back safely.",
+    pendingDecision: "Some changes succeeded. Keep those results or roll back this batch before closing or starting another sync.",
+    keepSuccessful: "Keep successful results",
+    keptSuccessful: "Successful results kept",
+    rollbackBatch: "Roll back this batch",
+    returnToResult: "Return to results",
+    rolledBack: "Sync failed; changes were automatically rolled back.",
+    warnings: "Warnings",
     completedStats: "Added: {added}, Skipped: {skipped}, Errors: {errors}",
+    detailedStats: "Created {created}, updated {updated}, unchanged {unchanged}, renamed {renamed}, collisions resolved {collisionResolved}, skipped {skipped}, failed {failed}",
+    partialSuccess: "Sync partially completed",
     errorDetails: "Error details",
     scanCompleted: "Scan completed",
     scanCompletedStats: "Checked {checked} items, updated {linked}, skipped {skipped}, failed {failed}",
@@ -887,6 +911,61 @@ var en = {
     missingSubjectId: "Current file lacks a valid subject ID, cannot create subject note",
     appendedToNote: "Appended to shared note",
     createdNote: "Created shared note"
+  },
+  pathTools: {
+    diagnosticTitle: "Local Bangumi subject diagnostic",
+    diagnosticSummary: "{valid} valid subjects, {issues} issues",
+    exportReport: "Export report",
+    reportExported: "Diagnostic report exported: {path}",
+    migrationTitle: "Path migration preview",
+    migrationSummary: "{rename} renames, {protected} protected, {failed} failed",
+    applyMigration: "Apply migration",
+    migrationComplete: "Path migration complete: {renamed} renamed, {failed} failed",
+    noRenames: "No managed paths need migration.",
+    includeUnknown: "Include legacy paths with unknown ownership state",
+    includeUserRenamed: "Include user-renamed paths",
+    close: "Close"
+  },
+  recoveryCenter: {
+    title: "Bangumi Sync Recovery Center",
+    noRecovery: "No local recovery is required.",
+    cause: "Cause",
+    detectedAt: "Detected",
+    affectedSubjects: "Affected subjects",
+    expectations: "Pre-batch expectations",
+    expectedPresent: "must exist",
+    expectedAbsent: "must be absent",
+    latestAttempt: "Latest attempt",
+    attemptHistory: "Attempt history",
+    retryRollback: "Retry automatic rollback",
+    confirmManual: "Confirm manual recovery",
+    rescan: "Rescan local state",
+    close: "Close",
+    working: "Checking local recovery\u2026",
+    recovered: "Local recovery completed. Write operations are available again.",
+    currentFailures: "Current failures",
+    blocked: "Recovery is still blocked. Resolve the diagnostics below and rescan.",
+    actionFailed: "Recovery action failed",
+    diagnostics: "Blocking diagnostics",
+    openCenter: "Open Recovery Center",
+    writeBlocked: "Local recovery is required before this write operation can run.",
+    pendingDecision: "Resolve the previous partial sync before starting another write operation.",
+    decisionInProgress: "The previous sync decision or recovery action is still running.",
+    diagnosticRescanFailed: "Local rescan failed",
+    diagnosticStateRestoreFailed: "Path-state restore failed",
+    diagnosticPersistedStateMismatch: "Persisted path states do not match the pre-batch snapshot",
+    diagnosticIncrementalStateMismatch: "Incremental path states do not match the pre-batch snapshot",
+    diagnosticBlockingLocalFile: "Blocking local file",
+    diagnosticDuplicateSubjectId: "Duplicate subject ID",
+    diagnosticTemporaryFile: "Temporary transaction file remains",
+    diagnosticUnexpectedSubjectFile: "Subject file should be absent",
+    diagnosticMissingSubjectFile: "Expected subject file is missing",
+    diagnosticSubjectPathMismatch: "Subject path does not match",
+    diagnosticSubjectIdentityMismatch: "Expected path belongs to another subject",
+    diagnosticRollbackStepFailed: "Rollback step failed",
+    diagnosticContentMismatch: "Original content does not match",
+    diagnosticContentFileMissing: "Original content file is missing",
+    diagnosticUnexpectedCreatedPath: "Created path still exists"
   }
 };
 var zhCN = {
@@ -900,7 +979,10 @@ var zhCN = {
     checkAndSyncStatus: "\u68C0\u67E5\u5E76\u540C\u6B65\u72B6\u6001",
     createSubjectNote: "\u521B\u5EFA\u6216\u8FFD\u52A0\u6761\u76EE\u7B14\u8BB0",
     batchDownloadCovers: "\u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u56FE\u7247",
-    scanAndLinkRelated: "\u626B\u63CF\u5E76\u5173\u8054\u76F8\u5173\u6761\u76EE"
+    scanAndLinkRelated: "\u626B\u63CF\u5E76\u5173\u8054\u76F8\u5173\u6761\u76EE",
+    diagnoseLocalSubjects: "\u68C0\u67E5\u672C\u5730 Bangumi \u6761\u76EE",
+    previewPathMigration: "\u9884\u89C8\u5E76\u5E94\u7528\u5F53\u524D\u8DEF\u5F84\u6A21\u677F",
+    openRecoveryCenter: "\u6253\u5F00 Bangumi Sync \u6062\u590D\u4E2D\u5FC3"
   },
   ribbon: {
     collectionManager: "Bangumi \u6536\u85CF\u7BA1\u7406"
@@ -948,7 +1030,7 @@ var zhCN = {
     enterAccessToken: "\u8F93\u5165 Access Token",
     pathSettings: "\u8DEF\u5F84\u8BBE\u7F6E",
     filePathTemplate: "\u6587\u4EF6\u8DEF\u5F84\u6A21\u677F",
-    filePathTemplateDesc: "\u652F\u6301\u53D8\u91CF: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}",
+    filePathTemplateDesc: "\u652F\u6301\u53D8\u91CF: {{type}}, {{category}}, {{platform}}, {{name}}, {{name_cn}}, {{name_cn_with_type}}, {{year}}, {{author}}, {{id}}",
     pathTemplateByType: "\u5404\u7C7B\u578B\u8DEF\u5F84\u6A21\u677F",
     pathTemplateByTypeDesc: "\u53EF\u9009\u8986\u76D6\uFF0C\u4E3A\u7A7A\u5219\u4F7F\u7528\u4E0A\u65B9\u9ED8\u8BA4\u6A21\u677F",
     scanFolderPath: "\u626B\u63CF\u6587\u4EF6\u5939\u8DEF\u5F84",
@@ -972,6 +1054,15 @@ var zhCN = {
     noteTemplateContent: "\u7B14\u8BB0\u6A21\u677F\u5185\u5BB9",
     noteTemplateContentDesc: "\u521B\u5EFA\u65B0\u7684\u5171\u4EAB\u7B14\u8BB0\u6587\u4EF6\u65F6\u4F7F\u7528\u3002\u652F\u6301\u53D8\u91CF\uFF1A{{id_yaml}}\u3001{{primary_id}}\u3001{{name}}\u3001{{name_cn}}\u3001{{entry_heading}}",
     notePathTemplateDesc: "\u5171\u4EAB\u7B14\u8BB0\u5B8C\u6574\u6587\u4EF6\u8DEF\u5F84\u6A21\u677F\uFF0C\u4F8B\u5982\uFF1A\u6536\u96C6\u7BB1/\u7B14\u8BB0/ACGN/{{name_cn}}.md",
+    pathNamingStrategy: "\u547D\u540D\u7B56\u7565",
+    pathNamingStrategyDesc: "\u5DF2\u6709\u6761\u76EE\u4FDD\u7559 ID \u5BF9\u5E94\u7684\u5F53\u524D\u8DEF\u5F84\uFF1B\u8FD0\u884C\u65F6\u4EC5\u5728\u51B2\u7A81\u65F6\u8FFD\u52A0\u6D88\u6B67\u540E\u7F00\u3002",
+    pathNamingSimple: "\u7B80\u6D01\u547D\u540D\uFF0C\u4EC5\u51B2\u7A81\u65F6\u6D88\u6B67",
+    pathNamingYear: "\u59CB\u7EC8\u8FFD\u52A0\u5E74\u4EFD",
+    pathNamingId: "\u59CB\u7EC8\u8FFD\u52A0 Bangumi ID",
+    pathNamingCustom: "\u5B8C\u5168\u6309\u81EA\u5B9A\u4E49\u6A21\u677F",
+    pathTemplateRisk: "\u6A21\u677F\u672A\u5305\u542B {{id}}\uFF1B\u8FD0\u884C\u65F6\u4ECD\u4F1A\u4F7F\u7528\u5E74\u4EFD\u548C ID \u81EA\u52A8\u6D88\u6B67\u3002",
+    previewNormal: "\u666E\u901A",
+    previewCollision: "\u53D1\u751F\u91CD\u540D",
     templateSettings: "\u6A21\u677F\u8BBE\u7F6E",
     templateVarTip: "\u6A21\u677F\u53D8\u91CF\u63D0\u793A\uFF1A{{tags}} \u4F7F\u7528\u7528\u6237\u81EA\u5DF1\u7684\u6807\u7B7E\uFF0C\u5982\u679C\u6CA1\u6709\u5219\u7559\u7A7A",
     templateSyntax: "\u6A21\u677F\u8BED\u6CD5",
@@ -1090,9 +1181,19 @@ var zhCN = {
     paused: "\u5DF2\u6682\u505C",
     syncing: "\u540C\u6B65\u4E2D",
     rollback: "\u56DE\u6EDA",
-    rollbackComplete: "\u56DE\u6EDA\u5B8C\u6210\uFF1A\u5220\u9664 {deleted} \u4E2A\uFF0C\u5931\u8D25 {failed} \u4E2A",
+    rollbackComplete: "\u56DE\u6EDA\u5B8C\u6210\uFF1A\u5220\u9664\u65B0\u5EFA\u6587\u4EF6 {deleted} \u4E2A\uFF0C\u6062\u590D\u5185\u5BB9 {contents} \u4E2A\uFF0C\u6062\u590D\u8DEF\u5F84 {paths} \u4E2A\uFF0C\u5931\u8D25 {failed} \u4E2A",
     rollbackFailed: "\u56DE\u6EDA\u5931\u8D25",
+    rollbackAvailable: "\u672C\u6B21\u5DF2\u53D6\u6D88\u7684\u540C\u6B65\u4FEE\u6539\u4E86\u672C\u5730\u6587\u4EF6\uFF0C\u53EF\u4EE5\u5B89\u5168\u56DE\u6EDA\u3002",
+    pendingDecision: "\u90E8\u5206\u4FEE\u6539\u5DF2\u6210\u529F\u3002\u5173\u95ED\u6216\u5F00\u59CB\u65B0\u540C\u6B65\u524D\uFF0C\u8BF7\u9009\u62E9\u4FDD\u7559\u6210\u529F\u7ED3\u679C\u6216\u56DE\u6EDA\u672C\u6279\u6B21\u3002",
+    keepSuccessful: "\u4FDD\u7559\u6210\u529F\u7ED3\u679C",
+    keptSuccessful: "\u5DF2\u4FDD\u7559\u6210\u529F\u7ED3\u679C",
+    rollbackBatch: "\u56DE\u6EDA\u672C\u6279\u6B21",
+    returnToResult: "\u8FD4\u56DE\u7ED3\u679C",
+    rolledBack: "\u540C\u6B65\u5931\u8D25\uFF0C\u4FEE\u6539\u5DF2\u81EA\u52A8\u56DE\u6EDA\u3002",
+    warnings: "\u8B66\u544A",
     completedStats: "\u65B0\u589E {added}\uFF0C\u8DF3\u8FC7 {skipped}\uFF0C\u5931\u8D25 {errors}",
+    detailedStats: "\u521B\u5EFA {created}\uFF0C\u66F4\u65B0 {updated}\uFF0C\u672A\u53D8\u5316 {unchanged}\uFF0C\u91CD\u547D\u540D {renamed}\uFF0C\u89E3\u51B3\u51B2\u7A81 {collisionResolved}\uFF0C\u8DF3\u8FC7 {skipped}\uFF0C\u5931\u8D25 {failed}",
+    partialSuccess: "\u540C\u6B65\u90E8\u5206\u6210\u529F",
     errorDetails: "\u9519\u8BEF\u8BE6\u60C5",
     scanCompleted: "\u626B\u63CF\u5173\u8054\u5B8C\u6210",
     scanCompletedStats: "\u68C0\u67E5 {checked} \u4E2A\u6761\u76EE\uFF0C\u66F4\u65B0 {linked} \u4E2A\uFF0C\u8DF3\u8FC7 {skipped} \u4E2A\uFF0C\u5931\u8D25 {failed} \u4E2A",
@@ -1464,6 +1565,61 @@ var zhCN = {
     missingSubjectId: "\u5F53\u524D\u6587\u4EF6\u7F3A\u5C11\u6709\u6548\u7684\u6761\u76EE ID\uFF0C\u65E0\u6CD5\u521B\u5EFA\u6761\u76EE\u7B14\u8BB0",
     appendedToNote: "\u5DF2\u8FFD\u52A0\u5230\u5171\u4EAB\u7B14\u8BB0",
     createdNote: "\u5DF2\u521B\u5EFA\u5171\u4EAB\u7B14\u8BB0"
+  },
+  pathTools: {
+    diagnosticTitle: "\u672C\u5730 Bangumi \u6761\u76EE\u8BCA\u65AD",
+    diagnosticSummary: "\u6709\u6548\u6761\u76EE {valid} \u4E2A\uFF0C\u53D1\u73B0\u95EE\u9898 {issues} \u4E2A",
+    exportReport: "\u5BFC\u51FA\u62A5\u544A",
+    reportExported: "\u8BCA\u65AD\u62A5\u544A\u5DF2\u5BFC\u51FA\uFF1A{path}",
+    migrationTitle: "\u8DEF\u5F84\u8FC1\u79FB\u9884\u89C8",
+    migrationSummary: "\u5C06\u91CD\u547D\u540D {rename} \u4E2A\uFF0C\u4FDD\u62A4 {protected} \u4E2A\uFF0C\u5931\u8D25 {failed} \u4E2A",
+    applyMigration: "\u5E94\u7528\u8FC1\u79FB",
+    migrationComplete: "\u8DEF\u5F84\u8FC1\u79FB\u5B8C\u6210\uFF1A\u91CD\u547D\u540D {renamed} \u4E2A\uFF0C\u5931\u8D25 {failed} \u4E2A",
+    noRenames: "\u6CA1\u6709\u9700\u8981\u8FC1\u79FB\u7684\u63D2\u4EF6\u7BA1\u7406\u8DEF\u5F84\u3002",
+    includeUnknown: "\u5305\u542B\u7BA1\u7406\u72B6\u6001\u672A\u77E5\u7684\u65E7\u8DEF\u5F84",
+    includeUserRenamed: "\u5305\u542B\u7528\u6237\u624B\u52A8\u91CD\u547D\u540D\u7684\u8DEF\u5F84",
+    close: "\u5173\u95ED"
+  },
+  recoveryCenter: {
+    title: "Bangumi Sync \u6062\u590D\u4E2D\u5FC3",
+    noRecovery: "\u5F53\u524D\u4E0D\u9700\u8981\u672C\u5730\u6062\u590D\u3002",
+    cause: "\u539F\u56E0",
+    detectedAt: "\u53D1\u73B0\u65F6\u95F4",
+    affectedSubjects: "\u53D7\u5F71\u54CD\u6761\u76EE",
+    expectations: "\u6279\u6B21\u524D\u9884\u671F",
+    expectedPresent: "\u5E94\u5F53\u5B58\u5728",
+    expectedAbsent: "\u5E94\u5F53\u4E0D\u5B58\u5728",
+    latestAttempt: "\u6700\u8FD1\u4E00\u6B21\u5C1D\u8BD5",
+    attemptHistory: "\u5C1D\u8BD5\u5386\u53F2",
+    retryRollback: "\u91CD\u8BD5\u81EA\u52A8\u56DE\u6EDA",
+    confirmManual: "\u786E\u8BA4\u624B\u52A8\u6062\u590D",
+    rescan: "\u91CD\u65B0\u626B\u63CF\u672C\u5730\u72B6\u6001",
+    close: "\u5173\u95ED",
+    working: "\u6B63\u5728\u68C0\u67E5\u672C\u5730\u6062\u590D\u72B6\u6001\u2026",
+    recovered: "\u672C\u5730\u6062\u590D\u5DF2\u5B8C\u6210\uFF0C\u5199\u5165\u64CD\u4F5C\u5DF2\u91CD\u65B0\u5F00\u653E\u3002",
+    currentFailures: "\u5F53\u524D\u5931\u8D25",
+    blocked: "\u6062\u590D\u4ECD\u88AB\u963B\u585E\u3002\u8BF7\u5904\u7406\u4E0B\u65B9\u8BCA\u65AD\u540E\u91CD\u65B0\u626B\u63CF\u3002",
+    actionFailed: "\u6062\u590D\u64CD\u4F5C\u5931\u8D25",
+    diagnostics: "\u963B\u585E\u8BCA\u65AD",
+    openCenter: "\u6253\u5F00\u6062\u590D\u4E2D\u5FC3",
+    writeBlocked: "\u5B8C\u6210\u672C\u5730\u6062\u590D\u524D\u65E0\u6CD5\u6267\u884C\u6B64\u5199\u5165\u64CD\u4F5C\u3002",
+    pendingDecision: "\u8BF7\u5148\u5904\u7406\u4E0A\u4E00\u6B21\u90E8\u5206\u540C\u6B65\uFF0C\u518D\u5F00\u59CB\u65B0\u7684\u5199\u5165\u64CD\u4F5C\u3002",
+    decisionInProgress: "\u4E0A\u4E00\u6B21\u540C\u6B65\u51B3\u7B56\u6216\u6062\u590D\u64CD\u4F5C\u4ECD\u5728\u6267\u884C\u3002",
+    diagnosticRescanFailed: "\u672C\u5730\u91CD\u65B0\u626B\u63CF\u5931\u8D25",
+    diagnosticStateRestoreFailed: "\u8DEF\u5F84\u72B6\u6001\u6062\u590D\u5931\u8D25",
+    diagnosticPersistedStateMismatch: "\u6301\u4E45\u5316\u8DEF\u5F84\u72B6\u6001\u4E0E\u6279\u6B21\u524D\u5FEB\u7167\u4E0D\u4E00\u81F4",
+    diagnosticIncrementalStateMismatch: "\u589E\u91CF\u540C\u6B65\u8DEF\u5F84\u72B6\u6001\u4E0E\u6279\u6B21\u524D\u5FEB\u7167\u4E0D\u4E00\u81F4",
+    diagnosticBlockingLocalFile: "\u5B58\u5728\u963B\u585E\u7684\u672C\u5730\u6587\u4EF6",
+    diagnosticDuplicateSubjectId: "\u6761\u76EE ID \u91CD\u590D",
+    diagnosticTemporaryFile: "\u4ECD\u6709\u4E8B\u52A1\u4E34\u65F6\u6587\u4EF6",
+    diagnosticUnexpectedSubjectFile: "\u672C\u5E94\u4E0D\u5B58\u5728\u7684\u6761\u76EE\u6587\u4EF6\u4ECD\u5B58\u5728",
+    diagnosticMissingSubjectFile: "\u9884\u671F\u7684\u6761\u76EE\u6587\u4EF6\u7F3A\u5931",
+    diagnosticSubjectPathMismatch: "\u6761\u76EE\u8DEF\u5F84\u4E0D\u4E00\u81F4",
+    diagnosticSubjectIdentityMismatch: "\u9884\u671F\u8DEF\u5F84\u5C5E\u4E8E\u5176\u4ED6\u6761\u76EE",
+    diagnosticRollbackStepFailed: "\u56DE\u6EDA\u6B65\u9AA4\u5931\u8D25",
+    diagnosticContentMismatch: "\u539F\u59CB\u5185\u5BB9\u4E0D\u4E00\u81F4",
+    diagnosticContentFileMissing: "\u539F\u59CB\u5185\u5BB9\u6587\u4EF6\u7F3A\u5931",
+    diagnosticUnexpectedCreatedPath: "\u6279\u6B21\u65B0\u5EFA\u8DEF\u5F84\u4ECD\u7136\u5B58\u5728"
   }
 };
 var translations = {
@@ -2440,10 +2596,20 @@ var TEMPLATE_TYPES = [
   { key: "realTemplateConfig", nameKey: "realTemplate" }
 ];
 var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
-  constructor(app, plugin, settings, onSave) {
+  constructor(app, plugin, settings, onSave, onDiagnose, onPreviewMigration) {
     super(app, plugin);
-    this.settings = settings;
-    this.onSave = onSave;
+    this.settings = this.cloneSettings(settings);
+    this.onSave = async () => {
+      const outcome = await onSave(this.cloneSettings(this.settings));
+      this.settings = this.cloneSettings(outcome.settings);
+      if (!outcome.applied)
+        this.display();
+    };
+    this.onDiagnose = onDiagnose;
+    this.onPreviewMigration = onPreviewMigration;
+  }
+  cloneSettings(settings) {
+    return JSON.parse(JSON.stringify(settings));
   }
   display() {
     const { containerEl } = this;
@@ -2521,6 +2687,20 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
     });
     const previewEl = containerEl.createDiv({ cls: "bangumi-path-preview" });
     this.updatePathPreview(previewEl, this.settings.syncPathTemplate);
+    const namingStrategies = {
+      "simple-until-collision": "simple-until-collision",
+      "always-year": "always-year",
+      "always-id": "always-id",
+      "custom-template": "custom-template"
+    };
+    new import_obsidian2.Setting(containerEl).setName(tn("settings", "pathNamingStrategy")).setDesc(tn("settings", "pathNamingStrategyDesc")).addDropdown((dropdown) => dropdown.addOption("simple-until-collision", tn("settings", "pathNamingSimple")).addOption("always-year", tn("settings", "pathNamingYear")).addOption("always-id", tn("settings", "pathNamingId")).addOption("custom-template", tn("settings", "pathNamingCustom")).setValue(this.settings.pathNamingStrategy).onChange(async (value) => {
+      const strategy = namingStrategies[value];
+      if (!strategy)
+        return;
+      this.settings.pathNamingStrategy = strategy;
+      await this.onSave();
+    }));
+    new import_obsidian2.Setting(containerEl).addButton((button) => button.setButtonText(tn("commands", "diagnoseLocalSubjects")).onClick(() => this.onDiagnose())).addButton((button) => button.setButtonText(tn("commands", "previewPathMigration")).onClick(() => this.onPreviewMigration()));
     new import_obsidian2.Setting(containerEl).setName(tn("settings", "pathTemplateByType")).setDesc(tn("settings", "pathTemplateByTypeDesc"));
     const TYPE_PATH_KEYS = [
       { key: "book", label: "\u4E66\u7C4D" },
@@ -2858,9 +3038,13 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
    */
   updatePathPreview(el, template) {
     el.empty();
-    el.createEl("span", { text: `${tn("settings", "preview")}: `, cls: "bangumi-preview-label" });
-    const preview = template.replace(/\{\{type\}\}/g, "anime").replace(/\{\{category\}\}/g, "TV").replace(/\{\{name\}\}/g, "\u9032\u6483\u306E\u5DE8\u4EBA").replace(/\{\{name_cn\}\}/g, "\u8FDB\u51FB\u7684\u5DE8\u4EBA").replace(/\{\{name_cn_with_type\}\}/g, "\u8FDB\u51FB\u7684\u5DE8\u4EBA(\u52A8\u753B)").replace(/\{\{year\}\}/g, "2013").replace(/\{\{author\}\}/g, "\u8C0F\u5C71\u521B").replace(/\{\{id\}\}/g, "10060");
-    el.createEl("code", { text: preview });
+    const preview = template.replace(/\{\{type\}\}/g, "anime").replace(/\{\{category\}\}/g, "TV").replace(/\{\{platform\}\}/g, "TV").replace(/\{\{name\}\}/g, "Ranma 1\uFF0F2").replace(/\{\{name_cn\}\}/g, "\u4E71\u9A6C1\uFF0F2").replace(/\{\{name_cn_with_type\}\}/g, "\u4E71\u9A6C1\uFF0F2(TV)").replace(/\{\{year\}\}/g, "1989").replace(/\{\{author\}\}/g, "\u9AD8\u6865\u7559\u7F8E\u5B50").replace(/\{\{id\}\}/g, "12345");
+    const collisionPreview = preview.toLocaleLowerCase("en-US").endsWith(".md") ? `${preview.slice(0, -3)}\uFF081989\uFF09.md` : `${preview}\uFF081989\uFF09.md`;
+    el.createEl("div").createEl("code", { text: `${tn("settings", "previewNormal")}: ${preview}` });
+    el.createEl("div").createEl("code", { text: `${tn("settings", "previewCollision")}: ${collisionPreview}` });
+    if (!template.includes("{{id}}")) {
+      el.createEl("div", { text: tn("settings", "pathTemplateRisk"), cls: "bangumi-setting-warning" });
+    }
   }
   /**
    * 添加模板文件选择设置
@@ -3297,8 +3481,62 @@ var TemplateEditorModal = class extends import_obsidian2.Modal {
   }
 };
 
+// src/settings/settingsLifecycle.ts
+var SettingsPersistenceCoordinator = class {
+  constructor() {
+    this.queue = Promise.resolve();
+  }
+  enqueue(task) {
+    const run = this.queue.then(task);
+    this.queue = run.then(() => void 0, () => void 0);
+    return run;
+  }
+};
+var SettingsRollbackError = class extends Error {
+  constructor(applyError, rollbackError) {
+    super("Settings update failed and the previous persisted state could not be fully restored.");
+    this.applyError = applyError;
+    this.rollbackError = rollbackError;
+    this.name = "SettingsRollbackError";
+  }
+};
+async function persistStableManagerSettings(update) {
+  var _a, _b, _c, _d, _e;
+  let lease = null;
+  let persistedCandidate = false;
+  try {
+    lease = (_b = (_a = update.manager) == null ? void 0 : _a.beginConfigurationUpdate(update.changedFields)) != null ? _b : null;
+    await update.save(update.settings);
+    persistedCandidate = true;
+    await (lease == null ? void 0 : lease.commit(update.nextConfig));
+    await ((_c = update.applyDependentServices) == null ? void 0 : _c.call(update, update.settings));
+    update.restore(update.settings);
+    lease == null ? void 0 : lease.release();
+    return { applied: true };
+  } catch (error) {
+    try {
+      if (persistedCandidate)
+        await update.save(update.previousSettings);
+      await (lease == null ? void 0 : lease.rollback());
+      update.restore(update.previousSettings);
+      await ((_d = update.restoreDependentServices) == null ? void 0 : _d.call(update, update.previousSettings));
+    } catch (rollbackError) {
+      const settingsError = new SettingsRollbackError(error, rollbackError);
+      try {
+        await ((_e = update.onRollbackFailure) == null ? void 0 : _e.call(update, settingsError));
+      } catch (recoveryError) {
+        console.error("Failed to persist the settings recovery gate.", recoveryError);
+      }
+      return { applied: false, error: settingsError };
+    } finally {
+      lease == null ? void 0 : lease.release();
+    }
+    return { applied: false, error };
+  }
+}
+
 // src/sync/syncManager.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 
 // src/api/client.ts
 var import_obsidian3 = require("obsidian");
@@ -3410,7 +3648,7 @@ var BangumiClient = class {
           const error = this.toApiError(responseJson, response.status);
           const errorMsg = error.title + (error.description ? `: ${error.description}` : "");
           console.error(`[Bangumi Sync] API Error ${response.status} on ${method} ${endpoint}:`, errorMsg, data);
-          throw new Error(errorMsg);
+          throw new Error(`HTTP ${response.status}: ${errorMsg}`);
         }
         if (response.status === 204) {
           return {};
@@ -3809,337 +4047,97 @@ var BangumiClient = class {
 };
 
 // common/file/fileManager.ts
-var import_obsidian4 = require("obsidian");
-var FileManager = class {
-  constructor(app) {
-    this.app = app;
-  }
-  /**
-   * 确保目录存在（递归创建）
-   */
-  async ensureDirectory(path) {
-    const normalizedPath = (0, import_obsidian4.normalizePath)(path);
-    const lastSlash = normalizedPath.lastIndexOf("/");
-    const dirPath = lastSlash > 0 ? normalizedPath.substring(0, lastSlash) : "";
-    if (dirPath) {
-      console.debug(`[Bangumi Sync] \u68C0\u67E5\u76EE\u5F55: ${dirPath}`);
-      const exists = await this.app.vault.adapter.exists(dirPath);
-      if (!exists) {
-        console.debug(`[Bangumi Sync] \u521B\u5EFA\u76EE\u5F55: ${dirPath}`);
-        await this.ensureDirectory(dirPath);
-        try {
-          await this.app.vault.createFolder(dirPath);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          console.debug(`[Bangumi Sync] \u521B\u5EFA\u76EE\u5F55\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\uFF09: ${errorMessage}`);
-        }
-      }
-    }
-  }
-  /**
-   * 检查文件是否存在
-   */
-  async fileExists(path) {
-    const normalizedPath = (0, import_obsidian4.normalizePath)(path);
-    return this.app.vault.adapter.exists(normalizedPath);
-  }
-  /**
-   * 获取文件
-   */
-  getFile(path) {
-    const normalizedPath = (0, import_obsidian4.normalizePath)(path);
-    const file = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (file instanceof import_obsidian4.TFile) {
-      return file;
-    }
-    return null;
-  }
-  /**
-   * 创建文件
-   */
-  async createFile(path, content) {
-    const normalizedPath = (0, import_obsidian4.normalizePath)(path);
-    console.debug(`[Bangumi Sync] \u521B\u5EFA\u6587\u4EF6: ${normalizedPath}`);
-    await this.ensureDirectory(normalizedPath);
-    try {
-      const file = await this.app.vault.create(normalizedPath, content);
-      console.debug(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${normalizedPath}`);
-      return file;
-    } catch (error) {
-      console.error(`[Bangumi Sync] \u521B\u5EFA\u6587\u4EF6\u5931\u8D25: ${normalizedPath}`, error);
-      throw error;
-    }
-  }
-  /**
-   * 更新文件
-   */
-  async updateFile(file, content) {
-    await this.app.vault.process(file, () => content);
-  }
-  /**
-   * 创建或更新文件
-   */
-  async createOrUpdateFile(path, content, options) {
-    const normalizedPath = (0, import_obsidian4.normalizePath)(path);
-    const existingFile = this.getFile(normalizedPath);
-    if (existingFile) {
-      if (options == null ? void 0 : options.overwrite) {
-        await this.updateFile(existingFile, content);
-        return { file: existingFile, created: false };
-      }
-      console.debug(`[Bangumi Sync] \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${normalizedPath}`);
-      return { file: existingFile, created: false };
-    }
-    const file = await this.createFile(normalizedPath, content);
-    return { file, created: true };
-  }
-  /**
-   * 获取文件夹中的所有 Markdown 文件
-   */
-  getMarkdownFiles(folderPath) {
-    const normalizedPath = (0, import_obsidian4.normalizePath)(folderPath);
-    const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (!(folder instanceof import_obsidian4.TFolder)) {
-      return [];
-    }
-    const files = [];
-    for (const file of this.app.vault.getMarkdownFiles()) {
-      if (file.path.startsWith(normalizedPath)) {
-        files.push(file);
-      }
-    }
-    return files;
-  }
-};
-
-// common/file/imageHandler.ts
 var import_obsidian5 = require("obsidian");
 
-// common/utils/timing.ts
-function delay(ms, ownerWindow) {
-  return new Promise((resolve) => {
-    const timerWindow = ownerWindow != null ? ownerWindow : activeWindow;
-    timerWindow.setTimeout(resolve, ms);
-  });
-}
-
-// common/file/imageHandler.ts
-var ImageHandler = class {
-  constructor(app, fileManager) {
-    this.downloadEnabled = true;
-    this.imageSettings = {
-      quality: "large",
-      updateExisting: false
-    };
-    this.app = app;
-    this.fileManager = fileManager;
-  }
-  /**
-   * 设置是否下载图片
-   */
-  setDownloadEnabled(enabled) {
-    this.downloadEnabled = enabled;
-  }
-  /**
-   * 设置图片质量
-   */
-  setImageQuality(quality) {
-    this.imageSettings.quality = quality;
-  }
-  /**
-   * 设置是否更新已存在的图片
-   */
-  setUpdateExisting(update) {
-    this.imageSettings.updateExisting = update;
-  }
-  /**
-   * 获取当前图片设置
-   */
-  getImageSettings() {
-    return { ...this.imageSettings };
-  }
-  /**
-   * 检查是否应该下载图片
-   */
-  shouldDownloadImages() {
-    return this.downloadEnabled;
-  }
-  /**
-   * 根据质量选择图片 URL
-   */
-  selectImageUrlByQuality(images) {
-    if (!images)
-      return "";
-    switch (this.imageSettings.quality) {
-      case "small":
-        return images.small || images.medium || images.large || images.common || "";
-      case "medium":
-        return images.medium || images.large || images.small || images.common || "";
-      case "large":
-      default:
-        return images.large || images.common || images.medium || images.small || "";
-    }
-  }
-  /**
-   * 下载图片
-   */
-  async downloadImage(imageUrl, targetPath) {
-    if (!this.downloadEnabled) {
-      return imageUrl;
-    }
-    try {
-      const response = await (0, import_obsidian5.requestUrl)({
-        url: imageUrl,
-        method: "GET"
-      });
-      if (response.status !== 200) {
-        console.error(`Failed to download image: ${response.status}`);
-        return imageUrl;
-      }
-      const arrayBuffer = response.arrayBuffer;
-      await this.fileManager.ensureDirectory(targetPath);
-      const normalizedPath = (0, import_obsidian5.normalizePath)(targetPath);
-      const existingFile = this.fileManager.getFile(normalizedPath);
-      if (existingFile) {
-        await this.app.vault.modifyBinary(existingFile, arrayBuffer);
-      } else {
-        await this.app.vault.createBinary(normalizedPath, arrayBuffer);
-      }
-      return normalizedPath;
-    } catch (error) {
-      console.error("Error downloading image:", error);
-      return imageUrl;
-    }
-  }
-  /**
-   * 下载封面图片
-   * @param imageUrl 图片 URL
-   * @param subjectId 条目 ID
-   * @param imagePathTemplate 图片路径模板
-   * @param extraVars 额外的模板变量（如 name_cn, typeLabel）
-   */
-  async downloadCover(imageUrl, subjectId, imagePathTemplate, extraVars) {
-    if (!imageUrl) {
-      return "";
-    }
-    let targetPath = imagePathTemplate.replace(/\{\{id\}\}/g, String(subjectId)).replace(/\{\{type\}\}/g, "cover").replace(/\{\{name_cn\}\}/g, (extraVars == null ? void 0 : extraVars.name_cn) || "").replace(/\{\{name\}\}/g, (extraVars == null ? void 0 : extraVars.name) || "").replace(/\{\{typeLabel\}\}/g, (extraVars == null ? void 0 : extraVars.typeLabel) || "");
-    targetPath = this.sanitizePath(targetPath);
-    const ext = this.getImageExtension(imageUrl);
-    const finalPath = targetPath.replace(/\.\w+$/, `.${ext}`);
-    return this.downloadImage(imageUrl, finalPath);
-  }
-  /**
-   * 清理路径中的非法字符
-   * 目录部分保留路径分隔符，文件名部分替换所有 OS 不允許的字符
-   */
-  sanitizePath(path) {
-    const normalized = path.replace(/\\/g, "/");
-    const lastSlash = normalized.lastIndexOf("/");
-    if (lastSlash === -1) {
-      return normalized.replace(/[<>:"|?*\\/]/g, "_");
-    }
-    const dir = normalized.substring(0, lastSlash);
-    const filename = normalized.substring(lastSlash + 1).replace(/[<>:"|?*\\/]/g, "_");
-    return dir + "/" + filename;
-  }
-  /**
-   * 从 URL 获取图片扩展名
-   */
-  getImageExtension(url) {
-    const match = url.match(/\.(jpg|jpeg|png|webp|gif)(\?|$)/i);
-    if (match) {
-      return match[1].toLowerCase();
-    }
-    return "jpg";
-  }
-  /**
-   * 批量下载图片
-   */
-  async downloadImages(images, onProgress) {
-    const ownerWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
-    for (let i = 0; i < images.length; i++) {
-      const { url, path } = images[i];
-      await this.downloadImage(url, path);
-      if (onProgress) {
-        onProgress(i + 1, images.length);
-      }
-      await delay(100, ownerWindow);
-    }
-  }
-  /**
-   * 清理图片缓存
-   * @param folderPath 图片文件夹路径
-   * @returns 清理的文件数量
-   */
-  async clearImageCache(folderPath) {
-    try {
-      const normalizedPath = (0, import_obsidian5.normalizePath)(folderPath);
-      const exists = await this.app.vault.adapter.exists(normalizedPath);
-      if (!exists) {
-        new import_obsidian5.Notice("\u56FE\u7247\u6587\u4EF6\u5939\u4E0D\u5B58\u5728");
-        return 0;
-      }
-      const files = await this.app.vault.adapter.list(normalizedPath);
-      let count = 0;
-      for (const file of files.files) {
-        if (/\.(jpg|jpeg|png|webp|gif)$/i.test(file)) {
-          await this.app.vault.adapter.remove(file);
-          count++;
-        }
-      }
-      new import_obsidian5.Notice(`\u5DF2\u6E05\u7406 ${count} \u4E2A\u56FE\u7247\u6587\u4EF6`);
-      return count;
-    } catch (error) {
-      console.error("[ImageHandler] \u6E05\u7406\u56FE\u7247\u7F13\u5B58\u5931\u8D25:", error);
-      new import_obsidian5.Notice("\u6E05\u7406\u56FE\u7247\u7F13\u5B58\u5931\u8D25");
-      return 0;
-    }
-  }
-  /**
-   * 获取图片缓存统计
-   * @param folderPath 图片文件夹路径
-   */
-  async getImageCacheStats(folderPath) {
-    try {
-      const normalizedPath = (0, import_obsidian5.normalizePath)(folderPath);
-      const exists = await this.app.vault.adapter.exists(normalizedPath);
-      if (!exists) {
-        return { count: 0, size: 0 };
-      }
-      const files = await this.app.vault.adapter.list(normalizedPath);
-      let count = 0;
-      let totalSize = 0;
-      for (const file of files.files) {
-        if (/\.(jpg|jpeg|png|webp|gif)$/i.test(file)) {
-          count++;
-          const stat = await this.app.vault.adapter.stat(file);
-          if (stat) {
-            totalSize += stat.size;
-          }
-        }
-      }
-      return { count, size: totalSize };
-    } catch (error) {
-      console.error("[ImageHandler] \u83B7\u53D6\u56FE\u7247\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25:", error);
-      return { count: 0, size: 0 };
-    }
-  }
-  /**
-   * 格式化文件大小
-   */
-  formatFileSize(bytes) {
-    if (bytes < 1024)
-      return `${bytes} B`;
-    if (bytes < 1024 * 1024)
-      return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024)
-      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-  }
+// common/file/pathUtils.ts
+var FILE_NAME_REPLACEMENTS = {
+  "<": "\uFF1C",
+  ">": "\uFF1E",
+  ":": "\uFF1A",
+  '"': "\uFF02",
+  "/": "\uFF0F",
+  "\\": "\uFF3C",
+  "|": "\uFF5C",
+  "?": "\uFF1F",
+  "*": "\uFF0A"
 };
-
-// src/sync/incrementalSync.ts
-var import_obsidian7 = require("obsidian");
+var WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
+var DEFAULT_MAX_SEGMENT_LENGTH = 120;
+function stableHash(value) {
+  var _a;
+  let hash = 2166136261;
+  for (const character of value) {
+    hash ^= (_a = character.codePointAt(0)) != null ? _a : 0;
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+function truncateSegment(value, maxLength) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  const suffix = `\uFF3B${stableHash(value)}\uFF3D`;
+  const budget = Math.max(1, maxLength - suffix.length);
+  let prefix = "";
+  for (const character of value) {
+    if ((prefix + character).length > budget)
+      break;
+    prefix += character;
+  }
+  return prefix + suffix;
+}
+function limitPathLength(path, maxLength = 240) {
+  const normalized = normalizePathValue(path);
+  if (normalized.length <= maxLength)
+    return normalized;
+  const slash = normalized.lastIndexOf("/");
+  const directory = slash >= 0 ? normalized.slice(0, slash + 1) : "";
+  const filename = slash >= 0 ? normalized.slice(slash + 1) : normalized;
+  const extensionIndex = filename.lastIndexOf(".");
+  const extension = extensionIndex > 0 ? filename.slice(extensionIndex) : "";
+  const stem = extensionIndex > 0 ? filename.slice(0, extensionIndex) : filename;
+  let safeDirectory = directory;
+  if ((safeDirectory + extension).length > maxLength - 16) {
+    const root = normalized.split("/")[0];
+    safeDirectory = root && root !== filename ? `${root}/\uFF3F\u8DEF\u5F84\uFF3B${stableHash(directory)}\uFF3D/` : "";
+  }
+  const available = Math.max(1, maxLength - (safeDirectory + extension).length);
+  return `${safeDirectory}${truncateSegment(stem, available)}${extension}`;
+}
+function sanitizeFileName(name, fallback = "untitled", maxLength = DEFAULT_MAX_SEGMENT_LENGTH) {
+  let sanitized = name.normalize("NFC").replace(/[<>:"/\\|?*]/g, (character) => FILE_NAME_REPLACEMENTS[character]).replace(/[\u0000-\u001f\u007f]/g, "").replace(/[. ]+$/g, (suffix) => suffix.replace(/\./g, "\uFF0E").replace(/ /g, "\u3000"));
+  if (!sanitized || /^[.\s　．]+$/u.test(sanitized)) {
+    const normalizedFallback = fallback.normalize("NFC").trim();
+    if (!normalizedFallback && fallback === "") {
+      return "";
+    }
+    sanitized = normalizedFallback || "untitled";
+  }
+  if (WINDOWS_RESERVED_NAME.test(sanitized)) {
+    sanitized = `${sanitized}\uFF3F`;
+  }
+  return truncateSegment(sanitized, maxLength);
+}
+function normalizePathValue(path) {
+  return normalizeStoragePath(path);
+}
+function normalizeStoragePath(path) {
+  return path.normalize("NFC").replace(/\\/g, "/").replace(/\/{2,}/g, "/").replace(/^\.\//, "").replace(/\/$/, "");
+}
+function normalizePathSegment(segment) {
+  return segment.normalize("NFKC").replace(/[\\/]/g, (character) => FILE_NAME_REPLACEMENTS[character]).replace(/[. ]+$/g, "").toLocaleLowerCase("en-US");
+}
+function normalizePathCollisionKey(path) {
+  return normalizeStoragePath(path).split("/").map(normalizePathSegment).map((segment) => `${segment.length}:${segment}`).join("|");
+}
+function isDescendantPath(filePath, folderPath) {
+  const normalizedFile = normalizePathValue(filePath);
+  const normalizedFolder = normalizePathValue(folderPath);
+  if (!normalizedFolder) {
+    return true;
+  }
+  return normalizedFile === normalizedFolder || normalizedFile.startsWith(`${normalizedFolder}/`);
+}
 
 // src/comment/shortComment.ts
 var SHORT_COMMENT_HEADER = /^> \[!abstract\]\+\s*\*\*短评\*\*\s*$/;
@@ -4298,7 +4296,7 @@ function normalizeTag(tag) {
 }
 
 // src/document/frontmatterAccess.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -4391,7 +4389,7 @@ function extractFrontmatterRecord(content) {
   if (!frontmatter) {
     return {};
   }
-  const parsed = (0, import_obsidian6.parseYaml)(frontmatter);
+  const parsed = (0, import_obsidian4.parseYaml)(frontmatter);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     return {};
   }
@@ -4509,6 +4507,16 @@ function addFrontmatterField(content, field, value) {
   const newFrontmatter = `${block.frontmatter}
 ${entry}`;
   return block.prefix + newFrontmatter + block.suffix + block.rest;
+}
+function removeFrontmatterField(content, field) {
+  const block = parseFrontmatterBlock(content);
+  if (!block) {
+    return content;
+  }
+  const escapedName = escapeRegExp(field);
+  const fieldRegex = new RegExp(`^${escapedName}:.*$`, "m");
+  const updatedFrontmatter = block.frontmatter.replace(fieldRegex, "").replace(/\n{3,}/g, "\n\n").trim();
+  return block.prefix + updatedFrontmatter + block.suffix + block.rest;
 }
 function readTextField(content, fieldNames) {
   const frontmatter = extractFrontmatter(content);
@@ -4686,11 +4694,81 @@ ${nextSectionContent}
 `;
 }
 
+// src/document/subjectIdentity.ts
+function parsePositiveSubjectId(value) {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    const parsed = Number(value.trim());
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
+}
+
 // src/document/subjectDocumentService.ts
+var SubjectIdentityMismatchError = class extends Error {
+  constructor(path, expectedSubjectId, actualSubjectId) {
+    super(`${path} belongs to subject ${String(actualSubjectId)}, expected subject ${expectedSubjectId}.`);
+    this.path = path;
+    this.expectedSubjectId = expectedSubjectId;
+    this.actualSubjectId = actualSubjectId;
+    this.name = "SubjectIdentityMismatchError";
+  }
+};
 var SubjectDocumentService = class {
   constructor(app, episodeStatusManager) {
     this.app = app;
     this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
+  }
+  getSubjectIdentityFromContent(content) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    const frontmatter = this.extractFrontmatterRecord(content);
+    const candidates = [];
+    const addCandidate = (source, value) => {
+      if (value !== null) {
+        candidates.push({ source, value });
+      }
+    };
+    addCandidate("id", parsePositiveSubjectId((_a = frontmatter.id) != null ? _a : frontmatter.ID));
+    addCandidate("BangumiID", parsePositiveSubjectId(frontmatter.BangumiID));
+    const canonicalUrl = (_c = (_b = frontmatter["Bangumi\u94FE\u63A5"]) != null ? _b : frontmatter.bangumi_url) != null ? _c : frontmatter.BangumiURL;
+    const urlSource = typeof canonicalUrl === "string" ? canonicalUrl : candidates.length === 0 ? content : "";
+    const urlMatch = urlSource.match(/(?:bgm\.tv|bangumi\.tv|chii\.in)\/subject\/(\d+)/i);
+    addCandidate("bangumi-url", urlMatch ? parsePositiveSubjectId(urlMatch[1]) : null);
+    const canonicalCover = (_d = frontmatter["\u5C01\u9762"]) != null ? _d : frontmatter.cover;
+    const coverSource = typeof canonicalCover === "string" ? canonicalCover : candidates.length === 0 ? content : "";
+    const coverMatch = coverSource.match(/(?:^|[/\\])(\d+)_cover\.(?:jpe?g|png|webp|avif)(?:[)\]"'\s]|$)/im);
+    addCandidate("cover-path", coverMatch ? parsePositiveSubjectId(coverMatch[1]) : null);
+    const primary = (_g = (_f = (_e = candidates.find((candidate) => candidate.source === "id")) != null ? _e : candidates.find((candidate) => candidate.source === "BangumiID")) != null ? _f : candidates.find((candidate) => candidate.source === "bangumi-url")) != null ? _g : candidates.find((candidate) => candidate.source === "cover-path");
+    if (!primary) {
+      return { subjectId: null, source: "missing" };
+    }
+    const conflicts = candidates.filter((candidate) => candidate.value !== primary.value).map((candidate) => ({ source: candidate.source, value: candidate.value }));
+    return {
+      subjectId: primary.value,
+      source: primary.source,
+      ...conflicts.length > 0 ? { conflicts } : {}
+    };
+  }
+  async getSubjectIdentity(file) {
+    return this.getSubjectIdentityFromContent(await this.app.vault.read(file));
+  }
+  assertContentSubjectId(content, expectedSubjectId, path) {
+    var _a;
+    const identity = this.getSubjectIdentityFromContent(content);
+    if (identity.subjectId !== expectedSubjectId || ((_a = identity.conflicts) == null ? void 0 : _a.length)) {
+      throw new SubjectIdentityMismatchError(path, expectedSubjectId, identity.subjectId);
+    }
+  }
+  async assertFileSubjectId(file, expectedSubjectId) {
+    this.assertContentSubjectId(await this.app.vault.read(file), expectedSubjectId, file.path);
+  }
+  async processSubjectFile(file, expectedSubjectId, updater) {
+    await this.app.vault.process(file, (content) => {
+      this.assertContentSubjectId(content, expectedSubjectId, file.path);
+      return updater(content);
+    });
   }
   async readSnapshot(file, subjectType) {
     const content = await this.app.vault.read(file);
@@ -4776,6 +4854,9 @@ var SubjectDocumentService = class {
   }
   addFrontmatterField(content, field, value) {
     return addFrontmatterField(content, field, value);
+  }
+  removeFrontmatterField(content, field) {
+    return removeFrontmatterField(content, field);
   }
   extractFrontmatterRecord(content) {
     return extractFrontmatterRecord(content);
@@ -4878,6 +4959,9 @@ var SubjectDocumentService = class {
     }
     return upsertFrontmatterField(content, "\u8BC4\u5206", newRate);
   }
+  removeRate(content) {
+    return removeFrontmatterField(content, "\u8BC4\u5206");
+  }
   updateStatus(content, newStatus, statusFieldName) {
     const statusText = getCollectionStatusLabel(newStatus, this.getSubjectTypeFromStatusFieldName(statusFieldName), true);
     return upsertFrontmatterField(content, statusFieldName, statusText);
@@ -4940,17 +5024,553 @@ var SubjectDocumentService = class {
   }
 };
 
+// common/file/fileManager.ts
+var SubjectPathCollisionError = class extends Error {
+  constructor(path, requestedSubjectId, existingSubjectId) {
+    super(`Cannot write subject ${requestedSubjectId} to ${path}; the path belongs to ${existingSubjectId != null ? existingSubjectId : "an unknown subject"}.`);
+    this.path = path;
+    this.requestedSubjectId = requestedSubjectId;
+    this.existingSubjectId = existingSubjectId;
+    this.name = "SubjectPathCollisionError";
+  }
+};
+var FileManager = class {
+  constructor(app, documentService = new SubjectDocumentService(app)) {
+    this.app = app;
+    this.documentService = documentService;
+  }
+  /**
+   * 确保目录存在（递归创建）
+   */
+  async ensureDirectory(path) {
+    const normalizedPath = (0, import_obsidian5.normalizePath)(path);
+    const lastSlash = normalizedPath.lastIndexOf("/");
+    const dirPath = lastSlash > 0 ? normalizedPath.substring(0, lastSlash) : "";
+    if (dirPath) {
+      console.debug(`[Bangumi Sync] \u68C0\u67E5\u76EE\u5F55: ${dirPath}`);
+      const exists = await this.app.vault.adapter.exists(dirPath);
+      if (!exists) {
+        console.debug(`[Bangumi Sync] \u521B\u5EFA\u76EE\u5F55: ${dirPath}`);
+        await this.ensureDirectory(dirPath);
+        try {
+          await this.app.vault.createFolder(dirPath);
+        } catch (error) {
+          const errorMessage2 = error instanceof Error ? error.message : String(error);
+          console.debug(`[Bangumi Sync] \u521B\u5EFA\u76EE\u5F55\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\uFF09: ${errorMessage2}`);
+        }
+      }
+    }
+  }
+  /**
+   * 检查文件是否存在
+   */
+  async fileExists(path) {
+    const normalizedPath = (0, import_obsidian5.normalizePath)(path);
+    return this.app.vault.adapter.exists(normalizedPath);
+  }
+  /**
+   * 获取文件
+   */
+  getFile(path) {
+    const normalizedPath = (0, import_obsidian5.normalizePath)(path);
+    const file = this.app.vault.getAbstractFileByPath(normalizedPath);
+    if (file instanceof import_obsidian5.TFile) {
+      return file;
+    }
+    return null;
+  }
+  async assertPathOwnership(path, subjectId) {
+    var _a;
+    const normalizedPath = (0, import_obsidian5.normalizePath)(path);
+    const file = this.getFile(normalizedPath);
+    if (!file) {
+      return null;
+    }
+    const identity = await this.documentService.getSubjectIdentity(file);
+    if (((_a = identity.conflicts) == null ? void 0 : _a.length) || identity.subjectId !== subjectId) {
+      throw new SubjectPathCollisionError(normalizedPath, subjectId, identity.subjectId);
+    }
+    return file;
+  }
+  /**
+   * 创建文件
+   */
+  async createFile(path, content) {
+    const normalizedPath = (0, import_obsidian5.normalizePath)(path);
+    console.debug(`[Bangumi Sync] \u521B\u5EFA\u6587\u4EF6: ${normalizedPath}`);
+    await this.ensureDirectory(normalizedPath);
+    try {
+      const file = await this.app.vault.create(normalizedPath, content);
+      console.debug(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${normalizedPath}`);
+      return file;
+    } catch (error) {
+      console.error(`[Bangumi Sync] \u521B\u5EFA\u6587\u4EF6\u5931\u8D25: ${normalizedPath}`, error);
+      throw error;
+    }
+  }
+  /**
+   * 更新文件
+   */
+  async updateFile(file, content) {
+    await this.app.vault.process(file, () => content);
+  }
+  /**
+   * 创建或更新文件
+   */
+  async createOrUpdateFile(path, content, options) {
+    const normalizedPath = (0, import_obsidian5.normalizePath)(path);
+    const existingFile = this.getFile(normalizedPath);
+    if (existingFile) {
+      if ((options == null ? void 0 : options.subjectId) !== void 0) {
+        await this.assertPathOwnership(normalizedPath, options.subjectId);
+      }
+      if (options == null ? void 0 : options.overwrite) {
+        const currentContent = await this.app.vault.read(existingFile);
+        if (currentContent === content) {
+          return { file: existingFile, status: "unchanged" };
+        }
+        await this.updateFile(existingFile, content);
+        return { file: existingFile, status: "updated" };
+      }
+      console.debug(`[Bangumi Sync] \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${normalizedPath}`);
+      return { file: existingFile, status: "unchanged" };
+    }
+    const file = await this.createFile(normalizedPath, content);
+    return { file, status: "created" };
+  }
+  /**
+   * 获取文件夹中的所有 Markdown 文件
+   */
+  getMarkdownFiles(folderPath) {
+    const normalizedPath = (0, import_obsidian5.normalizePath)(folderPath);
+    const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
+    if (!(folder instanceof import_obsidian5.TFolder)) {
+      return [];
+    }
+    const files = [];
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      if (isDescendantPath(file.path, normalizedPath)) {
+        files.push(file);
+      }
+    }
+    return files;
+  }
+};
+
+// common/file/imageHandler.ts
+var import_obsidian6 = require("obsidian");
+
+// common/utils/timing.ts
+function delay(ms, ownerWindow) {
+  return new Promise((resolve) => {
+    const timerWindow = ownerWindow != null ? ownerWindow : activeWindow;
+    timerWindow.setTimeout(resolve, ms);
+  });
+}
+
+// common/file/imageHandler.ts
+var ImageHandler = class {
+  constructor(app, fileManager) {
+    this.downloadEnabled = true;
+    this.imageSettings = {
+      quality: "large",
+      updateExisting: false
+    };
+    this.beforeCreate = null;
+    this.app = app;
+    this.fileManager = fileManager;
+  }
+  /**
+   * 设置是否下载图片
+   */
+  setDownloadEnabled(enabled) {
+    this.downloadEnabled = enabled;
+  }
+  /**
+   * 设置图片质量
+   */
+  setImageQuality(quality) {
+    this.imageSettings.quality = quality;
+  }
+  /**
+   * 设置是否更新已存在的图片
+   */
+  setUpdateExisting(update) {
+    this.imageSettings.updateExisting = update;
+  }
+  setBeforeCreateHook(hook) {
+    this.beforeCreate = hook;
+  }
+  /**
+   * 获取当前图片设置
+   */
+  getImageSettings() {
+    return { ...this.imageSettings };
+  }
+  /**
+   * 检查是否应该下载图片
+   */
+  shouldDownloadImages() {
+    return this.downloadEnabled;
+  }
+  /**
+   * 根据质量选择图片 URL
+   */
+  selectImageUrlByQuality(images) {
+    if (!images)
+      return "";
+    switch (this.imageSettings.quality) {
+      case "small":
+        return images.small || images.medium || images.large || images.common || "";
+      case "medium":
+        return images.medium || images.large || images.small || images.common || "";
+      case "large":
+      default:
+        return images.large || images.common || images.medium || images.small || "";
+    }
+  }
+  /**
+   * 下载图片
+   */
+  async downloadImage(imageUrl, targetPath) {
+    var _a;
+    if (!this.downloadEnabled) {
+      return imageUrl;
+    }
+    try {
+      const response = await (0, import_obsidian6.requestUrl)({
+        url: imageUrl,
+        method: "GET"
+      });
+      if (response.status !== 200) {
+        console.error(`Failed to download image: ${response.status}`);
+        return imageUrl;
+      }
+      const arrayBuffer = response.arrayBuffer;
+      await this.fileManager.ensureDirectory(targetPath);
+      const normalizedPath = (0, import_obsidian6.normalizePath)(targetPath);
+      const existingFile = this.fileManager.getFile(normalizedPath);
+      if (existingFile) {
+        await this.app.vault.modifyBinary(existingFile, arrayBuffer);
+      } else {
+        await ((_a = this.beforeCreate) == null ? void 0 : _a.call(this, normalizedPath));
+        await this.app.vault.createBinary(normalizedPath, arrayBuffer);
+      }
+      return normalizedPath;
+    } catch (error) {
+      console.error("Error downloading image:", error);
+      return imageUrl;
+    }
+  }
+  /**
+   * 下载封面图片
+   * @param imageUrl 图片 URL
+   * @param subjectId 条目 ID
+   * @param imagePathTemplate 图片路径模板
+   * @param extraVars 额外的模板变量（如 name_cn, typeLabel）
+   */
+  async downloadCover(imageUrl, subjectId, imagePathTemplate, extraVars) {
+    if (!imageUrl) {
+      return "";
+    }
+    let targetPath = imagePathTemplate.replace(/\{\{id\}\}/g, String(subjectId)).replace(/\{\{type\}\}/g, "cover").replace(/\{\{name_cn\}\}/g, (extraVars == null ? void 0 : extraVars.name_cn) || "").replace(/\{\{name\}\}/g, (extraVars == null ? void 0 : extraVars.name) || "").replace(/\{\{typeLabel\}\}/g, (extraVars == null ? void 0 : extraVars.typeLabel) || "");
+    targetPath = this.sanitizePath(targetPath);
+    const ext = this.getImageExtension(imageUrl);
+    const finalPath = targetPath.replace(/\.\w+$/, `.${ext}`);
+    return this.downloadImage(imageUrl, finalPath);
+  }
+  /**
+   * 清理路径中的非法字符
+   * 目录部分保留路径分隔符，文件名部分替换所有 OS 不允許的字符
+   */
+  sanitizePath(path) {
+    const normalized = path.replace(/\\/g, "/");
+    const lastSlash = normalized.lastIndexOf("/");
+    if (lastSlash === -1) {
+      return normalized.replace(/[<>:"|?*\\/]/g, "_");
+    }
+    const dir = normalized.substring(0, lastSlash);
+    const filename = normalized.substring(lastSlash + 1).replace(/[<>:"|?*\\/]/g, "_");
+    return dir + "/" + filename;
+  }
+  /**
+   * 从 URL 获取图片扩展名
+   */
+  getImageExtension(url) {
+    const match = url.match(/\.(jpg|jpeg|png|webp|gif)(\?|$)/i);
+    if (match) {
+      return match[1].toLowerCase();
+    }
+    return "jpg";
+  }
+  /**
+   * 批量下载图片
+   */
+  async downloadImages(images, onProgress) {
+    const ownerWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
+    for (let i = 0; i < images.length; i++) {
+      const { url, path } = images[i];
+      await this.downloadImage(url, path);
+      if (onProgress) {
+        onProgress(i + 1, images.length);
+      }
+      await delay(100, ownerWindow);
+    }
+  }
+  /**
+   * 清理图片缓存
+   * @param folderPath 图片文件夹路径
+   * @returns 清理的文件数量
+   */
+  async clearImageCache(folderPath) {
+    try {
+      const normalizedPath = (0, import_obsidian6.normalizePath)(folderPath);
+      const exists = await this.app.vault.adapter.exists(normalizedPath);
+      if (!exists) {
+        new import_obsidian6.Notice("\u56FE\u7247\u6587\u4EF6\u5939\u4E0D\u5B58\u5728");
+        return 0;
+      }
+      const files = await this.app.vault.adapter.list(normalizedPath);
+      let count = 0;
+      for (const file of files.files) {
+        if (/\.(jpg|jpeg|png|webp|gif)$/i.test(file)) {
+          await this.app.vault.adapter.remove(file);
+          count++;
+        }
+      }
+      new import_obsidian6.Notice(`\u5DF2\u6E05\u7406 ${count} \u4E2A\u56FE\u7247\u6587\u4EF6`);
+      return count;
+    } catch (error) {
+      console.error("[ImageHandler] \u6E05\u7406\u56FE\u7247\u7F13\u5B58\u5931\u8D25:", error);
+      new import_obsidian6.Notice("\u6E05\u7406\u56FE\u7247\u7F13\u5B58\u5931\u8D25");
+      return 0;
+    }
+  }
+  /**
+   * 获取图片缓存统计
+   * @param folderPath 图片文件夹路径
+   */
+  async getImageCacheStats(folderPath) {
+    try {
+      const normalizedPath = (0, import_obsidian6.normalizePath)(folderPath);
+      const exists = await this.app.vault.adapter.exists(normalizedPath);
+      if (!exists) {
+        return { count: 0, size: 0 };
+      }
+      const files = await this.app.vault.adapter.list(normalizedPath);
+      let count = 0;
+      let totalSize = 0;
+      for (const file of files.files) {
+        if (/\.(jpg|jpeg|png|webp|gif)$/i.test(file)) {
+          count++;
+          const stat = await this.app.vault.adapter.stat(file);
+          if (stat) {
+            totalSize += stat.size;
+          }
+        }
+      }
+      return { count, size: totalSize };
+    } catch (error) {
+      console.error("[ImageHandler] \u83B7\u53D6\u56FE\u7247\u7F13\u5B58\u7EDF\u8BA1\u5931\u8D25:", error);
+      return { count: 0, size: 0 };
+    }
+  }
+  /**
+   * 格式化文件大小
+   */
+  formatFileSize(bytes) {
+    if (bytes < 1024)
+      return `${bytes} B`;
+    if (bytes < 1024 * 1024)
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024)
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
+};
+
+// src/sync/incrementalSync.ts
+var import_obsidian8 = require("obsidian");
+
+// src/sync/localSubjectRegistry.ts
+var import_obsidian7 = require("obsidian");
+var LocalSubjectRegistry = class {
+  constructor(app, documentService = new SubjectDocumentService(app)) {
+    this.idToRecord = /* @__PURE__ */ new Map();
+    this.pathToId = /* @__PURE__ */ new Map();
+    this.duplicateIds = /* @__PURE__ */ new Map();
+    this.invalidFiles = [];
+    this.lastManagedPaths = /* @__PURE__ */ new Map();
+    this.app = app;
+    this.documentService = documentService;
+  }
+  clear() {
+    this.idToRecord.clear();
+    this.pathToId.clear();
+    this.duplicateIds.clear();
+    this.invalidFiles.length = 0;
+    this.lastManagedPaths.clear();
+  }
+  async scan(folderPath, onProgress) {
+    this.clear();
+    const normalizedRoot = (0, import_obsidian7.normalizePath)(folderPath);
+    const folder = this.app.vault.getAbstractFileByPath(normalizedRoot);
+    if (!(folder instanceof import_obsidian7.TFolder)) {
+      return 0;
+    }
+    const files = this.app.vault.getMarkdownFiles().filter((file) => isDescendantPath(file.path, normalizedRoot));
+    let processed = 0;
+    for (const file of files) {
+      await this.indexFile(file);
+      processed++;
+      onProgress == null ? void 0 : onProgress(processed, files.length);
+    }
+    return this.idToRecord.size;
+  }
+  async indexFile(file, namingState = "unknown") {
+    var _a, _b;
+    const content = await this.app.vault.read(file);
+    const identity = this.documentService.getSubjectIdentityFromContent(content);
+    if (identity.subjectId === null) {
+      this.invalidFiles.push({
+        path: file.path,
+        severity: "needs-user-decision",
+        code: "missing-id",
+        message: "No valid Bangumi subject ID was found."
+      });
+      return;
+    }
+    if ((_a = identity.conflicts) == null ? void 0 : _a.length) {
+      this.invalidFiles.push({
+        path: file.path,
+        subjectId: identity.subjectId,
+        severity: "blocking-error",
+        code: "identity-conflict",
+        message: `Conflicting subject IDs: ${identity.conflicts.map((conflict) => `${conflict.source}=${conflict.value}`).join(", ")}`
+      });
+      return;
+    }
+    const frontmatter = this.documentService.extractFrontmatterRecord(content);
+    const nameValue = (_b = frontmatter["\u4E2D\u6587\u540D"]) != null ? _b : frontmatter.name_cn;
+    this.register({
+      subjectId: identity.subjectId,
+      path: (0, import_obsidian7.normalizePath)(file.path),
+      nameCn: typeof nameValue === "string" ? nameValue.trim() : file.basename,
+      identitySource: identity.source,
+      namingState
+    });
+  }
+  register(record) {
+    const normalizedRecord = { ...record, path: (0, import_obsidian7.normalizePath)(record.path) };
+    const collisionKey = normalizePathCollisionKey(normalizedRecord.path);
+    const pathOwner = this.pathToId.get(collisionKey);
+    if (pathOwner !== void 0 && pathOwner !== record.subjectId) {
+      this.invalidFiles.push({
+        path: normalizedRecord.path,
+        subjectId: record.subjectId,
+        severity: "blocking-error",
+        code: "path-collision",
+        message: `Path is already owned by subject ${pathOwner}.`
+      });
+      return;
+    }
+    const existing = this.idToRecord.get(record.subjectId);
+    if (existing && normalizePathCollisionKey(existing.path) !== collisionKey) {
+      const paths = Array.from(/* @__PURE__ */ new Set([existing.path, normalizedRecord.path]));
+      this.duplicateIds.set(record.subjectId, paths);
+      this.idToRecord.delete(record.subjectId);
+      for (const path of paths) {
+        this.invalidFiles.push({
+          path,
+          subjectId: record.subjectId,
+          severity: "blocking-error",
+          code: "duplicate-id",
+          message: `Subject ${record.subjectId} appears in multiple files.`
+        });
+      }
+      this.pathToId.set(collisionKey, record.subjectId);
+      return;
+    }
+    const duplicatePaths = this.duplicateIds.get(record.subjectId);
+    if (duplicatePaths) {
+      if (!duplicatePaths.includes(normalizedRecord.path)) {
+        duplicatePaths.push(normalizedRecord.path);
+      }
+      this.pathToId.set(collisionKey, record.subjectId);
+      return;
+    }
+    this.idToRecord.set(record.subjectId, normalizedRecord);
+    this.pathToId.set(collisionKey, record.subjectId);
+  }
+  getById(subjectId) {
+    return this.duplicateIds.has(subjectId) ? void 0 : this.idToRecord.get(subjectId);
+  }
+  getPathOwner(path) {
+    return this.pathToId.get(normalizePathCollisionKey(path));
+  }
+  markInferredManaged(subjectId, preferredPath) {
+    const record = this.getById(subjectId);
+    if (!record || record.namingState !== "unknown")
+      return false;
+    if (normalizePathCollisionKey(record.path) !== normalizePathCollisionKey(preferredPath))
+      return false;
+    this.idToRecord.set(subjectId, { ...record, namingState: "inferred-managed" });
+    return true;
+  }
+  upsert(record) {
+    const previous = this.idToRecord.get(record.subjectId);
+    if (previous) {
+      this.pathToId.delete(normalizePathCollisionKey(previous.path));
+      this.idToRecord.delete(record.subjectId);
+    }
+    this.register(record);
+    if (record.namingState === "managed" || record.namingState === "inferred-managed") {
+      this.lastManagedPaths.set(record.subjectId, (0, import_obsidian7.normalizePath)(record.path));
+    }
+  }
+  reconcilePathStates(states) {
+    for (const [subjectId, record] of this.idToRecord) {
+      const state = states[String(subjectId)];
+      if (!state) {
+        this.idToRecord.set(subjectId, { ...record, namingState: "unknown" });
+        continue;
+      }
+      if (state.lastManagedPath) {
+        this.lastManagedPaths.set(subjectId, (0, import_obsidian7.normalizePath)(state.lastManagedPath));
+      }
+      const currentKey = normalizePathCollisionKey(record.path);
+      const savedCurrentKey = normalizePathCollisionKey(state.currentPath);
+      const lastManagedKey = state.lastManagedPath ? normalizePathCollisionKey(state.lastManagedPath) : void 0;
+      const namingState = currentKey !== savedCurrentKey ? "user-renamed" : lastManagedKey === currentKey ? "managed" : state.namingState;
+      this.idToRecord.set(subjectId, { ...record, namingState });
+    }
+  }
+  exportPathStates() {
+    const result = {};
+    for (const [subjectId, record] of this.idToRecord) {
+      const managed = record.namingState === "managed" || record.namingState === "inferred-managed";
+      result[String(subjectId)] = {
+        subjectId,
+        currentPath: record.path,
+        lastManagedPath: managed ? record.path : this.lastManagedPaths.get(subjectId),
+        namingState: managed ? "managed" : "user-renamed"
+      };
+    }
+    return result;
+  }
+};
+
 // src/sync/incrementalSync.ts
 var IncrementalSync = class {
   constructor(app) {
+    this.pathStates = {};
     this.localSubjects = /* @__PURE__ */ new Map();
     this.lastScanPath = "";
     // 本批次同步的条目（用于同批次内的相关条目关联）
     this.batchSyncedItems = /* @__PURE__ */ new Map();
-    // metadataCache 构建的 id→path 反转索引（用于快速路径查找）
-    this.metadataIdIndex = /* @__PURE__ */ new Map();
     this.app = app;
     this.documentService = new SubjectDocumentService(app);
+    this.registry = new LocalSubjectRegistry(app, this.documentService);
   }
   /**
    * 扫描本地文件夹，获取已同步的条目
@@ -4962,136 +5582,17 @@ var IncrementalSync = class {
     console.debug(`[Bangumi Sync] \u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939: ${folderPath}`);
     this.localSubjects.clear();
     this.lastScanPath = folderPath;
-    const normalizedPath = (0, import_obsidian7.normalizePath)(folderPath);
-    const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (!(folder instanceof import_obsidian7.TFolder)) {
-      console.debug(`[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
-      return 0;
+    const count = await this.registry.scan(folderPath, onProgress);
+    this.registry.reconcilePathStates(this.pathStates);
+    for (const [subjectId, record] of this.registry.idToRecord) {
+      this.localSubjects.set(subjectId, {
+        id: subjectId,
+        path: record.path,
+        name_cn: record.nameCn
+      });
     }
-    const allFiles = this.app.vault.getMarkdownFiles();
-    const targetFiles = allFiles.filter((file) => file.path.startsWith(normalizedPath));
-    console.debug(`[Bangumi Sync] \u627E\u5230 ${targetFiles.length} \u4E2A\u6587\u4EF6`);
-    let processed = 0;
-    let cacheHits = 0;
-    let fileReads = 0;
-    for (const file of targetFiles) {
-      try {
-        let subjectId = null;
-        let name_cn = "";
-        const cache = this.app.metadataCache.getFileCache(file);
-        const frontmatter = cache == null ? void 0 : cache.frontmatter;
-        if (frontmatter) {
-          const frontmatterId = frontmatter.id;
-          if (frontmatterId !== void 0 && frontmatterId !== null) {
-            const numericId = typeof frontmatterId === "number" ? frontmatterId : typeof frontmatterId === "string" && /^\d+$/.test(frontmatterId) ? parseInt(frontmatterId, 10) : null;
-            if (numericId !== null && numericId > 0) {
-              subjectId = numericId;
-              cacheHits++;
-            }
-          }
-          if (subjectId === null) {
-            const bgmId = frontmatter.BangumiID;
-            if (bgmId !== void 0 && bgmId !== null) {
-              const numericId = typeof bgmId === "number" ? bgmId : typeof bgmId === "string" && /^\d+$/.test(bgmId) ? parseInt(bgmId, 10) : null;
-              if (numericId !== null && numericId > 0) {
-                subjectId = numericId;
-                cacheHits++;
-              }
-            }
-          }
-          if (frontmatter.\u4E2D\u6587\u540D) {
-            name_cn = String(frontmatter.\u4E2D\u6587\u540D).trim();
-          }
-        }
-        if (subjectId === null) {
-          const content = await this.app.vault.read(file);
-          subjectId = this.extractSubjectId(content);
-          fileReads++;
-          if (subjectId && !name_cn) {
-            name_cn = this.extractNameCN(content);
-          }
-        }
-        if (subjectId) {
-          this.localSubjects.set(subjectId, {
-            id: subjectId,
-            path: file.path,
-            name_cn
-          });
-          console.debug(`[Bangumi Sync] \u53D1\u73B0\u5DF2\u540C\u6B65\u6761\u76EE: ${name_cn} (ID: ${subjectId})`);
-        }
-      } catch (error) {
-        console.error(`[Bangumi Sync] \u8BFB\u53D6\u6587\u4EF6\u5931\u8D25: ${file.path}`, error);
-      }
-      processed++;
-      if (onProgress) {
-        onProgress(processed, targetFiles.length);
-      }
-    }
-    console.debug(`[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u53D1\u73B0 ${this.localSubjects.size} \u4E2A\u5DF2\u540C\u6B65\u6761\u76EE (\u7F13\u5B58\u547D\u4E2D: ${cacheHits}, \u6587\u4EF6\u8BFB\u53D6: ${fileReads})`);
-    this.buildMetadataIdIndex(targetFiles);
-    return this.localSubjects.size;
-  }
-  /**
-   * 从 metadataCache 构建 id→path 反转索引
-   * 扫描完成后调用，用于后续 O(1) 路径查找
-   */
-  buildMetadataIdIndex(files) {
-    this.metadataIdIndex.clear();
-    for (const file of files) {
-      const cache = this.app.metadataCache.getFileCache(file);
-      const frontmatter = cache == null ? void 0 : cache.frontmatter;
-      if (!frontmatter)
-        continue;
-      const frontmatterId = frontmatter.id;
-      if (frontmatterId !== void 0 && frontmatterId !== null) {
-        const numericId = typeof frontmatterId === "number" ? frontmatterId : typeof frontmatterId === "string" && /^\d+$/.test(frontmatterId) ? parseInt(frontmatterId, 10) : null;
-        if (numericId !== null && numericId > 0) {
-          this.metadataIdIndex.set(numericId, file.path);
-          continue;
-        }
-      }
-      const bgmId = frontmatter.BangumiID;
-      if (bgmId !== void 0 && bgmId !== null) {
-        const numericId = typeof bgmId === "number" ? bgmId : typeof bgmId === "string" && /^\d+$/.test(bgmId) ? parseInt(bgmId, 10) : null;
-        if (numericId !== null && numericId > 0) {
-          this.metadataIdIndex.set(numericId, file.path);
-        }
-      }
-    }
-    console.debug(`[Bangumi Sync] \u6784\u5EFA id\u2192path \u7D22\u5F15: ${this.metadataIdIndex.size} \u6761`);
-  }
-  /**
-   * 从文件内容中提取条目 ID
-   * 通过查找 frontmatter 中的 Bangumi ID 或从封面图片路径提取
-   */
-  extractSubjectId(content) {
-    const idMatch = content.match(/^---\n(?:id:\s*"?(\d+)"?|[\s\S]*?\nid:\s*"?(\d+)"?)/);
-    if (idMatch) {
-      return parseInt(idMatch[1] || idMatch[2], 10);
-    }
-    const bgmIdMatch = content.match(/^---\n[\s\S]*?\nBangumiID:\s*"?(\d+)"?/);
-    if (bgmIdMatch) {
-      return parseInt(bgmIdMatch[1], 10);
-    }
-    const coverMatch = content.match(/(\d+)_cover\.(jpg|png|webp)/);
-    if (coverMatch) {
-      return parseInt(coverMatch[1], 10);
-    }
-    const bgmMatch = content.match(/bgm\.tv\/subject\/(\d+)/);
-    if (bgmMatch) {
-      return parseInt(bgmMatch[1], 10);
-    }
-    return null;
-  }
-  /**
-   * 从文件内容中提取中文名
-   */
-  extractNameCN(content) {
-    const nameMatch = content.match(/^---\n[\s\S]*?\n中文名:\s*"?([^"\n]+)"?/);
-    if (nameMatch) {
-      return nameMatch[1].trim();
-    }
-    return "";
+    console.debug(`[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u53D1\u73B0 ${count} \u4E2A\u6709\u6548\u6761\u76EE\uFF0C${this.registry.invalidFiles.length} \u4E2A\u5F02\u5E38\u6587\u4EF6`);
+    return count;
   }
   /**
    * 检查条目是否已同步
@@ -5159,15 +5660,21 @@ var IncrementalSync = class {
   clear() {
     this.localSubjects.clear();
     this.lastScanPath = "";
-    this.metadataIdIndex.clear();
+    this.registry.clear();
   }
   /**
    * 开始新的同步批次
    * 清空本批次已同步的条目记录
    */
   startBatch() {
-    this.batchSyncedItems.clear();
+    this.clearBatch();
     console.debug(`[Bangumi Sync] \u5F00\u59CB\u65B0\u7684\u540C\u6B65\u6279\u6B21`);
+  }
+  clearBatch() {
+    this.batchSyncedItems.clear();
+  }
+  finishBatch() {
+    this.clearBatch();
   }
   /**
    * 添加本批次已同步的条目
@@ -5177,8 +5684,16 @@ var IncrementalSync = class {
    * @param wasNewlyCreated 是否为新创建的文件（用于回滚判断）
    */
   addBatchSyncedItem(subjectId, path, name_cn, wasNewlyCreated = false) {
+    var _a, _b;
     this.batchSyncedItems.set(subjectId, { id: subjectId, path, name_cn, wasNewlyCreated });
     this.localSubjects.set(subjectId, { id: subjectId, path, name_cn });
+    this.registry.upsert({
+      subjectId,
+      path,
+      nameCn: name_cn,
+      identitySource: "id",
+      namingState: wasNewlyCreated ? "managed" : (_b = (_a = this.registry.getById(subjectId)) == null ? void 0 : _a.namingState) != null ? _b : "unknown"
+    });
     console.debug(`[Bangumi Sync] \u672C\u6279\u6B21\u5DF2\u540C\u6B65: ${name_cn} (ID: ${subjectId}) -> ${path}`);
   }
   /**
@@ -5208,7 +5723,7 @@ var IncrementalSync = class {
         continue;
       try {
         const file = this.app.vault.getAbstractFileByPath(info.path);
-        if (file instanceof import_obsidian7.TFile) {
+        if (file instanceof import_obsidian8.TFile) {
           await this.app.fileManager.trashFile(file);
           this.localSubjects.delete(subjectId);
           result.deleted++;
@@ -5247,47 +5762,39 @@ var IncrementalSync = class {
    * @returns 找到的路径，同时会将结果添加到缓存中
    */
   resolvePathByMetadataCache(subjectId, scanRoot) {
-    const indexedPath = this.metadataIdIndex.get(subjectId);
-    if (indexedPath) {
-      const normalizedRoot2 = scanRoot ? (0, import_obsidian7.normalizePath)(scanRoot) : "";
-      if (!normalizedRoot2 || indexedPath.startsWith(normalizedRoot2)) {
-        this.addBatchSyncedItem(subjectId, indexedPath, "", false);
-        return indexedPath;
+    const record = this.registry.getById(subjectId);
+    if (!record)
+      return void 0;
+    if (scanRoot) {
+      const normalizedRoot = (0, import_obsidian8.normalizePath)(scanRoot);
+      if (record.path !== normalizedRoot && !record.path.startsWith(`${normalizedRoot}/`)) {
+        return void 0;
       }
     }
-    const normalizedRoot = scanRoot ? (0, import_obsidian7.normalizePath)(scanRoot) : "";
-    const allFiles = this.app.vault.getMarkdownFiles();
-    for (const file of allFiles) {
-      if (normalizedRoot && !file.path.startsWith(normalizedRoot)) {
-        continue;
-      }
-      const cache = this.app.metadataCache.getFileCache(file);
-      const frontmatter = cache == null ? void 0 : cache.frontmatter;
-      if (!frontmatter) {
-        continue;
-      }
-      const frontmatterId = frontmatter.id;
-      if (frontmatterId !== void 0 && frontmatterId !== null) {
-        const numericId = typeof frontmatterId === "number" ? frontmatterId : typeof frontmatterId === "string" && /^\d+$/.test(frontmatterId) ? parseInt(frontmatterId, 10) : null;
-        if (numericId === subjectId) {
-          const name_cn = frontmatter.\u4E2D\u6587\u540D ? String(frontmatter.\u4E2D\u6587\u540D).trim() : "";
-          this.addBatchSyncedItem(subjectId, file.path, name_cn || file.basename, false);
-          this.metadataIdIndex.set(subjectId, file.path);
-          return file.path;
-        }
-      }
-      const bgmId = frontmatter.BangumiID;
-      if (bgmId !== void 0 && bgmId !== null) {
-        const numericId = typeof bgmId === "number" ? bgmId : typeof bgmId === "string" && /^\d+$/.test(bgmId) ? parseInt(bgmId, 10) : null;
-        if (numericId === subjectId) {
-          const name_cn = frontmatter.\u4E2D\u6587\u540D ? String(frontmatter.\u4E2D\u6587\u540D).trim() : "";
-          this.addBatchSyncedItem(subjectId, file.path, name_cn || file.basename, false);
-          this.metadataIdIndex.set(subjectId, file.path);
-          return file.path;
-        }
-      }
+    return record.path;
+  }
+  renameLocalSubject(subjectId, newPath) {
+    const existing = this.localSubjects.get(subjectId);
+    const record = this.registry.getById(subjectId);
+    if (!existing || !record) {
+      throw new Error(`Cannot rename unregistered subject ${subjectId}.`);
     }
-    return void 0;
+    const updated = { ...existing, path: newPath };
+    this.localSubjects.set(subjectId, updated);
+    const batch = this.batchSyncedItems.get(subjectId);
+    if (batch) {
+      this.batchSyncedItems.set(subjectId, { ...batch, path: newPath });
+    }
+    this.registry.upsert({ ...record, path: newPath, namingState: "managed" });
+  }
+  getRegistry() {
+    return this.registry;
+  }
+  setPathStates(states) {
+    this.pathStates = { ...states };
+  }
+  exportPathStates() {
+    return this.registry.exportPathStates();
   }
   /**
    * 获取本地条目信息（包括本批次同步的）
@@ -5493,6 +6000,30 @@ ${allLinks.map((l) => `  - "${l}"`).join("\n")}` : "\u76F8\u5173:";
     return this.documentService.updateEpisodeSection(content, renderedEpisodes);
   }
 };
+
+// src/sync/syncStatus.ts
+function determineSyncCompletion(succeeded, failed, cancelled) {
+  if (cancelled)
+    return "cancelled";
+  if (failed === 0)
+    return "success";
+  return succeeded > 0 ? "partial-success" : "failed";
+}
+function createCancellationSignal() {
+  return {
+    cancelled: false,
+    paused: false,
+    cancel() {
+      this.cancelled = true;
+    },
+    pause() {
+      this.paused = true;
+    },
+    resume() {
+      this.paused = false;
+    }
+  };
+}
 
 // common/parser/characterParser.ts
 function parseCharacters(characters, maxCount = 9) {
@@ -5948,26 +6479,38 @@ function extractPathVars(subject, _collection) {
 function getTypeSuffixForName(category) {
   return category.trim() || "";
 }
-function sanitizeFileName(name) {
-  return name.replace(/[<>:"/\\|?*]/g, " ").replace(/\s+/g, " ").trim();
-}
 function renderPathTemplate(template, vars) {
   const varMap = {
-    type: sanitizeFileName(vars.type),
-    category: sanitizeFileName(vars.category),
-    platform: sanitizeFileName(vars.platform),
-    name: sanitizeFileName(vars.name),
-    name_cn: sanitizeFileName(vars.name_cn),
-    name_cn_with_type: sanitizeFileName(vars.name_cn_with_type),
+    type: sanitizeFileName(vars.type, ""),
+    category: sanitizeFileName(vars.category, ""),
+    platform: sanitizeFileName(vars.platform, ""),
+    name: sanitizeFileName(vars.name, String(vars.id)),
+    name_cn: sanitizeFileName(vars.name_cn, String(vars.id)),
+    name_cn_with_type: sanitizeFileName(vars.name_cn_with_type, String(vars.id)),
     year: vars.year,
-    author: sanitizeFileName(vars.author),
+    author: sanitizeFileName(vars.author, ""),
     id: String(vars.id)
   };
+  const unknownVariables = /* @__PURE__ */ new Set();
   let result = template.replace(/\{\{(\w+)\}\}/g, (_match, key) => {
-    return key in varMap ? varMap[key] : `{{${key}}}`;
+    if (!(key in varMap)) {
+      unknownVariables.add(key);
+      return "";
+    }
+    return varMap[key];
   });
-  result = result.split("/").filter((part) => part.length > 0).join("/");
-  if (!result.endsWith(".md")) {
+  if (unknownVariables.size > 0) {
+    throw new Error(`Unknown path template variable(s): ${Array.from(unknownVariables).join(", ")}`);
+  }
+  result = limitPathLength(normalizePathValue(result.split("/").map((part, index, parts) => {
+    if (index !== parts.length - 1)
+      return sanitizeFileName(part, "");
+    if (part.toLocaleLowerCase("en-US").endsWith(".md")) {
+      return `${sanitizeFileName(part.slice(0, -3), String(vars.id), 157)}.md`;
+    }
+    return sanitizeFileName(part, String(vars.id), 160);
+  }).filter((part) => part.length > 0).join("/")));
+  if (!result.toLocaleLowerCase("en-US").endsWith(".md")) {
     result += ".md";
   }
   return result;
@@ -5978,14 +6521,26 @@ function generateFilePath(template, subject, collection) {
 }
 
 // common/parser/episodeParser.ts
+var EPISODE_TYPE_LABEL = {
+  0: "",
+  1: "SP",
+  2: "OP",
+  3: "ED"
+};
+var EPISODE_TYPE_CLASS = {
+  0: "",
+  1: "ep-sp",
+  2: "ep-op",
+  3: "ep-ed"
+};
 function generateEpisodeBox(episode, status) {
-  if (episode.type !== 0) {
-    return "";
-  }
+  var _a, _b;
   const titleParts = [];
   const epNum = episode.ep || episode.sort;
-  const title = episode.name_cn || episode.name || `\u7B2C${epNum}\u8BDD`;
-  titleParts.push(`\u7B2C${epNum}\u8BDD\uFF1A${title}`);
+  const typeLabel = (_a = EPISODE_TYPE_LABEL[episode.type]) != null ? _a : "";
+  const title = episode.name_cn || episode.name || (typeLabel ? `${typeLabel} ${epNum}` : `\u7B2C${epNum}\u8BDD`);
+  const titleHead = typeLabel ? `${typeLabel} ${epNum}\uFF1A${title}` : `\u7B2C${epNum}\u8BDD\uFF1A${title}`;
+  titleParts.push(titleHead);
   if (episode.airdate) {
     titleParts.push(`\u653E\u9001\uFF1A${episode.airdate}`);
   }
@@ -5993,20 +6548,22 @@ function generateEpisodeBox(episode, status) {
     titleParts.push(`\u65F6\u957F\uFF1A${episode.duration}`);
   }
   const tooltip = titleParts.join("&#10;");
-  let cssClass = "ep-box";
+  const typeClass = (_b = EPISODE_TYPE_CLASS[episode.type]) != null ? _b : "";
+  const classNames = ["ep-box", typeClass].filter(Boolean);
+  let cssClass = classNames.join(" ");
   if (status === 2) {
     cssClass += " watched";
   }
-  return `<span class="${cssClass}" title="${tooltip}" data-ep="${epNum}" data-id="${episode.id}" data-status="${status || 0}">${epNum}</span>`;
+  const displayText = typeLabel ? `${typeLabel} ${epNum}` : `${epNum}`;
+  return `<span class="${cssClass}" title="${tooltip}" data-ep="${epNum}" data-id="${episode.id}" data-type="${episode.type}" data-status="${status || 0}">${displayText}</span>`;
 }
 function parseEpisodes(episodes, userStatusMap) {
-  const mainEpisodes = episodes.filter((ep) => ep.type === 0);
-  if (mainEpisodes.length === 0) {
+  if (episodes.length === 0) {
     return "";
   }
-  mainEpisodes.sort((a, b) => (a.sort || 0) - (b.sort || 0));
+  const sortedEpisodes = [...episodes].sort((a, b) => (a.sort || 0) - (b.sort || 0));
   const boxes = [];
-  for (const episode of mainEpisodes) {
+  for (const episode of sortedEpisodes) {
     const status = userStatusMap == null ? void 0 : userStatusMap.get(episode.id);
     const box = generateEpisodeBox(episode, status);
     if (box) {
@@ -6248,7 +6805,7 @@ ${value.map((item) => `  - ${item}`).join("\n")}`;
 }
 
 // src/userData/userDataExtractor.ts
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 
 // common/utils/frontmatter.ts
 function getFrontmatterRecord(frontmatter) {
@@ -6289,16 +6846,16 @@ var UserDataExtractor = class {
     this.app = app;
     this.documentService = new SubjectDocumentService(app);
   }
-  extractFromFile(file) {
-    const cache = this.app.metadataCache.getFileCache(file);
-    return this.extractFromFrontmatter(file, getFrontmatterRecord(cache == null ? void 0 : cache.frontmatter));
-  }
   async extractFromFileAsync(file) {
-    const cache = this.app.metadataCache.getFileCache(file);
-    const result = this.extractFromFrontmatter(file, getFrontmatterRecord(cache == null ? void 0 : cache.frontmatter));
+    var _a;
+    const content = await this.app.vault.read(file);
+    const identity = this.documentService.getSubjectIdentityFromContent(content);
+    if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length))
+      return null;
+    const frontmatter = this.documentService.extractFrontmatterRecord(content);
+    const result = this.extractFromFrontmatter(file, frontmatter, identity.subjectId);
     if (!result)
       return null;
-    const content = await this.app.vault.read(file);
     const record = this.documentService.extractSection(content, "\u8BB0\u5F55");
     const thoughts = this.documentService.extractSection(content, "\u611F\u60F3");
     if (record || thoughts) {
@@ -6310,14 +6867,15 @@ var UserDataExtractor = class {
     return result;
   }
   async extractForExportAsync(file, dataTypes = ["all" /* ALL */]) {
-    const cache = this.app.metadataCache.getFileCache(file);
-    const frontmatter = getFrontmatterRecord(cache == null ? void 0 : cache.frontmatter);
-    if (!frontmatter)
+    var _a;
+    const content = await this.app.vault.read(file);
+    const identity = this.documentService.getSubjectIdentityFromContent(content);
+    if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length))
       return null;
-    const base = this.extractFromFrontmatter(file, frontmatter);
+    const frontmatter = this.documentService.extractFrontmatterRecord(content);
+    const base = this.extractFromFrontmatter(file, frontmatter, identity.subjectId);
     if (!base)
       return null;
-    const content = await this.app.vault.read(file);
     const record = this.documentService.extractSection(content, "\u8BB0\u5F55");
     const thoughts = this.documentService.extractSection(content, "\u611F\u60F3");
     const shortComment = this.documentService.extractComment(content);
@@ -6334,11 +6892,8 @@ var UserDataExtractor = class {
     }
     return base;
   }
-  extractFromFrontmatter(file, frontmatter) {
+  extractFromFrontmatter(file, frontmatter, id) {
     if (!frontmatter)
-      return null;
-    const id = this.extractId(frontmatter);
-    if (!id)
       return null;
     const name_cn = getFrontmatterString(frontmatter, "\u4E2D\u6587\u540D") || getFrontmatterString(frontmatter, "name_cn") || file.basename;
     const type = this.determineSubjectType(frontmatter);
@@ -6356,14 +6911,14 @@ var UserDataExtractor = class {
   }
   async extractFromFolder(folderPath, onProgress) {
     const result = /* @__PURE__ */ new Map();
-    const normalizedPath = (0, import_obsidian8.normalizePath)(folderPath);
+    const normalizedPath = (0, import_obsidian9.normalizePath)(folderPath);
     const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (!(folder instanceof import_obsidian8.TFolder)) {
+    if (!(folder instanceof import_obsidian9.TFolder)) {
       console.debug(`[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return result;
     }
     const allFiles = this.app.vault.getMarkdownFiles();
-    const targetFiles = allFiles.filter((file) => file.path.startsWith(normalizedPath));
+    const targetFiles = allFiles.filter((file) => isDescendantPath(file.path, normalizedPath));
     let processed = 0;
     for (const file of targetFiles) {
       try {
@@ -6381,14 +6936,14 @@ var UserDataExtractor = class {
   }
   async extractForExportFromFolder(folderPath, dataTypes = ["all" /* ALL */], onProgress) {
     const result = /* @__PURE__ */ new Map();
-    const normalizedPath = (0, import_obsidian8.normalizePath)(folderPath);
+    const normalizedPath = (0, import_obsidian9.normalizePath)(folderPath);
     const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (!(folder instanceof import_obsidian8.TFolder)) {
+    if (!(folder instanceof import_obsidian9.TFolder)) {
       console.debug(`[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return result;
     }
     const allFiles = this.app.vault.getMarkdownFiles();
-    const targetFiles = allFiles.filter((file) => file.path.startsWith(normalizedPath));
+    const targetFiles = allFiles.filter((file) => isDescendantPath(file.path, normalizedPath));
     let processed = 0;
     for (const file of targetFiles) {
       try {
@@ -6403,17 +6958,6 @@ var UserDataExtractor = class {
       onProgress == null ? void 0 : onProgress(processed, targetFiles.length);
     }
     return result;
-  }
-  extractId(frontmatter) {
-    var _a;
-    const id = (_a = frontmatter["id"]) != null ? _a : frontmatter["ID"];
-    if (typeof id === "number")
-      return id;
-    if (typeof id === "string") {
-      const parsed = parseInt(id, 10);
-      return isNaN(parsed) ? null : parsed;
-    }
-    return null;
   }
   extractCustomProperties(frontmatter) {
     const result = {};
@@ -6543,1952 +7087,6 @@ var UserDataMerger = class {
     return this.documentService.updateSection(content, sectionName, sectionContent);
   }
 };
-
-// src/userData/userDataExporter.ts
-var import_obsidian9 = require("obsidian");
-var UserDataExporter = class {
-  constructor(app) {
-    this.app = app;
-    this.extractor = new UserDataExtractor(app);
-  }
-  /**
-   * 按条目 category 导出用户数据到单个备份文件
-   */
-  async exportByCategory(folderPath, outputDir, dataTypes = ["all" /* ALL */], onProgress) {
-    try {
-      const userDataMap = await this.extractor.extractForExportFromFolder(folderPath, dataTypes, onProgress);
-      if (userDataMap.size === 0) {
-        return { success: false, files: [], error: "No user data found" };
-      }
-      const groupedData = this.groupByCategory(userDataMap);
-      await this.ensureDirectory(outputDir);
-      const exportData = {
-        version: "3.0",
-        exportTime: new Date().toISOString(),
-        totalCount: userDataMap.size,
-        categories: groupedData
-      };
-      const filePath = (0, import_obsidian9.normalizePath)(`${outputDir}/bangumi-user-data.json`);
-      await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
-      return { success: true, files: [filePath] };
-    } catch (error) {
-      return { success: false, files: [], error: String(error) };
-    }
-  }
-  /**
-   * 向后兼容旧接口
-   */
-  async exportBySubjectType(folderPath, outputDir, dataTypes = ["all" /* ALL */], onProgress) {
-    return await this.exportByCategory(folderPath, outputDir, dataTypes, onProgress);
-  }
-  /**
-   * 按条目 category 分组
-   */
-  groupByCategory(userDataMap) {
-    var _a;
-    const result = /* @__PURE__ */ new Map();
-    for (const [id, userData] of userDataMap) {
-      const category = this.resolveCategory(userData);
-      const subjectType = SUBJECT_TYPE_LABELS[userData.identifier.type] || "novel";
-      const existing = (_a = result.get(category)) != null ? _a : {
-        category,
-        subjectType,
-        totalCount: 0,
-        items: {}
-      };
-      existing.items[id] = userData;
-      existing.totalCount = Object.keys(existing.items).length;
-      result.set(category, existing);
-    }
-    return Array.from(result.entries()).sort((left, right) => left[0].localeCompare(right[0], "zh-CN")).reduce((acc, [category, data]) => {
-      acc[category] = data;
-      return acc;
-    }, {});
-  }
-  resolveCategory(userData) {
-    var _a, _b;
-    const explicitCategory = (_a = userData.category) == null ? void 0 : _a.trim();
-    if (explicitCategory) {
-      return explicitCategory;
-    }
-    const workType = (_b = userData.identifier.workType) == null ? void 0 : _b.trim();
-    if (workType) {
-      if (userData.identifier.type === 1 /* Book */) {
-        const lowered = workType.toLowerCase();
-        if (lowered === "comic")
-          return "\u6F2B\u753B";
-        if (lowered === "album")
-          return "\u753B\u96C6";
-      }
-      return workType;
-    }
-    return SUBJECT_TYPE_LABELS[userData.identifier.type] || "novel";
-  }
-  /**
-   * 确保目录存在
-   */
-  async ensureDirectory(path) {
-    const normalizedPath = (0, import_obsidian9.normalizePath)(path);
-    const exists = await this.app.vault.adapter.exists(normalizedPath);
-    if (!exists) {
-      await this.app.vault.createFolder(normalizedPath);
-    }
-  }
-  /**
-   * 保存文件
-   */
-  async saveFile(path, content) {
-    const normalizedPath = (0, import_obsidian9.normalizePath)(path);
-    const existing = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (existing instanceof import_obsidian9.TFile) {
-      await this.app.vault.process(existing, () => content);
-    } else {
-      await this.app.vault.create(normalizedPath, content);
-    }
-  }
-};
-
-// src/userData/userDataImporter.ts
-var import_obsidian10 = require("obsidian");
-
-// src/userData/importLogic.ts
-var LIST_LIKE_FIELDS = /* @__PURE__ */ new Set([
-  "tags",
-  "Tags",
-  "\u7248\u672C",
-  "\u683C\u5F0F",
-  "\u5E73\u53F0",
-  "\u5B58\u50A8",
-  "\u6E20\u9053",
-  "\u6539\u7F16\u7C7B\u522B",
-  "\u8D44\u6E90",
-  "\u6536\u85CF\u6765\u6E90"
-]);
-function mapLegacyRatingField(identifier, legacyKey) {
-  var _a, _b;
-  const type = identifier.type;
-  const workType = (_b = (_a = identifier.workType) == null ? void 0 : _a.toLowerCase()) != null ? _b : "";
-  if (type === 2 /* Anime */) {
-    return mapRatingFieldByTable(legacyKey, {
-      music: "\u97F3\u4E50\u8BC4\u5206",
-      character: "\u4EBA\u8BBE\u8BC4\u5206",
-      story: "\u5267\u60C5\u8BC4\u5206",
-      art: "\u7F8E\u672F\u8BC4\u5206"
-    });
-  }
-  if (type === 4 /* Game */) {
-    return mapRatingFieldByTable(legacyKey, {
-      story: "\u5267\u60C5\u8BC4\u5206",
-      fun: "\u8DA3\u5473\u8BC4\u5206",
-      music: "\u97F3\u4E50\u8BC4\u5206",
-      art: "\u7F8E\u672F\u8BC4\u5206"
-    });
-  }
-  if (type === 6 /* Real */) {
-    return mapRatingFieldByTable(legacyKey, {
-      story: "\u5267\u60C5\u8BC4\u5206",
-      character: "\u6F14\u6280\u8BC4\u5206",
-      art: "\u5236\u4F5C\u8BC4\u5206"
-    });
-  }
-  if (type === 1 /* Book */ && workType === "comic") {
-    return mapRatingFieldByTable(legacyKey, {
-      story: "\u5267\u60C5\u8BC4\u5206",
-      drawing: "\u753B\u5DE5\u8BC4\u5206",
-      character: "\u4EBA\u8BBE\u8BC4\u5206"
-    });
-  }
-  if (type === 1 /* Book */ && workType === "album") {
-    return mapRatingFieldByTable(legacyKey, {
-      story: "\u5267\u60C5\u8BC4\u5206",
-      drawing: "\u753B\u5DE5\u8BC4\u5206",
-      character: "\u4EBA\u8BBE\u8BC4\u5206"
-    });
-  }
-  return mapRatingFieldByTable(legacyKey, {
-    story: "\u5267\u60C5\u8BC4\u5206",
-    illustration: "\u63D2\u753B\u8BC4\u5206",
-    writing: "\u6587\u7B14\u8BC4\u5206",
-    character: "\u4EBA\u8BBE\u8BC4\u5206"
-  });
-}
-function smartMergeImportValues(localValue, importValue, fieldName) {
-  if (isEmptyImportValue(localValue)) {
-    return normalizeImportValueForWrite(importValue, fieldName);
-  }
-  if (isEmptyImportValue(importValue)) {
-    return normalizeImportValueForWrite(localValue, fieldName);
-  }
-  const localArray = toImportArray(localValue, fieldName);
-  const importArray = toImportArray(importValue, fieldName);
-  if (localArray && importArray) {
-    return Array.from(/* @__PURE__ */ new Set([...localArray, ...importArray]));
-  }
-  if (typeof localValue === "string" && typeof importValue === "string") {
-    return mergeSectionValues(localValue, importValue);
-  }
-  return normalizeImportValueForWrite(importValue, fieldName);
-}
-function mergeSectionValues(localValue, importValue) {
-  const localText = (localValue != null ? localValue : "").trim();
-  const importText = (importValue != null ? importValue : "").trim();
-  if (!localText)
-    return importText;
-  if (!importText)
-    return localText;
-  if (localText === importText)
-    return localText;
-  return `${localText}
-
----
-
-${importText}`;
-}
-function importValuesEqual(left, right, fieldName) {
-  return stableStringify(normalizeComparableImportValue(left, fieldName)) === stableStringify(normalizeComparableImportValue(right, fieldName));
-}
-function normalizeImportValueForWrite(value, fieldName) {
-  const arrayValue = toImportArray(value, fieldName);
-  if (arrayValue) {
-    return Array.from(new Set(arrayValue));
-  }
-  return value;
-}
-function mapRatingFieldByTable(legacyKey, table) {
-  if (table[legacyKey]) {
-    return table[legacyKey];
-  }
-  return mapGenericRatingField(legacyKey);
-}
-function mapGenericRatingField(legacyKey) {
-  const genericMap = {
-    music: "\u97F3\u4E50\u8BC4\u5206",
-    character: "\u4EBA\u8BBE\u8BC4\u5206",
-    story: "\u5267\u60C5\u8BC4\u5206",
-    art: "\u7F8E\u672F\u8BC4\u5206",
-    illustration: "\u63D2\u753B\u8BC4\u5206",
-    writing: "\u6587\u7B14\u8BC4\u5206",
-    drawing: "\u753B\u5DE5\u8BC4\u5206",
-    fun: "\u8DA3\u5473\u8BC4\u5206"
-  };
-  return genericMap[legacyKey] || null;
-}
-function isEmptyImportValue(value) {
-  if (value === null || value === void 0)
-    return true;
-  if (typeof value === "string")
-    return value.trim() === "";
-  if (Array.isArray(value))
-    return value.length === 0;
-  if (typeof value === "object")
-    return Object.keys(value).length === 0;
-  return false;
-}
-function toImportArray(value, fieldName) {
-  if (Array.isArray(value)) {
-    return normalizeListValues(value);
-  }
-  if (typeof value === "string" && fieldName && LIST_LIKE_FIELDS.has(fieldName)) {
-    const parsed = splitListString(value);
-    return parsed.length > 0 ? parsed : null;
-  }
-  return null;
-}
-function normalizeComparableImportValue(value, fieldName) {
-  if (fieldName === "\u77ED\u8BC4" && typeof value === "string") {
-    return normalizeShortComment(value);
-  }
-  const arrayValue = toImportArray(value, fieldName);
-  if (arrayValue) {
-    return Array.from(new Set(arrayValue)).sort((left, right) => left.localeCompare(right, "zh-CN"));
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
-      return String(Number(trimmed));
-    }
-    return trimmed.replace(/\r\n/g, "\n");
-  }
-  if (value && typeof value === "object") {
-    return stableNormalize(value);
-  }
-  return value;
-}
-function stableStringify(value) {
-  var _a;
-  if (value === null || value === void 0)
-    return "";
-  if (typeof value === "string")
-    return value;
-  if (typeof value === "number" || typeof value === "boolean")
-    return String(value);
-  if (typeof value === "bigint")
-    return value.toString();
-  if (typeof value === "symbol")
-    return (_a = value.description) != null ? _a : "symbol";
-  if (typeof value === "function")
-    return "[function]";
-  if (Array.isArray(value))
-    return JSON.stringify(value.map((item) => stableNormalize(item)));
-  if (typeof value === "object")
-    return JSON.stringify(stableNormalize(value));
-  return "";
-}
-function stableNormalize(value) {
-  if (Array.isArray(value)) {
-    return value.map((item) => stableNormalize(item));
-  }
-  if (value && typeof value === "object") {
-    const record = value;
-    return Object.keys(record).sort().reduce((acc, key) => {
-      acc[key] = stableNormalize(record[key]);
-      return acc;
-    }, {});
-  }
-  return value;
-}
-function normalizeListValues(values) {
-  return values.flatMap((item) => typeof item === "string" ? splitListString(item) : [stringifyImportValue(item)]).map((item) => item.trim()).filter(Boolean);
-}
-function splitListString(value) {
-  return value.split(/[,\n，、；;｜|]/).map((item) => item.trim()).filter(Boolean);
-}
-function stringifyImportValue(value) {
-  var _a;
-  if (typeof value === "string")
-    return value;
-  if (value === null || value === void 0)
-    return "";
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
-    return String(value);
-  }
-  if (typeof value === "symbol") {
-    return (_a = value.description) != null ? _a : "symbol";
-  }
-  if (typeof value === "function") {
-    return "[function]";
-  }
-  try {
-    return JSON.stringify(stableNormalize(value));
-  } catch (e) {
-    return "[object]";
-  }
-}
-
-// src/userData/userDataImporter.ts
-var PROPERTY_ALIAS_CANDIDATES = {
-  "\u5267\u60C5\u8BC4\u5206": ["\u6545\u4E8B\u8BC4\u5206"],
-  "\u6545\u4E8B\u8BC4\u5206": ["\u5267\u60C5\u8BC4\u5206"],
-  "\u4EBA\u8BBE\u8BC4\u5206": ["\u89D2\u8272\u8BC4\u5206"],
-  "\u89D2\u8272\u8BC4\u5206": ["\u4EBA\u8BBE\u8BC4\u5206"],
-  "\u7F8E\u672F\u8BC4\u5206": ["\u4F5C\u753B\u8BC4\u5206", "\u753B\u5DE5\u8BC4\u5206", "\u5236\u4F5C\u8BC4\u5206", "\u63D2\u753B\u8BC4\u5206"],
-  "\u753B\u5DE5\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206", "\u4F5C\u753B\u8BC4\u5206"],
-  "\u4F5C\u753B\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206", "\u753B\u5DE5\u8BC4\u5206"],
-  "\u5236\u4F5C\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206"],
-  "\u63D2\u753B\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206"]
-};
-var UserDataImporter = class {
-  constructor(app) {
-    this.app = app;
-    this.merger = new UserDataMerger(app);
-    this.incrementalSync = new IncrementalSync(app);
-    this.documentService = new SubjectDocumentService(app);
-  }
-  async importFromFile(filePath, options, onProgress) {
-    try {
-      const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (!(file instanceof import_obsidian10.TFile)) {
-        throw new Error("Import file not found");
-      }
-      const content = await this.app.vault.read(file);
-      return await this.importFromText(filePath, content, options, onProgress);
-    } catch (error) {
-      throw new Error(`Failed to parse import file: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-  async importFromText(fileName, content, options, onProgress) {
-    return await this.importFromTexts([{ name: fileName, content }], options, onProgress);
-  }
-  async importFromFiles(filePaths, options, onProgress) {
-    const files = [];
-    for (const filePath of filePaths) {
-      const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (!(file instanceof import_obsidian10.TFile)) {
-        throw new Error(`Import file not found: ${filePath}`);
-      }
-      files.push({
-        name: filePath,
-        content: await this.app.vault.read(file)
-      });
-    }
-    return await this.importFromTexts(files, options, onProgress);
-  }
-  async importFromTexts(files, options, onProgress) {
-    const compareResult = await this.compareImportData(files, options, onProgress);
-    const applied = await this.applyImportPlan(files, options);
-    return {
-      success: applied.success,
-      skipped: Math.max(compareResult.skipped, applied.skipped),
-      autoImported: compareResult.autoImported,
-      errors: [...compareResult.errors, ...applied.errors],
-      missingFields: compareResult.missingFields
-    };
-  }
-  collectAllPropertyNames(files, options) {
-    var _a, _b;
-    const propertyNames = /* @__PURE__ */ new Set();
-    const parsedFiles = this.parseImportFiles(files);
-    const dataTypes = (_a = options == null ? void 0 : options.dataTypes) != null ? _a : ["all" /* ALL */];
-    for (const file of parsedFiles.files) {
-      for (const userData of Object.values((_b = file.data.items) != null ? _b : {})) {
-        const normalized = this.normalizeImportItem(userData, options);
-        for (const key of Object.keys(normalized.frontmatter)) {
-          if (this.isPropertyManageField(key, dataTypes)) {
-            propertyNames.add(key);
-          }
-        }
-      }
-    }
-    return propertyNames;
-  }
-  getSuggestedPropertyAliases(files, options) {
-    var _a;
-    const propertyNames = this.collectAllPropertyNames(files, options);
-    const localPropertyNames = this.collectLocalFrontmatterNames();
-    const suggestions = {};
-    for (const propertyName of propertyNames) {
-      if (localPropertyNames.has(propertyName))
-        continue;
-      const candidates = (_a = PROPERTY_ALIAS_CANDIDATES[propertyName]) != null ? _a : [];
-      const matchedCandidates = candidates.filter((candidate) => localPropertyNames.has(candidate));
-      if (matchedCandidates.length === 1) {
-        suggestions[propertyName] = matchedCandidates[0];
-      }
-    }
-    return suggestions;
-  }
-  async compareImportData(files, options, onProgress) {
-    var _a, _b, _c;
-    const parsedFiles = this.parseImportFiles(files);
-    const result = {
-      autoImported: 0,
-      diffs: [],
-      missingFields: [],
-      skipped: 0,
-      errors: parsedFiles.errors
-    };
-    let totalItems = 0;
-    for (const parsedFile of parsedFiles.files) {
-      totalItems += Object.keys((_a = parsedFile.data.items) != null ? _a : {}).length;
-    }
-    let processed = 0;
-    for (const parsedFile of parsedFiles.files) {
-      for (const [id, rawUserData] of Object.entries((_b = parsedFile.data.items) != null ? _b : {})) {
-        processed++;
-        onProgress == null ? void 0 : onProgress(processed, totalItems);
-        const subjectId = parseInt(id, 10);
-        if (Number.isNaN(subjectId)) {
-          result.errors.push({
-            id: 0,
-            name_cn: ((_c = rawUserData.identifier) == null ? void 0 : _c.name_cn) || id,
-            error: "Invalid subject id"
-          });
-          continue;
-        }
-        const localFile = this.findLocalFile(subjectId);
-        if (!localFile) {
-          result.skipped++;
-          continue;
-        }
-        const normalized = this.normalizeImportItem(rawUserData, options);
-        const compareItem = await this.compareSingleItem(localFile, normalized, options);
-        result.autoImported += compareItem.autoImported;
-        result.missingFields.push(...compareItem.missingFields);
-        if (compareItem.diffs.length > 0) {
-          result.diffs.push({
-            subjectId,
-            name_cn: normalized.identifier.name_cn,
-            diffs: compareItem.diffs,
-            hasDiff: true
-          });
-        }
-      }
-    }
-    return result;
-  }
-  async applyMissingFieldDecisions(decisions) {
-    const grouped = /* @__PURE__ */ new Map();
-    for (const decision of decisions) {
-      if (decision.decision === null)
-        continue;
-      const existing = grouped.get(decision.subjectId) || [];
-      existing.push(decision);
-      grouped.set(decision.subjectId, existing);
-    }
-    for (const [subjectId, fieldDecisions] of grouped) {
-      const localFile = this.findLocalFile(subjectId);
-      if (!localFile)
-        continue;
-      let content = await this.app.vault.read(localFile);
-      for (const decision of fieldDecisions) {
-        if (decision.decision === "add") {
-          content = this.merger.addFrontmatterField(
-            content,
-            decision.fieldName,
-            decision.fieldValue
-          );
-        }
-      }
-      await this.app.vault.process(localFile, () => content);
-    }
-  }
-  async applyImportDecisions(diffs, options = {
-    mergeStrategy: "smart",
-    dataTypes: []
-  }) {
-    var _a;
-    let applied = 0;
-    for (const item of diffs) {
-      const localFile = this.findLocalFile(item.subjectId);
-      if (!localFile)
-        continue;
-      let content = await this.app.vault.read(localFile);
-      let changed = false;
-      for (const diff of item.diffs) {
-        const decision = (_a = diff.decision) != null ? _a : "skip";
-        if (decision === "local" || decision === "skip")
-          continue;
-        if (diff.fieldType === "section") {
-          const sectionName = diff.fieldName;
-          const localValue = sectionName === "\u77ED\u8BC4" ? this.documentService.extractComment(content) : this.documentService.extractSection(content, sectionName);
-          const nextValue2 = decision === "merge" ? this.mergeSectionValues(localValue, asString(diff.importValue)) : asString(diff.importValue);
-          if (nextValue2 && nextValue2 !== localValue) {
-            content = sectionName === "\u77ED\u8BC4" ? this.documentService.updateComment(content, nextValue2) : this.documentService.updateSection(content, sectionName, nextValue2);
-            changed = true;
-          }
-          continue;
-        }
-        const nextValue = decision === "merge" ? smartMergeImportValues(
-          this.getFrontmatterValueRaw(localFile, diff.fieldName),
-          diff.importValue,
-          diff.fieldName
-        ) : diff.importValue;
-        if (nextValue !== void 0) {
-          content = this.merger.updateFrontmatterField(content, diff.fieldName, nextValue);
-          changed = true;
-        }
-      }
-      if (changed) {
-        await this.app.vault.process(localFile, () => content);
-        applied++;
-      }
-    }
-    return applied;
-  }
-  async applyImportPlan(files, options, diffs = [], missingFieldDecisions = [], onProgress) {
-    var _a, _b, _c, _d, _e, _f;
-    const parsedFiles = this.parseImportFiles(files);
-    const diffDecisionMap = this.buildDiffDecisionMap(diffs);
-    const missingDecisionMap = this.buildMissingFieldDecisionMap(missingFieldDecisions);
-    const result = {
-      success: 0,
-      skipped: 0,
-      autoImported: 0,
-      errors: parsedFiles.errors,
-      missingFields: []
-    };
-    let totalItems = 0;
-    for (const parsedFile of parsedFiles.files) {
-      totalItems += Object.keys((_a = parsedFile.data.items) != null ? _a : {}).length;
-    }
-    let processed = 0;
-    for (const parsedFile of parsedFiles.files) {
-      for (const [id, rawUserData] of Object.entries((_b = parsedFile.data.items) != null ? _b : {})) {
-        processed++;
-        onProgress == null ? void 0 : onProgress(processed, totalItems);
-        const subjectId = parseInt(id, 10);
-        if (Number.isNaN(subjectId)) {
-          result.errors.push({
-            id: 0,
-            name_cn: ((_c = rawUserData.identifier) == null ? void 0 : _c.name_cn) || id,
-            error: "Invalid subject id"
-          });
-          continue;
-        }
-        const localFile = this.findLocalFile(subjectId);
-        if (!localFile) {
-          result.skipped++;
-          continue;
-        }
-        try {
-          const normalized = this.normalizeImportItem(rawUserData, options);
-          const changed = await this.applySingleItem(
-            localFile,
-            subjectId,
-            normalized,
-            options,
-            (_d = diffDecisionMap.get(subjectId)) != null ? _d : /* @__PURE__ */ new Map(),
-            (_e = missingDecisionMap.get(subjectId)) != null ? _e : /* @__PURE__ */ new Map()
-          );
-          if (changed) {
-            result.success++;
-          } else {
-            result.skipped++;
-          }
-        } catch (error) {
-          result.errors.push({
-            id: subjectId,
-            name_cn: ((_f = rawUserData.identifier) == null ? void 0 : _f.name_cn) || String(subjectId),
-            error: String(error)
-          });
-        }
-      }
-    }
-    return result;
-  }
-  parseImportFiles(files) {
-    var _a, _b, _c, _d;
-    const parsedFiles = [];
-    const errors = [];
-    for (const file of files) {
-      try {
-        const parsed = JSON.parse(file.content);
-        if (this.isCombinedExport(parsed)) {
-          const categoryEntries = Object.entries((_a = parsed.categories) != null ? _a : {});
-          if (categoryEntries.length === 0) {
-            throw new Error("Invalid import data: missing categories");
-          }
-          for (const [categoryName, categoryData] of categoryEntries) {
-            if (!this.isCategoryExport(categoryData)) {
-              throw new Error(`Invalid category export: ${categoryName}`);
-            }
-            parsedFiles.push({
-              name: `${file.name} / ${categoryName}`,
-              data: {
-                version: parsed.version,
-                exportTime: parsed.exportTime,
-                subjectType: categoryData.subjectType,
-                totalCount: (_c = categoryData.totalCount) != null ? _c : Object.keys((_b = categoryData.items) != null ? _b : {}).length,
-                items: (_d = categoryData.items) != null ? _d : {}
-              }
-            });
-          }
-          continue;
-        }
-        if (!this.isSingleExport(parsed)) {
-          throw new Error("Invalid import data: missing items");
-        }
-        parsedFiles.push({ name: file.name, data: parsed });
-      } catch (error) {
-        errors.push({
-          id: 0,
-          name_cn: file.name,
-          error: `Failed to parse import file ${file.name}: ${error instanceof Error ? error.message : String(error)}`
-        });
-      }
-    }
-    return { files: parsedFiles, errors };
-  }
-  isSingleExport(data) {
-    return !!data && typeof data === "object" && "items" in data && typeof data.items === "object";
-  }
-  isCombinedExport(data) {
-    return !!data && typeof data === "object" && "categories" in data && typeof data.categories === "object" && !Array.isArray(data.categories);
-  }
-  isCategoryExport(data) {
-    return !!data && typeof data === "object" && "items" in data && typeof data.items === "object";
-  }
-  async compareSingleItem(localFile, userData, options) {
-    var _a, _b;
-    const content = await this.app.vault.read(localFile);
-    const missingFields = [];
-    const diffs = [];
-    let autoImported = 0;
-    for (const [rawKey, value] of Object.entries(userData.frontmatter)) {
-      const fieldName = this.getEffectiveFieldName(rawKey, options);
-      if (!fieldName)
-        continue;
-      if (fieldName === "\u77ED\u8BC4") {
-        const importValue = asString(value);
-        const localValue2 = this.documentService.extractComment(content);
-        if (importValuesEqual(localValue2, importValue, fieldName)) {
-          continue;
-        }
-        if (options.mergeStrategy === "smart" && this.isEmptyValue(localValue2) && !this.isEmptyValue(importValue)) {
-          autoImported++;
-          continue;
-        }
-        diffs.push({
-          fieldName,
-          localValue: localValue2,
-          importValue,
-          fieldType: "section",
-          decision: null
-        });
-        continue;
-      }
-      if (!this.merger.hasFrontmatterField(content, fieldName)) {
-        missingFields.push({
-          subjectId: userData.identifier.id,
-          subjectName: userData.identifier.name_cn,
-          fieldName,
-          fieldValue: value,
-          decision: null
-        });
-        continue;
-      }
-      const localValue = this.getFrontmatterValueRaw(localFile, fieldName);
-      if (importValuesEqual(localValue, value, fieldName)) {
-        continue;
-      }
-      if (options.mergeStrategy === "smart" && this.isEmptyValue(localValue) && !this.isEmptyValue(value)) {
-        autoImported++;
-        continue;
-      }
-      diffs.push({
-        fieldName,
-        localValue,
-        importValue: value,
-        fieldType: "frontmatter",
-        decision: null
-      });
-    }
-    if (hasUserDataType(options.dataTypes, "bodySections" /* BODY_CONTENT */)) {
-      const recordDiff = this.compareSection(
-        content,
-        "\u8BB0\u5F55",
-        (_a = userData.bodySections) == null ? void 0 : _a.record,
-        options
-      );
-      autoImported += recordDiff.autoImported;
-      if (recordDiff.diff)
-        diffs.push(recordDiff.diff);
-      const thoughtsDiff = this.compareSection(
-        content,
-        "\u611F\u60F3",
-        (_b = userData.bodySections) == null ? void 0 : _b.thoughts,
-        options
-      );
-      autoImported += thoughtsDiff.autoImported;
-      if (thoughtsDiff.diff)
-        diffs.push(thoughtsDiff.diff);
-    }
-    return { autoImported, missingFields, diffs };
-  }
-  compareSection(content, sectionName, importValue, options) {
-    if (!importValue) {
-      return { autoImported: 0 };
-    }
-    const localValue = this.documentService.extractSection(content, sectionName);
-    if (!localValue) {
-      return { autoImported: 1 };
-    }
-    if (localValue === importValue) {
-      return { autoImported: 0 };
-    }
-    if (options.mergeStrategy === "smart" && !localValue.trim()) {
-      return { autoImported: 1 };
-    }
-    return {
-      autoImported: 0,
-      diff: {
-        fieldName: sectionName,
-        localValue,
-        importValue,
-        fieldType: "section",
-        decision: null
-      }
-    };
-  }
-  async applySingleItem(localFile, subjectId, userData, options, diffDecisions, missingDecisions) {
-    var _a, _b;
-    const originalContent = await this.app.vault.read(localFile);
-    let updatedContent = originalContent;
-    let changed = false;
-    for (const [rawKey, value] of Object.entries(userData.frontmatter)) {
-      const fieldName = this.getEffectiveFieldName(rawKey, options);
-      if (!fieldName)
-        continue;
-      if (fieldName === "\u77ED\u8BC4") {
-        const localValue2 = this.documentService.extractComment(updatedContent);
-        const importValue = asString(value);
-        if (importValuesEqual(localValue2, importValue, fieldName)) {
-          continue;
-        }
-        const decisionKey2 = this.buildDiffDecisionKey("section", fieldName);
-        const explicitDecision2 = diffDecisions.get(decisionKey2);
-        const nextValue2 = this.resolveValueByStrategy(
-          localValue2,
-          importValue,
-          fieldName,
-          options.mergeStrategy,
-          explicitDecision2
-        );
-        if (nextValue2 !== void 0 && !importValuesEqual(localValue2, nextValue2, fieldName)) {
-          updatedContent = this.documentService.updateComment(updatedContent, asString(nextValue2));
-          changed = true;
-        }
-        continue;
-      }
-      const hasField = this.merger.hasFrontmatterField(updatedContent, fieldName);
-      if (!hasField) {
-        const decision = missingDecisions.get(fieldName);
-        if (decision === "add") {
-          updatedContent = this.merger.addFrontmatterField(updatedContent, fieldName, value);
-        }
-        continue;
-      }
-      const localValue = this.getFrontmatterValueRaw(localFile, fieldName);
-      if (importValuesEqual(localValue, value, fieldName)) {
-        continue;
-      }
-      const decisionKey = this.buildDiffDecisionKey("frontmatter", fieldName);
-      const explicitDecision = diffDecisions.get(decisionKey);
-      const nextValue = this.resolveValueByStrategy(
-        localValue,
-        value,
-        fieldName,
-        options.mergeStrategy,
-        explicitDecision
-      );
-      if (nextValue !== void 0 && !importValuesEqual(localValue, nextValue, fieldName)) {
-        updatedContent = this.merger.updateFrontmatterField(updatedContent, fieldName, nextValue);
-      }
-    }
-    if (hasUserDataType(options.dataTypes, "bodySections" /* BODY_CONTENT */)) {
-      updatedContent = this.applySectionChange(
-        updatedContent,
-        "\u8BB0\u5F55",
-        (_a = userData.bodySections) == null ? void 0 : _a.record,
-        options.mergeStrategy,
-        diffDecisions.get(this.buildDiffDecisionKey("section", "\u8BB0\u5F55"))
-      );
-      updatedContent = this.applySectionChange(
-        updatedContent,
-        "\u611F\u60F3",
-        (_b = userData.bodySections) == null ? void 0 : _b.thoughts,
-        options.mergeStrategy,
-        diffDecisions.get(this.buildDiffDecisionKey("section", "\u611F\u60F3"))
-      );
-    }
-    if (changed || updatedContent !== originalContent) {
-      await this.app.vault.process(localFile, () => updatedContent);
-      return true;
-    }
-    return false;
-  }
-  applySectionChange(content, sectionName, importValue, mergeStrategy, explicitDecision) {
-    if (!importValue)
-      return content;
-    const localValue = this.documentService.extractSection(content, sectionName);
-    if (!localValue) {
-      return this.documentService.updateSection(content, sectionName, importValue);
-    }
-    if (localValue === importValue)
-      return content;
-    if (explicitDecision === "local" || explicitDecision === "skip") {
-      return content;
-    }
-    if (explicitDecision === "import") {
-      return this.documentService.updateSection(content, sectionName, importValue);
-    }
-    if (explicitDecision === "merge") {
-      return this.documentService.updateSection(
-        content,
-        sectionName,
-        this.mergeSectionValues(localValue, importValue)
-      );
-    }
-    switch (mergeStrategy) {
-      case "prefer_import":
-        return this.documentService.updateSection(content, sectionName, importValue);
-      case "smart":
-        return this.documentService.updateSection(
-          content,
-          sectionName,
-          this.mergeSectionValues(localValue, importValue)
-        );
-      case "prefer_local":
-      default:
-        return content;
-    }
-  }
-  normalizeImportItem(userData, options) {
-    var _a, _b;
-    const dataTypes = (_a = options == null ? void 0 : options.dataTypes) != null ? _a : ["all" /* ALL */];
-    const frontmatter = this.filterImportFrontmatter(
-      { ...(_b = userData.customProperties) != null ? _b : {} },
-      dataTypes
-    );
-    if (userData.legacy) {
-      this.mergeLegacyFields(frontmatter, userData, dataTypes);
-    }
-    return {
-      identifier: userData.identifier,
-      frontmatter,
-      bodySections: hasUserDataType(dataTypes, "bodySections" /* BODY_CONTENT */) ? userData.bodySections : void 0
-    };
-  }
-  mergeLegacyFields(frontmatter, userData, dataTypes) {
-    var _a;
-    const legacy = userData.legacy;
-    if (!legacy)
-      return;
-    if (hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */) && legacy.storage !== void 0 && legacy.storage !== null && legacy.storage !== "") {
-      frontmatter["\u5B58\u50A8"] = legacy.storage;
-    }
-    if (!hasUserDataType(dataTypes, "userProperties" /* USER_PROPERTIES */))
-      return;
-    if (legacy.rate !== void 0 && legacy.rate !== null) {
-      frontmatter["\u8BC4\u5206"] = legacy.rate;
-    }
-    if (legacy.comment) {
-      frontmatter["\u77ED\u8BC4"] = legacy.comment;
-    }
-    if (legacy.tags && legacy.tags.length > 0) {
-      frontmatter.tags = legacy.tags;
-    }
-    if (hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */)) {
-      for (const [ratingKey, ratingValue] of Object.entries((_a = legacy.ratingDetails) != null ? _a : {})) {
-        const mappedKey = mapLegacyRatingField(userData.identifier, ratingKey);
-        if (!mappedKey)
-          continue;
-        frontmatter[mappedKey] = ratingValue;
-      }
-    }
-  }
-  filterImportFrontmatter(frontmatter, dataTypes) {
-    const includeAll = hasUserDataType(dataTypes, "all" /* ALL */);
-    const includeUserProperties = includeAll || hasUserDataType(dataTypes, "userProperties" /* USER_PROPERTIES */);
-    const includeCustomProperties = includeAll || hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */);
-    const filtered = {};
-    for (const [key, value] of Object.entries(frontmatter)) {
-      if (isUserPropertyField(key)) {
-        if (includeUserProperties) {
-          filtered[key] = value;
-        }
-        continue;
-      }
-      if (isCustomPropertyField(key)) {
-        if (includeCustomProperties) {
-          filtered[key] = value;
-        }
-        continue;
-      }
-      if (includeUserProperties && this.isImportManagedUserField(key)) {
-        filtered[key] = value;
-      }
-    }
-    return filtered;
-  }
-  isImportManagedUserField(fieldName) {
-    return isUserPropertyField(fieldName);
-  }
-  isPropertyManageField(fieldName, dataTypes) {
-    if (hasUserDataType(dataTypes, "userProperties" /* USER_PROPERTIES */) && isUserPropertyField(fieldName)) {
-      return true;
-    }
-    if (hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */) && isCustomPropertyField(fieldName)) {
-      return true;
-    }
-    return false;
-  }
-  getEffectiveFieldName(rawKey, options) {
-    var _a;
-    const manage = (_a = options.propertyManage) == null ? void 0 : _a[rawKey];
-    if (manage == null ? void 0 : manage.ignore)
-      return null;
-    return (manage == null ? void 0 : manage.aliasTo) || rawKey;
-  }
-  buildDiffDecisionMap(diffs) {
-    var _a;
-    const result = /* @__PURE__ */ new Map();
-    for (const item of diffs) {
-      const fieldMap = /* @__PURE__ */ new Map();
-      for (const diff of item.diffs) {
-        fieldMap.set(
-          this.buildDiffDecisionKey((_a = diff.fieldType) != null ? _a : "frontmatter", diff.fieldName),
-          diff.decision
-        );
-      }
-      result.set(item.subjectId, fieldMap);
-    }
-    return result;
-  }
-  buildMissingFieldDecisionMap(decisions) {
-    var _a;
-    const result = /* @__PURE__ */ new Map();
-    for (const decision of decisions) {
-      const fieldMap = (_a = result.get(decision.subjectId)) != null ? _a : /* @__PURE__ */ new Map();
-      fieldMap.set(decision.fieldName, decision.decision);
-      result.set(decision.subjectId, fieldMap);
-    }
-    return result;
-  }
-  buildDiffDecisionKey(fieldType, fieldName) {
-    return `${fieldType}:${fieldName}`;
-  }
-  resolveValueByStrategy(localValue, importValue, fieldName, mergeStrategy, explicitDecision) {
-    switch (explicitDecision) {
-      case "local":
-      case "skip":
-        return void 0;
-      case "import":
-        return importValue;
-      case "merge":
-        return smartMergeImportValues(localValue, importValue, fieldName);
-      default:
-        break;
-    }
-    switch (mergeStrategy) {
-      case "prefer_import":
-        return importValue;
-      case "smart":
-        return smartMergeImportValues(localValue, importValue, fieldName);
-      case "prefer_local":
-      default:
-        return void 0;
-    }
-  }
-  mergeSectionValues(localValue, importValue) {
-    return mergeSectionValues(localValue, importValue);
-  }
-  isEmptyValue(value) {
-    if (value === null || value === void 0)
-      return true;
-    if (typeof value === "string")
-      return value.trim() === "";
-    if (Array.isArray(value))
-      return value.length === 0;
-    if (typeof value === "object")
-      return Object.keys(value).length === 0;
-    return false;
-  }
-  collectLocalFrontmatterNames() {
-    const propertyNames = /* @__PURE__ */ new Set();
-    const files = this.app.vault.getMarkdownFiles();
-    for (const file of files) {
-      const cache = this.app.metadataCache.getFileCache(file);
-      const frontmatter = getFrontmatterRecord(cache == null ? void 0 : cache.frontmatter);
-      if (!frontmatter)
-        continue;
-      for (const key of Object.keys(frontmatter)) {
-        propertyNames.add(key);
-      }
-    }
-    return propertyNames;
-  }
-  getFrontmatterValueRaw(file, fieldName) {
-    const cache = this.app.metadataCache.getFileCache(file);
-    const frontmatter = getFrontmatterRecord(cache == null ? void 0 : cache.frontmatter);
-    return frontmatter == null ? void 0 : frontmatter[fieldName];
-  }
-  findLocalFile(subjectId) {
-    var _a;
-    const files = this.app.vault.getMarkdownFiles();
-    for (const file of files) {
-      const cache = this.app.metadataCache.getFileCache(file);
-      const frontmatter = getFrontmatterRecord(cache == null ? void 0 : cache.frontmatter);
-      const id = (_a = getFrontmatterNumber(frontmatter, "id")) != null ? _a : getFrontmatterNumber(frontmatter, "ID");
-      if (id === subjectId) {
-        return file;
-      }
-    }
-    return null;
-  }
-};
-function asString(value) {
-  var _a;
-  if (typeof value === "string")
-    return value;
-  if (value === null || value === void 0)
-    return "";
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
-    return String(value);
-  }
-  if (typeof value === "symbol") {
-    return (_a = value.description) != null ? _a : "symbol";
-  }
-  if (typeof value === "function") {
-    return "[function]";
-  }
-  if (typeof value === "object") {
-    try {
-      return JSON.stringify(sortObjectKeysDeep(value));
-    } catch (e) {
-      return "[object]";
-    }
-  }
-  return "";
-}
-function sortObjectKeysDeep(value) {
-  if (Array.isArray(value)) {
-    return value.map((item) => sortObjectKeysDeep(item));
-  }
-  if (value && typeof value === "object") {
-    const record = value;
-    return Object.keys(record).sort().reduce((acc, key) => {
-      acc[key] = sortObjectKeysDeep(record[key]);
-      return acc;
-    }, {});
-  }
-  return value;
-}
-
-// src/userData/userDataModal.ts
-var import_obsidian11 = require("obsidian");
-var DEFAULT_EXPORT_DATA_TYPES = [
-  "userProperties" /* USER_PROPERTIES */,
-  "customProperties" /* CUSTOM_PROPERTIES */,
-  "bodySections" /* BODY_CONTENT */
-];
-var UserDataExportModal = class extends import_obsidian11.Modal {
-  constructor(app, scanFolderPath, onExport) {
-    super(app);
-    this.exportDataTypes = [...DEFAULT_EXPORT_DATA_TYPES];
-    this.exporter = new UserDataExporter(app);
-    this.scanFolderPath = scanFolderPath;
-    this.outputDir = scanFolderPath;
-    this.onExport = onExport;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("bangumi-user-data-export");
-    contentEl.createEl("h2", { text: tn("userData", "exportTitle") });
-    contentEl.createEl("p", {
-      text: tn("userData", "exportDesc"),
-      cls: "bangumi-modal-desc"
-    });
-    new import_obsidian11.Setting(contentEl).setName(tn("userData", "scanFolder")).setDesc(tn("userData", "scanFolderDesc")).addText((text) => {
-      text.setValue(this.scanFolderPath).onChange((value) => {
-        this.scanFolderPath = value;
-      });
-    });
-    new import_obsidian11.Setting(contentEl).setName(tn("userData", "outputDir")).setDesc(tn("userData", "outputDirDesc")).addText((text) => {
-      text.setValue(this.outputDir).onChange((value) => {
-        this.outputDir = value;
-      });
-    });
-    contentEl.createEl("h3", { text: tn("userData", "exportDataTypes") });
-    contentEl.createEl("p", {
-      text: tn("userData", "exportDataTypesDesc"),
-      cls: "bangumi-modal-desc"
-    });
-    this.addDataTypeToggle(contentEl, "userProperties" /* USER_PROPERTIES */, "userProperties", "userPropertiesDesc");
-    this.addDataTypeToggle(contentEl, "customProperties" /* CUSTOM_PROPERTIES */, "customProperties", "customPropertiesDesc");
-    this.addDataTypeToggle(contentEl, "bodySections" /* BODY_CONTENT */, "bodyContent", "bodyContentDesc");
-    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-    buttonDiv.createEl("button", { text: tn("userData", "cancel") }, (btn) => {
-      btn.addEventListener("click", () => this.close());
-    });
-    buttonDiv.createEl("button", {
-      text: tn("userData", "export"),
-      cls: "mod-cta"
-    }, (btn) => {
-      btn.addEventListener("click", () => void this.doExport());
-    });
-  }
-  async doExport() {
-    if (this.exportDataTypes.length === 0) {
-      new import_obsidian11.Notice(tn("userData", "selectAtLeastOneDataType"));
-      return;
-    }
-    const result = await this.exporter.exportByCategory(
-      this.scanFolderPath,
-      this.outputDir,
-      this.exportDataTypes
-    );
-    if (result.success && result.files.length > 0) {
-      new import_obsidian11.Notice(tnFormat("userData", "exportSuccess", { count: result.files.length }));
-      this.onExport(result.files);
-      this.close();
-    } else {
-      new import_obsidian11.Notice(tnFormat("userData", "exportFailed", { error: result.error || "Unknown error" }));
-    }
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-  addDataTypeToggle(container, dataType, nameKey, descKey) {
-    new import_obsidian11.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
-      toggle.setValue(this.exportDataTypes.includes(dataType)).onChange((value) => {
-        this.exportDataTypes = updateDataTypeSelection(this.exportDataTypes, dataType, value);
-      });
-    });
-  }
-};
-var UserDataImportModal = class extends import_obsidian11.Modal {
-  constructor(app, importFiles, onImport) {
-    super(app);
-    this.mergeStrategy = "smart";
-    this.importMode = "item";
-    this.importDataTypes = [...DEFAULT_EXPORT_DATA_TYPES];
-    this.importer = new UserDataImporter(app);
-    this.importFiles = importFiles;
-    this.onImport = onImport;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("bangumi-user-data-import");
-    contentEl.createEl("h2", { text: tn("userData", "importTitle") });
-    contentEl.createEl("p", {
-      text: tn("userData", "importDesc"),
-      cls: "bangumi-modal-desc"
-    });
-    const fileListEl = contentEl.createDiv({ cls: "bangumi-import-file-list" });
-    for (const file of this.importFiles) {
-      fileListEl.createEl("div", { text: file.name, cls: "bangumi-import-file-item" });
-    }
-    new import_obsidian11.Setting(contentEl).setName(tn("userData", "mergeStrategy")).setDesc(tn("userData", "mergeStrategyDesc")).addDropdown((dropdown) => {
-      dropdown.addOption("prefer_local", tn("userData", "preferLocal")).addOption("prefer_import", tn("userData", "preferImport")).addOption("smart", tn("userData", "smartMerge")).setValue(this.mergeStrategy).onChange((value) => {
-        this.mergeStrategy = value;
-      });
-    });
-    new import_obsidian11.Setting(contentEl).setName(tn("userData", "importMode")).setDesc(tn("userData", "importModeDesc")).addDropdown((dropdown) => {
-      dropdown.addOption("item", tn("userData", "itemImportMode")).addOption("property", tn("userData", "propertyImportMode")).setValue(this.importMode).onChange((value) => {
-        this.importMode = value;
-      });
-    });
-    contentEl.createEl("h3", { text: tn("userData", "importDataTypes") });
-    contentEl.createEl("p", {
-      text: tn("userData", "importDataTypesDesc"),
-      cls: "bangumi-modal-desc"
-    });
-    this.addDataTypeToggle(contentEl, "userProperties" /* USER_PROPERTIES */, "userProperties", "userPropertiesDesc");
-    this.addDataTypeToggle(contentEl, "customProperties" /* CUSTOM_PROPERTIES */, "customProperties", "customPropertiesDesc");
-    this.addDataTypeToggle(contentEl, "bodySections" /* BODY_CONTENT */, "bodyContent", "bodyContentDesc");
-    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-    buttonDiv.createEl("button", { text: tn("userData", "cancel") }, (btn) => {
-      btn.addEventListener("click", () => this.close());
-    });
-    buttonDiv.createEl("button", {
-      text: tn("userData", "import"),
-      cls: "mod-cta"
-    }, (btn) => {
-      btn.addEventListener("click", () => void this.doImport());
-    });
-  }
-  async doImport() {
-    if (this.importDataTypes.length === 0) {
-      new import_obsidian11.Notice(tn("userData", "selectAtLeastOneDataType"));
-      return;
-    }
-    const dataTypeOptions = { dataTypes: this.importDataTypes };
-    const propertyNames = this.importer.collectAllPropertyNames(this.importFiles, dataTypeOptions);
-    const suggestedAliases = this.importer.getSuggestedPropertyAliases(this.importFiles, dataTypeOptions);
-    if (propertyNames.size > 0) {
-      this.close();
-      new PropertyManageModal(this.app, propertyNames, suggestedAliases, (propertyManage) => {
-        void this.continueImport(propertyManage);
-      }).open();
-    } else {
-      await this.continueImport(void 0);
-    }
-  }
-  async continueImport(propertyManage) {
-    const options = {
-      mergeStrategy: this.mergeStrategy,
-      dataTypes: this.importDataTypes,
-      propertyManage
-    };
-    const compareResult = await this.importer.compareImportData(
-      this.importFiles,
-      options
-    );
-    const { autoImported, diffs, missingFields, errors, skipped } = compareResult;
-    if (diffs.length > 0) {
-      this.close();
-      if (this.importMode === "property") {
-        const propertyGroups = groupByProperty(diffs, missingFields);
-        new PropertyImportReviewModal(this.app, propertyGroups, (resolvedDiffs, resolvedMissingFields) => {
-          void (async () => {
-            await this.finishImport(options, resolvedDiffs, resolvedMissingFields, {
-              autoImported,
-              errors,
-              skipped
-            });
-          })();
-        }).open();
-        return;
-      }
-      new ImportCompareModal(this.app, diffs, (resolvedDiffs) => {
-        void (async () => {
-          await this.finishImport(options, resolvedDiffs, missingFields, {
-            autoImported,
-            errors,
-            skipped
-          });
-        })();
-      }).open();
-    } else {
-      if (this.importMode === "property" && missingFields.length > 0) {
-        this.close();
-        const propertyGroups = groupByProperty([], missingFields);
-        new PropertyImportReviewModal(this.app, propertyGroups, (resolvedDiffs, resolvedMissingFields) => {
-          void (async () => {
-            await this.finishImport(options, resolvedDiffs, resolvedMissingFields, {
-              autoImported,
-              errors,
-              skipped
-            });
-          })();
-        }).open();
-        return;
-      }
-      await this.finishImport(options, [], missingFields, {
-        autoImported,
-        errors,
-        skipped
-      });
-    }
-  }
-  async finishImport(options, diffs, missingFields, summary) {
-    const finalize = async (resolvedMissingFields) => {
-      const result = await this.importer.applyImportPlan(
-        this.importFiles,
-        options,
-        diffs,
-        resolvedMissingFields
-      );
-      result.autoImported = summary.autoImported;
-      result.errors = [...summary.errors, ...result.errors];
-      result.skipped = Math.max(summary.skipped, result.skipped);
-      this.onImport(result);
-    };
-    if (missingFields.length > 0) {
-      this.close();
-      new MissingFieldModal(this.app, missingFields, (resolvedMissingFields) => {
-        void finalize(resolvedMissingFields);
-      }).open();
-      return;
-    }
-    await finalize([]);
-    this.close();
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-  addDataTypeToggle(container, dataType, nameKey, descKey) {
-    new import_obsidian11.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
-      toggle.setValue(this.importDataTypes.includes(dataType)).onChange((value) => {
-        this.importDataTypes = updateDataTypeSelection(this.importDataTypes, dataType, value);
-      });
-    });
-  }
-};
-var MissingFieldModal = class extends import_obsidian11.Modal {
-  constructor(app, missingFields, onResolve) {
-    super(app);
-    this.decisions = /* @__PURE__ */ new Map();
-    this.missingFields = missingFields;
-    this.onResolve = onResolve;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("bangumi-missing-field");
-    contentEl.createEl("h2", { text: tn("userData", "missingFieldTitle") });
-    contentEl.createEl("p", {
-      text: tn("userData", "missingFieldDesc"),
-      cls: "bangumi-modal-desc"
-    });
-    const quickDiv = contentEl.createDiv({ cls: "bangumi-missing-field-quick" });
-    quickDiv.createEl("button", { text: tn("userData", "addAll") }, (btn) => {
-      btn.addEventListener("click", () => this.resolveAll("add"));
-    });
-    quickDiv.createEl("button", { text: tn("userData", "skipAll") }, (btn) => {
-      btn.addEventListener("click", () => this.resolveAll("skip"));
-    });
-    const listEl = contentEl.createDiv({ cls: "bangumi-missing-field-list" });
-    this.renderFieldList(listEl);
-    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-    buttonDiv.createEl("button", {
-      text: tn("userData", "confirm"),
-      cls: "mod-cta"
-    }, (btn) => {
-      btn.addEventListener("click", () => this.doResolve());
-    });
-  }
-  renderFieldList(container) {
-    container.empty();
-    for (let i = 0; i < this.missingFields.length; i++) {
-      const field = this.missingFields[i];
-      const currentDecision = this.decisions.get(i) || null;
-      const itemEl = container.createDiv({ cls: "bangumi-missing-field-item" });
-      if (currentDecision) {
-        itemEl.addClass(`bangumi-missing-field-resolved-${currentDecision}`);
-      }
-      itemEl.createEl("div", {
-        text: `${field.subjectName} (ID: ${field.subjectId})`,
-        cls: "bangumi-missing-field-subject"
-      });
-      const fieldInfoEl = itemEl.createDiv({ cls: "bangumi-missing-field-info" });
-      fieldInfoEl.createEl("span", { text: `${field.fieldName}: ` });
-      fieldInfoEl.createEl("span", { text: String(field.fieldValue), cls: "bangumi-missing-field-value" });
-      itemEl.createEl("div", {
-        text: `${tn("userData", "decision")}: ${missingDecisionLabel(currentDecision)}`,
-        cls: "bangumi-import-compare-diff-count"
-      });
-      const actionEl = itemEl.createDiv({ cls: "bangumi-missing-field-actions" });
-      actionEl.createEl("button", {
-        text: tn("userData", "addField"),
-        cls: currentDecision === "add" ? "mod-cta bangumi-decision-active" : ""
-      }, (btn) => {
-        btn.addEventListener("click", () => {
-          this.decisions.set(i, "add");
-          this.renderFieldList(container);
-        });
-      });
-      actionEl.createEl("button", {
-        text: tn("userData", "skipField"),
-        cls: currentDecision === "skip" ? "mod-warning bangumi-decision-active" : ""
-      }, (btn) => {
-        btn.addEventListener("click", () => {
-          this.decisions.set(i, "skip");
-          this.renderFieldList(container);
-        });
-      });
-    }
-  }
-  resolveAll(decision) {
-    for (let i = 0; i < this.missingFields.length; i++) {
-      this.decisions.set(i, decision);
-    }
-    const items = this.contentEl.querySelectorAll(".bangumi-missing-field-item");
-    const list = this.contentEl.querySelector(".bangumi-missing-field-list");
-    if (list instanceof HTMLElement) {
-      this.renderFieldList(list);
-    } else {
-      items.forEach((item) => {
-        item.addClass(`bangumi-missing-field-resolved-${decision}`);
-      });
-    }
-  }
-  doResolve() {
-    const resolvedDecisions = [];
-    for (let i = 0; i < this.missingFields.length; i++) {
-      const decision = this.decisions.get(i) || "skip";
-      resolvedDecisions.push({
-        ...this.missingFields[i],
-        decision
-      });
-    }
-    this.onResolve(resolvedDecisions);
-    this.close();
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-};
-var PropertyManageModal = class extends import_obsidian11.Modal {
-  constructor(app, propertyNames, suggestedAliases, onConfirm) {
-    super(app);
-    this.decisions = {};
-    this.propertyNames = propertyNames;
-    this.suggestedAliases = suggestedAliases;
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("bangumi-property-manage-modal");
-    contentEl.createEl("h2", { text: tn("userData", "propertyManageTitle") });
-    contentEl.createEl("p", {
-      text: tn("userData", "propertyManageDesc"),
-      cls: "bangumi-modal-desc"
-    });
-    const table = contentEl.createEl("table", { cls: "bangumi-property-manage-table" });
-    const thead = table.createEl("thead");
-    const headerRow = thead.createEl("tr");
-    headerRow.createEl("th", { text: tn("userData", "propertyName") });
-    headerRow.createEl("th", { text: tn("userData", "ignore") });
-    headerRow.createEl("th", { text: tn("userData", "alias") });
-    const tbody = table.createEl("tbody");
-    for (const name of this.propertyNames) {
-      const row = tbody.createEl("tr");
-      row.createEl("td", { text: name, cls: "bangumi-property-manage-name" });
-      const ignoreCell = row.createEl("td");
-      const ignoreCheckbox = ignoreCell.createEl("input", { type: "checkbox" });
-      ignoreCheckbox.addEventListener("change", () => {
-        if (!this.decisions[name]) {
-          this.decisions[name] = { ignore: false };
-        }
-        this.decisions[name].ignore = ignoreCheckbox.checked;
-      });
-      const aliasCell = row.createEl("td");
-      const aliasInput = aliasCell.createEl("input", {
-        type: "text",
-        placeholder: this.suggestedAliases[name] || name,
-        cls: "bangumi-property-manage-alias-input"
-      });
-      const suggestedAlias = this.suggestedAliases[name];
-      if (suggestedAlias) {
-        aliasInput.value = suggestedAlias;
-        this.decisions[name] = {
-          ignore: false,
-          aliasTo: suggestedAlias
-        };
-      }
-      aliasInput.addEventListener("input", () => {
-        const alias = aliasInput.value.trim();
-        if (!this.decisions[name]) {
-          this.decisions[name] = { ignore: false };
-        }
-        this.decisions[name].aliasTo = alias || void 0;
-      });
-    }
-    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-    buttonDiv.createEl("button", { text: tn("userData", "cancel") }, (btn) => {
-      btn.addEventListener("click", () => this.close());
-    });
-    buttonDiv.createEl("button", {
-      text: tn("userData", "continueImport"),
-      cls: "mod-cta"
-    }, (btn) => {
-      btn.addEventListener("click", () => {
-        this.onConfirm(this.decisions);
-        this.close();
-      });
-    });
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-var ImportCompareModal = class extends import_obsidian11.Modal {
-  constructor(app, diffs, onConfirm) {
-    super(app);
-    this.diffs = diffs;
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("bangumi-import-compare-modal");
-    contentEl.createEl("h2", { text: tn("userData", "compareTitle") });
-    contentEl.createEl("p", {
-      text: tnFormat("userData", "compareDesc", { count: this.diffs.length }),
-      cls: "bangumi-modal-desc"
-    });
-    const actionBar = contentEl.createDiv({ cls: "bangumi-import-compare-actions" });
-    actionBar.createEl("button", { text: tn("userData", "allLocal") }, (btn) => {
-      btn.addEventListener("click", () => this.batchDecision("local"));
-    });
-    actionBar.createEl("button", { text: tn("userData", "allImport") }, (btn) => {
-      btn.addEventListener("click", () => this.batchDecision("import"));
-    });
-    actionBar.createEl("button", { text: tn("userData", "allSmartMerge") }, (btn) => {
-      btn.addEventListener("click", () => this.batchDecision("merge"));
-    });
-    actionBar.createEl("button", { text: tn("userData", "allSkip") }, (btn) => {
-      btn.addEventListener("click", () => this.batchDecision("skip"));
-    });
-    const listEl = contentEl.createDiv({ cls: "bangumi-import-compare-list" });
-    this.renderDiffList(listEl);
-    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-    buttonDiv.createEl("button", { text: tn("userData", "cancel") }, (btn) => {
-      btn.addEventListener("click", () => this.close());
-    });
-    buttonDiv.createEl("button", {
-      text: tn("userData", "executeImport"),
-      cls: "mod-cta"
-    }, (btn) => {
-      btn.addEventListener("click", () => {
-        this.onConfirm(this.diffs);
-        this.close();
-      });
-    });
-  }
-  renderDiffList(container) {
-    for (const item of this.diffs) {
-      const itemEl = container.createDiv({ cls: "bangumi-import-compare-item" });
-      const headerRow = itemEl.createDiv({ cls: "bangumi-import-compare-header" });
-      headerRow.createEl("span", {
-        text: `${item.name_cn} (ID: ${item.subjectId})`,
-        cls: "bangumi-import-compare-subject"
-      });
-      headerRow.createEl("span", {
-        text: tnFormat("userData", "diffFieldCount", { count: item.diffs.length }),
-        cls: "bangumi-import-compare-diff-count"
-      });
-      const expandBtn = headerRow.createEl("button", {
-        text: tn("statusSyncModal", "expand"),
-        cls: "bangumi-import-compare-expand-btn"
-      });
-      const detailEl = itemEl.createDiv({ cls: "bangumi-import-compare-detail bangumi-hidden" });
-      expandBtn.addEventListener("click", () => {
-        const isHidden = detailEl.hasClass("bangumi-hidden");
-        detailEl.toggleClass("bangumi-hidden", !isHidden);
-        expandBtn.textContent = isHidden ? tn("statusSyncModal", "collapse") : tn("statusSyncModal", "expand");
-      });
-      const table = detailEl.createEl("table", { cls: "bangumi-import-compare-table" });
-      const thead = table.createEl("thead");
-      const headerTr = thead.createEl("tr");
-      headerTr.createEl("th", { text: tn("userData", "field") });
-      headerTr.createEl("th", { text: tn("userData", "localValue") });
-      headerTr.createEl("th", { text: tn("userData", "importValue") });
-      headerTr.createEl("th", { text: tn("userData", "decision") });
-      const tbody = table.createEl("tbody");
-      for (let j = 0; j < item.diffs.length; j++) {
-        const diff = item.diffs[j];
-        const tr = tbody.createEl("tr");
-        tr.createEl("td", { text: diff.fieldName });
-        const localText = diff.localValue != null && diff.localValue !== "" ? formatDisplayValue(diff.localValue) : tn("statusSyncModal", "empty");
-        const importText = diff.importValue != null && diff.importValue !== "" ? formatDisplayValue(diff.importValue) : tn("statusSyncModal", "empty");
-        tr.createEl("td", {
-          text: localText,
-          cls: "bangumi-import-compare-value"
-        });
-        tr.createEl("td", {
-          text: importText,
-          cls: "bangumi-import-compare-value"
-        });
-        const selectCell = tr.createEl("td");
-        const select = selectCell.createEl("select", { cls: "bangumi-import-compare-select" });
-        select.createEl("option", { value: "local", text: tn("userData", "keepLocal") });
-        select.createEl("option", { value: "import", text: tn("userData", "keepImport") });
-        select.createEl("option", { value: "merge", text: tn("userData", "smartMerge") });
-        select.createEl("option", { value: "skip", text: tn("userData", "skip") });
-        select.value = "skip";
-        select.addEventListener("change", () => {
-          diff.decision = select.value;
-        });
-      }
-    }
-  }
-  batchDecision(decision) {
-    for (const item of this.diffs) {
-      for (const diff of item.diffs) {
-        diff.decision = decision;
-      }
-    }
-    const selects = this.contentEl.querySelectorAll(".bangumi-import-compare-select");
-    selects.forEach((select) => {
-      select.value = decision;
-    });
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-var PropertyImportReviewModal = class extends import_obsidian11.Modal {
-  constructor(app, propertyGroups, onConfirm) {
-    super(app);
-    this.currentIndex = 0;
-    this.propertyGroups = propertyGroups;
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    this.render();
-  }
-  render() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("bangumi-property-import-review");
-    if (this.propertyGroups.length === 0) {
-      contentEl.createEl("h2", { text: tn("userData", "propertyReviewTitle") });
-      contentEl.createEl("p", { text: tn("userData", "noDiff"), cls: "bangumi-modal-desc" });
-      const buttonDiv2 = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-      buttonDiv2.createEl("button", { text: tn("userData", "close"), cls: "mod-cta" }, (btn) => {
-        btn.addEventListener("click", () => {
-          this.onConfirm([], []);
-          this.close();
-        });
-      });
-      return;
-    }
-    const group = this.propertyGroups[this.currentIndex];
-    contentEl.createEl("h2", { text: tn("userData", "propertyReviewTitle") });
-    contentEl.createEl("p", {
-      text: tnFormat("userData", "propertyReviewProgress", {
-        current: this.currentIndex + 1,
-        total: this.propertyGroups.length,
-        field: group.fieldName
-      }),
-      cls: "bangumi-modal-desc"
-    });
-    const actionBar = contentEl.createDiv({ cls: "bangumi-import-compare-actions" });
-    actionBar.createEl("button", { text: tn("userData", "allLocal") }, (btn) => {
-      btn.addEventListener("click", () => this.applyGroupDecision(group, "local"));
-    });
-    actionBar.createEl("button", { text: tn("userData", "allImport") }, (btn) => {
-      btn.addEventListener("click", () => this.applyGroupDecision(group, "import"));
-    });
-    actionBar.createEl("button", { text: tn("userData", "smartMerge") }, (btn) => {
-      btn.addEventListener("click", () => this.applyGroupDecision(group, "merge"));
-    });
-    actionBar.createEl("button", { text: tn("userData", "allSkip") }, (btn) => {
-      btn.addEventListener("click", () => this.applyGroupDecision(group, "skip"));
-    });
-    const listEl = contentEl.createDiv({ cls: "bangumi-import-compare-list" });
-    for (const diffEntry of group.diffs) {
-      const itemEl = listEl.createDiv({ cls: "bangumi-import-compare-item" });
-      itemEl.createEl("div", {
-        text: `${diffEntry.item.name_cn} (ID: ${diffEntry.item.subjectId})`,
-        cls: "bangumi-import-compare-subject"
-      });
-      const table = itemEl.createEl("table", { cls: "bangumi-import-compare-table" });
-      const tbody = table.createEl("tbody");
-      const tr = tbody.createEl("tr");
-      tr.createEl("td", { text: tn("userData", "localValue") });
-      tr.createEl("td", {
-        text: formatDisplayValue(diffEntry.diff.localValue),
-        cls: "bangumi-import-compare-value"
-      });
-      const tr2 = tbody.createEl("tr");
-      tr2.createEl("td", { text: tn("userData", "importValue") });
-      tr2.createEl("td", {
-        text: formatDisplayValue(diffEntry.diff.importValue),
-        cls: "bangumi-import-compare-value"
-      });
-      const decisionRow = itemEl.createDiv({ cls: "bangumi-missing-field-actions" });
-      addDecisionButton(decisionRow, tn("userData", "keepLocal"), () => {
-        diffEntry.diff.decision = "local";
-        this.render();
-      });
-      addDecisionButton(decisionRow, tn("userData", "keepImport"), () => {
-        diffEntry.diff.decision = "import";
-        this.render();
-      });
-      addDecisionButton(decisionRow, tn("userData", "smartMerge"), () => {
-        diffEntry.diff.decision = "merge";
-        this.render();
-      });
-      addDecisionButton(decisionRow, tn("userData", "skip"), () => {
-        diffEntry.diff.decision = "skip";
-        this.render();
-      });
-      itemEl.createEl("div", {
-        text: `${tn("userData", "decision")}: ${decisionLabel(diffEntry.diff.decision)}`,
-        cls: "bangumi-import-compare-diff-count"
-      });
-    }
-    for (const missingField of group.missingFields) {
-      const itemEl = listEl.createDiv({ cls: "bangumi-missing-field-item" });
-      itemEl.createEl("div", {
-        text: `${missingField.subjectName} (ID: ${missingField.subjectId})`,
-        cls: "bangumi-missing-field-subject"
-      });
-      itemEl.createEl("div", {
-        text: formatDisplayValue(missingField.fieldValue),
-        cls: "bangumi-missing-field-value"
-      });
-      const actionEl = itemEl.createDiv({ cls: "bangumi-missing-field-actions" });
-      addDecisionButton(actionEl, tn("userData", "addField"), () => {
-        missingField.decision = "add";
-        this.render();
-      });
-      addDecisionButton(actionEl, tn("userData", "skipField"), () => {
-        missingField.decision = "skip";
-        this.render();
-      });
-      itemEl.createEl("div", {
-        text: `${tn("userData", "decision")}: ${missingDecisionLabel(missingField.decision)}`,
-        cls: "bangumi-import-compare-diff-count"
-      });
-    }
-    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-    if (this.currentIndex > 0) {
-      buttonDiv.createEl("button", { text: tn("userData", "previousProperty") }, (btn) => {
-        btn.addEventListener("click", () => {
-          this.currentIndex--;
-          this.render();
-        });
-      });
-    }
-    if (this.currentIndex < this.propertyGroups.length - 1) {
-      buttonDiv.createEl("button", { text: tn("userData", "nextProperty"), cls: "mod-cta" }, (btn) => {
-        btn.addEventListener("click", () => {
-          this.currentIndex++;
-          this.render();
-        });
-      });
-    } else {
-      buttonDiv.createEl("button", { text: tn("userData", "executeImport"), cls: "mod-cta" }, (btn) => {
-        btn.addEventListener("click", () => {
-          this.onConfirm(extractDiffs(this.propertyGroups), extractMissingFields(this.propertyGroups));
-          this.close();
-        });
-      });
-    }
-  }
-  applyGroupDecision(group, decision) {
-    for (const diff of group.diffs) {
-      diff.diff.decision = decision;
-    }
-    for (const missingField of group.missingFields) {
-      missingField.decision = decision === "skip" || decision === "local" ? "skip" : "add";
-    }
-    this.render();
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-var ImportResultModal = class extends import_obsidian11.Modal {
-  constructor(app, result) {
-    super(app);
-    this.result = result;
-    this.importer = new UserDataImporter(app);
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("bangumi-import-result");
-    contentEl.createEl("h2", { text: tn("userData", "importResultTitle") });
-    const statsEl = contentEl.createDiv({ cls: "bangumi-import-result-stats" });
-    statsEl.createEl("div", { text: tnFormat("userData", "importSuccess", { count: this.result.success }) });
-    if (this.result.autoImported > 0) {
-      statsEl.createEl("div", { text: tnFormat("userData", "autoImported", { count: this.result.autoImported }) });
-    }
-    statsEl.createEl("div", { text: tnFormat("userData", "importSkipped", { count: this.result.skipped }) });
-    if (this.result.errors.length > 0) {
-      statsEl.createEl("div", {
-        text: tnFormat("userData", "importErrors", { count: this.result.errors.length }),
-        cls: "bangumi-import-result-error"
-      });
-    }
-    if (this.result.missingFields.length > 0) {
-      contentEl.createEl("p", {
-        text: tnFormat("userData", "missingFieldPrompt", { count: this.result.missingFields.length })
-      });
-      const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-      buttonDiv.createEl("button", {
-        text: tn("userData", "handleMissingFields"),
-        cls: "mod-cta"
-      }, (btn) => {
-        btn.addEventListener("click", () => {
-          this.close();
-          const modal = new MissingFieldModal(
-            this.app,
-            this.result.missingFields,
-            (decisions) => void this.applyDecisions(decisions)
-          );
-          modal.open();
-        });
-      });
-      buttonDiv.createEl("button", { text: tn("userData", "skipMissingFields") }, (btn) => {
-        btn.addEventListener("click", () => this.close());
-      });
-    } else {
-      const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
-      buttonDiv.createEl("button", {
-        text: tn("userData", "close"),
-        cls: "mod-cta"
-      }, (btn) => {
-        btn.addEventListener("click", () => this.close());
-      });
-    }
-  }
-  async applyDecisions(decisions) {
-    await this.importer.applyMissingFieldDecisions(decisions);
-    new import_obsidian11.Notice(tnFormat("userData", "missingFieldsApplied", { count: decisions.filter((d) => d.decision === "add").length }));
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-};
-function formatDisplayValue(value) {
-  if (typeof value === "string")
-    return value;
-  if (typeof value === "number" || typeof value === "boolean")
-    return String(value);
-  if (Array.isArray(value))
-    return value.join(", ");
-  if (typeof value === "object" && value !== null)
-    return JSON.stringify(value);
-  return "";
-}
-function groupByProperty(diffs, missingFields) {
-  var _a, _b;
-  const grouped = /* @__PURE__ */ new Map();
-  for (const item of diffs) {
-    for (const diff of item.diffs) {
-      const group = (_a = grouped.get(diff.fieldName)) != null ? _a : {
-        fieldName: diff.fieldName,
-        diffs: [],
-        missingFields: []
-      };
-      group.diffs.push({
-        kind: "diff",
-        item,
-        diff
-      });
-      grouped.set(diff.fieldName, group);
-    }
-  }
-  for (const missingField of missingFields) {
-    const group = (_b = grouped.get(missingField.fieldName)) != null ? _b : {
-      fieldName: missingField.fieldName,
-      diffs: [],
-      missingFields: []
-    };
-    group.missingFields.push(missingField);
-    grouped.set(missingField.fieldName, group);
-  }
-  return Array.from(grouped.values()).sort((left, right) => left.fieldName.localeCompare(right.fieldName, "zh-CN"));
-}
-function extractDiffs(groups) {
-  var _a;
-  const grouped = /* @__PURE__ */ new Map();
-  for (const group of groups) {
-    for (const entry of group.diffs) {
-      const existing = (_a = grouped.get(entry.item.subjectId)) != null ? _a : {
-        subjectId: entry.item.subjectId,
-        name_cn: entry.item.name_cn,
-        diffs: [],
-        hasDiff: true
-      };
-      existing.diffs.push(entry.diff);
-      grouped.set(entry.item.subjectId, existing);
-    }
-  }
-  return Array.from(grouped.values());
-}
-function extractMissingFields(groups) {
-  return groups.flatMap((group) => group.missingFields);
-}
-function addDecisionButton(container, text, onClick) {
-  container.createEl("button", { text }, (btn) => {
-    btn.addEventListener("click", onClick);
-  });
-}
-function decisionLabel(decision) {
-  switch (decision) {
-    case "local":
-      return tn("userData", "keepLocal");
-    case "import":
-      return tn("userData", "keepImport");
-    case "merge":
-      return tn("userData", "smartMerge");
-    case "skip":
-      return tn("userData", "skip");
-    default:
-      return tn("statusSyncModal", "empty");
-  }
-}
-function missingDecisionLabel(decision) {
-  switch (decision) {
-    case "add":
-      return tn("userData", "addField");
-    case "skip":
-      return tn("userData", "skipField");
-    default:
-      return tn("statusSyncModal", "empty");
-  }
-}
-function updateDataTypeSelection(selected, dataType, enabled) {
-  const next = new Set(selected);
-  if (enabled) {
-    next.add(dataType);
-  } else {
-    next.delete(dataType);
-  }
-  return Array.from(next);
-}
 
 // src/template/templateProperties.ts
 var IDENTIFIER_PROPERTY_NAMES = /* @__PURE__ */ new Set([
@@ -8740,19 +7338,875 @@ function parseInputTemplateVariable(rawValue) {
   return AUTO_FILLED_TEMPLATE_VARS.has(variableName) ? void 0 : variableName;
 }
 
+// src/sync/subjectPathResolver.ts
+function appendSuffix(path, suffix) {
+  const normalized = normalizePathValue(path);
+  return limitPathLength(normalized.toLocaleLowerCase("en-US").endsWith(".md") ? `${normalized.slice(0, -3)}${suffix}.md` : `${normalized}${suffix}.md`);
+}
+function collisionSuffix(candidate, useYearOnly) {
+  var _a, _b;
+  const year = (_b = (_a = candidate.year) == null ? void 0 : _a.match(/^\d{4}$/)) == null ? void 0 : _b[0];
+  if (year && useYearOnly) {
+    return `\uFF08${year}\uFF09`;
+  }
+  if (year) {
+    return `\uFF08${year}\uFF09[bgm-${candidate.subjectId}]`;
+  }
+  return `[bgm-${candidate.subjectId}]`;
+}
+var SubjectPathResolver = class {
+  plan(candidates, occupiedPaths = /* @__PURE__ */ new Map()) {
+    var _a;
+    const byId = /* @__PURE__ */ new Map();
+    for (const candidate of candidates) {
+      if (byId.has(candidate.subjectId)) {
+        throw new Error(`Duplicate subject ${candidate.subjectId} in path planning input.`);
+      }
+      byId.set(candidate.subjectId, {
+        ...candidate,
+        preferredPath: normalizePathValue(candidate.preferredPath),
+        currentPath: candidate.currentPath ? normalizePathValue(candidate.currentPath) : void 0
+      });
+    }
+    const sortedCandidates = Array.from(byId.values()).sort((left, right) => {
+      const pathOrder = normalizePathCollisionKey(left.preferredPath).localeCompare(normalizePathCollisionKey(right.preferredPath), "en-US");
+      return pathOrder || left.subjectId - right.subjectId;
+    });
+    const reservations = new Map(occupiedPaths);
+    const collisionGroups = /* @__PURE__ */ new Map();
+    for (const candidate of sortedCandidates) {
+      const currentKey = candidate.currentPath ? normalizePathCollisionKey(candidate.currentPath) : void 0;
+      const preferredKey = normalizePathCollisionKey(candidate.preferredPath);
+      const group = (_a = collisionGroups.get(preferredKey)) != null ? _a : [];
+      group.push(candidate);
+      collisionGroups.set(preferredKey, group);
+      if (candidate.currentPath) {
+        reservations.set(currentKey, candidate.subjectId);
+      }
+    }
+    const allocations = /* @__PURE__ */ new Map();
+    const renamed = [];
+    for (const group of collisionGroups.values()) {
+      if (group.length < 2)
+        continue;
+      const movable = group.filter((candidate) => !candidate.currentPath || (candidate.namingState === "managed" || candidate.namingState === "inferred-managed") && normalizePathCollisionKey(candidate.currentPath) === normalizePathCollisionKey(candidate.preferredPath));
+      for (const candidate of movable) {
+        if (candidate.currentPath) {
+          reservations.delete(normalizePathCollisionKey(candidate.currentPath));
+        }
+      }
+      const years = group.map((candidate) => {
+        var _a2, _b, _c;
+        return (_c = (_b = (_a2 = candidate.year) == null ? void 0 : _a2.match(/^\d{4}$/)) == null ? void 0 : _b[0]) != null ? _c : "";
+      });
+      const useYearOnly = years.every(Boolean) && new Set(years).size === group.length;
+      for (const candidate of movable) {
+        const finalPath = this.reserveUnique(
+          appendSuffix(candidate.preferredPath, collisionSuffix(candidate, useYearOnly)),
+          candidate.subjectId,
+          reservations
+        );
+        const renameFrom = candidate.currentPath && normalizePathCollisionKey(candidate.currentPath) !== normalizePathCollisionKey(finalPath) ? candidate.currentPath : void 0;
+        allocations.set(candidate.subjectId, {
+          subjectId: candidate.subjectId,
+          preferredPath: candidate.preferredPath,
+          finalPath,
+          collisionResolved: true,
+          ...renameFrom ? { renameFrom } : {}
+        });
+        if (renameFrom) {
+          renamed.push({ subjectId: candidate.subjectId, from: renameFrom, to: finalPath });
+        }
+      }
+    }
+    for (const candidate of sortedCandidates) {
+      if (allocations.has(candidate.subjectId))
+        continue;
+      if (candidate.currentPath) {
+        allocations.set(candidate.subjectId, {
+          subjectId: candidate.subjectId,
+          preferredPath: candidate.preferredPath,
+          finalPath: candidate.currentPath,
+          collisionResolved: false
+        });
+        continue;
+      }
+      const preferredOwner = reservations.get(normalizePathCollisionKey(candidate.preferredPath));
+      const needsSuffix = preferredOwner !== void 0 && preferredOwner !== candidate.subjectId;
+      const proposedPath = needsSuffix ? appendSuffix(candidate.preferredPath, collisionSuffix(candidate, false)) : candidate.preferredPath;
+      const finalPath = this.reserveUnique(proposedPath, candidate.subjectId, reservations);
+      allocations.set(candidate.subjectId, {
+        subjectId: candidate.subjectId,
+        preferredPath: candidate.preferredPath,
+        finalPath,
+        collisionResolved: normalizePathCollisionKey(finalPath) !== normalizePathCollisionKey(candidate.preferredPath)
+      });
+    }
+    return { allocations, renamed };
+  }
+  reserveUnique(path, subjectId, reservations) {
+    let candidatePath = path;
+    let attempt = 1;
+    while (true) {
+      const key = normalizePathCollisionKey(candidatePath);
+      const owner = reservations.get(key);
+      if (owner === void 0 || owner === subjectId) {
+        reservations.set(key, subjectId);
+        return candidatePath;
+      }
+      attempt++;
+      candidatePath = appendSuffix(path, `\uFF3B${attempt}\uFF3D`);
+    }
+  }
+};
+
+// src/sync/syncTransaction.ts
+var import_obsidian10 = require("obsidian");
+
+// src/sync/recoveryContent.ts
+var SHA256_INITIAL = [
+  1779033703,
+  3144134277,
+  1013904242,
+  2773480762,
+  1359893119,
+  2600822924,
+  528734635,
+  1541459225
+];
+var SHA256_ROUND = [
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+];
+function rotateRight(value, count) {
+  return value >>> count | value << 32 - count;
+}
+function sha256Fallback(bytes) {
+  const bitLength = bytes.length * 8;
+  const paddedLength = Math.ceil((bytes.length + 9) / 64) * 64;
+  const padded = new Uint8Array(paddedLength);
+  padded.set(bytes);
+  padded[bytes.length] = 128;
+  const view = new DataView(padded.buffer);
+  view.setUint32(paddedLength - 8, Math.floor(bitLength / 4294967296), false);
+  view.setUint32(paddedLength - 4, bitLength >>> 0, false);
+  const hash = [...SHA256_INITIAL];
+  const words = new Uint32Array(64);
+  for (let offset = 0; offset < paddedLength; offset += 64) {
+    for (let index = 0; index < 16; index++)
+      words[index] = view.getUint32(offset + index * 4, false);
+    for (let index = 16; index < 64; index++) {
+      const s0 = rotateRight(words[index - 15], 7) ^ rotateRight(words[index - 15], 18) ^ words[index - 15] >>> 3;
+      const s1 = rotateRight(words[index - 2], 17) ^ rotateRight(words[index - 2], 19) ^ words[index - 2] >>> 10;
+      words[index] = words[index - 16] + s0 + words[index - 7] + s1 >>> 0;
+    }
+    let [a, b, c, d, e, f, g, h] = hash;
+    for (let index = 0; index < 64; index++) {
+      const sum1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
+      const choice = e & f ^ ~e & g;
+      const temp1 = h + sum1 + choice + SHA256_ROUND[index] + words[index] >>> 0;
+      const sum0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
+      const majority = a & b ^ a & c ^ b & c;
+      const temp2 = sum0 + majority >>> 0;
+      h = g;
+      g = f;
+      f = e;
+      e = d + temp1 >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = temp1 + temp2 >>> 0;
+    }
+    hash[0] = hash[0] + a >>> 0;
+    hash[1] = hash[1] + b >>> 0;
+    hash[2] = hash[2] + c >>> 0;
+    hash[3] = hash[3] + d >>> 0;
+    hash[4] = hash[4] + e >>> 0;
+    hash[5] = hash[5] + f >>> 0;
+    hash[6] = hash[6] + g >>> 0;
+    hash[7] = hash[7] + h >>> 0;
+  }
+  return hash.map((value) => value.toString(16).padStart(8, "0")).join("");
+}
+async function hashRecoveryContent(content) {
+  const bytes = new TextEncoder().encode(content);
+  const subtle = typeof crypto === "undefined" ? void 0 : crypto.subtle;
+  if (!subtle)
+    return sha256Fallback(bytes);
+  const digest = await subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+// src/sync/syncTransaction.ts
+var SyncTransaction = class {
+  constructor(app, fileManager, beforeVaultMutation) {
+    this.app = app;
+    this.fileManager = fileManager;
+    this.beforeVaultMutation = beforeVaultMutation;
+    this.createdFiles = [];
+    this.updatedContents = /* @__PURE__ */ new Map();
+    this.renames = [];
+    this.plannedCreatedFiles = [];
+    this.state = "active";
+  }
+  getState() {
+    return this.state;
+  }
+  hasChanges() {
+    return this.state === "active" && (this.createdFiles.length > 0 || this.updatedContents.size > 0 || this.renames.some((rename) => rename.phase !== "original"));
+  }
+  hasRecordedChanges() {
+    return this.createdFiles.length > 0 || this.updatedContents.size > 0 || this.renames.some((rename) => rename.phase !== "original");
+  }
+  commit() {
+    if (this.state !== "active")
+      return;
+    this.state = "committed";
+    this.createdFiles.length = 0;
+    this.updatedContents.clear();
+    this.renames.length = 0;
+  }
+  getRenameCount() {
+    return this.renames.filter((rename) => rename.phase === "final").length;
+  }
+  async getRecoveryExpectations() {
+    const createdFiles = [...this.createdFiles.map((item) => ({
+      subjectId: item.subjectId,
+      createdPath: item.createdPath,
+      expectedToExistAfterRollback: false
+    })), ...this.plannedCreatedFiles.map((item) => ({ ...item }))];
+    const updatedContents = await Promise.all(Array.from(this.updatedContents, async ([file, original]) => {
+      var _a;
+      const rename = this.renames.find((item) => item.file === file);
+      return {
+        subjectId: original.subjectId,
+        path: (_a = rename == null ? void 0 : rename.from) != null ? _a : original.path,
+        expectedContentHash: await hashRecoveryContent(original.content),
+        originalContentLength: original.content.length,
+        originalContent: original.content
+      };
+    }));
+    const renames = this.renames.map((rename) => ({
+      subjectId: rename.subjectId,
+      originalPath: rename.from,
+      temporaryPath: rename.temporaryPath,
+      finalPath: rename.to,
+      expectedTerminalPath: rename.from
+    }));
+    return { createdFiles, updatedContents, renames };
+  }
+  async executeRenames(renames) {
+    var _a;
+    this.assertActive();
+    if (renames.length === 0)
+      return;
+    const sources = /* @__PURE__ */ new Map();
+    const targets = /* @__PURE__ */ new Set();
+    for (const rename of renames) {
+      const from = (0, import_obsidian10.normalizePath)(rename.from);
+      const to = (0, import_obsidian10.normalizePath)(rename.to);
+      const targetKey = normalizePathCollisionKey(to);
+      if (targets.has(targetKey))
+        throw new Error(`Duplicate rename target: ${to}`);
+      const file = await this.fileManager.assertPathOwnership(from, rename.subjectId);
+      if (!file)
+        throw new Error(`Rename source does not exist: ${from}`);
+      const entry = { ...rename, from, to, file, phase: "original" };
+      sources.set(normalizePathCollisionKey(from), entry);
+      targets.add(targetKey);
+      this.renames.push(entry);
+    }
+    for (const rename of sources.values()) {
+      const target = this.fileManager.getFile(rename.to);
+      if (target && !sources.has(normalizePathCollisionKey(rename.to))) {
+        throw new Error(`Rename target is occupied by an unplanned file: ${rename.to}`);
+      }
+    }
+    let index = 0;
+    for (const entry of sources.values()) {
+      entry.temporaryPath = await this.findTemporaryPath(entry.from, entry.subjectId, index++);
+    }
+    await ((_a = this.beforeVaultMutation) == null ? void 0 : _a.call(this, await this.getRecoveryExpectations()));
+    for (const entry of sources.values()) {
+      await this.app.fileManager.renameFile(entry.file, entry.temporaryPath);
+      entry.phase = "temporary";
+    }
+    for (const entry of sources.values()) {
+      await this.fileManager.ensureDirectory(entry.to);
+      await this.app.fileManager.renameFile(entry.file, entry.to);
+      entry.phase = "final";
+    }
+  }
+  async createOrUpdateFile(path, content, options) {
+    var _a;
+    this.assertActive();
+    const existing = await this.fileManager.assertPathOwnership(path, options.subjectId);
+    if (existing && !this.updatedContents.has(existing)) {
+      this.updatedContents.set(existing, {
+        content: await this.app.vault.read(existing),
+        subjectId: options.subjectId,
+        path: existing.path
+      });
+    }
+    const planned = existing ? null : { subjectId: options.subjectId, createdPath: (0, import_obsidian10.normalizePath)(path), expectedToExistAfterRollback: false };
+    if (planned)
+      this.plannedCreatedFiles.push(planned);
+    await ((_a = this.beforeVaultMutation) == null ? void 0 : _a.call(this, await this.getRecoveryExpectations()));
+    let result;
+    try {
+      result = await this.fileManager.createOrUpdateFile(path, content, options);
+    } finally {
+      if (planned)
+        this.plannedCreatedFiles.splice(this.plannedCreatedFiles.indexOf(planned), 1);
+    }
+    if (result.status === "created")
+      this.createdFiles.push({ file: result.file, subjectId: options.subjectId, createdPath: (0, import_obsidian10.normalizePath)(path) });
+    if (result.status !== "updated" && existing)
+      this.updatedContents.delete(existing);
+    return result;
+  }
+  async rollback() {
+    const result = {
+      attempted: false,
+      changed: false,
+      deletedCreatedFiles: 0,
+      restoredContents: 0,
+      restoredPaths: 0,
+      failed: 0
+    };
+    if (this.state !== "active" && this.state !== "rollback-failed")
+      return result;
+    result.attempted = this.hasRecordedChanges() || this.state === "rollback-failed";
+    for (const created of [...this.createdFiles].reverse()) {
+      try {
+        await this.app.fileManager.trashFile(created.file);
+        result.deletedCreatedFiles++;
+        this.createdFiles.splice(this.createdFiles.indexOf(created), 1);
+      } catch (error) {
+        this.recordRollbackFailure(result, "delete-created", created.createdPath, error);
+      }
+    }
+    for (const [file, original] of this.updatedContents) {
+      try {
+        await this.app.vault.process(file, () => original.content);
+        result.restoredContents++;
+        this.updatedContents.delete(file);
+      } catch (error) {
+        this.recordRollbackFailure(result, "restore-content", file.path, error);
+      }
+    }
+    let index = 0;
+    for (const rename of this.renames) {
+      if (rename.phase !== "final")
+        continue;
+      try {
+        rename.temporaryPath = await this.findTemporaryPath(rename.to, rename.subjectId, index++);
+        await this.app.fileManager.renameFile(rename.file, rename.temporaryPath);
+        rename.phase = "temporary";
+      } catch (error) {
+        this.recordRollbackFailure(result, "stage-path", rename.to, error);
+      }
+    }
+    for (const rename of [...this.renames].reverse()) {
+      if (rename.phase !== "temporary")
+        continue;
+      try {
+        await this.fileManager.ensureDirectory(rename.from);
+        await this.app.fileManager.renameFile(rename.file, rename.from);
+        rename.phase = "original";
+        result.restoredPaths++;
+      } catch (error) {
+        this.recordRollbackFailure(result, "restore-path", rename.from, error);
+      }
+    }
+    result.changed = result.deletedCreatedFiles + result.restoredContents + result.restoredPaths > 0;
+    this.state = result.failed > 0 ? "rollback-failed" : "rolled-back";
+    return result;
+  }
+  recordRollbackFailure(result, operation, path, error) {
+    var _a;
+    result.failed++;
+    result.failures = [...(_a = result.failures) != null ? _a : [], {
+      operation,
+      path,
+      message: error instanceof Error ? error.message : String(error)
+    }];
+  }
+  assertActive() {
+    if (this.state !== "active")
+      throw new Error(`Cannot use a ${this.state} sync transaction.`);
+  }
+  async findTemporaryPath(sourcePath, subjectId, index) {
+    const slash = sourcePath.lastIndexOf("/");
+    const directory = slash >= 0 ? sourcePath.slice(0, slash + 1) : "";
+    let attempt = 0;
+    while (true) {
+      const path = (0, import_obsidian10.normalizePath)(`${directory}.bangumi-sync-${subjectId}-${index}-${attempt}.tmp.md`);
+      if (!await this.fileManager.fileExists(path))
+        return path;
+      attempt++;
+    }
+  }
+};
+
+// src/sync/recoveryValidation.ts
+function collectSubjectExpectationDiagnostics(expectations, registry) {
+  var _a;
+  const diagnostics = [];
+  for (const expectation of expectations) {
+    const record = registry.getById(expectation.subjectId);
+    if (!expectation.expectedToExist) {
+      if (record) {
+        diagnostics.push({
+          code: "unexpected-subject-file",
+          subjectId: expectation.subjectId,
+          actualPath: record.path,
+          message: `Subject ${expectation.subjectId} was absent before the batch but exists at ${record.path}.`
+        });
+      }
+      continue;
+    }
+    const expectedPath = expectation.expectedPath;
+    if (expectedPath) {
+      const actualSubjectId = registry.getPathOwner(expectedPath);
+      const expectedSubjectId = (_a = expectation.expectedSubjectId) != null ? _a : expectation.subjectId;
+      if (actualSubjectId !== void 0 && actualSubjectId !== expectedSubjectId) {
+        diagnostics.push({
+          code: "subject-identity-mismatch",
+          subjectId: expectation.subjectId,
+          expectedPath,
+          actualSubjectId,
+          message: `${expectedPath} belongs to subject ${actualSubjectId}, expected subject ${expectedSubjectId}.`
+        });
+        continue;
+      }
+    }
+    if (!record) {
+      diagnostics.push({
+        code: "missing-subject-file",
+        subjectId: expectation.subjectId,
+        expectedPath,
+        message: `Subject ${expectation.subjectId} existed before the batch but is now missing.`
+      });
+      continue;
+    }
+    if (expectedPath && normalizePathCollisionKey(record.path) !== normalizePathCollisionKey(expectedPath)) {
+      diagnostics.push({
+        code: "subject-path-mismatch",
+        subjectId: expectation.subjectId,
+        expectedPath,
+        actualPath: record.path,
+        message: `Subject ${expectation.subjectId} is at ${record.path}, expected ${expectedPath}.`
+      });
+    }
+  }
+  return diagnostics;
+}
+function subjectPathStateEqual(left, right) {
+  return left.subjectId === right.subjectId && normalizePathCollisionKey(left.currentPath) === normalizePathCollisionKey(right.currentPath) && (left.lastManagedPath ? normalizePathCollisionKey(left.lastManagedPath) : void 0) === (right.lastManagedPath ? normalizePathCollisionKey(right.lastManagedPath) : void 0) && left.namingState === right.namingState;
+}
+function pathStatesEqual(left, right) {
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  if (leftKeys.length !== rightKeys.length || leftKeys.some((key, index) => key !== rightKeys[index]))
+    return false;
+  return leftKeys.every((key) => subjectPathStateEqual(left[key], right[key]));
+}
+
+// src/sync/syncConfig.ts
+function cloneRecord(value) {
+  return value ? { ...value } : void 0;
+}
+function cloneSyncManagerConfig(config) {
+  return {
+    ...config,
+    pathTemplateByType: cloneRecord(config.pathTemplateByType),
+    customTemplates: cloneRecord(config.customTemplates),
+    dataProtection: config.dataProtection ? { ...config.dataProtection } : void 0,
+    subjectPathStates: config.subjectPathStates ? Object.fromEntries(Object.entries(config.subjectPathStates).map(([key, state]) => [key, { ...state }])) : void 0
+  };
+}
+function recordsEqual(left, right) {
+  if (left === right)
+    return true;
+  if (!left || !right)
+    return false;
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index] && left[key] === right[key]);
+}
+function syncConfigFieldEqual(left, right, field) {
+  var _a, _b;
+  switch (field) {
+    case "pathTemplateByType":
+    case "customTemplates":
+      return recordsEqual(left[field], right[field]);
+    case "subjectPathStates":
+      return pathStatesEqual((_a = left.subjectPathStates) != null ? _a : {}, (_b = right.subjectPathStates) != null ? _b : {});
+    case "dataProtection": {
+      const a = left.dataProtection;
+      const b = right.dataProtection;
+      return a === b || Boolean(a && b && a.preserveRatingDetails === b.preserveRatingDetails && a.preserveCustomProperties === b.preserveCustomProperties && a.preserveRecord === b.preserveRecord && a.preserveThoughts === b.preserveThoughts);
+    }
+    default:
+      return left[field] === right[field];
+  }
+}
+
+// src/sync/recoveryJournal.ts
+var RECOVERY_JOURNAL_PATH = ".bangumi-sync-recovery.json";
+var RECOVERY_JOURNAL_TEMP_PATH = ".bangumi-sync-recovery.tmp.json";
+var RECOVERY_JOURNAL_PREVIOUS_PATH = ".bangumi-sync-recovery.previous.json";
+var RecoveryJournalStore = class {
+  constructor(app) {
+    this.app = app;
+    this.writeQueue = Promise.resolve();
+  }
+  write(journal) {
+    const run = this.writeQueue.then(() => this.writeNow(journal));
+    this.writeQueue = run.then(() => void 0, () => void 0);
+    return run;
+  }
+  async writeNow(journal) {
+    const adapter = this.app.vault.adapter;
+    const serialized = JSON.stringify({ ...journal, updatedAt: Date.now() }, null, 2);
+    await adapter.write(RECOVERY_JOURNAL_TEMP_PATH, serialized);
+    if (await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH))
+      await adapter.remove(RECOVERY_JOURNAL_PREVIOUS_PATH);
+    if (await adapter.exists(RECOVERY_JOURNAL_PATH))
+      await adapter.rename(RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH);
+    try {
+      await adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PATH);
+    } catch (error) {
+      if (!await adapter.exists(RECOVERY_JOURNAL_PATH) && await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH)) {
+        await adapter.rename(RECOVERY_JOURNAL_PREVIOUS_PATH, RECOVERY_JOURNAL_PATH);
+      }
+      throw error;
+    }
+    if (await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH))
+      await adapter.remove(RECOVERY_JOURNAL_PREVIOUS_PATH);
+  }
+  async load() {
+    const adapter = this.app.vault.adapter;
+    const hasCurrent = await adapter.exists(RECOVERY_JOURNAL_PATH);
+    const hasPrevious = await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH);
+    const temporaryFilePresent = await adapter.exists(RECOVERY_JOURNAL_TEMP_PATH);
+    if (!hasCurrent && !hasPrevious && temporaryFilePresent) {
+      const backupPath = `.bangumi-sync-recovery.corrupt-temp-${Date.now()}.json`;
+      await adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, backupPath);
+      return { status: "corrupt", message: "Only an interrupted temporary recovery journal remained.", backupPath };
+    }
+    if (!hasCurrent && !hasPrevious)
+      return { status: "none" };
+    if (temporaryFilePresent) {
+      const interruptedPath = `.bangumi-sync-recovery.interrupted-${Date.now()}.json`;
+      await adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, interruptedPath);
+    }
+    const sourcePath = hasCurrent ? RECOVERY_JOURNAL_PATH : RECOVERY_JOURNAL_PREVIOUS_PATH;
+    let parsed;
+    try {
+      parsed = JSON.parse(await adapter.read(sourcePath));
+    } catch (error) {
+      const backupPath = `.bangumi-sync-recovery.corrupt-${Date.now()}.json`;
+      await adapter.rename(sourcePath, backupPath);
+      return { status: "corrupt", message: error instanceof Error ? error.message : String(error), backupPath };
+    }
+    const schemaVersion = parsed == null ? void 0 : parsed.schemaVersion;
+    if (schemaVersion !== 1) {
+      const backupPath = `.bangumi-sync-recovery.unsupported-${Date.now()}.json`;
+      await adapter.rename(sourcePath, backupPath);
+      return { status: "unsupported", schemaVersion, backupPath };
+    }
+    return { status: "loaded", journal: parsed, recoveredFromPrevious: !hasCurrent, temporaryFilePresent };
+  }
+  async clear() {
+    await this.writeQueue;
+    for (const path of [RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH]) {
+      if (await this.app.vault.adapter.exists(path))
+        await this.app.vault.adapter.remove(path);
+    }
+  }
+};
+
+// src/sync/pathDiagnostics.ts
+function formatDiagnosticReport(report) {
+  var _a;
+  const lines = [
+    "# Bangumi Sync local subject diagnostic",
+    "",
+    `- Generated: ${report.generatedAt}`,
+    `- Scan root: ${report.scanRoot}`,
+    `- Valid subjects: ${report.validSubjects}`,
+    `- Issues: ${report.issues.length}`,
+    "",
+    "## Issues",
+    ""
+  ];
+  if (report.issues.length === 0) {
+    lines.push("No issues found.");
+  } else {
+    for (const issue of report.issues) {
+      const identity = issue.subjectId ? ` subject=${issue.subjectId}` : "";
+      const path = issue.path ? ` path=${issue.path}` : "";
+      lines.push(`- **${issue.severity} / ${issue.code}**${identity}${path}: ${issue.message}`);
+      if ((_a = issue.relatedPaths) == null ? void 0 : _a.length) {
+        for (const relatedPath of issue.relatedPaths)
+          lines.push(`  - ${relatedPath}`);
+      }
+    }
+  }
+  return `${lines.join("\n")}
+`;
+}
+
 // src/sync/syncManager.ts
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+var TRANSACTION_SENSITIVE_CONFIG_FIELDS = /* @__PURE__ */ new Set([
+  "scanFolderPath",
+  "pathTemplate",
+  "pathTemplateByType",
+  "pathNamingStrategy",
+  "subjectPathStates",
+  "imagePathTemplate",
+  "notePathTemplate",
+  "coverLinkType",
+  "dataProtection",
+  "enableRelatedLinks",
+  "customTemplates"
+]);
+var PendingSyncTransactionError = class extends Error {
+  constructor() {
+    super("A previous sync batch is awaiting a keep or rollback decision.");
+    this.name = "PendingSyncTransactionError";
+  }
+};
+var PendingDecisionInProgressError = class extends Error {
+  constructor() {
+    super("A previous sync batch decision is still being processed.");
+    this.name = "PendingDecisionInProgressError";
+  }
+};
+var RecoveryRequiredError = class extends Error {
+  constructor(recovery) {
+    super("Bangumi Sync requires local recovery before another sync can start.");
+    this.recovery = recovery;
+    this.name = "RecoveryRequiredError";
+  }
+};
+var ConfigurationChangeBlockedError = class extends Error {
+  constructor(changedFields) {
+    super(`Configuration changes are blocked while recovery state is active: ${changedFields.join(", ")}.`);
+    this.changedFields = changedFields;
+    this.name = "ConfigurationChangeBlockedError";
+  }
+};
+var ConfigurationUpdateInProgressError = class extends Error {
+  constructor() {
+    super("A settings update is in progress. Vault writes and concurrent settings saves are temporarily blocked.");
+    this.name = "ConfigurationUpdateInProgressError";
+  }
+};
+var ManagerReinitializationBlockedError = class extends Error {
+  constructor() {
+    super("SyncManager cannot be reinitialized while transaction or recovery state is active.");
+    this.name = "ManagerReinitializationBlockedError";
+  }
+};
 var SyncManager = class {
   constructor(app, config) {
+    this.activeRecoveryJournal = null;
     this.cancellationSignal = null;
+    this.pathResolver = new SubjectPathResolver();
+    this.pendingTransaction = null;
+    this.batchTransactionState = "none";
+    this.pendingDecisionPromise = null;
+    this.recoveryActionPromise = null;
+    this.recoveryRequired = null;
+    this.recoveryStateListeners = /* @__PURE__ */ new Set();
+    this.managerStateListeners = /* @__PURE__ */ new Set();
+    this.configurationUpdateState = "idle";
+    var _a;
     this.app = app;
-    this.config = config;
+    this.config = cloneSyncManagerConfig(config);
     this.client = new BangumiClient(config.accessToken);
     this.fileManager = new FileManager(app);
     this.imageHandler = new ImageHandler(app, this.fileManager);
+    this.imageHandler.setBeforeCreateHook((path) => this.persistCreatedResourcePath(path));
     this.imageHandler.setDownloadEnabled(config.downloadImages);
     this.incrementalSync = new IncrementalSync(app);
+    this.incrementalSync.setPathStates((_a = config.subjectPathStates) != null ? _a : {});
     this.userDataExtractor = new UserDataExtractor(app);
     this.userDataMerger = new UserDataMerger(app);
+    this.documentService = new SubjectDocumentService(app);
+    this.recoveryJournalStore = new RecoveryJournalStore(app);
+  }
+  async initializeRecovery() {
+    const loaded = await this.recoveryJournalStore.load();
+    if (loaded.status === "loaded") {
+      this.restorePersistentJournal(loaded.journal);
+      return;
+    }
+    if (loaded.status === "corrupt" || loaded.status === "unsupported") {
+      const message = loaded.status === "corrupt" ? `Recovery journal was corrupt and was backed up to ${loaded.backupPath}: ${loaded.message}` : `Recovery journal schema ${String(loaded.schemaVersion)} is unsupported and was backed up to ${loaded.backupPath}.`;
+      const journal = this.createEmptyRecoveryJournal("recovery-required", message);
+      await this.recoveryJournalStore.write(journal);
+      this.restorePersistentJournal(journal, "journal-corrupt");
+      return;
+    }
+    const orphanTemps = await this.findTransactionTemporaryPaths();
+    if (orphanTemps.length > 0) {
+      const journal = this.createEmptyRecoveryJournal("recovery-required");
+      await this.recoveryJournalStore.write(journal);
+      this.restorePersistentJournal(journal, "orphan-temporary");
+    }
+  }
+  async findTransactionTemporaryPaths() {
+    const found = [];
+    const visit = async (directory) => {
+      const listed = await this.app.vault.adapter.list(directory);
+      for (const path of listed.files) {
+        if (/(^|\/)\.bangumi-sync-\d+-\d+-\d+\.tmp\.md$/u.test(path))
+          found.push((0, import_obsidian11.normalizePath)(path));
+      }
+      for (const folder of listed.folders) {
+        if (normalizePathCollisionKey(folder) === normalizePathCollisionKey(this.app.vault.configDir))
+          continue;
+        await visit(folder);
+      }
+    };
+    await visit("");
+    return found;
+  }
+  async requireConfigurationRecovery(error) {
+    const message = `Settings persistence rollback failed: ${errorMessage(error)}`;
+    const journal = this.createEmptyRecoveryJournal("recovery-required", message);
+    this.restorePersistentJournal(journal, "configuration-rollback-failed");
+    await this.recoveryJournalStore.write(journal);
+  }
+  createEmptyRecoveryJournal(state, blockingIssue) {
+    var _a;
+    const now = Date.now();
+    return {
+      schemaVersion: 1,
+      journalId: `recovery-${now}`,
+      pluginVersion: "6.11.0",
+      state,
+      createdAt: now,
+      updatedAt: now,
+      scanRoot: (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN"),
+      affectedSubjectIds: [],
+      originalPathStates: this.clonePathStates((_a = this.config.subjectPathStates) != null ? _a : {}),
+      subjectExpectations: [],
+      contentExpectations: [],
+      createdPathExpectations: [],
+      renameExpectations: [],
+      createdResourcePaths: [],
+      resultSnapshot: this.captureResultSnapshot(this.createSyncResult(), false),
+      attempts: [],
+      blockingIssue
+    };
+  }
+  restorePersistentJournal(journal, forcedReason = "journal-recovered") {
+    this.activeRecoveryJournal = journal;
+    const pending = {
+      transactions: [],
+      groups: [],
+      previousPathStates: this.clonePathStates(journal.originalPathStates),
+      affectedSubjectIds: [...journal.affectedSubjectIds],
+      subjectExpectations: journal.subjectExpectations.map((item) => ({ ...item })),
+      scanRootAtBatchStart: journal.scanRoot,
+      contentExpectations: journal.contentExpectations.map((item) => ({ ...item })),
+      forbiddenPathsAfterRollback: journal.createdPathExpectations.map((item) => item.createdPath),
+      resourcePathsAfterRollback: [...journal.createdResourcePaths],
+      renameExpectations: journal.renameExpectations.map((item) => ({ ...item })),
+      deferredRelations: [],
+      resultSnapshot: journal.resultSnapshot,
+      createdAt: journal.createdAt,
+      state: "rollback-failed",
+      journalIssue: journal.blockingIssue
+    };
+    this.pendingTransaction = pending;
+    this.batchTransactionState = "rollback-failed";
+    this.recoveryRequired = {
+      reason: forcedReason,
+      rollback: this.emptyRollbackResult(),
+      affectedSubjectIds: [...journal.affectedSubjectIds],
+      originalPathStates: this.clonePathStates(journal.originalPathStates),
+      subjectExpectations: journal.subjectExpectations.map((item) => ({ ...item })),
+      scanRoot: journal.scanRoot,
+      contentExpectations: journal.contentExpectations.map((item) => ({ ...item })),
+      forbiddenPathsAfterRollback: journal.createdPathExpectations.map((item) => item.createdPath),
+      resourcePathsAfterRollback: [...journal.createdResourcePaths],
+      renameExpectations: journal.renameExpectations.map((item) => ({ ...item })),
+      attempts: journal.attempts.map((item) => this.cloneRecoveryAttempt(item)),
+      detectedAt: Date.now(),
+      journalIssue: journal.blockingIssue
+    };
+    this.notifyRecoveryStateChanged();
   }
   /**
    * 设置进度回调
@@ -8769,17 +8223,979 @@ var SyncManager = class {
   /**
    * 回滚本次批次新建的文件
    */
-  async rollbackBatch() {
-    return this.incrementalSync.rollbackBatch();
+  rollbackBatch() {
+    return this.resolvePendingBatch("rollback");
+  }
+  getBatchTransactionState() {
+    return this.batchTransactionState;
+  }
+  commitPendingBatch() {
+    return this.resolvePendingBatch("commit");
+  }
+  ensureCanStartSync() {
+    var _a, _b;
+    if (this.configurationUpdateState !== "idle")
+      throw new ConfigurationUpdateInProgressError();
+    if (this.recoveryRequired)
+      throw new RecoveryRequiredError(this.recoveryRequired);
+    if (this.pendingDecisionPromise || this.recoveryActionPromise || ((_a = this.pendingTransaction) == null ? void 0 : _a.state) === "committing" || ((_b = this.pendingTransaction) == null ? void 0 : _b.state) === "rolling-back") {
+      throw new PendingDecisionInProgressError();
+    }
+    if (this.pendingTransaction)
+      throw new PendingSyncTransactionError();
+  }
+  hasActiveTransactionState() {
+    return this.batchTransactionState === "active" || this.pendingTransaction !== null || this.pendingDecisionPromise !== null || this.recoveryRequired !== null || this.recoveryActionPromise !== null || this.configurationUpdateState !== "idle";
+  }
+  assertConfigurationChangeAllowed(changedFields) {
+    var _a, _b;
+    if (this.configurationUpdateState !== "idle")
+      throw new ConfigurationUpdateInProgressError();
+    if (changedFields.length === 0 || !this.hasActiveTransactionState())
+      return;
+    const actionInProgress = this.batchTransactionState === "active" || this.pendingDecisionPromise !== null || this.recoveryActionPromise !== null || ((_a = this.pendingTransaction) == null ? void 0 : _a.state) === "committing" || ((_b = this.pendingTransaction) == null ? void 0 : _b.state) === "rolling-back";
+    const blocked = actionInProgress ? changedFields : changedFields.filter((field) => TRANSACTION_SENSITIVE_CONFIG_FIELDS.has(field));
+    if (blocked.length > 0)
+      throw new ConfigurationChangeBlockedError(blocked);
+  }
+  beginConfigurationUpdate(changedFields) {
+    this.assertConfigurationChangeAllowed(changedFields);
+    const previousConfig = cloneSyncManagerConfig(this.config);
+    this.configurationUpdateState = "persisting";
+    this.notifyManagerStateChanged();
+    let active = true;
+    return {
+      commit: (config) => {
+        if (!active)
+          throw new Error("Configuration update lease has already been released.");
+        this.configurationUpdateState = "applying";
+        this.notifyManagerStateChanged();
+        this.applyConfigSnapshot(config);
+        return Promise.resolve();
+      },
+      rollback: () => {
+        if (!active)
+          return Promise.resolve();
+        this.configurationUpdateState = "rolling-back";
+        this.notifyManagerStateChanged();
+        this.applyConfigSnapshot(previousConfig);
+        return Promise.resolve();
+      },
+      release: () => {
+        if (!active)
+          return;
+        active = false;
+        this.configurationUpdateState = "idle";
+        this.notifyManagerStateChanged();
+      }
+    };
+  }
+  assertCanReinitialize() {
+    if (this.hasActiveTransactionState())
+      throw new ManagerReinitializationBlockedError();
+  }
+  subscribeRecoveryState(listener) {
+    this.recoveryStateListeners.add(listener);
+    return () => this.recoveryStateListeners.delete(listener);
+  }
+  getManagerState() {
+    if (this.configurationUpdateState !== "idle")
+      return "configuration-updating";
+    if (this.recoveryRequired)
+      return "recovery-required";
+    switch (this.batchTransactionState) {
+      case "active":
+        return "running";
+      case "awaiting-user-decision":
+        return "awaiting-decision";
+      case "committing":
+        return "committing";
+      case "rolling-back":
+        return "rolling-back";
+      case "rollback-failed":
+        return "recovery-required";
+      default:
+        return "idle";
+    }
+  }
+  subscribeManagerState(listener) {
+    this.managerStateListeners.add(listener);
+    listener(this.getManagerState());
+    return () => this.managerStateListeners.delete(listener);
+  }
+  getRecoveryRequired() {
+    var _a;
+    return this.recoveryRequired ? {
+      ...this.recoveryRequired,
+      rollback: { ...this.recoveryRequired.rollback, failures: (_a = this.recoveryRequired.rollback.failures) == null ? void 0 : _a.map((item) => ({ ...item })) },
+      originalPathStates: this.clonePathStates(this.recoveryRequired.originalPathStates),
+      affectedSubjectIds: [...this.recoveryRequired.affectedSubjectIds],
+      subjectExpectations: this.recoveryRequired.subjectExpectations.map((item) => ({ ...item })),
+      contentExpectations: this.recoveryRequired.contentExpectations.map((item) => ({ ...item })),
+      forbiddenPathsAfterRollback: [...this.recoveryRequired.forbiddenPathsAfterRollback],
+      resourcePathsAfterRollback: [...this.recoveryRequired.resourcePathsAfterRollback],
+      renameExpectations: this.recoveryRequired.renameExpectations.map((item) => ({ ...item })),
+      attempts: this.recoveryRequired.attempts.map((item) => this.cloneRecoveryAttempt(item)),
+      latestAttempt: this.recoveryRequired.latestAttempt ? this.cloneRecoveryAttempt(this.recoveryRequired.latestAttempt) : void 0
+    } : null;
+  }
+  retryRecovery() {
+    return this.resolveRecoveryAction("retry-rollback");
+  }
+  confirmManualRecovery() {
+    return this.resolveRecoveryAction("confirm-manual");
+  }
+  rescanRecovery() {
+    return this.resolveRecoveryAction("rescan");
   }
   /**
    * 更新配置
    */
-  updateConfig(config) {
+  updateConfig(config, changedFields = Object.keys(config)) {
+    this.assertConfigurationChangeAllowed(changedFields);
+    this.applyConfigSnapshot({ ...this.config, ...config });
+  }
+  applyConfigSnapshot(config) {
+    var _a, _b;
+    this.config = cloneSyncManagerConfig(config);
+    if (Object.prototype.hasOwnProperty.call(config, "accessToken"))
+      this.client.setAccessToken((_a = config.accessToken) != null ? _a : "");
+    if (Object.prototype.hasOwnProperty.call(config, "downloadImages"))
+      this.imageHandler.setDownloadEnabled((_b = config.downloadImages) != null ? _b : false);
+    if (Object.prototype.hasOwnProperty.call(config, "subjectPathStates") && config.subjectPathStates) {
+      this.incrementalSync.setPathStates(config.subjectPathStates);
+    }
+  }
+  notifyRecoveryStateChanged() {
+    const snapshot = this.getRecoveryRequired();
+    for (const listener of this.recoveryStateListeners) {
+      try {
+        listener(snapshot);
+      } catch (e) {
+      }
+    }
+    this.notifyManagerStateChanged();
+  }
+  notifyManagerStateChanged() {
+    const state = this.getManagerState();
+    for (const listener of this.managerStateListeners) {
+      try {
+        listener(state);
+      } catch (e) {
+      }
+    }
+  }
+  async persistPathStates() {
+    const states = this.incrementalSync.exportPathStates();
+    await this.persistSpecificPathStates(states);
+  }
+  async persistSpecificPathStates(states) {
+    var _a, _b;
+    await ((_b = (_a = this.config).onPathStatesChanged) == null ? void 0 : _b.call(_a, states));
+    this.config = cloneSyncManagerConfig({ ...this.config, subjectPathStates: this.clonePathStates(states) });
+    this.incrementalSync.setPathStates(states);
+  }
+  clonePathStates(states) {
+    return Object.fromEntries(Object.entries(states).map(([id, state]) => [id, { ...state }]));
+  }
+  cloneRecoveryAttempt(attempt) {
     var _a;
-    this.config = { ...this.config, ...config };
-    this.client.setAccessToken(config.accessToken || "");
-    this.imageHandler.setDownloadEnabled((_a = config.downloadImages) != null ? _a : true);
+    return {
+      ...attempt,
+      diagnostics: attempt.diagnostics.map((item) => ({ ...item })),
+      rollback: attempt.rollback ? { ...attempt.rollback, failures: (_a = attempt.rollback.failures) == null ? void 0 : _a.map((item) => ({ ...item })) } : void 0
+    };
+  }
+  async captureTransactionRecoveryFacts(transactions) {
+    var _a, _b;
+    const contentExpectations = [];
+    const forbiddenPathsAfterRollback = [];
+    const renameExpectations = [];
+    for (const transaction of transactions) {
+      const expectations = await transaction.getRecoveryExpectations();
+      contentExpectations.push(...expectations.updatedContents.map((item) => ({ ...item })));
+      forbiddenPathsAfterRollback.push(...expectations.createdFiles.map((item) => item.createdPath));
+      renameExpectations.push(...expectations.renames.map((item) => ({ ...item })));
+    }
+    return {
+      contentExpectations,
+      forbiddenPathsAfterRollback: Array.from(new Set(forbiddenPathsAfterRollback.map(import_obsidian11.normalizePath))),
+      resourcePathsAfterRollback: [...(_b = (_a = this.activeRecoveryJournal) == null ? void 0 : _a.createdResourcePaths) != null ? _b : []],
+      renameExpectations
+    };
+  }
+  mergeActiveJournalFacts(facts) {
+    if (!this.activeRecoveryJournal)
+      return;
+    const byCreatedPath = new Map(this.activeRecoveryJournal.createdPathExpectations.map((item) => [normalizePathCollisionKey(item.createdPath), item]));
+    for (const item of facts.createdFiles)
+      byCreatedPath.set(normalizePathCollisionKey(item.createdPath), { ...item });
+    this.activeRecoveryJournal.createdPathExpectations = Array.from(byCreatedPath.values());
+    const byContentPath = new Map(this.activeRecoveryJournal.contentExpectations.map((item) => [normalizePathCollisionKey(item.path), item]));
+    for (const item of facts.updatedContents)
+      byContentPath.set(normalizePathCollisionKey(item.path), { ...item });
+    this.activeRecoveryJournal.contentExpectations = Array.from(byContentPath.values());
+    const byRename = new Map(this.activeRecoveryJournal.renameExpectations.map((item) => [item.subjectId, item]));
+    for (const item of facts.renames)
+      byRename.set(item.subjectId, { ...item });
+    this.activeRecoveryJournal.renameExpectations = Array.from(byRename.values());
+  }
+  async persistBeforeVaultMutation(facts) {
+    if (!this.activeRecoveryJournal)
+      throw new Error("Recovery journal is not active before a Vault mutation.");
+    this.mergeActiveJournalFacts(facts);
+    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+  }
+  async persistCreatedResourcePath(path) {
+    if (!this.activeRecoveryJournal)
+      return;
+    const normalized = (0, import_obsidian11.normalizePath)(path);
+    if (!this.activeRecoveryJournal.createdResourcePaths.some((item) => normalizePathCollisionKey(item) === normalizePathCollisionKey(normalized))) {
+      this.activeRecoveryJournal.createdResourcePaths.push(normalized);
+    }
+    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+  }
+  async beginCoverUpdateJournal(subjectId, file, originalContent) {
+    var _a;
+    const now = Date.now();
+    this.activeRecoveryJournal = {
+      schemaVersion: 1,
+      journalId: `cover-${subjectId}-${now}`,
+      pluginVersion: "6.11.0",
+      state: "active",
+      createdAt: now,
+      updatedAt: now,
+      scanRoot: (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN"),
+      affectedSubjectIds: [subjectId],
+      originalPathStates: this.clonePathStates((_a = this.config.subjectPathStates) != null ? _a : {}),
+      subjectExpectations: [{ subjectId, expectedToExist: true, expectedPath: file.path, expectedSubjectId: subjectId }],
+      contentExpectations: [{
+        subjectId,
+        path: file.path,
+        expectedContentHash: await hashRecoveryContent(originalContent),
+        originalContentLength: originalContent.length,
+        originalContent
+      }],
+      createdPathExpectations: [],
+      renameExpectations: [],
+      createdResourcePaths: [],
+      resultSnapshot: this.captureResultSnapshot(this.createSyncResult(1), false),
+      attempts: []
+    };
+    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+  }
+  journalFromPending(pending, state) {
+    var _a, _b, _c;
+    const current = (_a = this.activeRecoveryJournal) != null ? _a : this.createEmptyRecoveryJournal(state);
+    return {
+      ...current,
+      state,
+      updatedAt: Date.now(),
+      scanRoot: pending.scanRootAtBatchStart,
+      affectedSubjectIds: [...pending.affectedSubjectIds],
+      originalPathStates: this.clonePathStates(pending.previousPathStates),
+      subjectExpectations: pending.subjectExpectations.map((item) => ({ ...item })),
+      contentExpectations: pending.contentExpectations.map((item) => ({ ...item })),
+      createdPathExpectations: pending.forbiddenPathsAfterRollback.map((path) => {
+        var _a2;
+        return (_a2 = current.createdPathExpectations.find((item) => normalizePathCollisionKey(item.createdPath) === normalizePathCollisionKey(path))) != null ? _a2 : { subjectId: -1, createdPath: path, expectedToExistAfterRollback: false };
+      }),
+      createdResourcePaths: [...pending.resourcePathsAfterRollback],
+      renameExpectations: pending.renameExpectations.map((item) => ({ ...item })),
+      resultSnapshot: pending.resultSnapshot,
+      attempts: (_c = (_b = this.recoveryRequired) == null ? void 0 : _b.attempts.map((item) => this.cloneRecoveryAttempt(item))) != null ? _c : current.attempts,
+      blockingIssue: pending.journalIssue
+    };
+  }
+  async persistPendingJournal(pending, state) {
+    this.activeRecoveryJournal = this.journalFromPending(pending, state);
+    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+  }
+  resolveRecoveryAction(action) {
+    if (this.recoveryActionPromise)
+      return this.recoveryActionPromise;
+    if (!this.recoveryRequired || !this.pendingTransaction) {
+      return Promise.resolve({ action, status: "no-recovery", recovered: true, diagnostics: [] });
+    }
+    const startedAt = Date.now();
+    const promise = this.performRecoveryAction(action, startedAt);
+    this.recoveryActionPromise = promise;
+    promise.then(
+      () => {
+        if (this.recoveryActionPromise === promise)
+          this.recoveryActionPromise = null;
+      },
+      () => {
+        if (this.recoveryActionPromise === promise)
+          this.recoveryActionPromise = null;
+      }
+    );
+    return promise;
+  }
+  async performRecoveryAction(action, startedAt) {
+    var _a, _b, _c, _d;
+    const recovery = this.recoveryRequired;
+    const pending = this.pendingTransaction;
+    if (!recovery || !pending)
+      return { action, status: "no-recovery", recovered: true, diagnostics: [] };
+    let outcome;
+    try {
+      if (action === "retry-rollback") {
+        pending.state = "rolling-back";
+        this.batchTransactionState = "rolling-back";
+        const decision = await this.rollbackPendingTransaction(pending);
+        const diagnostics = decision.status === "rollback-failed" ? this.rollbackFailureDiagnostics(decision.rollback) : [];
+        outcome = {
+          action,
+          status: decision.status === "rolled-back" ? "rolled-back" : "rollback-failed",
+          recovered: decision.status === "rolled-back",
+          diagnostics,
+          result: decision.result,
+          rollback: decision.rollback,
+          error: decision.error,
+          recovery: (_a = this.getRecoveryRequired()) != null ? _a : void 0
+        };
+      } else if (action === "confirm-manual") {
+        outcome = await this.performManualRecovery(recovery, pending);
+      } else {
+        const diagnostics = await this.collectRecoveryDiagnostics(recovery);
+        outcome = {
+          action,
+          status: "blocked",
+          recovered: false,
+          diagnostics,
+          recovery: (_b = this.getRecoveryRequired()) != null ? _b : void 0
+        };
+      }
+    } catch (error) {
+      outcome = {
+        action,
+        status: "failed",
+        recovered: false,
+        diagnostics: [],
+        error: errorMessage(error),
+        recovery: (_c = this.getRecoveryRequired()) != null ? _c : void 0
+      };
+    }
+    const attempt = {
+      action,
+      status: outcome.status,
+      startedAt,
+      finishedAt: Date.now(),
+      diagnostics: outcome.diagnostics.map((item) => ({ ...item })),
+      rollback: outcome.rollback,
+      error: outcome.error
+    };
+    if (this.recoveryRequired) {
+      this.recoveryRequired.attempts.push(attempt);
+      this.recoveryRequired.latestAttempt = attempt;
+      outcome.recovery = (_d = this.getRecoveryRequired()) != null ? _d : void 0;
+      this.notifyRecoveryStateChanged();
+      await this.persistPendingJournal(pending, "recovery-required");
+    } else if (outcome.recovered) {
+      outcome.attempts = [...recovery.attempts, attempt].map((item) => this.cloneRecoveryAttempt(item));
+    }
+    return outcome;
+  }
+  async performManualRecovery(recovery, pending) {
+    var _a, _b, _c, _d;
+    let diagnostics = await this.collectRecoveryDiagnostics(recovery);
+    if (diagnostics.length > 0) {
+      return { action: "confirm-manual", status: "blocked", recovered: false, diagnostics, recovery: (_a = this.getRecoveryRequired()) != null ? _a : void 0 };
+    }
+    try {
+      await this.persistSpecificPathStates(recovery.originalPathStates);
+    } catch (error) {
+      diagnostics = [{ code: "state-restore-failed", message: errorMessage(error) }];
+      return { action: "confirm-manual", status: "failed", recovered: false, diagnostics, error: errorMessage(error), recovery: (_b = this.getRecoveryRequired()) != null ? _b : void 0 };
+    }
+    if (!pathStatesEqual((_c = this.config.subjectPathStates) != null ? _c : {}, recovery.originalPathStates)) {
+      diagnostics.push({ code: "persisted-state-mismatch", message: "Persisted subject path states differ from the pre-batch snapshot." });
+    }
+    if (diagnostics.length === 0)
+      diagnostics = await this.collectRecoveryDiagnostics(recovery);
+    if (diagnostics.length === 0)
+      this.incrementalSync.setPathStates(recovery.originalPathStates);
+    if (diagnostics.length > 0) {
+      return { action: "confirm-manual", status: "blocked", recovered: false, diagnostics, recovery: (_d = this.getRecoveryRequired()) != null ? _d : void 0 };
+    }
+    const finalRollback = {
+      attempted: false,
+      changed: false,
+      deletedCreatedFiles: 0,
+      restoredContents: 0,
+      restoredPaths: 0,
+      failed: 0,
+      failures: []
+    };
+    const result = this.snapshotAfterDecision(pending, "rolled-back", finalRollback);
+    this.recoveryRequired = null;
+    this.pendingTransaction = null;
+    this.pendingDecisionPromise = null;
+    this.batchTransactionState = "rolled-back";
+    this.incrementalSync.clearBatch();
+    await this.recoveryJournalStore.clear();
+    this.activeRecoveryJournal = null;
+    this.notifyRecoveryStateChanged();
+    return {
+      action: "confirm-manual",
+      status: "recovered",
+      recovered: true,
+      diagnostics: [],
+      result,
+      rollback: finalRollback,
+      resolution: {
+        method: "manual-verification",
+        currentFailed: 0,
+        automaticallyDeletedCreatedFiles: 0,
+        automaticallyRestoredContents: 0,
+        automaticallyRestoredPaths: 0,
+        manuallyVerifiedSubjects: recovery.subjectExpectations.length,
+        manuallyVerifiedContents: recovery.contentExpectations.length,
+        manuallyVerifiedAbsentPaths: recovery.forbiddenPathsAfterRollback.length + recovery.resourcePathsAfterRollback.length,
+        manuallyVerifiedRenames: recovery.renameExpectations.length,
+        historicalFailedAttempts: recovery.attempts.filter((attempt) => attempt.status === "rollback-failed" || attempt.status === "failed").length
+      }
+    };
+  }
+  rollbackFailureDiagnostics(rollback) {
+    var _a;
+    return ((_a = rollback == null ? void 0 : rollback.failures) != null ? _a : []).map((failure) => failure.operation === "restore-path-states" ? { code: "state-restore-failed", message: `${failure.path}: ${failure.message}` } : failure.operation === "rescan" ? { code: "rescan-failed", message: `${failure.path}: ${failure.message}` } : { code: "rollback-step-failed", operation: failure.operation, path: failure.path, message: failure.message });
+  }
+  emptyRollbackResult() {
+    return { attempted: false, changed: false, deletedCreatedFiles: 0, restoredContents: 0, restoredPaths: 0, failed: 0 };
+  }
+  mergeRollbackResult(target, source) {
+    var _a, _b;
+    target.attempted = target.attempted || source.attempted;
+    target.changed = target.changed || source.changed;
+    target.deletedCreatedFiles += source.deletedCreatedFiles;
+    target.restoredContents += source.restoredContents;
+    target.restoredPaths += source.restoredPaths;
+    target.failed += source.failed;
+    if ((_a = source.failures) == null ? void 0 : _a.length)
+      target.failures = [...(_b = target.failures) != null ? _b : [], ...source.failures];
+  }
+  assertNoPendingTransaction() {
+    this.ensureCanStartSync();
+  }
+  resolvePendingBatch(action) {
+    if (this.pendingDecisionPromise)
+      return this.pendingDecisionPromise;
+    const pending = this.pendingTransaction;
+    if (!pending)
+      return Promise.resolve({ status: "no-pending" });
+    if (pending.state !== "awaiting")
+      return Promise.resolve({ status: "busy" });
+    pending.state = action === "commit" ? "committing" : "rolling-back";
+    this.batchTransactionState = action === "commit" ? "committing" : "rolling-back";
+    this.notifyManagerStateChanged();
+    const promise = action === "commit" ? this.commitPendingTransaction(pending) : this.rollbackPendingTransaction(pending);
+    this.pendingDecisionPromise = promise;
+    promise.then(() => {
+      this.pendingDecisionPromise = null;
+    }, () => {
+      this.pendingDecisionPromise = null;
+    });
+    return promise;
+  }
+  async commitPendingTransaction(pending) {
+    try {
+      await this.persistPendingJournal(pending, "awaiting-decision");
+      await this.persistPathStates();
+      for (const transaction of pending.transactions)
+        transaction.commit();
+    } catch (error) {
+      pending.state = "rolling-back";
+      this.batchTransactionState = "rolling-back";
+      return this.rollbackPendingTransaction(pending, error);
+    }
+    let warnings = [];
+    try {
+      warnings = pending.deferredRelations.length > 0 ? await this.postProcessBatchRelations(pending.deferredRelations) : [];
+    } catch (error) {
+      warnings = [{ operation: "related-link-postprocess", message: errorMessage(error) }];
+    }
+    const result = this.snapshotAfterDecision(pending, "committed", void 0, warnings);
+    pending.state = "committed";
+    this.pendingTransaction = null;
+    this.batchTransactionState = "committed";
+    this.incrementalSync.finishBatch();
+    await this.recoveryJournalStore.clear();
+    this.activeRecoveryJournal = null;
+    return { status: "committed", result, warnings };
+  }
+  async rollbackPendingTransaction(pending, cause) {
+    var _a, _b, _c;
+    const result = this.emptyRollbackResult();
+    await this.persistPendingJournal(pending, "rolling-back");
+    for (const transaction of [...pending.transactions].reverse()) {
+      try {
+        this.mergeRollbackResult(result, await transaction.rollback());
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "restore-content", "transaction", error);
+      }
+    }
+    if (pending.transactions.length === 0)
+      await this.rollbackPersistentFacts(pending, result);
+    for (const path of [...pending.resourcePathsAfterRollback].reverse()) {
+      try {
+        if (!await this.app.vault.adapter.exists(path))
+          continue;
+        const referenced = (await Promise.all(this.app.vault.getMarkdownFiles().map((file) => this.app.vault.read(file)))).some((content) => content.includes(path));
+        if (referenced)
+          continue;
+        await this.app.vault.adapter.remove(path);
+        result.attempted = true;
+        result.changed = true;
+        result.deletedCreatedFiles++;
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "delete-created", path, error);
+      }
+    }
+    try {
+      this.incrementalSync.setPathStates(pending.previousPathStates);
+      await this.persistSpecificPathStates(pending.previousPathStates);
+    } catch (error) {
+      this.recordManagerRollbackFailure(result, "restore-path-states", "subjectPathStates", error);
+    }
+    try {
+      await this.incrementalSync.scanLocalFolder(pending.scanRootAtBatchStart);
+    } catch (error) {
+      this.recordManagerRollbackFailure(result, "rescan", pending.scanRootAtBatchStart, error);
+    }
+    this.incrementalSync.clearBatch();
+    this.markGroupsRolledBack(pending);
+    this.lastAutomaticRollback = result;
+    const failed = result.failed > 0;
+    const snapshot = this.snapshotAfterDecision(
+      pending,
+      failed ? "rollback-failed" : "rolled-back",
+      result,
+      cause ? [{ operation: "commit", message: errorMessage(cause) }] : []
+    );
+    if (failed) {
+      pending.state = "rollback-failed";
+      this.batchTransactionState = "rollback-failed";
+      const operations = new Set((_a = result.failures) == null ? void 0 : _a.map((item) => item.operation));
+      const existingRecovery = this.recoveryRequired;
+      const automaticAttempt = {
+        action: "automatic-rollback",
+        status: "rollback-failed",
+        startedAt: Date.now(),
+        finishedAt: Date.now(),
+        diagnostics: this.rollbackFailureDiagnostics(result),
+        rollback: result
+      };
+      this.recoveryRequired = {
+        reason: operations.has("rescan") ? "rescan-failed" : operations.has("restore-path-states") ? "state-restore-failed" : "rollback-failed",
+        rollback: result,
+        affectedSubjectIds: [...pending.affectedSubjectIds],
+        originalPathStates: this.clonePathStates(pending.previousPathStates),
+        subjectExpectations: pending.subjectExpectations.map((item) => ({ ...item })),
+        scanRoot: pending.scanRootAtBatchStart,
+        contentExpectations: pending.contentExpectations.map((item) => ({ ...item })),
+        forbiddenPathsAfterRollback: [...pending.forbiddenPathsAfterRollback],
+        resourcePathsAfterRollback: [...pending.resourcePathsAfterRollback],
+        renameExpectations: pending.renameExpectations.map((item) => ({ ...item })),
+        attempts: (_b = existingRecovery == null ? void 0 : existingRecovery.attempts.map((item) => this.cloneRecoveryAttempt(item))) != null ? _b : [automaticAttempt],
+        latestAttempt: (existingRecovery == null ? void 0 : existingRecovery.latestAttempt) ? this.cloneRecoveryAttempt(existingRecovery.latestAttempt) : automaticAttempt,
+        detectedAt: (_c = existingRecovery == null ? void 0 : existingRecovery.detectedAt) != null ? _c : Date.now(),
+        journalIssue: pending.journalIssue
+      };
+      await this.persistPendingJournal(pending, "rollback-failed");
+      this.notifyRecoveryStateChanged();
+      return { status: "rollback-failed", result: snapshot, rollback: result, error: cause ? errorMessage(cause) : void 0 };
+    }
+    pending.state = "rolled-back";
+    this.pendingTransaction = null;
+    this.recoveryRequired = null;
+    this.batchTransactionState = "rolled-back";
+    await this.recoveryJournalStore.clear();
+    this.activeRecoveryJournal = null;
+    this.notifyRecoveryStateChanged();
+    return { status: "rolled-back", result: snapshot, rollback: result, error: cause ? errorMessage(cause) : void 0 };
+  }
+  async rollbackPersistentFacts(pending, result) {
+    var _a;
+    for (const path of [...pending.forbiddenPathsAfterRollback].reverse()) {
+      const file = this.findVaultFilesByCollisionPath(path)[0];
+      if (!file)
+        continue;
+      try {
+        await this.app.fileManager.trashFile(file);
+        result.attempted = true;
+        result.changed = true;
+        result.deletedCreatedFiles++;
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "delete-created", path, error);
+      }
+    }
+    for (const expectation of pending.contentExpectations) {
+      const file = this.findVaultFilesByCollisionPath(expectation.path)[0];
+      if (!file) {
+        this.recordManagerRollbackFailure(result, "restore-content", expectation.path, new Error("Original content file is missing."));
+        continue;
+      }
+      try {
+        const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(file));
+        if (identity.subjectId !== expectation.subjectId)
+          throw new Error(`File belongs to subject ${String(identity.subjectId)}, expected ${expectation.subjectId}.`);
+        await this.app.vault.process(file, () => expectation.originalContent);
+        result.attempted = true;
+        result.changed = true;
+        result.restoredContents++;
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "restore-content", expectation.path, error);
+      }
+    }
+    for (const rename of [...pending.renameExpectations].reverse()) {
+      if (this.findVaultFilesByCollisionPath(rename.originalPath).length > 0)
+        continue;
+      const sourceFile = (_a = rename.temporaryPath ? this.findVaultFilesByCollisionPath(rename.temporaryPath)[0] : null) != null ? _a : this.findVaultFilesByCollisionPath(rename.finalPath)[0];
+      const hiddenTemporaryPath = !sourceFile && rename.temporaryPath && await this.app.vault.adapter.exists(rename.temporaryPath) ? rename.temporaryPath : null;
+      if (!sourceFile && !hiddenTemporaryPath) {
+        this.recordManagerRollbackFailure(result, "restore-path", rename.originalPath, new Error("No recorded rename path exists."));
+        continue;
+      }
+      try {
+        const content = sourceFile ? await this.app.vault.read(sourceFile) : await this.app.vault.adapter.read(hiddenTemporaryPath);
+        const identity = this.documentService.getSubjectIdentityFromContent(content);
+        if (identity.subjectId !== rename.subjectId)
+          throw new Error(`Rename source belongs to subject ${String(identity.subjectId)}, expected ${rename.subjectId}.`);
+        await this.fileManager.ensureDirectory(rename.originalPath);
+        if (sourceFile)
+          await this.app.fileManager.renameFile(sourceFile, rename.originalPath);
+        else
+          await this.app.vault.adapter.rename(hiddenTemporaryPath, rename.originalPath);
+        result.attempted = true;
+        result.changed = true;
+        result.restoredPaths++;
+      } catch (error) {
+        this.recordManagerRollbackFailure(result, "restore-path", rename.originalPath, error);
+      }
+    }
+  }
+  recordManagerRollbackFailure(result, operation, path, error) {
+    var _a;
+    result.attempted = true;
+    result.failed++;
+    result.failures = [...(_a = result.failures) != null ? _a : [], { operation, path, message: errorMessage(error) }];
+  }
+  markGroupsRolledBack(pending) {
+    const snapshot = pending.resultSnapshot;
+    this.markOutcomeIndexesRolledBack(snapshot, pending.groups);
+  }
+  markOutcomeIndexesRolledBack(result, groups) {
+    for (const group of groups) {
+      for (const index of group.outcomeIndexes) {
+        const outcome = result.outcomes[index];
+        if (!outcome)
+          continue;
+        if (outcome.pathAction !== "rolled-back")
+          outcome.attemptedPathAction = outcome.pathAction;
+        if (outcome.writeAction !== "rolled-back")
+          outcome.attemptedWriteAction = outcome.writeAction;
+        if (outcome.pathAction === "renamed" || outcome.writeAction === "created" || outcome.writeAction === "updated") {
+          outcome.pathAction = "rolled-back";
+          outcome.writeAction = "rolled-back";
+        }
+      }
+    }
+  }
+  snapshotAfterDecision(pending, completion, rollback, warnings = []) {
+    const snapshot = pending.resultSnapshot;
+    snapshot.warnings.push(...warnings);
+    snapshot.canRollback = false;
+    if (rollback)
+      snapshot.rollback = rollback;
+    this.finalizeSyncResult(snapshot, snapshot.wasCancelled);
+    if (completion !== "committed")
+      snapshot.completion = completion;
+    snapshot.success = completion === "committed" && snapshot.failed === 0;
+    return snapshot;
+  }
+  findVaultFilesByCollisionPath(path) {
+    const normalized = (0, import_obsidian11.normalizePath)(path);
+    const exact = this.app.vault.getAbstractFileByPath(normalized);
+    const matches = this.app.vault.getMarkdownFiles().filter((file) => normalizePathCollisionKey(file.path) === normalizePathCollisionKey(normalized));
+    if (exact instanceof import_obsidian11.TFile) {
+      return [exact, ...matches.filter((file) => file !== exact)];
+    }
+    return matches;
+  }
+  recordAmbiguousConcretePath(path, files, diagnostics) {
+    if (files.length <= 1)
+      return;
+    diagnostics.push({
+      code: "blocking-local-file",
+      path,
+      message: `Multiple case-equivalent files match the recovery path: ${files.map((file) => file.path).join(", ")}.`
+    });
+  }
+  async collectRecoveryDiagnostics(recovery) {
+    var _a, _b, _c;
+    const diagnostics = [];
+    if (recovery.journalIssue)
+      diagnostics.push({
+        code: "blocking-local-file",
+        path: ".bangumi-sync-recovery.json",
+        message: recovery.journalIssue
+      });
+    try {
+      await this.incrementalSync.scanLocalFolder(recovery.scanRoot);
+    } catch (error) {
+      diagnostics.push({ code: "rescan-failed", message: errorMessage(error) });
+      return diagnostics;
+    }
+    const registry = this.incrementalSync.getRegistry();
+    for (const issue of registry.invalidFiles) {
+      if (issue.severity === "blocking-error")
+        diagnostics.push({ code: "blocking-local-file", path: issue.path, message: `${issue.code}: ${issue.message}` });
+    }
+    for (const [subjectId, paths] of registry.duplicateIds)
+      diagnostics.push({
+        code: "duplicate-subject-id",
+        subjectId,
+        paths: [...paths],
+        message: `Subject ${subjectId} appears in multiple files.`
+      });
+    for (const path of await this.findTransactionTemporaryPaths())
+      diagnostics.push({
+        code: "temporary-file",
+        path,
+        message: "Temporary transaction file remains in the vault."
+      });
+    diagnostics.push(...collectSubjectExpectationDiagnostics(recovery.subjectExpectations, registry));
+    for (const expectation of recovery.contentExpectations) {
+      const matches = this.findVaultFilesByCollisionPath(expectation.path);
+      this.recordAmbiguousConcretePath(expectation.path, matches, diagnostics);
+      const file = matches[0];
+      if (!file) {
+        diagnostics.push({ code: "content-file-missing", subjectId: expectation.subjectId, path: expectation.path, message: "The pre-batch file is missing." });
+        continue;
+      }
+      const content = await this.app.vault.read(file);
+      const actualHash = await hashRecoveryContent(content);
+      if (actualHash !== expectation.expectedContentHash || content.length !== expectation.originalContentLength)
+        diagnostics.push({
+          code: "content-mismatch",
+          subjectId: expectation.subjectId,
+          path: expectation.path,
+          expectedHash: expectation.expectedContentHash,
+          actualHash,
+          message: `Original content hash ${expectation.expectedContentHash.slice(0, 8)} does not match ${actualHash.slice(0, 8)}.`
+        });
+    }
+    for (const path of recovery.forbiddenPathsAfterRollback) {
+      const matches = this.findVaultFilesByCollisionPath(path);
+      this.recordAmbiguousConcretePath(path, matches, diagnostics);
+      const file = matches[0];
+      if (!file)
+        continue;
+      const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(file));
+      diagnostics.push({
+        code: "unexpected-created-path",
+        path,
+        actualSubjectId: (_a = identity.subjectId) != null ? _a : void 0,
+        message: `The concrete path created by the failed batch still exists: ${file.path}.`
+      });
+    }
+    for (const path of recovery.resourcePathsAfterRollback) {
+      if (await this.app.vault.adapter.exists(path))
+        diagnostics.push({
+          code: "unexpected-created-path",
+          path,
+          message: `A cover resource created by the failed batch still exists: ${path}.`
+        });
+    }
+    for (const rename of recovery.renameExpectations) {
+      const originals = this.findVaultFilesByCollisionPath(rename.expectedTerminalPath);
+      this.recordAmbiguousConcretePath(rename.expectedTerminalPath, originals, diagnostics);
+      const original = originals[0];
+      if (!original) {
+        diagnostics.push({
+          code: "missing-subject-file",
+          subjectId: rename.subjectId,
+          expectedPath: rename.expectedTerminalPath,
+          message: `Renamed subject ${rename.subjectId} is not at its expected recovery path.`
+        });
+      } else {
+        const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(original));
+        if (identity.subjectId !== rename.subjectId)
+          diagnostics.push({
+            code: "subject-identity-mismatch",
+            subjectId: rename.subjectId,
+            expectedPath: rename.expectedTerminalPath,
+            actualSubjectId: (_b = identity.subjectId) != null ? _b : -1,
+            message: `${original.path} does not belong to renamed subject ${rename.subjectId}.`
+          });
+      }
+      if (rename.temporaryPath) {
+        if (await this.app.vault.adapter.exists(rename.temporaryPath))
+          diagnostics.push({
+            code: "temporary-file",
+            path: rename.temporaryPath,
+            message: "A recorded rename temporary path still exists."
+          });
+      }
+      if (normalizePathCollisionKey(rename.finalPath) !== normalizePathCollisionKey(rename.expectedTerminalPath)) {
+        for (const final of this.findVaultFilesByCollisionPath(rename.finalPath))
+          diagnostics.push({
+            code: "unexpected-created-path",
+            path: final.path,
+            actualSubjectId: (_c = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(final)).subjectId) != null ? _c : void 0,
+            message: "The failed rename final path still exists."
+          });
+      }
+    }
+    const seen = /* @__PURE__ */ new Set();
+    return diagnostics.filter((item) => {
+      const key = JSON.stringify(item);
+      if (seen.has(key))
+        return false;
+      seen.add(key);
+      return true;
+    });
+  }
+  async diagnoseLocalSubjects() {
+    const scanRoot = this.config.scanFolderPath || "ACGN";
+    await this.incrementalSync.scanLocalFolder(scanRoot);
+    const registry = this.incrementalSync.getRegistry();
+    const issues = registry.invalidFiles.map((problem) => ({ ...problem }));
+    const preferredGroups = /* @__PURE__ */ new Map();
+    await this.processConcurrently(Array.from(registry.idToRecord.values()), 3, async (record) => {
+      var _a;
+      if (record.namingState !== "managed") {
+        issues.push({
+          severity: "needs-user-decision",
+          code: record.namingState === "user-renamed" ? "user-renamed" : "unknown-path-state",
+          message: record.namingState === "user-renamed" ? "The current filename is user-managed and will not be renamed automatically." : "No previous managed-path state exists; automatic rename is disabled.",
+          subjectId: record.subjectId,
+          path: record.path
+        });
+      }
+      try {
+        const subject = await this.client.getSubject(record.subjectId);
+        const preferredPath = this.generatePreferredPath(subject);
+        const key = normalizePathCollisionKey(preferredPath);
+        const group = (_a = preferredGroups.get(key)) != null ? _a : [];
+        group.push({ subjectId: record.subjectId, path: preferredPath });
+        preferredGroups.set(key, group);
+      } catch (error) {
+        issues.push({
+          severity: "needs-user-decision",
+          code: "subject-lookup-failed",
+          message: error instanceof Error ? error.message : String(error),
+          subjectId: record.subjectId,
+          path: record.path
+        });
+      }
+    });
+    for (const group of preferredGroups.values()) {
+      if (group.length < 2)
+        continue;
+      issues.push({
+        severity: "needs-user-decision",
+        code: "template-path-collision",
+        message: `The current template maps ${group.length} subjects to the same normalized path.`,
+        subjectId: group[0].subjectId,
+        path: group[0].path,
+        relatedPaths: group.map((item) => `${item.subjectId}: ${item.path}`)
+      });
+    }
+    return {
+      generatedAt: new Date().toISOString(),
+      scanRoot,
+      validSubjects: registry.idToRecord.size,
+      issues
+    };
+  }
+  async exportDiagnosticReport(report) {
+    const actualReport = report != null ? report : await this.diagnoseLocalSubjects();
+    const stamp = actualReport.generatedAt.replace(/[:.]/g, "-");
+    const path = `Bangumi Sync/Diagnostics/diagnostic-${stamp}.md`;
+    await this.fileManager.ensureDirectory(path);
+    await this.app.vault.create(path, formatDiagnosticReport(actualReport));
+    return path;
+  }
+  async previewPathMigration(options = {}) {
+    await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+    const registry = this.incrementalSync.getRegistry();
+    const selected = Array.from(registry.idToRecord.values()).filter(
+      (record) => record.namingState === "managed" || record.namingState === "unknown" && options.includeUnknown || record.namingState === "user-renamed" && options.includeUserRenamed
+    );
+    const selectedIds = new Set(selected.map((record) => record.subjectId));
+    const occupied = new Map(registry.pathToId);
+    for (const record of selected)
+      occupied.delete(normalizePathCollisionKey(record.path));
+    const details = /* @__PURE__ */ new Map();
+    const failures = /* @__PURE__ */ new Map();
+    await this.processConcurrently(selected, 3, async (record) => {
+      try {
+        details.set(record.subjectId, await this.client.getSubject(record.subjectId));
+      } catch (error) {
+        failures.set(record.subjectId, error instanceof Error ? error.message : String(error));
+      }
+    });
+    const candidates = selected.flatMap((record) => {
+      const subject = details.get(record.subjectId);
+      if (!subject)
+        return [];
+      return [{
+        subjectId: record.subjectId,
+        preferredPath: this.generatePreferredPath(subject),
+        year: extractPathVars(subject).year,
+        namingState: "managed"
+      }];
+    });
+    const plan = this.pathResolver.plan(candidates, occupied);
+    const entries = Array.from(registry.idToRecord.values()).map((record) => {
+      var _a;
+      if (!selectedIds.has(record.subjectId)) {
+        return {
+          subjectId: record.subjectId,
+          name: record.nameCn,
+          from: record.path,
+          to: record.path,
+          namingState: record.namingState,
+          status: "protected",
+          reason: "User-renamed or unknown paths require explicit inclusion."
+        };
+      }
+      const error = failures.get(record.subjectId);
+      if (error) {
+        return { subjectId: record.subjectId, name: record.nameCn, from: record.path, to: record.path, namingState: record.namingState, status: "failed", reason: error };
+      }
+      const allocation = plan.allocations.get(record.subjectId);
+      const to = (_a = allocation == null ? void 0 : allocation.finalPath) != null ? _a : record.path;
+      return {
+        subjectId: record.subjectId,
+        name: record.nameCn,
+        from: record.path,
+        to,
+        namingState: record.namingState,
+        status: normalizePathCollisionKey(record.path) === normalizePathCollisionKey(to) ? "unchanged" : "rename"
+      };
+    });
+    return { generatedAt: new Date().toISOString(), entries };
+  }
+  async applyPathMigration(preview) {
+    this.ensureCanStartSync();
+    const renames = preview.entries.filter((entry) => entry.status === "rename").map((entry) => ({ subjectId: entry.subjectId, from: entry.from, to: entry.to }));
+    const transaction = new SyncTransaction(this.app, this.fileManager);
+    try {
+      await transaction.executeRenames(renames);
+      for (const rename of renames)
+        this.incrementalSync.renameLocalSubject(rename.subjectId, rename.to);
+      await this.persistPathStates();
+      transaction.commit();
+      return { renamed: renames.length, failed: 0 };
+    } catch (e) {
+      await transaction.rollback();
+      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+      return { renamed: 0, failed: renames.length };
+    }
   }
   /**
    * 检查取消/暂停信号
@@ -8799,74 +9215,402 @@ var SyncManager = class {
    * 创建带回滚能力的同步结果
    */
   createSyncResultWithRollback(base, wasCancelled) {
+    if (this.pendingTransaction) {
+      const snapshot = this.pendingTransaction.resultSnapshot;
+      Object.assign(snapshot, base, {
+        batchFiles: snapshot.batchFiles,
+        wasCancelled,
+        canRollback: this.pendingTransaction.state === "awaiting" && this.pendingTransaction.transactions.some((transaction) => transaction.hasRecordedChanges())
+      });
+      if (this.lastAutomaticRollback)
+        snapshot.rollback = this.lastAutomaticRollback;
+      return snapshot;
+    }
+    return this.captureResultSnapshot(base, wasCancelled);
+  }
+  captureResultSnapshot(base, wasCancelled) {
+    const batchFiles = this.incrementalSync.getBatchSyncedFiles();
     return {
       ...base,
-      batchFiles: this.incrementalSync.getBatchSyncedFiles(),
-      wasCancelled
+      batchFiles,
+      wasCancelled,
+      canRollback: false,
+      ...this.lastAutomaticRollback ? { rollback: this.lastAutomaticRollback } : {}
     };
+  }
+  recoveryExpectationsFor(subjectIds, originalRecords) {
+    return Array.from(new Set(subjectIds), (subjectId) => {
+      const record = originalRecords.get(subjectId);
+      return {
+        subjectId,
+        expectedToExist: Boolean(record),
+        expectedPath: record == null ? void 0 : record.path,
+        expectedSubjectId: subjectId
+      };
+    });
+  }
+  createSyncResult(total = 0) {
+    this.lastAutomaticRollback = void 0;
+    return {
+      success: false,
+      completion: "failed",
+      total,
+      added: 0,
+      skipped: 0,
+      errors: 0,
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      renamed: 0,
+      collisionResolved: 0,
+      failed: 0,
+      duration: 0,
+      errorDetails: [],
+      outcomes: [],
+      warnings: [],
+      rolledBack: 0
+    };
+  }
+  recordPreparedFailure(result, failure) {
+    const name = failure.collection.subject.name_cn || failure.collection.subject.name || String(failure.collection.subject_id);
+    result.failed++;
+    result.errorDetails.push(`[${failure.collection.subject_id}] ${name}: ${failure.error}`);
+    result.outcomes.push({
+      subjectId: failure.collection.subject_id,
+      name,
+      pathAction: "failed",
+      writeAction: "failed",
+      error: failure.error
+    });
+  }
+  recordWriteOutcome(result, prepared, writeStatus) {
+    if (writeStatus !== "unchanged")
+      result.added++;
+    result[writeStatus]++;
+    const pathAction = prepared.allocation.renameFrom ? "renamed" : prepared.allocation.collisionResolved ? "collision-resolved" : "unchanged";
+    if (pathAction === "collision-resolved")
+      result.collisionResolved++;
+    result.outcomes.push({
+      subjectId: prepared.collection.subject_id,
+      preferredPath: prepared.allocation.preferredPath,
+      actualPath: prepared.allocation.finalPath,
+      pathAction,
+      writeAction: writeStatus
+    });
+  }
+  recordProcessingFailure(result, prepared, error) {
+    const collection = prepared.collection;
+    const errorMessage2 = error instanceof Error ? error.message : String(error);
+    const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
+    result.failed++;
+    result.errorDetails.push(`[${collection.subject_id}] ${name}: ${errorMessage2}`);
+    result.outcomes.push({
+      subjectId: collection.subject_id,
+      name,
+      preferredPath: prepared.allocation.preferredPath,
+      actualPath: prepared.allocation.finalPath,
+      pathAction: "failed",
+      writeAction: "failed",
+      error: errorMessage2
+    });
+  }
+  finalizeSyncResult(result, wasCancelled) {
+    var _a;
+    result.created = result.outcomes.filter((outcome) => outcome.writeAction === "created").length;
+    result.updated = result.outcomes.filter((outcome) => outcome.writeAction === "updated").length;
+    result.unchanged = result.outcomes.filter((outcome) => outcome.writeAction === "unchanged").length;
+    result.failed = result.outcomes.filter((outcome) => outcome.writeAction === "failed").length;
+    result.renamed = result.outcomes.filter((outcome) => outcome.pathAction === "renamed").length;
+    result.rolledBack = result.outcomes.filter((outcome) => outcome.pathAction === "rolled-back" || outcome.writeAction === "rolled-back").length;
+    result.collisionResolved = result.outcomes.filter((outcome) => outcome.pathAction === "collision-resolved").length;
+    result.added = result.created + result.updated;
+    result.errors = result.failed;
+    result.completion = ((_a = this.lastAutomaticRollback) == null ? void 0 : _a.attempted) ? this.lastAutomaticRollback.failed > 0 ? "rollback-failed" : "rolled-back" : determineSyncCompletion(result.added, result.failed, wasCancelled);
+    result.success = result.completion === "success";
+  }
+  async executePreparedCollectionBatch(batch, concurrency, result, optionsFor, onProgress) {
+    var _a, _b, _c;
+    this.lastAutomaticRollback = void 0;
+    this.assertNoPendingTransaction();
+    this.batchTransactionState = "active";
+    this.notifyManagerStateChanged();
+    const scanRootAtBatchStart = (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN");
+    const previousPathStates = this.clonePathStates((_a = this.config.subjectPathStates) != null ? _a : {});
+    const originalRecords = new Map(Array.from(this.incrementalSync.getRegistry().idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
+    const plannedSubjectIds = /* @__PURE__ */ new Set([
+      ...batch.prepared.map((item) => item.collection.subject_id),
+      ...batch.renamed.map((item) => item.subjectId)
+    ]);
+    const now = Date.now();
+    this.activeRecoveryJournal = {
+      schemaVersion: 1,
+      journalId: `sync-${now}`,
+      pluginVersion: "6.11.0",
+      state: "active",
+      createdAt: now,
+      updatedAt: now,
+      scanRoot: scanRootAtBatchStart,
+      affectedSubjectIds: Array.from(plannedSubjectIds),
+      originalPathStates: previousPathStates,
+      subjectExpectations: this.recoveryExpectationsFor(plannedSubjectIds, originalRecords),
+      contentExpectations: [],
+      createdPathExpectations: [],
+      renameExpectations: [],
+      createdResourcePaths: [],
+      resultSnapshot: this.captureResultSnapshot(result, false),
+      attempts: []
+    };
+    await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+    for (const failure of batch.failures)
+      this.recordPreparedFailure(result, failure);
+    let wasCancelled = false;
+    const renderedByGroup = /* @__PURE__ */ new Map();
+    const failedGroups = /* @__PURE__ */ new Set();
+    await this.processConcurrently(batch.prepared, concurrency, async (prepared, index) => {
+      var _a2, _b2;
+      const groupKey = (_a2 = batch.groupKeyBySubjectId.get(prepared.collection.subject_id)) != null ? _a2 : `subject:${prepared.collection.subject_id}`;
+      if (await this.checkCancellation()) {
+        wasCancelled = true;
+        return;
+      }
+      onProgress == null ? void 0 : onProgress(prepared, index);
+      try {
+        const rendered = await this.renderCollection(prepared.collection, optionsFor(prepared), prepared);
+        const items = (_b2 = renderedByGroup.get(groupKey)) != null ? _b2 : [];
+        items.push(rendered);
+        renderedByGroup.set(groupKey, items);
+      } catch (error) {
+        failedGroups.add(groupKey);
+        this.recordProcessingFailure(result, prepared, error);
+      }
+    });
+    const relations = [];
+    const successfulTransactions = [];
+    const successfulGroups = [];
+    const affectedSubjectIds = /* @__PURE__ */ new Set();
+    const automaticRollback = this.emptyRollbackResult();
+    let hadAutomaticRollback = false;
+    let fatalRollbackFailure = false;
+    const groupKeys = /* @__PURE__ */ new Set([
+      ...batch.prepared.map((item) => {
+        var _a2;
+        return (_a2 = batch.groupKeyBySubjectId.get(item.collection.subject_id)) != null ? _a2 : `subject:${item.collection.subject_id}`;
+      }),
+      ...batch.renamed.map((rename) => {
+        var _a2;
+        return (_a2 = batch.groupKeyBySubjectId.get(rename.subjectId)) != null ? _a2 : `subject:${rename.subjectId}`;
+      })
+    ]);
+    for (const groupKey of groupKeys) {
+      const items = (_b = renderedByGroup.get(groupKey)) != null ? _b : [];
+      if (failedGroups.has(groupKey)) {
+        for (const item of items)
+          this.recordProcessingFailure(result, item.prepared, new Error("The atomic collision group was skipped because another item in the group failed during preparation."));
+        continue;
+      }
+      if (wasCancelled)
+        continue;
+      const renames = batch.renamed.filter((rename) => {
+        var _a2;
+        return ((_a2 = batch.groupKeyBySubjectId.get(rename.subjectId)) != null ? _a2 : `subject:${rename.subjectId}`) === groupKey;
+      });
+      const transaction = new SyncTransaction(this.app, this.fileManager, (facts) => this.persistBeforeVaultMutation(facts));
+      const groupOutcomeStart = result.outcomes.length;
+      const written = [];
+      const writeFailures = /* @__PURE__ */ new Set();
+      try {
+        await transaction.executeRenames(renames);
+        await this.processConcurrently(items, Math.min(concurrency, Math.max(1, items.length)), async (item) => {
+          try {
+            const writeResult = await this.writeRenderedCollection(item, transaction);
+            written.push({ item, writeStatus: writeResult.writeStatus });
+          } catch (error) {
+            writeFailures.add(item.prepared.collection.subject_id);
+            this.recordProcessingFailure(result, item.prepared, error);
+          }
+        });
+        if (writeFailures.size > 0)
+          throw new Error("An item write failed inside the atomic transaction group.");
+      } catch (error) {
+        for (const item of items) {
+          if (!writeFailures.has(item.prepared.collection.subject_id))
+            this.recordProcessingFailure(result, item.prepared, error);
+        }
+        const rollback = await transaction.rollback();
+        hadAutomaticRollback = hadAutomaticRollback || rollback.attempted;
+        this.mergeRollbackResult(automaticRollback, rollback);
+        fatalRollbackFailure = fatalRollbackFailure || rollback.failed > 0;
+        if (fatalRollbackFailure) {
+          successfulTransactions.push(transaction);
+          successfulGroups.push({
+            transaction,
+            outcomeIndexes: Array.from({ length: result.outcomes.length - groupOutcomeStart }, (_, index) => groupOutcomeStart + index)
+          });
+          for (const rename of renames)
+            affectedSubjectIds.add(rename.subjectId);
+          for (const item of items)
+            affectedSubjectIds.add(item.subject.id);
+          break;
+        }
+        continue;
+      }
+      for (const rename of renames) {
+        this.incrementalSync.renameLocalSubject(rename.subjectId, rename.to);
+        affectedSubjectIds.add(rename.subjectId);
+        if (!items.some((item) => item.prepared.collection.subject_id === rename.subjectId)) {
+          result.outcomes.push({
+            subjectId: rename.subjectId,
+            previousPath: rename.from,
+            actualPath: rename.to,
+            pathAction: "renamed",
+            writeAction: "skipped"
+          });
+        }
+      }
+      for (const { item, writeStatus } of written) {
+        const { subject, filePath, fileExisted } = item;
+        this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name, !fileExisted);
+        affectedSubjectIds.add(subject.id);
+        relations.push({ subjectId: subject.id, filePath, relations: item.relations });
+        this.recordWriteOutcome(result, item.prepared, writeStatus);
+      }
+      successfulTransactions.push(transaction);
+      successfulGroups.push({
+        transaction,
+        outcomeIndexes: Array.from({ length: result.outcomes.length - groupOutcomeStart }, (_, index) => groupOutcomeStart + index)
+      });
+    }
+    if (fatalRollbackFailure) {
+      this.finalizeSyncResult(result, wasCancelled);
+      const subjectExpectations = this.recoveryExpectationsFor(affectedSubjectIds, originalRecords);
+      const recoveryFacts = await this.captureTransactionRecoveryFacts(successfulTransactions);
+      const pending = {
+        transactions: successfulTransactions,
+        groups: successfulGroups,
+        previousPathStates,
+        affectedSubjectIds: Array.from(affectedSubjectIds),
+        subjectExpectations,
+        scanRootAtBatchStart,
+        ...recoveryFacts,
+        deferredRelations: relations,
+        resultSnapshot: this.captureResultSnapshot(result, wasCancelled),
+        createdAt: Date.now(),
+        state: "rolling-back"
+      };
+      this.pendingTransaction = pending;
+      await this.persistPendingJournal(pending, "rolling-back");
+      const decision = await this.rollbackPendingTransaction(pending);
+      this.markOutcomeIndexesRolledBack(result, successfulGroups);
+      this.lastAutomaticRollback = (_c = decision.rollback) != null ? _c : automaticRollback;
+      return { wasCancelled, relations: [] };
+    }
+    const hasPendingChanges = successfulTransactions.some((transaction) => transaction.hasChanges());
+    if (hasPendingChanges && (result.failed > 0 || wasCancelled)) {
+      this.finalizeSyncResult(result, wasCancelled);
+      const recoveryFacts = await this.captureTransactionRecoveryFacts(successfulTransactions);
+      this.pendingTransaction = {
+        transactions: successfulTransactions,
+        groups: successfulGroups,
+        previousPathStates,
+        affectedSubjectIds: Array.from(affectedSubjectIds),
+        subjectExpectations: this.recoveryExpectationsFor(affectedSubjectIds, originalRecords),
+        scanRootAtBatchStart,
+        ...recoveryFacts,
+        deferredRelations: relations,
+        resultSnapshot: this.captureResultSnapshot(result, wasCancelled),
+        createdAt: Date.now(),
+        state: "awaiting"
+      };
+      await this.persistPendingJournal(this.pendingTransaction, "awaiting-decision");
+      this.batchTransactionState = "awaiting-user-decision";
+      this.notifyManagerStateChanged();
+      return { wasCancelled, relations: [] };
+    }
+    if (successfulTransactions.length > 0) {
+      try {
+        await this.persistPathStates();
+        for (const transaction of successfulTransactions)
+          transaction.commit();
+        this.incrementalSync.finishBatch();
+        this.batchTransactionState = "committed";
+        this.notifyManagerStateChanged();
+        await this.recoveryJournalStore.clear();
+        this.activeRecoveryJournal = null;
+      } catch (e) {
+        this.finalizeSyncResult(result, wasCancelled);
+        const recoveryFacts = await this.captureTransactionRecoveryFacts(successfulTransactions);
+        const pending = {
+          transactions: successfulTransactions,
+          groups: successfulGroups,
+          previousPathStates,
+          affectedSubjectIds: Array.from(affectedSubjectIds),
+          deferredRelations: relations,
+          subjectExpectations: this.recoveryExpectationsFor(affectedSubjectIds, originalRecords),
+          scanRootAtBatchStart,
+          ...recoveryFacts,
+          resultSnapshot: this.captureResultSnapshot(result, wasCancelled),
+          createdAt: Date.now(),
+          state: "rolling-back"
+        };
+        this.pendingTransaction = pending;
+        await this.persistPendingJournal(pending, "rolling-back");
+        const decision = await this.rollbackPendingTransaction(pending);
+        this.lastAutomaticRollback = decision.rollback;
+        this.markOutcomeIndexesRolledBack(result, successfulGroups);
+      }
+    } else {
+      this.incrementalSync.clearBatch();
+      this.batchTransactionState = hadAutomaticRollback ? automaticRollback.failed > 0 ? "rollback-failed" : "rolled-back" : "none";
+      this.notifyManagerStateChanged();
+      if (hadAutomaticRollback)
+        this.lastAutomaticRollback = automaticRollback;
+      await this.recoveryJournalStore.clear();
+      this.activeRecoveryJournal = null;
+    }
+    return { wasCancelled, relations: result.failed === 0 ? relations : [] };
   }
   /**
    * 执行同步
    * 优化：支持并发处理多个条目，提高同步速度
    */
   async sync(options, concurrency = 3) {
+    this.ensureCanStartSync();
     const startTime = Date.now();
     let wasCancelled = false;
-    const result = {
-      success: false,
-      total: 0,
-      added: 0,
-      skipped: 0,
-      errors: 0,
-      duration: 0,
-      errorDetails: []
-    };
+    const result = this.createSyncResult();
     try {
       const { diff } = await this.prepareSyncData(options);
       result.total = diff.toAdd.length;
       result.skipped = diff.toSkip.length;
+      this.assertNoPendingTransaction();
       this.incrementalSync.startBatch();
-      let completedCount = 0;
-      await this.processConcurrently(
-        diff.toAdd,
+      const batch = await this.prepareCollectionBatch(diff.toAdd, concurrency);
+      const execution = await this.executePreparedCollectionBatch(
+        batch,
         concurrency,
-        async (collection, index) => {
-          if (wasCancelled)
-            return;
-          if (await this.checkCancellation()) {
-            wasCancelled = true;
-            return;
-          }
-          this.reportProgress({
-            status: "processing",
-            current: index + 1,
-            total: diff.toAdd.length,
-            currentItem: collection.subject.name_cn || collection.subject.name,
-            message: `\u5904\u7406\u6761\u76EE... (${index + 1}/${diff.toAdd.length})`
-          });
-          try {
-            await this.processCollection(collection, { overwrite: false, preserveUserDataOnOverwrite: false });
-            completedCount++;
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
-            console.error(`[Bangumi Sync] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${name}`, error);
-            result.errorDetails.push(`[${collection.subject_id}] ${name}: ${errorMsg}`);
-          }
-        }
+        result,
+        () => ({ overwrite: false, preserveUserDataOnOverwrite: false }),
+        (prepared, index) => this.reportProgress({
+          status: "processing",
+          current: index + 1,
+          total: diff.toAdd.length,
+          currentItem: prepared.collection.subject.name_cn || prepared.collection.subject.name,
+          message: `\u5904\u7406\u6761\u76EE... (${index + 1}/${diff.toAdd.length})`
+        })
       );
-      result.added = completedCount;
-      result.errors = result.errorDetails.length;
+      wasCancelled = execution.wasCancelled;
+      this.finalizeSyncResult(result, wasCancelled);
       if (!wasCancelled) {
-        result.success = true;
         this.reportProgress({ status: "completed", message: tn("notices", "syncComplete") });
       } else {
         this.reportProgress({ status: "error", message: tn("notices", "syncCancelled") });
       }
     } catch (error) {
+      if (error instanceof PendingSyncTransactionError)
+        throw error;
       console.error("[Bangumi Sync] \u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: error instanceof Error ? error.message : String(error) });
-      new import_obsidian12.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian11.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
     result.duration = Date.now() - startTime;
     return this.createSyncResultWithRollback(result, wasCancelled);
@@ -8895,6 +9639,92 @@ var SyncManager = class {
         break;
       await processor(task.item, task.index);
     }
+  }
+  async prepareCollectionBatch(collections, concurrency) {
+    await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+    const registry = this.incrementalSync.getRegistry();
+    const details = /* @__PURE__ */ new Map();
+    const failures = [];
+    await this.processConcurrently(collections, concurrency, async (collection) => {
+      if (registry.duplicateIds.has(collection.subject_id)) {
+        failures.push({
+          collection,
+          error: `Subject ${collection.subject_id} appears in multiple local files.`
+        });
+        return;
+      }
+      try {
+        details.set(collection.subject_id, await this.client.getFullSubjectInfo(collection.subject_id));
+      } catch (error) {
+        failures.push({
+          collection,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+    const candidates = collections.flatMap((collection) => {
+      var _a;
+      const fullInfo = details.get(collection.subject_id);
+      if (!fullInfo)
+        return [];
+      const existing = registry.getById(collection.subject_id);
+      const preferredPath = this.generatePreferredPath(fullInfo.subject, collection);
+      if ((existing == null ? void 0 : existing.namingState) === "unknown") {
+        registry.markInferredManaged(collection.subject_id, preferredPath);
+      }
+      const reconciled = registry.getById(collection.subject_id);
+      return [{
+        subjectId: collection.subject_id,
+        preferredPath,
+        year: extractPathVars(fullInfo.subject, collection).year,
+        currentPath: reconciled == null ? void 0 : reconciled.path,
+        namingState: (_a = reconciled == null ? void 0 : reconciled.namingState) != null ? _a : "managed"
+      }];
+    });
+    const contextIds = /* @__PURE__ */ new Set();
+    for (const candidate of candidates) {
+      const owner = registry.getPathOwner(candidate.preferredPath);
+      if (owner !== void 0 && !details.has(owner))
+        contextIds.add(owner);
+    }
+    const contextRecords = Array.from(contextIds).flatMap((subjectId) => {
+      const record = registry.getById(subjectId);
+      return record ? [record] : [];
+    });
+    await this.processConcurrently(contextRecords, concurrency, async (record) => {
+      var _a;
+      try {
+        const subject = await this.client.getSubject(record.subjectId);
+        const preferredPath = this.generatePreferredPath(subject);
+        if (record.namingState === "unknown") {
+          registry.markInferredManaged(record.subjectId, preferredPath);
+        }
+        const reconciled = (_a = registry.getById(record.subjectId)) != null ? _a : record;
+        candidates.push({
+          subjectId: record.subjectId,
+          preferredPath,
+          year: extractPathVars(subject).year,
+          currentPath: reconciled.path,
+          namingState: reconciled.namingState
+        });
+      } catch (e) {
+      }
+    });
+    const pathPlan = this.pathResolver.plan(candidates, registry.pathToId);
+    const prepared = [];
+    for (const collection of collections) {
+      const fullInfo = details.get(collection.subject_id);
+      const allocation = pathPlan.allocations.get(collection.subject_id);
+      if (fullInfo && allocation) {
+        prepared.push({ collection, fullInfo, allocation });
+      }
+    }
+    const groupKeyBySubjectId = /* @__PURE__ */ new Map();
+    for (const candidate of candidates) {
+      const allocation = pathPlan.allocations.get(candidate.subjectId);
+      groupKeyBySubjectId.set(candidate.subjectId, (allocation == null ? void 0 : allocation.collisionResolved) ? `collision:${normalizePathCollisionKey(candidate.preferredPath)}` : `subject:${candidate.subjectId}`);
+    }
+    return { prepared, failures, renamed: pathPlan.renamed, groupKeyBySubjectId };
   }
   /**
    * 准备同步数据：验证 Token、获取收藏、扫描本地、计算差异
@@ -8983,6 +9813,22 @@ var SyncManager = class {
         return typeTemplate;
     }
     return this.config.pathTemplate;
+  }
+  generatePreferredPath(subject, collection) {
+    var _a;
+    const basePath = generateFilePath(this.resolvePathTemplate(subject), subject, collection);
+    const strategy = (_a = this.config.pathNamingStrategy) != null ? _a : "simple-until-collision";
+    if (strategy === "always-id") {
+      return this.appendPathSuffix(basePath, `[bgm-${subject.id}]`);
+    }
+    if (strategy === "always-year") {
+      const year = extractPathVars(subject, collection).year;
+      return this.appendPathSuffix(basePath, year ? `\uFF08${year}\uFF09` : `[bgm-${subject.id}]`);
+    }
+    return basePath;
+  }
+  appendPathSuffix(path, suffix) {
+    return path.toLocaleLowerCase("en-US").endsWith(".md") ? `${path.slice(0, -3)}${suffix}.md` : `${path}${suffix}.md`;
   }
   /**
    * V4: 获取章节数据
@@ -9098,70 +9944,46 @@ var SyncManager = class {
    */
   async syncByCollections(collections, options, onProgress) {
     var _a, _b;
+    this.ensureCanStartSync();
     const startTime = Date.now();
     let wasCancelled = false;
-    const result = {
-      success: false,
-      total: collections.length,
-      added: 0,
-      skipped: 0,
-      errors: 0,
-      duration: 0,
-      errorDetails: []
-    };
+    const result = this.createSyncResult(collections.length);
     const overwrite = (_a = options == null ? void 0 : options.overwrite) != null ? _a : false;
     const localPropertyValuesBySubjectId = options == null ? void 0 : options.localPropertyValuesBySubjectId;
     const concurrency = (_b = options == null ? void 0 : options.concurrency) != null ? _b : 3;
     try {
       console.debug(`[Bangumi Sync] \u5F00\u59CB\u6309\u6536\u85CF\u5217\u8868\u540C\u6B65 ${collections.length} \u4E2A\u6761\u76EE\uFF0C\u8986\u76D6\u6A21\u5F0F: ${overwrite}\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
+      this.assertNoPendingTransaction();
       this.incrementalSync.startBatch();
-      const batchRelations = [];
-      await this.processConcurrently(
-        collections,
+      const batch = await this.prepareCollectionBatch(collections, concurrency);
+      const execution = await this.executePreparedCollectionBatch(
+        batch,
         concurrency,
-        async (collection, i) => {
-          if (await this.checkCancellation()) {
-            wasCancelled = true;
-            return;
-          }
-          if (onProgress) {
-            onProgress(i + 1, collections.length, `\u6B63\u5728\u540C\u6B65\u6761\u76EE ${i + 1}/${collections.length}`);
-          }
-          this.reportProgress({
-            status: "processing",
-            current: i + 1,
-            total: collections.length,
-            message: `\u540C\u6B65\u6761\u76EE... (${i + 1}/${collections.length})`
-          });
-          try {
-            const processResult = await this.processCollection(collection, {
-              overwrite,
-              preserveUserDataOnOverwrite: true,
-              localPropertyValues: localPropertyValuesBySubjectId == null ? void 0 : localPropertyValuesBySubjectId.get(collection.subject_id)
-            });
-            if (processResult) {
-              batchRelations.push(processResult);
-            }
-            result.added++;
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            const name = collection.subject.name_cn || collection.subject.name || String(collection.subject_id);
-            console.error(`[Bangumi Sync] \u540C\u6B65\u6761\u76EE\u5931\u8D25 (ID: ${collection.subject_id}):`, error);
-            result.errorDetails.push(`${name}: ${errorMsg}`);
-          }
+        result,
+        (prepared) => ({
+          overwrite,
+          preserveUserDataOnOverwrite: true,
+          localPropertyValues: localPropertyValuesBySubjectId == null ? void 0 : localPropertyValuesBySubjectId.get(prepared.collection.subject_id)
+        }),
+        (_prepared, index) => {
+          onProgress == null ? void 0 : onProgress(index + 1, collections.length, `\u6B63\u5728\u540C\u6B65\u6761\u76EE ${index + 1}/${collections.length}`);
+          this.reportProgress({ status: "processing", current: index + 1, total: collections.length, message: `\u540C\u6B65\u6761\u76EE... (${index + 1}/${collections.length})` });
         }
       );
-      if (batchRelations.length > 1) {
-        await this.postProcessBatchRelations(batchRelations);
+      wasCancelled = execution.wasCancelled;
+      const batchRelations = execution.relations;
+      if (batchRelations.length > 0) {
+        result.warnings.push(...await this.postProcessBatchRelations(batchRelations));
       }
-      result.errors = result.errorDetails.length;
+      this.finalizeSyncResult(result, wasCancelled);
       if (!wasCancelled) {
-        result.success = true;
         this.reportProgress({ status: "completed", message: tn("notices", "syncComplete") });
       } else {
         this.reportProgress({ status: "error", message: tn("notices", "syncCancelled") });
       }
     } catch (error) {
+      if (error instanceof PendingSyncTransactionError)
+        throw error;
       console.error("[Bangumi Sync] \u6309\u6536\u85CF\u5217\u8868\u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: String(error) });
     }
@@ -9179,6 +10001,7 @@ var SyncManager = class {
    * 用于手动同步模式，在显示预览弹窗前调用
    */
   async prepareSync(options) {
+    this.ensureCanStartSync();
     try {
       const { diff } = await this.prepareSyncData(options);
       const previewItems = diff.toAdd.map((collection) => ({
@@ -9212,17 +10035,10 @@ var SyncManager = class {
    * 用于手动同步模式，在用户确认后调用
    */
   async executeSync(previewItems, action, localPropertyResult, concurrency = 3) {
+    this.ensureCanStartSync();
     const startTime = Date.now();
     let wasCancelled = false;
-    const result = {
-      success: false,
-      total: 0,
-      added: 0,
-      skipped: 0,
-      errors: 0,
-      duration: 0,
-      errorDetails: []
-    };
+    const result = this.createSyncResult();
     try {
       let itemsToSync;
       if (action === "all") {
@@ -9234,56 +10050,49 @@ var SyncManager = class {
       }
       result.total = itemsToSync.length;
       console.debug(`[Bangumi Sync] \u5F00\u59CB\u540C\u6B65 ${itemsToSync.length} \u4E2A\u6761\u76EE\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
+      this.assertNoPendingTransaction();
       this.incrementalSync.startBatch();
-      const batchRelations = [];
-      await this.processConcurrently(
-        itemsToSync,
-        concurrency,
-        async (item, i) => {
-          var _a;
-          if (await this.checkCancellation()) {
-            wasCancelled = true;
-            return;
-          }
-          this.reportProgress({
-            status: "processing",
-            current: i + 1,
-            total: itemsToSync.length,
-            currentItem: item.name_cn || item.name,
-            message: `\u5904\u7406\u6761\u76EE... (${i + 1}/${itemsToSync.length})`
-          });
-          try {
-            const processResult = await this.processCollection(item.collection, {
-              overwrite: false,
-              preserveUserDataOnOverwrite: false,
-              localPropertyValues: (_a = localPropertyResult == null ? void 0 : localPropertyResult.propertyValuesBySubjectId) == null ? void 0 : _a.get(item.collection.subject_id)
-            });
-            if (processResult) {
-              batchRelations.push(processResult);
-            }
-            result.added++;
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            const name = item.name_cn || item.name || String(item.id);
-            console.error(`[Bangumi Sync] \u5904\u7406\u6761\u76EE\u5931\u8D25: ${name}`, error);
-            result.errorDetails.push(`${name}: ${errorMsg}`);
-          }
-        }
+      const batch = await this.prepareCollectionBatch(
+        itemsToSync.map((item) => item.collection),
+        concurrency
       );
-      if (batchRelations.length > 1) {
-        await this.postProcessBatchRelations(batchRelations);
+      const execution = await this.executePreparedCollectionBatch(
+        batch,
+        concurrency,
+        result,
+        (prepared) => {
+          var _a;
+          return {
+            overwrite: false,
+            preserveUserDataOnOverwrite: false,
+            localPropertyValues: (_a = localPropertyResult == null ? void 0 : localPropertyResult.propertyValuesBySubjectId) == null ? void 0 : _a.get(prepared.collection.subject_id)
+          };
+        },
+        (prepared, index) => this.reportProgress({
+          status: "processing",
+          current: index + 1,
+          total: itemsToSync.length,
+          currentItem: prepared.collection.subject.name_cn || prepared.collection.subject.name,
+          message: `\u5904\u7406\u6761\u76EE... (${index + 1}/${itemsToSync.length})`
+        })
+      );
+      wasCancelled = execution.wasCancelled;
+      const batchRelations = execution.relations;
+      if (batchRelations.length > 0) {
+        result.warnings.push(...await this.postProcessBatchRelations(batchRelations));
       }
-      result.errors = result.errorDetails.length;
+      this.finalizeSyncResult(result, wasCancelled);
       if (!wasCancelled) {
-        result.success = true;
         this.reportProgress({ status: "completed", message: tn("notices", "syncComplete") });
       } else {
         this.reportProgress({ status: "error", message: tn("notices", "syncCancelled") });
       }
     } catch (error) {
+      if (error instanceof PendingSyncTransactionError)
+        throw error;
       console.error("[Bangumi Sync] \u6267\u884C\u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: error instanceof Error ? error.message : String(error) });
-      new import_obsidian12.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian11.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
     result.duration = Date.now() - startTime;
     return this.createSyncResultWithRollback(result, wasCancelled);
@@ -9292,14 +10101,15 @@ var SyncManager = class {
    * 处理单个收藏条目
    * 统一处理：获取详情、生成内容、写入文件、更新双向链接
    */
-  async processCollection(collection, options) {
+  async renderCollection(collection, options, prepared) {
+    var _a, _b;
     console.debug(`[Bangumi Sync] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
-    const { subject, characters: relatedCharacters, relations, persons } = await this.client.getFullSubjectInfo(collection.subject_id);
+    const { subject, characters: relatedCharacters, relations, persons } = prepared.fullInfo;
     console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
     const characters = parseCharacters(relatedCharacters, 9);
     const typeLabel = getTypeLabel(subject.type);
     const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
-    const filePath = generateFilePath(this.resolvePathTemplate(subject), subject, collection);
+    const filePath = prepared.allocation.finalPath;
     const episodeData = await this.fetchEpisodeData(subject);
     let extraTemplateVars;
     if (options.localPropertyValues || options.overwrite) {
@@ -9327,7 +10137,8 @@ var SyncManager = class {
       content = applyNamedPropertyValuesToContent(content, explicitLocalPropertyValues);
     }
     if (options.preserveUserDataOnOverwrite) {
-      const existingFile = this.fileManager.getFile(filePath);
+      const existingPath = (_a = prepared.allocation.renameFrom) != null ? _a : filePath;
+      const existingFile = await this.fileManager.assertPathOwnership(existingPath, subject.id);
       if (existingFile) {
         const localUserData = await this.userDataExtractor.extractFromFileAsync(existingFile);
         if (localUserData) {
@@ -9340,47 +10151,48 @@ var SyncManager = class {
         content = applyNamedPropertyValuesToContent(content, explicitLocalPropertyValues);
       }
     }
-    const fileExisted = this.fileManager.getFile(filePath) !== null;
+    const fileExisted = this.fileManager.getFile((_b = prepared.allocation.renameFrom) != null ? _b : filePath) !== null;
     const shouldOverwrite = options.overwrite || options.preserveUserDataOnOverwrite && fileExisted;
-    await this.fileManager.createOrUpdateFile(filePath, content, { overwrite: shouldOverwrite });
+    return { prepared, subject, filePath, content, fileExisted, shouldOverwrite, relations };
+  }
+  async writeRenderedCollection(rendered, transaction) {
+    const { subject, filePath, content, shouldOverwrite, relations } = rendered;
+    const writeOptions = { overwrite: shouldOverwrite, subjectId: subject.id };
+    const writeResult = await transaction.createOrUpdateFile(filePath, content, writeOptions);
     console.debug(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
-    this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name, !fileExisted);
-    if (this.config.enableRelatedLinks !== false && relations && relations.length > 0) {
-      await this.updateRelatedItemsBidirectional(subject.id, filePath, subject.name_cn || subject.name, relations);
-    }
-    return { subjectId: subject.id, filePath, relations };
+    return { subjectId: subject.id, filePath, relations, writeStatus: writeResult.status };
   }
   /**
    * 更新已同步相关条目的链接（双向链接）
    * 批量处理：先收集所有需要更新的关联关系，按目标文件分组，每个文件只读写一次
    */
   async updateRelatedItemsBidirectional(currentId, currentPath, currentName, relations) {
+    var _a;
+    const warnings = [];
     const displayName = this.extractDisplayNameFromPath(currentPath);
     const currentLink = `[[${currentPath}|${displayName}]]`;
     const updatesByFile = /* @__PURE__ */ new Map();
     for (const relation of relations) {
       const relatedPath = this.resolveRelatedLocalPath(relation.id);
       if (relatedPath) {
-        const existing = updatesByFile.get(relatedPath) || [];
-        existing.push(currentLink);
+        const existing = (_a = updatesByFile.get(relatedPath)) != null ? _a : { subjectId: relation.id, links: [] };
+        existing.links.push(currentLink);
         updatesByFile.set(relatedPath, existing);
       }
     }
-    for (const [path, links] of updatesByFile) {
+    for (const [path, update] of updatesByFile) {
       try {
-        const file = this.app.vault.getAbstractFileByPath(path);
-        if (file instanceof import_obsidian12.TFile) {
-          const content = await this.app.vault.read(file);
-          const updatedContent = this.incrementalSync.updateRelated(content, links);
-          if (updatedContent !== content) {
-            await this.app.vault.process(file, () => updatedContent);
-            console.debug(`[Bangumi Sync] \u5DF2\u66F4\u65B0 ${path} \u7684\u76F8\u5173\u94FE\u63A5 (${links.length} \u6761)`);
-          }
-        }
+        await this.updateRelatedFile(path, update.subjectId, update.links);
       } catch (error) {
         console.error(`[Bangumi Sync] \u66F4\u65B0\u76F8\u5173\u6761\u76EE\u94FE\u63A5\u5931\u8D25: ${path}`, error);
+        warnings.push({
+          subjectId: update.subjectId,
+          operation: "related-link-update",
+          message: error instanceof Error ? error.message : String(error)
+        });
       }
     }
+    return warnings;
   }
   /**
    * 后处理同批次相关条目的双向链接
@@ -9388,8 +10200,18 @@ var SyncManager = class {
    * 按目标文件分组，每个文件只读写一次
    */
   async postProcessBatchRelations(batchItems) {
+    var _a, _b;
+    const warnings = [];
     if (this.config.enableRelatedLinks === false)
-      return;
+      return warnings;
+    for (const item of batchItems) {
+      warnings.push(...await this.updateRelatedItemsBidirectional(
+        item.subjectId,
+        item.filePath,
+        this.extractDisplayNameFromPath(item.filePath),
+        item.relations
+      ));
+    }
     const batchSubjectIds = new Set(batchItems.map((item) => item.subjectId));
     const updatesByFile = /* @__PURE__ */ new Map();
     for (const item of batchItems) {
@@ -9404,32 +10226,41 @@ var SyncManager = class {
           continue;
         const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
         const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
-        const existing1 = updatesByFile.get(item.filePath) || [];
-        existing1.push(relatedLink);
+        const existing1 = (_a = updatesByFile.get(item.filePath)) != null ? _a : { subjectId: item.subjectId, links: [] };
+        existing1.links.push(relatedLink);
         updatesByFile.set(item.filePath, existing1);
-        const existing2 = updatesByFile.get(relatedPath) || [];
-        existing2.push(currentLink);
+        const existing2 = (_b = updatesByFile.get(relatedPath)) != null ? _b : { subjectId: relation.id, links: [] };
+        existing2.links.push(currentLink);
         updatesByFile.set(relatedPath, existing2);
       }
     }
     if (updatesByFile.size === 0)
-      return;
+      return warnings;
     console.debug(`[Bangumi Sync] \u540E\u5904\u7406\u540C\u6279\u6B21\u76F8\u5173\u94FE\u63A5: ${updatesByFile.size} \u4E2A\u6587\u4EF6\u9700\u8981\u66F4\u65B0`);
-    for (const [path, links] of updatesByFile) {
+    for (const [path, update] of updatesByFile) {
       try {
-        const file = this.app.vault.getAbstractFileByPath(path);
-        if (!(file instanceof import_obsidian12.TFile))
-          continue;
-        const content = await this.app.vault.read(file);
-        const updatedContent = this.incrementalSync.updateRelated(content, links);
-        if (updatedContent !== content) {
-          await this.app.vault.process(file, () => updatedContent);
-          console.debug(`[Bangumi Sync] \u540E\u5904\u7406\u66F4\u65B0\u76F8\u5173\u94FE\u63A5: ${path} (+${links.length})`);
-        }
+        await this.updateRelatedFile(path, update.subjectId, update.links);
       } catch (error) {
         console.error(`[Bangumi Sync] \u540E\u5904\u7406\u66F4\u65B0\u76F8\u5173\u94FE\u63A5\u5931\u8D25: ${path}`, error);
+        warnings.push({
+          subjectId: update.subjectId,
+          operation: "related-link-postprocess",
+          message: error instanceof Error ? error.message : String(error)
+        });
       }
     }
+    return warnings;
+  }
+  async updateRelatedFile(path, subjectId, links) {
+    const file = await this.fileManager.assertPathOwnership(path, subjectId);
+    if (!file)
+      return;
+    const content = await this.app.vault.read(file);
+    const updatedContent = this.incrementalSync.updateRelated(content, links);
+    if (updatedContent === content)
+      return;
+    await this.documentService.processSubjectFile(file, subjectId, () => updatedContent);
+    console.debug(`[Bangumi Sync] \u5DF2\u66F4\u65B0\u76F8\u5173\u94FE\u63A5: ${path} (+${links.length})`);
   }
   /**
    * 同步单个条目（用于搜索功能）
@@ -9438,7 +10269,8 @@ var SyncManager = class {
    * @returns 是否成功
    */
   async syncSingleSubject(subjectId, input) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f;
+    this.ensureCanStartSync();
     try {
       if (input.syncToCloud) {
         await this.client.createOrUpdateCollection(subjectId, {
@@ -9451,10 +10283,7 @@ var SyncManager = class {
         console.debug(`[Bangumi Sync] \u5DF2\u540C\u6B65\u5230\u4E91\u7AEF: ${subjectId}`);
       }
       if (input.createLocal) {
-        const { subject, characters: relatedCharacters, relations, persons } = await this.client.getFullSubjectInfo(subjectId);
-        const characters = parseCharacters(relatedCharacters, 9);
-        const typeLabel = getTypeLabel(subject.type);
-        const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
+        const subject = await this.client.getSubject(subjectId);
         const collection = {
           subject_id: subject.id,
           subject_type: subject.type,
@@ -9482,30 +10311,21 @@ var SyncManager = class {
             tags: subject.tags
           }
         };
-        const filePath = generateFilePath(this.resolvePathTemplate(subject), subject, collection);
-        const episodeData = await this.fetchEpisodeData(subject);
-        const templateProperties = getTemplatePropertyGroupsForSubject(subject, this.config.customTemplates).customProperties;
-        const extraTemplateVars = buildExtraTemplateVarsFromPropertyValues(templateProperties, input.localPropertyValues);
-        const relatedLinks = this.config.enableRelatedLinks !== false ? this.generateRelatedLinks(relations) : [];
-        const content = generateContentByType(
-          subject,
-          collection,
-          characters,
-          this.config.customTemplates,
-          void 0,
-          episodeData == null ? void 0 : episodeData.episodes,
-          episodeData == null ? void 0 : episodeData.userStatus,
-          this.config.notePathTemplate,
-          this.config.coverLinkType,
-          localCoverPath,
-          relatedLinks,
-          extraTemplateVars,
-          persons
-        );
-        const finalContent = input.localPropertyValues && Object.keys(input.localPropertyValues).length > 0 ? applyNamedPropertyValuesToContent(content, input.localPropertyValues) : content;
-        await this.fileManager.createOrUpdateFile(filePath, finalContent, { overwrite: false });
-        console.debug(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
-        return { success: true, filePath };
+        const localProperties = input.localPropertyValues ? /* @__PURE__ */ new Map([[subjectId, input.localPropertyValues]]) : void 0;
+        const result = await this.syncByCollections([collection], {
+          overwrite: false,
+          localPropertyValuesBySubjectId: localProperties,
+          concurrency: 1
+        });
+        const outcome = result.outcomes.find((item) => item.subjectId === subjectId);
+        if (!outcome || !["created", "updated", "unchanged"].includes(outcome.writeAction)) {
+          return { success: false, error: (_f = (_e = outcome == null ? void 0 : outcome.error) != null ? _e : result.errorDetails[0]) != null ? _f : "Local sync failed." };
+        }
+        return {
+          success: true,
+          filePath: outcome.actualPath,
+          writeStatus: outcome.writeAction
+        };
       }
       return { success: true };
     } catch (error) {
@@ -9519,69 +10339,91 @@ var SyncManager = class {
    * 扫描所有本地条目，将网络封面下载到本地，并替换 frontmatter 和正文中的链接
    */
   async batchDownloadCovers() {
+    this.ensureCanStartSync();
+    this.batchTransactionState = "active";
+    this.notifyManagerStateChanged();
     const scanPath = this.config.scanFolderPath || "ACGN";
-    await this.incrementalSync.scanLocalFolder(scanPath);
-    const localSubjects = this.incrementalSync.getLocalSubjects();
-    const result = { downloaded: 0, skipped: 0, failed: 0 };
-    let processed = 0;
-    for (const [subjectId, info] of localSubjects) {
-      processed++;
-      this.reportProgress({
-        status: "processing",
-        current: processed,
-        total: localSubjects.size,
-        currentItem: info.name_cn || String(subjectId)
-      });
-      try {
-        const file = this.app.vault.getAbstractFileByPath(info.path);
-        if (!(file instanceof import_obsidian12.TFile)) {
-          result.skipped++;
-          continue;
-        }
-        const content = await this.app.vault.read(file);
-        const coverValue = this.extractCoverValue(content);
-        if (!coverValue || !coverValue.startsWith("http")) {
-          result.skipped++;
-          continue;
-        }
-        const name_cn = this.extractFrontmatterString(content, "\u4E2D\u6587\u540D") || info.name_cn;
-        const name = this.extractFrontmatterString(content, "\u539F\u540D") || "";
-        const typeLabel = this.extractFrontmatterString(content, "\u4F5C\u54C1\u5927\u7C7B") || "";
-        const localPath = await this.imageHandler.downloadCover(
-          coverValue,
-          subjectId,
-          this.config.imagePathTemplate,
-          { name_cn, name, typeLabel }
-        );
-        if (!localPath || localPath.startsWith("http")) {
+    try {
+      await this.incrementalSync.scanLocalFolder(scanPath);
+      const localSubjects = this.incrementalSync.getLocalSubjects();
+      const result = { downloaded: 0, skipped: 0, failed: 0 };
+      let processed = 0;
+      for (const [subjectId, info] of Array.from(localSubjects)) {
+        processed++;
+        this.reportProgress({
+          status: "processing",
+          current: processed,
+          total: localSubjects.size,
+          currentItem: info.name_cn || String(subjectId)
+        });
+        try {
+          const file = this.app.vault.getAbstractFileByPath(info.path);
+          if (!(file instanceof import_obsidian11.TFile)) {
+            result.skipped++;
+            continue;
+          }
+          const content = await this.app.vault.read(file);
+          const coverValue = this.extractCoverValue(content);
+          if (!coverValue || !coverValue.startsWith("http")) {
+            result.skipped++;
+            continue;
+          }
+          const name_cn = this.extractFrontmatterString(content, "\u4E2D\u6587\u540D") || info.name_cn;
+          const name = this.extractFrontmatterString(content, "\u539F\u540D") || "";
+          const typeLabel = this.extractFrontmatterString(content, "\u4F5C\u54C1\u5927\u7C7B") || "";
+          await this.beginCoverUpdateJournal(subjectId, file, content);
+          const localPath = await this.imageHandler.downloadCover(
+            coverValue,
+            subjectId,
+            this.config.imagePathTemplate,
+            { name_cn, name, typeLabel }
+          );
+          if (!localPath || localPath.startsWith("http")) {
+            await this.recoveryJournalStore.clear();
+            this.activeRecoveryJournal = null;
+            result.failed++;
+            continue;
+          }
+          let updatedContent = this.replaceCoverInFrontmatter(content, localPath);
+          updatedContent = this.replaceCoverInBody(updatedContent, localPath);
+          await this.documentService.processSubjectFile(file, subjectId, () => updatedContent);
+          await this.recoveryJournalStore.clear();
+          this.activeRecoveryJournal = null;
+          result.downloaded++;
+          console.debug(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5B8C\u6210: ${info.name_cn} -> ${localPath}`);
+        } catch (error) {
+          console.error(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5931\u8D25: ${info.name_cn}`, error);
           result.failed++;
-          continue;
+          if (this.activeRecoveryJournal) {
+            this.restorePersistentJournal(this.activeRecoveryJournal);
+            const recovery = await this.retryRecovery();
+            if (!recovery.recovered)
+              break;
+          }
         }
-        let updatedContent = this.replaceCoverInFrontmatter(content, localPath);
-        updatedContent = this.replaceCoverInBody(updatedContent, localPath);
-        await this.app.vault.process(file, () => updatedContent);
-        result.downloaded++;
-        console.debug(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5B8C\u6210: ${info.name_cn} -> ${localPath}`);
-      } catch (error) {
-        console.error(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5931\u8D25: ${info.name_cn}`, error);
-        result.failed++;
+      }
+      this.reportProgress({
+        status: "completed",
+        message: tnFormat("notices", "coverDownloadComplete", {
+          downloaded: result.downloaded,
+          skipped: result.skipped,
+          failed: result.failed
+        })
+      });
+      return result;
+    } finally {
+      if (!this.recoveryRequired && this.batchTransactionState === "active") {
+        this.batchTransactionState = "none";
+        this.notifyManagerStateChanged();
       }
     }
-    this.reportProgress({
-      status: "completed",
-      message: tnFormat("notices", "coverDownloadComplete", {
-        downloaded: result.downloaded,
-        skipped: result.skipped,
-        failed: result.failed
-      })
-    });
-    return result;
   }
   /**
    * 扫描所有本地已同步条目，为相关条目补充双向链接
    * 使用并查集查找连通分量，确保同系列所有条目互相关联
    */
   async scanAndLinkRelated() {
+    this.ensureCanStartSync();
     const scanPath = this.config.scanFolderPath || "ACGN";
     console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u6761\u76EE\uFF0CscanFolderPath: "${this.config.scanFolderPath}"\uFF0C\u5B9E\u9645\u626B\u63CF\u8DEF\u5F84: "${scanPath}"\uFF0CpathTemplate: "${this.config.pathTemplate}"`);
     await this.incrementalSync.scanLocalFolder(scanPath);
@@ -9683,7 +10525,7 @@ var SyncManager = class {
           }
         }
         if (missingLinks.length > 0) {
-          updatesByFile.set(info.path, missingLinks);
+          updatesByFile.set(info.path, { subjectId: id, links: missingLinks });
           console.debug(`[Bangumi Sync] ${info.name_cn || id}: \u8865\u5145 ${missingLinks.length} \u4E2A\u94FE\u63A5`);
         } else {
           alreadyCorrect++;
@@ -9692,10 +10534,11 @@ var SyncManager = class {
     }
     result.skipped = alreadyCorrect;
     console.debug(`[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u9700\u8981\u66F4\u65B0 ${updatesByFile.size} \u4E2A\u6587\u4EF6`);
-    for (const [path, links] of updatesByFile) {
+    for (const [path, update] of updatesByFile) {
       try {
+        const { subjectId, links } = update;
         const file = this.app.vault.getAbstractFileByPath(path);
-        if (!(file instanceof import_obsidian12.TFile)) {
+        if (!(file instanceof import_obsidian11.TFile)) {
           console.warn(`[Bangumi Sync] \u6587\u4EF6\u4E0D\u5B58\u5728\u6216\u975E TFile: ${path}`);
           result.failed++;
           continue;
@@ -9703,7 +10546,7 @@ var SyncManager = class {
         const content = await this.app.vault.read(file);
         const updatedContent = this.incrementalSync.updateRelated(content, links);
         if (updatedContent !== content) {
-          await this.app.vault.process(file, () => updatedContent);
+          await this.documentService.processSubjectFile(file, subjectId, () => updatedContent);
           result.linked++;
           const name = this.extractFrontmatterString(content, "\u4E2D\u6587\u540D") || file.basename;
           const addedNames = links.map((link) => {
@@ -9759,8 +10602,37 @@ var SyncManager = class {
 };
 
 // src/ui/syncModal.ts
-var import_obsidian13 = require("obsidian");
-var SyncModal = class extends import_obsidian13.Modal {
+var import_obsidian12 = require("obsidian");
+
+// src/sync/syncCompletionPresentation.ts
+function pendingDecisionAllowsClose(decision) {
+  return decision.status === "committed" || decision.status === "rolled-back" || decision.status === "rollback-failed" || decision.status === "no-pending";
+}
+function formatRollbackFailureDetail(failure) {
+  return `${failure.operation}: ${failure.path} \u2014 ${failure.message}`;
+}
+function getSyncCompletionPresentation(result) {
+  const pending = result.canRollback;
+  if (result.completion === "rollback-failed") {
+    return { statusKey: "rollbackFailed", severity: "critical", showCommitButton: false, showRollbackButton: false, allowClose: true };
+  }
+  if (result.completion === "rolled-back") {
+    return { statusKey: "rolledBack", severity: "error", showCommitButton: false, showRollbackButton: false, allowClose: true };
+  }
+  if (result.wasCancelled) {
+    return { statusKey: "syncCancelled", severity: "warning", showCommitButton: pending, showRollbackButton: pending, allowClose: !pending };
+  }
+  if (result.completion === "partial-success") {
+    return { statusKey: "partialSuccess", severity: "warning", showCommitButton: pending, showRollbackButton: pending, allowClose: !pending };
+  }
+  if (result.completion === "failed") {
+    return { statusKey: "syncFailed", severity: "error", showCommitButton: false, showRollbackButton: pending, allowClose: !pending };
+  }
+  return { statusKey: "completed", severity: result.warnings.length > 0 ? "warning" : "success", showCommitButton: false, showRollbackButton: false, allowClose: true };
+}
+
+// src/ui/syncModal.ts
+var SyncModal = class extends import_obsidian12.Modal {
   constructor(app, cancellationSignal) {
     super(app);
     this.progressBar = null;
@@ -9770,7 +10642,15 @@ var SyncModal = class extends import_obsidian13.Modal {
     this.cancelBtn = null;
     this.completedEl = null;
     this.onCancelled = null;
+    this.onCommitted = null;
+    this.onOpenRecoveryCenter = null;
     this.isCompleted = false;
+    this.pendingDecision = false;
+    this.decisionInProgress = false;
+    this.decisionButtons = [];
+    this.pendingClosePrompt = null;
+    this.recoverySubscriber = null;
+    this.recoveryUnsubscribe = null;
     this.cancellationSignal = cancellationSignal;
     this.progress = {
       current: 0,
@@ -9780,7 +10660,7 @@ var SyncModal = class extends import_obsidian13.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    new import_obsidian13.Setting(contentEl).setName(tn("syncModal", "title")).setHeading();
+    new import_obsidian12.Setting(contentEl).setName(tn("syncModal", "title")).setHeading();
     this.progressBar = contentEl.createDiv({ cls: "bangumi-progress-bar" });
     this.progressBar.createEl("div", { cls: "bangumi-progress-fill" });
     this.statusText = contentEl.createDiv({ cls: "bangumi-sync-status" });
@@ -9797,11 +10677,23 @@ var SyncModal = class extends import_obsidian13.Modal {
     });
     this.cancelBtn.addEventListener("click", () => void this.handleCancel());
     this.completedEl = contentEl.createDiv({ cls: "bangumi-sync-completed bangumi-hidden" });
+    if (this.recoverySubscriber)
+      this.recoveryUnsubscribe = this.recoverySubscriber((recovery) => this.handleRecoveryState(recovery));
   }
   onClose() {
+    var _a;
+    (_a = this.recoveryUnsubscribe) == null ? void 0 : _a.call(this);
+    this.recoveryUnsubscribe = null;
     if (!this.isCompleted) {
       this.contentEl.empty();
     }
+  }
+  close() {
+    if (this.pendingDecision) {
+      this.showPendingClosePrompt();
+      return;
+    }
+    super.close();
   }
   /**
    * 切换暂停/恢复
@@ -9844,6 +10736,28 @@ var SyncModal = class extends import_obsidian13.Modal {
   setRollbackHandler(handler) {
     this.onCancelled = handler;
   }
+  setCommitHandler(handler) {
+    this.onCommitted = handler;
+  }
+  setRecoveryCenterHandler(handler) {
+    this.onOpenRecoveryCenter = handler;
+  }
+  setRecoveryStateSubscriber(subscriber) {
+    this.recoverySubscriber = subscriber;
+  }
+  handleRecoveryState(recovery) {
+    var _a;
+    if (recovery)
+      return;
+    this.pendingDecision = false;
+    const button = (_a = this.completedEl) == null ? void 0 : _a.querySelector(".bangumi-recovery-btn");
+    if (button) {
+      button.disabled = true;
+      button.setText(tn("recoveryCenter", "recovered"));
+    }
+    if (this.statusText)
+      this.updateStatus(tn("recoveryCenter", "recovered"));
+  }
   /**
    * 更新进度
    */
@@ -9866,19 +10780,45 @@ var SyncModal = class extends import_obsidian13.Modal {
    * 显示同步完成状态
    */
   showCompleted(result) {
+    var _a;
     this.isCompleted = true;
+    this.decisionButtons = [];
+    const presentation = getSyncCompletionPresentation(result);
+    this.pendingDecision = !presentation.allowClose;
     if (this.actionsEl) {
       this.actionsEl.addClass("bangumi-hidden");
     }
     if (this.completedEl) {
       this.completedEl.removeClass("bangumi-hidden");
       this.completedEl.empty();
-      const statsText = tnFormat("syncModal", "completedStats", {
-        added: result.added,
+      const statsText = tnFormat("syncModal", "detailedStats", {
+        created: result.created,
+        updated: result.updated,
+        unchanged: result.unchanged,
+        renamed: result.renamed,
+        collisionResolved: result.collisionResolved,
         skipped: result.skipped,
-        errors: result.errors
+        failed: result.failed
       });
       this.completedEl.createEl("p", { text: statsText, cls: "bangumi-sync-stats" });
+      if (result.rollback) {
+        this.completedEl.createEl("p", {
+          text: result.rollback.failed > 0 ? `${tn("syncModal", "rollbackFailed")}: ${result.rollback.failed}` : tnFormat("syncModal", "rollbackComplete", {
+            deleted: result.rollback.deletedCreatedFiles,
+            contents: result.rollback.restoredContents,
+            paths: result.rollback.restoredPaths,
+            failed: result.rollback.failed
+          }),
+          cls: result.rollback.failed > 0 ? "bangumi-sync-error" : "bangumi-sync-stats"
+        });
+        if ((_a = result.rollback.failures) == null ? void 0 : _a.length) {
+          const rollbackDetails = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details" });
+          rollbackDetails.createEl("summary", { text: `${tn("syncModal", "rollbackFailed")} (${result.rollback.failures.length})` });
+          const list = rollbackDetails.createEl("ul", { cls: "bangumi-sync-error-list" });
+          for (const failure of result.rollback.failures)
+            list.createEl("li", { text: formatRollbackFailureDetail(failure) });
+        }
+      }
       if (result.errorDetails.length > 0) {
         const detailsEl = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details" });
         detailsEl.createEl("summary", {
@@ -9889,27 +10829,45 @@ var SyncModal = class extends import_obsidian13.Modal {
           listEl.createEl("li", { text: detail });
         }
       }
-      if (result.wasCancelled && result.batchFiles.some((f) => f.wasNewlyCreated)) {
-        const newFileCount = result.batchFiles.filter((f) => f.wasNewlyCreated).length;
+      if (presentation.showCommitButton || presentation.showRollbackButton) {
         this.completedEl.createEl("p", {
-          text: `${tn("notices", "syncCancelled")} (${newFileCount} files)`,
+          text: tn("syncModal", "pendingDecision"),
           cls: "bangumi-sync-cancelled-info"
         });
+      }
+      if (result.warnings.length > 0) {
+        const warningsEl = this.completedEl.createEl("details", { cls: "bangumi-sync-warning-details" });
+        warningsEl.createEl("summary", { text: `${tn("syncModal", "warnings")} (${result.warnings.length})` });
+        const listEl = warningsEl.createEl("ul");
+        for (const warning of result.warnings) {
+          listEl.createEl("li", { text: `${warning.operation}: ${warning.message}` });
+        }
+      }
+      if (presentation.showCommitButton) {
+        const commitBtn = this.completedEl.createEl("button", {
+          cls: "bangumi-commit-btn mod-cta",
+          text: tn("syncModal", "keepSuccessful")
+        });
+        this.decisionButtons.push(commitBtn);
+        commitBtn.addEventListener("click", () => void this.resolvePendingDecision("keep"));
+      }
+      if (presentation.showRollbackButton) {
         const rollbackBtn = this.completedEl.createEl("button", {
           cls: "bangumi-rollback-btn mod-warning",
-          text: tn("syncModal", "rollback")
+          text: tn("syncModal", "rollbackBatch")
         });
-        rollbackBtn.addEventListener("click", () => void (async () => {
-          rollbackBtn.disabled = true;
-          rollbackBtn.setText("...");
-          if (this.onCancelled) {
-            const rollbackResult = await this.onCancelled();
-            rollbackBtn.setText(tnFormat("syncModal", "rollbackComplete", {
-              deleted: rollbackResult.deleted,
-              failed: rollbackResult.failed
-            }));
-          }
-        })());
+        this.decisionButtons.push(rollbackBtn);
+        rollbackBtn.addEventListener("click", () => void this.resolvePendingDecision("rollback"));
+      }
+      if (result.completion === "rollback-failed" && this.onOpenRecoveryCenter) {
+        const recoveryBtn = this.completedEl.createEl("button", {
+          cls: "bangumi-rollback-btn bangumi-recovery-btn mod-warning",
+          text: tn("recoveryCenter", "openCenter")
+        });
+        recoveryBtn.addEventListener("click", () => {
+          var _a2;
+          return (_a2 = this.onOpenRecoveryCenter) == null ? void 0 : _a2.call(this);
+        });
       }
       const closeBtn = this.completedEl.createEl("button", {
         cls: "bangumi-sync-close-btn mod-cta",
@@ -9923,10 +10881,61 @@ var SyncModal = class extends import_obsidian13.Modal {
     if (this.statusText) {
       if (result.wasCancelled) {
         this.updateStatus(tn("notices", "syncCancelled"));
+      } else if (result.completion === "partial-success") {
+        this.updateStatus(tn("syncModal", "partialSuccess"));
+      } else if (result.completion === "rolled-back") {
+        this.updateStatus(tn("syncModal", "rolledBack"));
+      } else if (result.completion === "rollback-failed") {
+        this.updateStatus(tn("syncModal", "rollbackFailed"));
+      } else if (result.completion === "failed") {
+        this.updateStatus(tn("notices", "syncFailed"));
       } else {
         this.updateStatus(tn("syncModal", "completed"));
       }
     }
+  }
+  async resolvePendingDecision(decision) {
+    if (this.decisionInProgress)
+      return void 0;
+    const handler = decision === "keep" ? this.onCommitted : this.onCancelled;
+    if (!handler)
+      return void 0;
+    this.decisionInProgress = true;
+    for (const button of this.decisionButtons)
+      button.disabled = true;
+    try {
+      const resolved = await handler();
+      this.pendingDecision = !pendingDecisionAllowsClose(resolved);
+      if (resolved.result)
+        this.showCompleted(resolved.result);
+      return resolved;
+    } catch (error) {
+      this.updateStatus(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      return void 0;
+    } finally {
+      this.decisionInProgress = false;
+      if (this.pendingDecision)
+        for (const button of this.decisionButtons)
+          button.disabled = false;
+    }
+  }
+  showPendingClosePrompt() {
+    if (this.pendingClosePrompt)
+      return;
+    this.pendingClosePrompt = new PendingSyncDecisionModal(this.app, async (decision) => {
+      if (decision === "return")
+        return true;
+      const resolved = await this.resolvePendingDecision(decision);
+      if (resolved && pendingDecisionAllowsClose(resolved)) {
+        this.pendingDecision = false;
+        super.close();
+        return true;
+      }
+      return false;
+    }, () => {
+      this.pendingClosePrompt = null;
+    });
+    this.pendingClosePrompt.open();
   }
   /**
    * 显示扫描完成状态
@@ -9980,10 +10989,47 @@ var SyncModal = class extends import_obsidian13.Modal {
     }
   }
 };
+var PendingSyncDecisionModal = class extends import_obsidian12.Modal {
+  constructor(app, decide, closed) {
+    super(app);
+    this.decide = decide;
+    this.closed = closed;
+    this.resolving = false;
+  }
+  onOpen() {
+    new import_obsidian12.Setting(this.contentEl).setName(tn("syncModal", "pendingDecision")).setHeading();
+    const actions = this.contentEl.createDiv({ cls: "bangumi-sync-actions" });
+    for (const [decision, label, cls] of [
+      ["keep", tn("syncModal", "keepSuccessful"), "mod-cta"],
+      ["rollback", tn("syncModal", "rollbackBatch"), "mod-warning"],
+      ["return", tn("syncModal", "returnToResult"), ""]
+    ]) {
+      const button = actions.createEl("button", { text: label, cls });
+      button.addEventListener("click", () => void (async () => {
+        if (this.resolving)
+          return;
+        this.resolving = true;
+        for (const child of Array.from(actions.querySelectorAll("button")))
+          child.disabled = true;
+        const shouldClose = await this.decide(decision);
+        if (shouldClose)
+          this.close();
+        else {
+          this.resolving = false;
+          for (const child of Array.from(actions.querySelectorAll("button")))
+            child.disabled = false;
+        }
+      })());
+    }
+  }
+  onClose() {
+    this.closed();
+  }
+};
 
 // src/ui/syncOptionsModal.ts
-var import_obsidian14 = require("obsidian");
-var SyncOptionsModal = class extends import_obsidian14.Modal {
+var import_obsidian13 = require("obsidian");
+var SyncOptionsModal = class extends import_obsidian13.Modal {
   constructor(app, defaultOptions, onSave) {
     super(app);
     this.options = defaultOptions;
@@ -9995,8 +11041,8 @@ var SyncOptionsModal = class extends import_obsidian14.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    new import_obsidian14.Setting(contentEl).setName(tn("syncOptions", "title")).setHeading();
-    new import_obsidian14.Setting(contentEl).setName(tn("syncOptions", "subjectTypes")).setHeading();
+    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "title")).setHeading();
+    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "subjectTypes")).setHeading();
     const subjectTypesDiv = contentEl.createDiv({ cls: "bangumi-checkbox-group" });
     const subjectTypes = [
       2 /* Anime */,
@@ -10031,7 +11077,7 @@ var SyncOptionsModal = class extends import_obsidian14.Modal {
         this.redraw();
       });
     });
-    new import_obsidian14.Setting(contentEl).setName(tn("syncOptions", "collectionTypes")).setHeading();
+    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "collectionTypes")).setHeading();
     const collectionTypesDiv = contentEl.createDiv({ cls: "bangumi-checkbox-group" });
     const collectionTypes = [
       1 /* Wish */,
@@ -10066,8 +11112,8 @@ var SyncOptionsModal = class extends import_obsidian14.Modal {
         this.redraw();
       });
     });
-    new import_obsidian14.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setHeading();
-    const limitSetting = new import_obsidian14.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setDesc(tn("syncOptions", "syncLimitDesc")).addText((text) => {
+    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setHeading();
+    const limitSetting = new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setDesc(tn("syncOptions", "syncLimitDesc")).addText((text) => {
       text.setPlaceholder("50").setValue(this.limitValue === 0 ? "" : String(this.limitValue)).onChange((value) => {
         const num = parseInt(value, 10);
         if (!isNaN(num) && num >= 0) {
@@ -10081,7 +11127,7 @@ var SyncOptionsModal = class extends import_obsidian14.Modal {
         input.value = "";
       }
     }));
-    new import_obsidian14.Setting(contentEl).setName(tn("syncOptions", "forceSync")).setDesc(tn("syncOptions", "forceSyncDesc")).addToggle((toggle) => toggle.setValue(this.forceValue).onChange((value) => {
+    new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "forceSync")).setDesc(tn("syncOptions", "forceSyncDesc")).addToggle((toggle) => toggle.setValue(this.forceValue).onChange((value) => {
       this.forceValue = value;
     }));
     const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
@@ -10115,8 +11161,8 @@ var SyncOptionsModal = class extends import_obsidian14.Modal {
 };
 
 // src/ui/syncPreviewModal.ts
-var import_obsidian15 = require("obsidian");
-var SyncPreviewModal = class extends import_obsidian15.Modal {
+var import_obsidian14 = require("obsidian");
+var SyncPreviewModal = class extends import_obsidian14.Modal {
   constructor(app, items, onConfirm) {
     super(app);
     this.itemElements = /* @__PURE__ */ new Map();
@@ -10125,7 +11171,7 @@ var SyncPreviewModal = class extends import_obsidian15.Modal {
   }
   onOpen() {
     const { contentEl } = this;
-    new import_obsidian15.Setting(contentEl).setName(tn("syncPreview", "title")).setHeading();
+    new import_obsidian14.Setting(contentEl).setName(tn("syncPreview", "title")).setHeading();
     contentEl.createEl("p", {
       text: `${this.items.length} ${tn("syncPreview", "itemsToSync")}`,
       cls: "bangumi-preview-info"
@@ -10221,10 +11267,10 @@ var SyncPreviewModal = class extends import_obsidian15.Modal {
 };
 
 // src/ui/searchModal.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 
 // src/ui/addToCollectionModal.ts
-var import_obsidian16 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 var COLLECTION_TYPE_OPTIONS = [
   { value: 1, labelKey: "wish" },
   { value: 2, labelKey: "done" },
@@ -10232,7 +11278,7 @@ var COLLECTION_TYPE_OPTIONS = [
   { value: 4, labelKey: "onHold" },
   { value: 5, labelKey: "dropped" }
 ];
-var AddToCollectionModal = class extends import_obsidian16.Modal {
+var AddToCollectionModal = class extends import_obsidian15.Modal {
   constructor(app, client, settings, syncManager, subject, onComplete, existingCollection) {
     super(app);
     // 输入状态
@@ -10266,7 +11312,7 @@ var AddToCollectionModal = class extends import_obsidian16.Modal {
     const { contentEl } = this;
     contentEl.addClass("bangumi-add-collection-modal");
     const title = `${tn("addToCollection", "title")} - ${this.subject.name_cn || this.subject.name}`;
-    new import_obsidian16.Setting(contentEl).setName(title).setHeading();
+    new import_obsidian15.Setting(contentEl).setName(title).setHeading();
     contentEl.createEl("h3", { text: tn("addToCollection", "bangumiProperties"), cls: "bangumi-add-collection-section" });
     const typeDiv = contentEl.createDiv({ cls: "bangumi-add-collection-type" });
     typeDiv.createSpan({ text: `${tn("addToCollection", "collectionType")}: ` });
@@ -10284,14 +11330,14 @@ var AddToCollectionModal = class extends import_obsidian16.Modal {
         btn.addClass("bangumi-add-collection-type-btn-active");
       });
     });
-    const rateSetting = new import_obsidian16.Setting(contentEl).setName(tn("addToCollection", "rating")).addSlider((slider) => {
+    const rateSetting = new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "rating")).addSlider((slider) => {
       slider.setLimits(0, 10, 1).setValue(this.rate).onChange((value) => {
         this.rate = value;
         rateValueEl.setText(String(value));
       });
     });
     const rateValueEl = rateSetting.controlEl.createSpan({ cls: "bangumi-add-collection-rate-value", text: "0" });
-    const tagsSetting = new import_obsidian16.Setting(contentEl).setName(tn("addToCollection", "tags")).addText((text) => {
+    const tagsSetting = new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "tags")).addText((text) => {
       text.setPlaceholder(tn("addToCollection", "tagsPlaceholder"));
       this.tagInputEl = text.inputEl;
       text.inputEl.addEventListener("keydown", (e) => {
@@ -10309,7 +11355,7 @@ var AddToCollectionModal = class extends import_obsidian16.Modal {
     if (this.tags.length > 0) {
       this.renderTags();
     }
-    new import_obsidian16.Setting(contentEl).setName(tn("addToCollection", "comment")).addTextArea((text) => {
+    new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "comment")).addTextArea((text) => {
       text.setPlaceholder(tn("addToCollection", "commentPlaceholder"));
       text.setValue(this.comment);
       text.onChange((value) => {
@@ -10325,12 +11371,12 @@ var AddToCollectionModal = class extends import_obsidian16.Modal {
       });
     }
     contentEl.createEl("h3", { text: tn("addToCollection", "syncOptions"), cls: "bangumi-add-collection-section" });
-    new import_obsidian16.Setting(contentEl).setName(tn("addToCollection", "syncToCloud")).addToggle((toggle) => {
+    new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "syncToCloud")).addToggle((toggle) => {
       toggle.setValue(this.syncToCloud).onChange((value) => {
         this.syncToCloud = value;
       });
     });
-    new import_obsidian16.Setting(contentEl).setName(tn("addToCollection", "createLocal")).addToggle((toggle) => {
+    new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "createLocal")).addToggle((toggle) => {
       toggle.setValue(this.createLocal).onChange((value) => {
         this.createLocal = value;
       });
@@ -10394,11 +11440,11 @@ var AddToCollectionModal = class extends import_obsidian16.Modal {
         this.onComplete(input);
         this.close();
       } else {
-        new import_obsidian16.Notice(`${tn("addToCollection", "addError")}: ${result.error}`);
+        new import_obsidian15.Notice(`${tn("addToCollection", "addError")}: ${result.error}`);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian16.Notice(`${tn("addToCollection", "addError")}: ${errorMsg}`);
+      new import_obsidian15.Notice(`${tn("addToCollection", "addError")}: ${errorMsg}`);
     }
   }
   onClose() {
@@ -10489,7 +11535,7 @@ var SEARCH_SHORT_LABELS = getLocale() === "zh-CN" ? {
   add: "Add",
   edit: "Edit"
 };
-var SearchModal = class extends import_obsidian17.Modal {
+var SearchModal = class extends import_obsidian16.Modal {
   constructor(app, client, settings, syncManager, onComplete) {
     super(app);
     // 搜索状态
@@ -10511,7 +11557,7 @@ var SearchModal = class extends import_obsidian17.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.addClass("bangumi-search-modal");
-    new import_obsidian17.Setting(contentEl).setName(tn("searchModal", "title")).setHeading();
+    new import_obsidian16.Setting(contentEl).setName(tn("searchModal", "title")).setHeading();
     const searchDiv = contentEl.createDiv({ cls: "bangumi-search-input-container" });
     const inputEl = searchDiv.createEl("input", {
       type: "text",
@@ -10665,7 +11711,7 @@ var SearchModal = class extends import_obsidian17.Modal {
         subject
       );
       const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (file instanceof import_obsidian17.TFile) {
+      if (file instanceof import_obsidian16.TFile) {
         return filePath;
       }
     } catch (e) {
@@ -10752,7 +11798,7 @@ var SearchModal = class extends import_obsidian17.Modal {
    * 处理添加完成
    */
   handleAddComplete(input) {
-    new import_obsidian17.Notice(tnFormat("searchModal", "addedSuccess", { name: input.subjectName }));
+    new import_obsidian16.Notice(tnFormat("searchModal", "addedSuccess", { name: input.subjectName }));
     this.onComplete();
   }
   onClose() {
@@ -10767,8 +11813,8 @@ var SearchModal = class extends import_obsidian17.Modal {
 };
 
 // src/ui/localPropertyModal.ts
-var import_obsidian18 = require("obsidian");
-var LocalPropertyModal = class extends import_obsidian18.Modal {
+var import_obsidian17 = require("obsidian");
+var LocalPropertyModal = class extends import_obsidian17.Modal {
   constructor(app, collections, subjectsById, customTemplates, onSubmit) {
     super(app);
     this.propertyValuesBySubjectId = /* @__PURE__ */ new Map();
@@ -10786,7 +11832,7 @@ var LocalPropertyModal = class extends import_obsidian18.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.addClass("bangumi-local-property-modal");
-    new import_obsidian18.Setting(contentEl).setName(tn("controlPanel", "localPropertyTitle")).setHeading();
+    new import_obsidian17.Setting(contentEl).setName(tn("controlPanel", "localPropertyTitle")).setHeading();
     contentEl.createEl("p", {
       text: tn("controlPanel", "localPropertyDesc"),
       cls: "bangumi-setting-desc"
@@ -10975,11 +12021,22 @@ function createFallbackSubject(collection) {
 }
 
 // src/panel/controlPanel.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 
 // src/panel/batchEditorModal.ts
-var import_obsidian19 = require("obsidian");
-var BatchEditorModal = class extends import_obsidian19.Modal {
+var import_obsidian18 = require("obsidian");
+
+// src/sync/writeOperationGate.ts
+var activeGuard = null;
+function setWriteOperationGuard(guard) {
+  activeGuard = guard;
+}
+function assertWriteOperationAllowed(operation) {
+  activeGuard == null ? void 0 : activeGuard(operation);
+}
+
+// src/panel/batchEditorModal.ts
+var BatchEditorModal = class extends import_obsidian18.Modal {
   constructor(app, items, onConfirm, documentService, getCachedSnapshot) {
     super(app);
     this.mode = "per_item";
@@ -11121,11 +12178,11 @@ var BatchEditorModal = class extends import_obsidian19.Modal {
         const property = propertyInput.value.trim();
         const value = valueInput.value.trim();
         if (!property) {
-          new import_obsidian19.Notice(tn("batchEditor", "noticeProperty"));
+          new import_obsidian18.Notice(tn("batchEditor", "noticeProperty"));
           return;
         }
         if ((type === "add" || type === "modify") && !value) {
-          new import_obsidian19.Notice(tn("batchEditor", "noticeValue"));
+          new import_obsidian18.Notice(tn("batchEditor", "noticeValue"));
           return;
         }
         this.operations.push({ type, property, value });
@@ -11167,7 +12224,7 @@ var BatchEditorModal = class extends import_obsidian19.Modal {
       btn.addEventListener("click", () => {
         const property = customPropertyInput.value.trim();
         if (!property) {
-          new import_obsidian19.Notice(tn("batchEditor", "noticeProperty"));
+          new import_obsidian18.Notice(tn("batchEditor", "noticeProperty"));
           return;
         }
         this.ensurePropertyExists(property);
@@ -11230,7 +12287,7 @@ var BatchEditorModal = class extends import_obsidian19.Modal {
       }
     } catch (error) {
       console.error("[Bangumi Sync] Failed to load batch editor properties", error);
-      new import_obsidian19.Notice(tn("batchEditor", "noticeLoadFailed"));
+      new import_obsidian18.Notice(tn("batchEditor", "noticeLoadFailed"));
     } finally {
       this.loadingProperties = false;
       this.renderPropertySelection();
@@ -11374,32 +12431,37 @@ var BatchEditorModal = class extends import_obsidian19.Modal {
     }
   }
   async handleSubmit() {
-    if (this.mode === "uniform") {
-      if (this.operations.length === 0) {
-        new import_obsidian19.Notice(tn("batchEditor", "noticeNoOp"));
+    try {
+      assertWriteOperationAllowed("batch-edit");
+    } catch (e) {
+      new import_obsidian18.Notice(tn("recoveryCenter", "writeBlocked"));
+      return;
+    }
+    try {
+      if (this.mode === "uniform") {
+        if (this.operations.length === 0) {
+          new import_obsidian18.Notice(tn("batchEditor", "noticeNoOp"));
+          return;
+        }
+        await this.onConfirm({ mode: "uniform", operations: this.operations });
+        this.close();
         return;
       }
-      await this.onConfirm({
-        mode: "uniform",
-        operations: this.operations
-      });
+      if (this.selectedProperties.length === 0) {
+        new import_obsidian18.Notice(tn("batchEditor", "noticeSelectProperty"));
+        return;
+      }
+      const perItemUpdates = this.buildPerItemUpdates();
+      if (perItemUpdates.length === 0) {
+        new import_obsidian18.Notice(tn("batchEditor", "noticeNothingChanged"));
+        return;
+      }
+      await this.onConfirm({ mode: "per_item", perItemUpdates });
       this.close();
-      return;
+    } catch (error) {
+      console.error("[Bangumi Sync] Batch edit failed:", error);
+      new import_obsidian18.Notice(error instanceof Error ? error.message : String(error));
     }
-    if (this.selectedProperties.length === 0) {
-      new import_obsidian19.Notice(tn("batchEditor", "noticeSelectProperty"));
-      return;
-    }
-    const perItemUpdates = this.buildPerItemUpdates();
-    if (perItemUpdates.length === 0) {
-      new import_obsidian19.Notice(tn("batchEditor", "noticeNothingChanged"));
-      return;
-    }
-    await this.onConfirm({
-      mode: "per_item",
-      perItemUpdates
-    });
-    this.close();
   }
   buildPerItemUpdates() {
     var _a, _b;
@@ -11422,6 +12484,7 @@ var BatchEditorModal = class extends import_obsidian19.Modal {
       if (Object.keys(properties).length > 0) {
         updates.push({
           filePath: item.filePath,
+          subjectId: item.subjectId,
           properties
         });
       }
@@ -11477,7 +12540,7 @@ var BatchEditorModal = class extends import_obsidian19.Modal {
       return this.documentService.extractFrontmatterRecord(cachedSnapshot.content);
     }
     const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof import_obsidian19.TFile)) {
+    if (!(file instanceof import_obsidian18.TFile)) {
       return null;
     }
     const content = await this.app.vault.read(file);
@@ -11489,14 +12552,16 @@ var FrontmatterEditor = class {
     this.history = [];
     this.maxHistory = 10;
     this.app = app;
+    this.documentService = new SubjectDocumentService(app);
   }
-  async batchModify(filePaths, operations) {
+  async batchModify(filePaths, operations, expectedSubjectIds = /* @__PURE__ */ new Map()) {
+    assertWriteOperationAllowed("batch-edit");
     const originalContents = await this.captureOriginalContents(filePaths);
     const affectedFiles = [];
     let success = 0;
     let failed = 0;
     for (const path of filePaths) {
-      const result = await this.applyUniformOperations(path, operations);
+      const result = await this.applyUniformOperations(path, operations, expectedSubjectIds.get(path));
       if (result) {
         success++;
         affectedFiles.push(path);
@@ -11508,6 +12573,7 @@ var FrontmatterEditor = class {
     return { success, failed };
   }
   async batchApplyPerItemUpdates(updates) {
+    assertWriteOperationAllowed("batch-edit");
     const filePaths = updates.map((update) => update.filePath);
     const originalContents = await this.captureOriginalContents(filePaths);
     const affectedFiles = [];
@@ -11526,6 +12592,8 @@ var FrontmatterEditor = class {
     return { success, failed };
   }
   async undo() {
+    var _a;
+    assertWriteOperationAllowed("batch-edit");
     if (this.history.length === 0) {
       return false;
     }
@@ -11536,8 +12604,11 @@ var FrontmatterEditor = class {
     let restored = 0;
     for (const [path, content] of lastOperation.originalContent) {
       const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian19.TFile && lastOperation.affectedFiles.includes(path)) {
-        await this.app.vault.process(file, () => content);
+      if (file instanceof import_obsidian18.TFile && lastOperation.affectedFiles.includes(path)) {
+        const identity = this.documentService.getSubjectIdentityFromContent(content);
+        if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length))
+          continue;
+        await this.documentService.processSubjectFile(file, identity.subjectId, () => content);
         restored++;
       }
     }
@@ -11546,22 +12617,28 @@ var FrontmatterEditor = class {
   canUndo() {
     return this.history.length > 0;
   }
-  async applyUniformOperations(filePath, operations) {
+  async applyUniformOperations(filePath, operations, expectedSubjectId) {
+    var _a;
     const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof import_obsidian19.TFile)) {
+    if (!(file instanceof import_obsidian18.TFile)) {
       return false;
     }
     try {
-      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-        var _a;
-        const frontmatterRecord = frontmatter;
+      const identity = await this.documentService.getSubjectIdentity(file);
+      const subjectId = expectedSubjectId != null ? expectedSubjectId : identity.subjectId;
+      if (subjectId === null || identity.subjectId !== subjectId || ((_a = identity.conflicts) == null ? void 0 : _a.length))
+        return false;
+      await this.documentService.processSubjectFile(file, subjectId, (content) => {
+        var _a2;
+        let updated = content;
         for (const operation of operations) {
           if (operation.type === "delete") {
-            delete frontmatterRecord[operation.property];
+            updated = this.documentService.removeFrontmatterField(updated, operation.property);
             continue;
           }
-          frontmatterRecord[operation.property] = (_a = operation.value) != null ? _a : "";
+          updated = this.documentService.updateFrontmatterField(updated, operation.property, (_a2 = operation.value) != null ? _a2 : "");
         }
+        return updated;
       });
       return true;
     } catch (error) {
@@ -11571,15 +12648,18 @@ var FrontmatterEditor = class {
   }
   async applyPerItemUpdate(update) {
     const file = this.app.vault.getAbstractFileByPath(update.filePath);
-    if (!(file instanceof import_obsidian19.TFile)) {
+    if (!(file instanceof import_obsidian18.TFile)) {
       return false;
     }
     try {
-      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-        const frontmatterRecord = frontmatter;
+      if (update.subjectId === void 0)
+        return false;
+      await this.documentService.processSubjectFile(file, update.subjectId, (content) => {
+        let updated = content;
         for (const [property, value] of Object.entries(update.properties)) {
-          frontmatterRecord[property] = value;
+          updated = this.documentService.updateFrontmatterField(updated, property, value);
         }
+        return updated;
       });
       return true;
     } catch (error) {
@@ -11591,7 +12671,7 @@ var FrontmatterEditor = class {
     const originalContents = /* @__PURE__ */ new Map();
     for (const path of filePaths) {
       const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian19.TFile) {
+      if (file instanceof import_obsidian18.TFile) {
         const content = await this.app.vault.read(file);
         originalContents.set(path, content);
       }
@@ -11620,7 +12700,7 @@ function coerceDraftValue(value, originalValue) {
 }
 
 // src/panel/statusSyncModal.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 
 // src/sync/statusSyncTypes.ts
 var USER_STATUS_SYNC_FIELD_KEYS = [
@@ -11693,7 +12773,7 @@ function getStatusSyncScope(selection) {
 }
 
 // src/panel/statusSyncModal.ts
-var StatusSyncModal = class extends import_obsidian20.Modal {
+var StatusSyncModal = class extends import_obsidian19.Modal {
   constructor(app, statusSyncService, selection, diffs, onComplete) {
     super(app);
     this.renderTimer = null;
@@ -12079,17 +13159,30 @@ var StatusSyncModal = class extends import_obsidian20.Modal {
     this.renderTable();
   }
   async executeSync() {
-    this.statusEl.setText(tn("statusSyncModal", "syncProgress"));
-    const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
-    const message = tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount));
-    this.statusEl.setText(message);
-    if (successCount > 0) {
-      new import_obsidian20.Notice(message);
-      this.onComplete();
-      this.close();
+    try {
+      assertWriteOperationAllowed("status-sync");
+    } catch (e) {
+      new import_obsidian19.Notice(tn("recoveryCenter", "writeBlocked"));
       return;
     }
-    new import_obsidian20.Notice(tn("statusSyncModal", "syncFailed"));
+    try {
+      this.statusEl.setText(tn("statusSyncModal", "syncProgress"));
+      const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
+      const summary = tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount));
+      const message = successCount > 0 && failCount > 0 ? `${tn("syncModal", "partialSuccess")}: ${summary}` : summary;
+      this.statusEl.setText(message);
+      if (successCount > 0) {
+        new import_obsidian19.Notice(message);
+        this.onComplete();
+        this.close();
+        return;
+      }
+      new import_obsidian19.Notice(tn("statusSyncModal", "syncFailed"));
+    } catch (error) {
+      console.error("[Bangumi Sync] Status sync failed:", error);
+      this.statusEl.setText(tn("statusSyncModal", "syncFailed"));
+      new import_obsidian19.Notice(`${tn("statusSyncModal", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   scheduleRender() {
     if (this.renderTimer !== null || this.isDisposedFlag) {
@@ -12214,8 +13307,8 @@ var StatusSyncModal = class extends import_obsidian20.Modal {
 };
 
 // src/panel/statusSyncScopeModal.ts
-var import_obsidian21 = require("obsidian");
-var StatusSyncScopeModal = class extends import_obsidian21.Modal {
+var import_obsidian20 = require("obsidian");
+var StatusSyncScopeModal = class extends import_obsidian20.Modal {
   constructor(app, initialSelection, onConfirm) {
     super(app);
     this.selection = normalizeStatusSyncFieldSelection(initialSelection);
@@ -12267,7 +13360,7 @@ var StatusSyncScopeModal = class extends import_obsidian21.Modal {
       button.type = "button";
       button.addEventListener("click", () => {
         if (!hasSelectedUserFields(this.selection) && !hasSelectedPlatformFields(this.selection)) {
-          new import_obsidian21.Notice(tn("statusSyncModal", "selectAtLeastOne"));
+          new import_obsidian20.Notice(tn("statusSyncModal", "selectAtLeastOne"));
           return;
         }
         this.onConfirm(cloneStatusSyncFieldSelection(this.selection));
@@ -12509,7 +13602,7 @@ function isMobile() {
 }
 
 // src/document/localSubjectSnapshotSession.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 var LocalSubjectSnapshotSession = class {
   constructor(app, documentService) {
     this.snapshotsById = /* @__PURE__ */ new Map();
@@ -12547,7 +13640,7 @@ var LocalSubjectSnapshotSession = class {
         return;
       }
       const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-      if (!(file instanceof import_obsidian22.TFile)) {
+      if (!(file instanceof import_obsidian21.TFile)) {
         return;
       }
       const snapshot = await this.documentService.readSnapshot(file, collection.subject_type);
@@ -12595,7 +13688,7 @@ var LocalSubjectSnapshotSession = class {
       return null;
     }
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian22.TFile) || snapshot.mtime !== file.stat.mtime) {
+    if (!(file instanceof import_obsidian21.TFile) || snapshot.mtime !== file.stat.mtime) {
       this.delete(subjectId);
       return null;
     }
@@ -12699,11 +13792,11 @@ var StatusSyncBackgroundLoader = class {
         if (callbacks.isDisposed()) {
           return;
         }
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage2 = error instanceof Error ? error.message : String(error);
         callbacks.updateDiff(snapshot.subjectId, {
           episodeStatusLoadState: selection.user.episodeStatus && snapshot.localSnapshot.shouldLoadEpisodeStatus ? "failed" : "ready",
           platformLoadState: hasSelectedPlatformFields(selection) && snapshot.localSnapshot.shouldLoadPlatformData ? "failed" : "ready",
-          backgroundError: errorMessage
+          backgroundError: errorMessage2
         });
       } finally {
         completed++;
@@ -12882,7 +13975,7 @@ var StatusSyncBackgroundLoader = class {
 };
 
 // src/sync/statusSyncExecutor.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 var StatusSyncExecutor = class {
   constructor(app, client, documentService, episodeStatusManager) {
     this.app = app;
@@ -12891,6 +13984,7 @@ var StatusSyncExecutor = class {
     this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
   }
   async executeSync(diffs) {
+    assertWriteOperationAllowed("status-sync");
     let successCount = 0;
     let failCount = 0;
     const actionableDiffs = diffs.filter((diff) => diff.hasAnyDiff);
@@ -12908,7 +14002,7 @@ var StatusSyncExecutor = class {
   async syncItem(diff) {
     var _a, _b, _c, _d;
     const file = this.app.vault.getAbstractFileByPath(diff.localPath);
-    if (!(file instanceof import_obsidian23.TFile)) {
+    if (!(file instanceof import_obsidian22.TFile)) {
       throw new Error("File not found");
     }
     const originalContent = await this.app.vault.read(file);
@@ -12918,7 +14012,7 @@ var StatusSyncExecutor = class {
       if (diff.rate.decision === "local") {
         cloudUpdates.rate = diff.rate.localValue || void 0;
       } else if (diff.rate.decision === "cloud") {
-        content = this.documentService.updateRate(content, diff.rate.cloudValue);
+        content = diff.rate.cloudValue ? this.documentService.updateRate(content, diff.rate.cloudValue) : this.documentService.removeRate(content);
       }
     }
     if (diff.comment.hasDiff && diff.comment.decision !== "skip") {
@@ -12962,7 +14056,7 @@ var StatusSyncExecutor = class {
     }
     if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== "skip" && this.episodeStatusManager) {
       if (content !== originalContent) {
-        await this.app.vault.process(file, () => content);
+        await this.documentService.processSubjectFile(file, diff.subjectId, () => content);
         content = await this.app.vault.read(file);
       }
       if (diff.episodeStatus.decision === "local") {
@@ -12982,7 +14076,7 @@ var StatusSyncExecutor = class {
       content = await this.applyPlatformSync(diff, file, content);
     }
     if (content !== originalContent) {
-      await this.app.vault.process(file, () => content);
+      await this.documentService.processSubjectFile(file, diff.subjectId, () => content);
     }
   }
   async applyPlatformSync(diff, file, content) {
@@ -13074,7 +14168,7 @@ var StatusSyncExecutor = class {
 };
 
 // src/sync/statusSyncSnapshotBuilder.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 var StatusSyncSnapshotBuilder = class {
   constructor(app, documentService, episodeStatusManager) {
     this.app = app;
@@ -13102,7 +14196,7 @@ var StatusSyncSnapshotBuilder = class {
       return null;
     }
     const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-    if (!(file instanceof import_obsidian24.TFile)) {
+    if (!(file instanceof import_obsidian23.TFile)) {
       return null;
     }
     const cachedSnapshot = (_a = getCachedSnapshot == null ? void 0 : getCachedSnapshot(collection.subject_id, localInfo.path, file.stat.mtime)) != null ? _a : null;
@@ -13278,9 +14372,11 @@ var StatusSyncService = class {
 };
 
 // src/panel/controlPanel.ts
-var ControlPanel = class extends import_obsidian25.Modal {
+var ControlPanel = class extends import_obsidian24.Modal {
   constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, onOpenSyncOptions, onBatchDownloadCovers, onScanAndLinkRelated, subjectNoteManager, episodeStatusManager, autoSyncSelection) {
     super(app);
+    this.managerState = "idle";
+    this.unsubscribeManagerState = null;
     // 分页
     this.currentPage = 1;
     this.pageSize = 50;
@@ -13358,6 +14454,12 @@ var ControlPanel = class extends import_obsidian25.Modal {
     this.renderFilterBar();
     this.actionBarEl = contentEl.createDiv({ cls: "bangumi-panel-action-bar" });
     this.renderActionBar();
+    this.unsubscribeManagerState = this.syncManager.subscribeManagerState((state) => {
+      var _a;
+      this.managerState = state;
+      if ((_a = this.actionBarEl) == null ? void 0 : _a.isConnected)
+        this.renderActionBar();
+    });
     this.tableEl = contentEl.createDiv({ cls: "bangumi-panel-table" });
     this.footerBarEl = contentEl.createDiv({ cls: "bangumi-panel-footer-bar" });
     this.statusEl = this.footerBarEl.createDiv({ cls: "bangumi-panel-status" });
@@ -13375,6 +14477,9 @@ var ControlPanel = class extends import_obsidian25.Modal {
     this.setupSwipeToClose();
   }
   onClose() {
+    var _a;
+    (_a = this.unsubscribeManagerState) == null ? void 0 : _a.call(this);
+    this.unsubscribeManagerState = null;
     this.subjectSnapshotSession.cancelWarmup();
     if (this.touchStartHandler) {
       this.contentEl.removeEventListener("touchstart", this.touchStartHandler);
@@ -13492,13 +14597,22 @@ var ControlPanel = class extends import_obsidian25.Modal {
       });
       this.decorateMobileButton(button, action.mobileLabel, action.label);
       button.addEventListener("click", (evt) => {
+        if (this.isActionBlocked(action)) {
+          new import_obsidian24.Notice(tn("recoveryCenter", "writeBlocked"));
+          return;
+        }
         action.run(evt);
       });
-      if (action.key === "undo") {
+      if (this.isActionBlocked(action)) {
+        button.disabled = true;
+      } else if (action.key === "undo") {
         button.disabled = !this.frontmatterEditor.canUndo();
       }
     }
     this.updateSelectedCount();
+  }
+  isActionBlocked(action) {
+    return this.managerState !== "idle" && action.key !== "refresh";
   }
   getToolbarActions(hasSelection) {
     const actionMap = new Map(this.getActionDescriptors().map((action) => [action.key, action]));
@@ -13664,7 +14778,7 @@ var ControlPanel = class extends import_obsidian25.Modal {
       return;
     }
     const hasSelection = this.state.selectedIds.size > 0;
-    const menu = new import_obsidian25.Menu();
+    const menu = new import_obsidian24.Menu();
     const actions = this.getMoreMenuActions(hasSelection);
     const orderedSections = ["sync", "selection", "tools"];
     let hasRenderedAnyItem = false;
@@ -13677,7 +14791,7 @@ var ControlPanel = class extends import_obsidian25.Modal {
         menu.addSeparator();
       }
       for (const action of sectionActions) {
-        const disabled = !!action.requiresSelection && !hasSelection;
+        const disabled = this.isActionBlocked(action) || !!action.requiresSelection && !hasSelection;
         menu.addItem((item) => {
           item.setTitle(disabled ? `${action.label} (${tn("controlPanel", "selectFirst")})` : action.label).setDisabled(disabled).onClick(() => action.run());
         });
@@ -13976,12 +15090,12 @@ var ControlPanel = class extends import_obsidian25.Modal {
   }
   async openOrCreateNote(path) {
     if (!this.subjectNoteManager) {
-      new import_obsidian25.Notice(tn("notices", "noteManagerNotInit"));
+      new import_obsidian24.Notice(tn("notices", "noteManagerNotInit"));
       return;
     }
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian25.TFile)) {
-      new import_obsidian25.Notice(tn("controlPanel", "fileNotFound"));
+    if (!(file instanceof import_obsidian24.TFile)) {
+      new import_obsidian24.Notice(tn("controlPanel", "fileNotFound"));
       return;
     }
     await this.subjectNoteManager.createOrAppendForLocalFile(file);
@@ -14026,11 +15140,11 @@ var ControlPanel = class extends import_obsidian25.Modal {
    */
   openFile(path) {
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (file instanceof import_obsidian25.TFile) {
+    if (file instanceof import_obsidian24.TFile) {
       this.close();
       void this.app.workspace.openLinkText(file.path, "", true);
     } else {
-      new import_obsidian25.Notice(tn("controlPanel", "fileNotFound"));
+      new import_obsidian24.Notice(tn("controlPanel", "fileNotFound"));
     }
   }
   /**
@@ -14039,7 +15153,7 @@ var ControlPanel = class extends import_obsidian25.Modal {
    */
   async syncSelected(overwrite = false) {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian25.Notice(tn("controlPanel", "selectToSync"));
+      new import_obsidian24.Notice(tn("controlPanel", "selectToSync"));
       return;
     }
     let selectedCollections;
@@ -14053,7 +15167,7 @@ var ControlPanel = class extends import_obsidian25.Modal {
       );
     }
     if (selectedCollections.length === 0) {
-      new import_obsidian25.Notice(overwrite ? tn("controlPanel", "selectToSync") : tn("controlPanel", "alreadySynced"));
+      new import_obsidian24.Notice(overwrite ? tn("controlPanel", "selectToSync") : tn("controlPanel", "alreadySynced"));
       return;
     }
     const localPropertyResult = await this.collectLocalPropertyValues(selectedCollections);
@@ -14075,8 +15189,9 @@ var ControlPanel = class extends import_obsidian25.Modal {
         }
       );
       this.state.loading = false;
-      if (result.success) {
-        new import_obsidian25.Notice(`${tn("controlPanel", "syncComplete")}! ${result.added}, ${result.errors}`);
+      if (result.completion === "success" || result.completion === "partial-success") {
+        const completionText = result.completion === "partial-success" ? tn("syncModal", "partialSuccess") : tn("controlPanel", "syncComplete");
+        new import_obsidian24.Notice(`${completionText}: ${result.added}, ${result.errors}`);
         const scanPath = this.settings.scanFolderPath || "ACGN";
         await this.incrementalSync.scanLocalFolder(scanPath);
         this.state.localSubjects = /* @__PURE__ */ new Map();
@@ -14093,13 +15208,13 @@ var ControlPanel = class extends import_obsidian25.Modal {
         this.renderActionBar();
         this.renderPagination();
       } else {
-        new import_obsidian25.Notice(tn("controlPanel", "syncFailed"));
+        new import_obsidian24.Notice(tn("controlPanel", "syncFailed"));
         this.renderStatus(tn("controlPanel", "syncFailed"));
       }
     } catch (error) {
       this.state.loading = false;
       const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian25.Notice(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
+      new import_obsidian24.Notice(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
       this.renderStatus(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
     }
   }
@@ -14115,7 +15230,7 @@ var ControlPanel = class extends import_obsidian25.Modal {
       (message) => {
         if (!warned) {
           warned = true;
-          new import_obsidian25.Notice(message);
+          new import_obsidian24.Notice(message);
         }
       }
     );
@@ -14152,14 +15267,14 @@ var ControlPanel = class extends import_obsidian25.Modal {
    */
   deleteSelected() {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian25.Notice(tn("controlPanel", "selectToDelete"));
+      new import_obsidian24.Notice(tn("controlPanel", "selectToDelete"));
       return;
     }
     const syncedCollections = this.state.collections.filter(
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (syncedCollections.length === 0) {
-      new import_obsidian25.Notice(tn("controlPanel", "selectSyncedToDelete"));
+      new import_obsidian24.Notice(tn("controlPanel", "selectSyncedToDelete"));
       return;
     }
     const modal = new ConfirmModal(
@@ -14174,7 +15289,7 @@ var ControlPanel = class extends import_obsidian25.Modal {
             if (localInfo) {
               try {
                 const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-                if (file instanceof import_obsidian25.TFile) {
+                if (file instanceof import_obsidian24.TFile) {
                   await this.app.fileManager.trashFile(file);
                   this.state.localSubjects.delete(collection.subject_id);
                   deleted++;
@@ -14185,7 +15300,7 @@ var ControlPanel = class extends import_obsidian25.Modal {
               }
             }
           }
-          new import_obsidian25.Notice(`${tn("controlPanel", "deleteComplete")}: ${deleted}, ${failed}`);
+          new import_obsidian24.Notice(`${tn("controlPanel", "deleteComplete")}: ${deleted}, ${failed}`);
           this.state.selectedIds.clear();
           this.renderStatus(`${tn("controlPanel", "totalItems")} ${this.state.collections.length}, ${tn("controlPanel", "synced")} ${this.state.localSubjects.size}`);
           this.renderTable();
@@ -14203,7 +15318,7 @@ var ControlPanel = class extends import_obsidian25.Modal {
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (selectedCollections.length === 0) {
-      new import_obsidian25.Notice(tn("controlPanel", "selectSyncedToEdit"));
+      new import_obsidian24.Notice(tn("controlPanel", "selectSyncedToEdit"));
       return;
     }
     const targetItems = selectedCollections.map((collection) => {
@@ -14224,9 +15339,10 @@ var ControlPanel = class extends import_obsidian25.Modal {
         var _a, _b;
         const result = submission.mode === "uniform" ? await this.frontmatterEditor.batchModify(
           targetItems.map((item) => item.filePath),
-          (_a = submission.operations) != null ? _a : []
+          (_a = submission.operations) != null ? _a : [],
+          new Map(targetItems.flatMap((item) => item.subjectId === void 0 ? [] : [[item.filePath, item.subjectId]]))
         ) : await this.frontmatterEditor.batchApplyPerItemUpdates((_b = submission.perItemUpdates) != null ? _b : []);
-        new import_obsidian25.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
+        new import_obsidian24.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
         for (const item of targetItems) {
           this.subjectSnapshotSession.invalidatePath(item.filePath);
         }
@@ -14257,15 +15373,15 @@ var ControlPanel = class extends import_obsidian25.Modal {
    */
   async undoLastEdit() {
     if (!this.frontmatterEditor.canUndo()) {
-      new import_obsidian25.Notice(tn("controlPanel", "noUndo"));
+      new import_obsidian24.Notice(tn("controlPanel", "noUndo"));
       return;
     }
     const success = await this.frontmatterEditor.undo();
     if (success) {
-      new import_obsidian25.Notice(tn("controlPanel", "undoSuccess"));
+      new import_obsidian24.Notice(tn("controlPanel", "undoSuccess"));
       this.renderActionBar();
     } else {
-      new import_obsidian25.Notice(tn("controlPanel", "undoFailed"));
+      new import_obsidian24.Notice(tn("controlPanel", "undoFailed"));
     }
   }
   /**
@@ -14315,7 +15431,7 @@ var ControlPanel = class extends import_obsidian25.Modal {
   async syncStatus(selection) {
     selection = normalizeStatusSyncFieldSelection(selection);
     if (!hasSelectedUserFields(selection) && !hasSelectedPlatformFields(selection)) {
-      new import_obsidian25.Notice(tn("statusSyncModal", "selectAtLeastOne"));
+      new import_obsidian24.Notice(tn("statusSyncModal", "selectAtLeastOne"));
       return;
     }
     const scope = getStatusSyncScope(selection);
@@ -14332,7 +15448,7 @@ var ControlPanel = class extends import_obsidian25.Modal {
     );
     this.lastStatusSyncPerf.syncedCollections = syncedCollections.length;
     if (syncedCollections.length === 0) {
-      new import_obsidian25.Notice(tn("controlPanel", "noSyncedItemsStatus"));
+      new import_obsidian24.Notice(tn("controlPanel", "noSyncedItemsStatus"));
       return;
     }
     this.state.loading = true;
@@ -14376,7 +15492,7 @@ var ControlPanel = class extends import_obsidian25.Modal {
       this.state.loading = false;
       if (diffs.length === 0) {
         const message = this.getNoDiffMessage(selection);
-        new import_obsidian25.Notice(message);
+        new import_obsidian24.Notice(message);
         this.renderStatus(message);
         return;
       }
@@ -14418,7 +15534,7 @@ var ControlPanel = class extends import_obsidian25.Modal {
       if (this.lastStatusSyncPerf) {
         this.lastStatusSyncPerf.lastError = errorMsg;
       }
-      new import_obsidian25.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
+      new import_obsidian24.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
       this.renderStatus(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
     }
   }
@@ -14582,7 +15698,7 @@ function parseDateTime(value) {
   const time = Date.parse(value);
   return Number.isFinite(time) ? time : 0;
 }
-var ConfirmModal = class extends import_obsidian25.Modal {
+var ConfirmModal = class extends import_obsidian24.Modal {
   constructor(app, message, onConfirm) {
     super(app);
     this.message = message;
@@ -14608,25 +15724,1960 @@ var ConfirmModal = class extends import_obsidian25.Modal {
   }
 };
 
-// src/sync/syncStatus.ts
-function createCancellationSignal() {
-  return {
-    cancelled: false,
-    paused: false,
-    cancel() {
-      this.cancelled = true;
-    },
-    pause() {
-      this.paused = true;
-    },
-    resume() {
-      this.paused = false;
+// src/userData/userDataExporter.ts
+var import_obsidian25 = require("obsidian");
+var UserDataExporter = class {
+  constructor(app) {
+    this.app = app;
+    this.extractor = new UserDataExtractor(app);
+  }
+  /**
+   * 按条目 category 导出用户数据到单个备份文件
+   */
+  async exportByCategory(folderPath, outputDir, dataTypes = ["all" /* ALL */], onProgress) {
+    assertWriteOperationAllowed("user-data-export");
+    try {
+      const userDataMap = await this.extractor.extractForExportFromFolder(folderPath, dataTypes, onProgress);
+      if (userDataMap.size === 0) {
+        return { success: false, files: [], error: "No user data found" };
+      }
+      const groupedData = this.groupByCategory(userDataMap);
+      await this.ensureDirectory(outputDir);
+      const exportData = {
+        version: "3.0",
+        exportTime: new Date().toISOString(),
+        totalCount: userDataMap.size,
+        categories: groupedData
+      };
+      const filePath = (0, import_obsidian25.normalizePath)(`${outputDir}/bangumi-user-data.json`);
+      await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
+      return { success: true, files: [filePath] };
+    } catch (error) {
+      return { success: false, files: [], error: String(error) };
     }
+  }
+  /**
+   * 向后兼容旧接口
+   */
+  async exportBySubjectType(folderPath, outputDir, dataTypes = ["all" /* ALL */], onProgress) {
+    return await this.exportByCategory(folderPath, outputDir, dataTypes, onProgress);
+  }
+  /**
+   * 按条目 category 分组
+   */
+  groupByCategory(userDataMap) {
+    var _a;
+    const result = /* @__PURE__ */ new Map();
+    for (const [id, userData] of userDataMap) {
+      const category = this.resolveCategory(userData);
+      const subjectType = SUBJECT_TYPE_LABELS[userData.identifier.type] || "novel";
+      const existing = (_a = result.get(category)) != null ? _a : {
+        category,
+        subjectType,
+        totalCount: 0,
+        items: {}
+      };
+      existing.items[id] = userData;
+      existing.totalCount = Object.keys(existing.items).length;
+      result.set(category, existing);
+    }
+    return Array.from(result.entries()).sort((left, right) => left[0].localeCompare(right[0], "zh-CN")).reduce((acc, [category, data]) => {
+      acc[category] = data;
+      return acc;
+    }, {});
+  }
+  resolveCategory(userData) {
+    var _a, _b;
+    const explicitCategory = (_a = userData.category) == null ? void 0 : _a.trim();
+    if (explicitCategory) {
+      return explicitCategory;
+    }
+    const workType = (_b = userData.identifier.workType) == null ? void 0 : _b.trim();
+    if (workType) {
+      if (userData.identifier.type === 1 /* Book */) {
+        const lowered = workType.toLowerCase();
+        if (lowered === "comic")
+          return "\u6F2B\u753B";
+        if (lowered === "album")
+          return "\u753B\u96C6";
+      }
+      return workType;
+    }
+    return SUBJECT_TYPE_LABELS[userData.identifier.type] || "novel";
+  }
+  /**
+   * 确保目录存在
+   */
+  async ensureDirectory(path) {
+    const normalizedPath = (0, import_obsidian25.normalizePath)(path);
+    const exists = await this.app.vault.adapter.exists(normalizedPath);
+    if (!exists) {
+      await this.app.vault.createFolder(normalizedPath);
+    }
+  }
+  /**
+   * 保存文件
+   */
+  async saveFile(path, content) {
+    const normalizedPath = (0, import_obsidian25.normalizePath)(path);
+    const existing = this.app.vault.getAbstractFileByPath(normalizedPath);
+    if (existing instanceof import_obsidian25.TFile) {
+      await this.app.vault.process(existing, () => content);
+    } else {
+      await this.app.vault.create(normalizedPath, content);
+    }
+  }
+};
+
+// src/userData/userDataImporter.ts
+var import_obsidian26 = require("obsidian");
+
+// src/userData/importLogic.ts
+var LIST_LIKE_FIELDS = /* @__PURE__ */ new Set([
+  "tags",
+  "Tags",
+  "\u7248\u672C",
+  "\u683C\u5F0F",
+  "\u5E73\u53F0",
+  "\u5B58\u50A8",
+  "\u6E20\u9053",
+  "\u6539\u7F16\u7C7B\u522B",
+  "\u8D44\u6E90",
+  "\u6536\u85CF\u6765\u6E90"
+]);
+function mapLegacyRatingField(identifier, legacyKey) {
+  var _a, _b;
+  const type = identifier.type;
+  const workType = (_b = (_a = identifier.workType) == null ? void 0 : _a.toLowerCase()) != null ? _b : "";
+  if (type === 2 /* Anime */) {
+    return mapRatingFieldByTable(legacyKey, {
+      music: "\u97F3\u4E50\u8BC4\u5206",
+      character: "\u4EBA\u8BBE\u8BC4\u5206",
+      story: "\u5267\u60C5\u8BC4\u5206",
+      art: "\u7F8E\u672F\u8BC4\u5206"
+    });
+  }
+  if (type === 4 /* Game */) {
+    return mapRatingFieldByTable(legacyKey, {
+      story: "\u5267\u60C5\u8BC4\u5206",
+      fun: "\u8DA3\u5473\u8BC4\u5206",
+      music: "\u97F3\u4E50\u8BC4\u5206",
+      art: "\u7F8E\u672F\u8BC4\u5206"
+    });
+  }
+  if (type === 6 /* Real */) {
+    return mapRatingFieldByTable(legacyKey, {
+      story: "\u5267\u60C5\u8BC4\u5206",
+      character: "\u6F14\u6280\u8BC4\u5206",
+      art: "\u5236\u4F5C\u8BC4\u5206"
+    });
+  }
+  if (type === 1 /* Book */ && workType === "comic") {
+    return mapRatingFieldByTable(legacyKey, {
+      story: "\u5267\u60C5\u8BC4\u5206",
+      drawing: "\u753B\u5DE5\u8BC4\u5206",
+      character: "\u4EBA\u8BBE\u8BC4\u5206"
+    });
+  }
+  if (type === 1 /* Book */ && workType === "album") {
+    return mapRatingFieldByTable(legacyKey, {
+      story: "\u5267\u60C5\u8BC4\u5206",
+      drawing: "\u753B\u5DE5\u8BC4\u5206",
+      character: "\u4EBA\u8BBE\u8BC4\u5206"
+    });
+  }
+  return mapRatingFieldByTable(legacyKey, {
+    story: "\u5267\u60C5\u8BC4\u5206",
+    illustration: "\u63D2\u753B\u8BC4\u5206",
+    writing: "\u6587\u7B14\u8BC4\u5206",
+    character: "\u4EBA\u8BBE\u8BC4\u5206"
+  });
+}
+function smartMergeImportValues(localValue, importValue, fieldName) {
+  if (isEmptyImportValue(localValue)) {
+    return normalizeImportValueForWrite(importValue, fieldName);
+  }
+  if (isEmptyImportValue(importValue)) {
+    return normalizeImportValueForWrite(localValue, fieldName);
+  }
+  const localArray = toImportArray(localValue, fieldName);
+  const importArray = toImportArray(importValue, fieldName);
+  if (localArray && importArray) {
+    return Array.from(/* @__PURE__ */ new Set([...localArray, ...importArray]));
+  }
+  if (typeof localValue === "string" && typeof importValue === "string") {
+    return mergeSectionValues(localValue, importValue);
+  }
+  return normalizeImportValueForWrite(importValue, fieldName);
+}
+function mergeSectionValues(localValue, importValue) {
+  const localText = (localValue != null ? localValue : "").trim();
+  const importText = (importValue != null ? importValue : "").trim();
+  if (!localText)
+    return importText;
+  if (!importText)
+    return localText;
+  if (localText === importText)
+    return localText;
+  return `${localText}
+
+---
+
+${importText}`;
+}
+function importValuesEqual(left, right, fieldName) {
+  return stableStringify(normalizeComparableImportValue(left, fieldName)) === stableStringify(normalizeComparableImportValue(right, fieldName));
+}
+function normalizeImportValueForWrite(value, fieldName) {
+  const arrayValue = toImportArray(value, fieldName);
+  if (arrayValue) {
+    return Array.from(new Set(arrayValue));
+  }
+  return value;
+}
+function mapRatingFieldByTable(legacyKey, table) {
+  if (table[legacyKey]) {
+    return table[legacyKey];
+  }
+  return mapGenericRatingField(legacyKey);
+}
+function mapGenericRatingField(legacyKey) {
+  const genericMap = {
+    music: "\u97F3\u4E50\u8BC4\u5206",
+    character: "\u4EBA\u8BBE\u8BC4\u5206",
+    story: "\u5267\u60C5\u8BC4\u5206",
+    art: "\u7F8E\u672F\u8BC4\u5206",
+    illustration: "\u63D2\u753B\u8BC4\u5206",
+    writing: "\u6587\u7B14\u8BC4\u5206",
+    drawing: "\u753B\u5DE5\u8BC4\u5206",
+    fun: "\u8DA3\u5473\u8BC4\u5206"
   };
+  return genericMap[legacyKey] || null;
+}
+function isEmptyImportValue(value) {
+  if (value === null || value === void 0)
+    return true;
+  if (typeof value === "string")
+    return value.trim() === "";
+  if (Array.isArray(value))
+    return value.length === 0;
+  if (typeof value === "object")
+    return Object.keys(value).length === 0;
+  return false;
+}
+function toImportArray(value, fieldName) {
+  if (Array.isArray(value)) {
+    return normalizeListValues(value);
+  }
+  if (typeof value === "string" && fieldName && LIST_LIKE_FIELDS.has(fieldName)) {
+    const parsed = splitListString(value);
+    return parsed.length > 0 ? parsed : null;
+  }
+  return null;
+}
+function normalizeComparableImportValue(value, fieldName) {
+  if (fieldName === "\u77ED\u8BC4" && typeof value === "string") {
+    return normalizeShortComment(value);
+  }
+  const arrayValue = toImportArray(value, fieldName);
+  if (arrayValue) {
+    return Array.from(new Set(arrayValue)).sort((left, right) => left.localeCompare(right, "zh-CN"));
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      return String(Number(trimmed));
+    }
+    return trimmed.replace(/\r\n/g, "\n");
+  }
+  if (value && typeof value === "object") {
+    return stableNormalize(value);
+  }
+  return value;
+}
+function stableStringify(value) {
+  var _a;
+  if (value === null || value === void 0)
+    return "";
+  if (typeof value === "string")
+    return value;
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
+  if (typeof value === "bigint")
+    return value.toString();
+  if (typeof value === "symbol")
+    return (_a = value.description) != null ? _a : "symbol";
+  if (typeof value === "function")
+    return "[function]";
+  if (Array.isArray(value))
+    return JSON.stringify(value.map((item) => stableNormalize(item)));
+  if (typeof value === "object")
+    return JSON.stringify(stableNormalize(value));
+  return "";
+}
+function stableNormalize(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => stableNormalize(item));
+  }
+  if (value && typeof value === "object") {
+    const record = value;
+    return Object.keys(record).sort().reduce((acc, key) => {
+      acc[key] = stableNormalize(record[key]);
+      return acc;
+    }, {});
+  }
+  return value;
+}
+function normalizeListValues(values) {
+  return values.flatMap((item) => typeof item === "string" ? splitListString(item) : [stringifyImportValue(item)]).map((item) => item.trim()).filter(Boolean);
+}
+function splitListString(value) {
+  return value.split(/[,\n，、；;｜|]/).map((item) => item.trim()).filter(Boolean);
+}
+function stringifyImportValue(value) {
+  var _a;
+  if (typeof value === "string")
+    return value;
+  if (value === null || value === void 0)
+    return "";
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  if (typeof value === "symbol") {
+    return (_a = value.description) != null ? _a : "symbol";
+  }
+  if (typeof value === "function") {
+    return "[function]";
+  }
+  try {
+    return JSON.stringify(stableNormalize(value));
+  } catch (e) {
+    return "[object]";
+  }
+}
+
+// src/userData/userDataImporter.ts
+var PROPERTY_ALIAS_CANDIDATES = {
+  "\u5267\u60C5\u8BC4\u5206": ["\u6545\u4E8B\u8BC4\u5206"],
+  "\u6545\u4E8B\u8BC4\u5206": ["\u5267\u60C5\u8BC4\u5206"],
+  "\u4EBA\u8BBE\u8BC4\u5206": ["\u89D2\u8272\u8BC4\u5206"],
+  "\u89D2\u8272\u8BC4\u5206": ["\u4EBA\u8BBE\u8BC4\u5206"],
+  "\u7F8E\u672F\u8BC4\u5206": ["\u4F5C\u753B\u8BC4\u5206", "\u753B\u5DE5\u8BC4\u5206", "\u5236\u4F5C\u8BC4\u5206", "\u63D2\u753B\u8BC4\u5206"],
+  "\u753B\u5DE5\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206", "\u4F5C\u753B\u8BC4\u5206"],
+  "\u4F5C\u753B\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206", "\u753B\u5DE5\u8BC4\u5206"],
+  "\u5236\u4F5C\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206"],
+  "\u63D2\u753B\u8BC4\u5206": ["\u7F8E\u672F\u8BC4\u5206"]
+};
+var UserDataImporter = class {
+  constructor(app, scanRoot = "ACGN") {
+    this.registryReady = false;
+    this.app = app;
+    this.merger = new UserDataMerger(app);
+    this.incrementalSync = new IncrementalSync(app);
+    this.documentService = new SubjectDocumentService(app);
+    this.registry = new LocalSubjectRegistry(app, this.documentService);
+    this.scanRoot = scanRoot;
+  }
+  async importFromFile(filePath, options, onProgress) {
+    try {
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (!(file instanceof import_obsidian26.TFile)) {
+        throw new Error("Import file not found");
+      }
+      const content = await this.app.vault.read(file);
+      return await this.importFromText(filePath, content, options, onProgress);
+    } catch (error) {
+      throw new Error(`Failed to parse import file: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  async importFromText(fileName, content, options, onProgress) {
+    return await this.importFromTexts([{ name: fileName, content }], options, onProgress);
+  }
+  async importFromFiles(filePaths, options, onProgress) {
+    const files = [];
+    for (const filePath of filePaths) {
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (!(file instanceof import_obsidian26.TFile)) {
+        throw new Error(`Import file not found: ${filePath}`);
+      }
+      files.push({
+        name: filePath,
+        content: await this.app.vault.read(file)
+      });
+    }
+    return await this.importFromTexts(files, options, onProgress);
+  }
+  async importFromTexts(files, options, onProgress) {
+    assertWriteOperationAllowed("user-data-import");
+    const compareResult = await this.compareImportData(files, options, onProgress);
+    const applied = await this.applyImportPlan(files, options);
+    return {
+      success: applied.success,
+      skipped: Math.max(compareResult.skipped, applied.skipped),
+      autoImported: compareResult.autoImported,
+      errors: [...compareResult.errors, ...applied.errors],
+      missingFields: compareResult.missingFields
+    };
+  }
+  collectAllPropertyNames(files, options) {
+    var _a, _b;
+    const propertyNames = /* @__PURE__ */ new Set();
+    const parsedFiles = this.parseImportFiles(files);
+    const dataTypes = (_a = options == null ? void 0 : options.dataTypes) != null ? _a : ["all" /* ALL */];
+    for (const file of parsedFiles.files) {
+      for (const userData of Object.values((_b = file.data.items) != null ? _b : {})) {
+        const normalized = this.normalizeImportItem(userData, options);
+        for (const key of Object.keys(normalized.frontmatter)) {
+          if (this.isPropertyManageField(key, dataTypes)) {
+            propertyNames.add(key);
+          }
+        }
+      }
+    }
+    return propertyNames;
+  }
+  getSuggestedPropertyAliases(files, options) {
+    var _a;
+    const propertyNames = this.collectAllPropertyNames(files, options);
+    const localPropertyNames = this.collectLocalFrontmatterNames();
+    const suggestions = {};
+    for (const propertyName of propertyNames) {
+      if (localPropertyNames.has(propertyName))
+        continue;
+      const candidates = (_a = PROPERTY_ALIAS_CANDIDATES[propertyName]) != null ? _a : [];
+      const matchedCandidates = candidates.filter((candidate) => localPropertyNames.has(candidate));
+      if (matchedCandidates.length === 1) {
+        suggestions[propertyName] = matchedCandidates[0];
+      }
+    }
+    return suggestions;
+  }
+  async compareImportData(files, options, onProgress) {
+    var _a, _b, _c;
+    const parsedFiles = this.parseImportFiles(files);
+    const result = {
+      autoImported: 0,
+      diffs: [],
+      missingFields: [],
+      skipped: 0,
+      errors: parsedFiles.errors
+    };
+    let totalItems = 0;
+    for (const parsedFile of parsedFiles.files) {
+      totalItems += Object.keys((_a = parsedFile.data.items) != null ? _a : {}).length;
+    }
+    let processed = 0;
+    for (const parsedFile of parsedFiles.files) {
+      for (const [id, rawUserData] of Object.entries((_b = parsedFile.data.items) != null ? _b : {})) {
+        processed++;
+        onProgress == null ? void 0 : onProgress(processed, totalItems);
+        const subjectId = parseInt(id, 10);
+        if (Number.isNaN(subjectId)) {
+          result.errors.push({
+            id: 0,
+            name_cn: ((_c = rawUserData.identifier) == null ? void 0 : _c.name_cn) || id,
+            error: "Invalid subject id"
+          });
+          continue;
+        }
+        const localFile = await this.findLocalFile(subjectId);
+        if (!localFile) {
+          result.skipped++;
+          continue;
+        }
+        const normalized = this.normalizeImportItem(rawUserData, options);
+        const compareItem = await this.compareSingleItem(localFile, normalized, options);
+        result.autoImported += compareItem.autoImported;
+        result.missingFields.push(...compareItem.missingFields);
+        if (compareItem.diffs.length > 0) {
+          result.diffs.push({
+            subjectId,
+            name_cn: normalized.identifier.name_cn,
+            diffs: compareItem.diffs,
+            hasDiff: true
+          });
+        }
+      }
+    }
+    return result;
+  }
+  async applyMissingFieldDecisions(decisions) {
+    assertWriteOperationAllowed("user-data-import");
+    const grouped = /* @__PURE__ */ new Map();
+    for (const decision of decisions) {
+      if (decision.decision === null)
+        continue;
+      const existing = grouped.get(decision.subjectId) || [];
+      existing.push(decision);
+      grouped.set(decision.subjectId, existing);
+    }
+    for (const [subjectId, fieldDecisions] of grouped) {
+      const localFile = await this.findLocalFile(subjectId);
+      if (!localFile)
+        continue;
+      let content = await this.app.vault.read(localFile);
+      for (const decision of fieldDecisions) {
+        if (decision.decision === "add") {
+          content = this.merger.addFrontmatterField(
+            content,
+            decision.fieldName,
+            decision.fieldValue
+          );
+        }
+      }
+      await this.documentService.processSubjectFile(localFile, subjectId, () => content);
+    }
+  }
+  async applyImportDecisions(diffs, options = {
+    mergeStrategy: "smart",
+    dataTypes: []
+  }) {
+    var _a;
+    assertWriteOperationAllowed("user-data-import");
+    let applied = 0;
+    for (const item of diffs) {
+      const localFile = await this.findLocalFile(item.subjectId);
+      if (!localFile)
+        continue;
+      let content = await this.app.vault.read(localFile);
+      let changed = false;
+      for (const diff of item.diffs) {
+        const decision = (_a = diff.decision) != null ? _a : "skip";
+        if (decision === "local" || decision === "skip")
+          continue;
+        if (diff.fieldType === "section") {
+          const sectionName = diff.fieldName;
+          const localValue = sectionName === "\u77ED\u8BC4" ? this.documentService.extractComment(content) : this.documentService.extractSection(content, sectionName);
+          const nextValue2 = decision === "merge" ? this.mergeSectionValues(localValue, asString(diff.importValue)) : asString(diff.importValue);
+          if (nextValue2 && nextValue2 !== localValue) {
+            content = sectionName === "\u77ED\u8BC4" ? this.documentService.updateComment(content, nextValue2) : this.documentService.updateSection(content, sectionName, nextValue2);
+            changed = true;
+          }
+          continue;
+        }
+        const nextValue = decision === "merge" ? smartMergeImportValues(
+          this.getFrontmatterValueRaw(localFile, diff.fieldName),
+          diff.importValue,
+          diff.fieldName
+        ) : diff.importValue;
+        if (nextValue !== void 0) {
+          content = this.merger.updateFrontmatterField(content, diff.fieldName, nextValue);
+          changed = true;
+        }
+      }
+      if (changed) {
+        await this.documentService.processSubjectFile(localFile, item.subjectId, () => content);
+        applied++;
+      }
+    }
+    return applied;
+  }
+  async applyImportPlan(files, options, diffs = [], missingFieldDecisions = [], onProgress) {
+    var _a, _b, _c, _d, _e, _f;
+    assertWriteOperationAllowed("user-data-import");
+    const parsedFiles = this.parseImportFiles(files);
+    const diffDecisionMap = this.buildDiffDecisionMap(diffs);
+    const missingDecisionMap = this.buildMissingFieldDecisionMap(missingFieldDecisions);
+    const result = {
+      success: 0,
+      skipped: 0,
+      autoImported: 0,
+      errors: parsedFiles.errors,
+      missingFields: []
+    };
+    let totalItems = 0;
+    for (const parsedFile of parsedFiles.files) {
+      totalItems += Object.keys((_a = parsedFile.data.items) != null ? _a : {}).length;
+    }
+    let processed = 0;
+    for (const parsedFile of parsedFiles.files) {
+      for (const [id, rawUserData] of Object.entries((_b = parsedFile.data.items) != null ? _b : {})) {
+        processed++;
+        onProgress == null ? void 0 : onProgress(processed, totalItems);
+        const subjectId = parseInt(id, 10);
+        if (Number.isNaN(subjectId)) {
+          result.errors.push({
+            id: 0,
+            name_cn: ((_c = rawUserData.identifier) == null ? void 0 : _c.name_cn) || id,
+            error: "Invalid subject id"
+          });
+          continue;
+        }
+        const localFile = await this.findLocalFile(subjectId);
+        if (!localFile) {
+          result.skipped++;
+          continue;
+        }
+        try {
+          const normalized = this.normalizeImportItem(rawUserData, options);
+          const changed = await this.applySingleItem(
+            localFile,
+            subjectId,
+            normalized,
+            options,
+            (_d = diffDecisionMap.get(subjectId)) != null ? _d : /* @__PURE__ */ new Map(),
+            (_e = missingDecisionMap.get(subjectId)) != null ? _e : /* @__PURE__ */ new Map()
+          );
+          if (changed) {
+            result.success++;
+          } else {
+            result.skipped++;
+          }
+        } catch (error) {
+          result.errors.push({
+            id: subjectId,
+            name_cn: ((_f = rawUserData.identifier) == null ? void 0 : _f.name_cn) || String(subjectId),
+            error: String(error)
+          });
+        }
+      }
+    }
+    return result;
+  }
+  parseImportFiles(files) {
+    var _a, _b, _c, _d;
+    const parsedFiles = [];
+    const errors = [];
+    for (const file of files) {
+      try {
+        const parsed = JSON.parse(file.content);
+        if (this.isCombinedExport(parsed)) {
+          const categoryEntries = Object.entries((_a = parsed.categories) != null ? _a : {});
+          if (categoryEntries.length === 0) {
+            throw new Error("Invalid import data: missing categories");
+          }
+          for (const [categoryName, categoryData] of categoryEntries) {
+            if (!this.isCategoryExport(categoryData)) {
+              throw new Error(`Invalid category export: ${categoryName}`);
+            }
+            parsedFiles.push({
+              name: `${file.name} / ${categoryName}`,
+              data: {
+                version: parsed.version,
+                exportTime: parsed.exportTime,
+                subjectType: categoryData.subjectType,
+                totalCount: (_c = categoryData.totalCount) != null ? _c : Object.keys((_b = categoryData.items) != null ? _b : {}).length,
+                items: (_d = categoryData.items) != null ? _d : {}
+              }
+            });
+          }
+          continue;
+        }
+        if (!this.isSingleExport(parsed)) {
+          throw new Error("Invalid import data: missing items");
+        }
+        parsedFiles.push({ name: file.name, data: parsed });
+      } catch (error) {
+        errors.push({
+          id: 0,
+          name_cn: file.name,
+          error: `Failed to parse import file ${file.name}: ${error instanceof Error ? error.message : String(error)}`
+        });
+      }
+    }
+    return { files: parsedFiles, errors };
+  }
+  isSingleExport(data) {
+    return !!data && typeof data === "object" && "items" in data && typeof data.items === "object";
+  }
+  isCombinedExport(data) {
+    return !!data && typeof data === "object" && "categories" in data && typeof data.categories === "object" && !Array.isArray(data.categories);
+  }
+  isCategoryExport(data) {
+    return !!data && typeof data === "object" && "items" in data && typeof data.items === "object";
+  }
+  async compareSingleItem(localFile, userData, options) {
+    var _a, _b;
+    const content = await this.app.vault.read(localFile);
+    const missingFields = [];
+    const diffs = [];
+    let autoImported = 0;
+    for (const [rawKey, value] of Object.entries(userData.frontmatter)) {
+      const fieldName = this.getEffectiveFieldName(rawKey, options);
+      if (!fieldName)
+        continue;
+      if (fieldName === "\u77ED\u8BC4") {
+        const importValue = asString(value);
+        const localValue2 = this.documentService.extractComment(content);
+        if (importValuesEqual(localValue2, importValue, fieldName)) {
+          continue;
+        }
+        if (options.mergeStrategy === "smart" && this.isEmptyValue(localValue2) && !this.isEmptyValue(importValue)) {
+          autoImported++;
+          continue;
+        }
+        diffs.push({
+          fieldName,
+          localValue: localValue2,
+          importValue,
+          fieldType: "section",
+          decision: null
+        });
+        continue;
+      }
+      if (!this.merger.hasFrontmatterField(content, fieldName)) {
+        missingFields.push({
+          subjectId: userData.identifier.id,
+          subjectName: userData.identifier.name_cn,
+          fieldName,
+          fieldValue: value,
+          decision: null
+        });
+        continue;
+      }
+      const localValue = this.getFrontmatterValueRaw(localFile, fieldName);
+      if (importValuesEqual(localValue, value, fieldName)) {
+        continue;
+      }
+      if (options.mergeStrategy === "smart" && this.isEmptyValue(localValue) && !this.isEmptyValue(value)) {
+        autoImported++;
+        continue;
+      }
+      diffs.push({
+        fieldName,
+        localValue,
+        importValue: value,
+        fieldType: "frontmatter",
+        decision: null
+      });
+    }
+    if (hasUserDataType(options.dataTypes, "bodySections" /* BODY_CONTENT */)) {
+      const recordDiff = this.compareSection(
+        content,
+        "\u8BB0\u5F55",
+        (_a = userData.bodySections) == null ? void 0 : _a.record,
+        options
+      );
+      autoImported += recordDiff.autoImported;
+      if (recordDiff.diff)
+        diffs.push(recordDiff.diff);
+      const thoughtsDiff = this.compareSection(
+        content,
+        "\u611F\u60F3",
+        (_b = userData.bodySections) == null ? void 0 : _b.thoughts,
+        options
+      );
+      autoImported += thoughtsDiff.autoImported;
+      if (thoughtsDiff.diff)
+        diffs.push(thoughtsDiff.diff);
+    }
+    return { autoImported, missingFields, diffs };
+  }
+  compareSection(content, sectionName, importValue, options) {
+    if (!importValue) {
+      return { autoImported: 0 };
+    }
+    const localValue = this.documentService.extractSection(content, sectionName);
+    if (!localValue) {
+      return { autoImported: 1 };
+    }
+    if (localValue === importValue) {
+      return { autoImported: 0 };
+    }
+    if (options.mergeStrategy === "smart" && !localValue.trim()) {
+      return { autoImported: 1 };
+    }
+    return {
+      autoImported: 0,
+      diff: {
+        fieldName: sectionName,
+        localValue,
+        importValue,
+        fieldType: "section",
+        decision: null
+      }
+    };
+  }
+  async applySingleItem(localFile, subjectId, userData, options, diffDecisions, missingDecisions) {
+    var _a, _b;
+    const originalContent = await this.app.vault.read(localFile);
+    let updatedContent = originalContent;
+    let changed = false;
+    for (const [rawKey, value] of Object.entries(userData.frontmatter)) {
+      const fieldName = this.getEffectiveFieldName(rawKey, options);
+      if (!fieldName)
+        continue;
+      if (fieldName === "\u77ED\u8BC4") {
+        const localValue2 = this.documentService.extractComment(updatedContent);
+        const importValue = asString(value);
+        if (importValuesEqual(localValue2, importValue, fieldName)) {
+          continue;
+        }
+        const decisionKey2 = this.buildDiffDecisionKey("section", fieldName);
+        const explicitDecision2 = diffDecisions.get(decisionKey2);
+        const nextValue2 = this.resolveValueByStrategy(
+          localValue2,
+          importValue,
+          fieldName,
+          options.mergeStrategy,
+          explicitDecision2
+        );
+        if (nextValue2 !== void 0 && !importValuesEqual(localValue2, nextValue2, fieldName)) {
+          updatedContent = this.documentService.updateComment(updatedContent, asString(nextValue2));
+          changed = true;
+        }
+        continue;
+      }
+      const hasField = this.merger.hasFrontmatterField(updatedContent, fieldName);
+      if (!hasField) {
+        const decision = missingDecisions.get(fieldName);
+        if (decision === "add") {
+          updatedContent = this.merger.addFrontmatterField(updatedContent, fieldName, value);
+        }
+        continue;
+      }
+      const localValue = this.getFrontmatterValueRaw(localFile, fieldName);
+      if (importValuesEqual(localValue, value, fieldName)) {
+        continue;
+      }
+      const decisionKey = this.buildDiffDecisionKey("frontmatter", fieldName);
+      const explicitDecision = diffDecisions.get(decisionKey);
+      const nextValue = this.resolveValueByStrategy(
+        localValue,
+        value,
+        fieldName,
+        options.mergeStrategy,
+        explicitDecision
+      );
+      if (nextValue !== void 0 && !importValuesEqual(localValue, nextValue, fieldName)) {
+        updatedContent = this.merger.updateFrontmatterField(updatedContent, fieldName, nextValue);
+      }
+    }
+    if (hasUserDataType(options.dataTypes, "bodySections" /* BODY_CONTENT */)) {
+      updatedContent = this.applySectionChange(
+        updatedContent,
+        "\u8BB0\u5F55",
+        (_a = userData.bodySections) == null ? void 0 : _a.record,
+        options.mergeStrategy,
+        diffDecisions.get(this.buildDiffDecisionKey("section", "\u8BB0\u5F55"))
+      );
+      updatedContent = this.applySectionChange(
+        updatedContent,
+        "\u611F\u60F3",
+        (_b = userData.bodySections) == null ? void 0 : _b.thoughts,
+        options.mergeStrategy,
+        diffDecisions.get(this.buildDiffDecisionKey("section", "\u611F\u60F3"))
+      );
+    }
+    if (changed || updatedContent !== originalContent) {
+      await this.documentService.processSubjectFile(localFile, subjectId, () => updatedContent);
+      return true;
+    }
+    return false;
+  }
+  applySectionChange(content, sectionName, importValue, mergeStrategy, explicitDecision) {
+    if (!importValue)
+      return content;
+    const localValue = this.documentService.extractSection(content, sectionName);
+    if (!localValue) {
+      return this.documentService.updateSection(content, sectionName, importValue);
+    }
+    if (localValue === importValue)
+      return content;
+    if (explicitDecision === "local" || explicitDecision === "skip") {
+      return content;
+    }
+    if (explicitDecision === "import") {
+      return this.documentService.updateSection(content, sectionName, importValue);
+    }
+    if (explicitDecision === "merge") {
+      return this.documentService.updateSection(
+        content,
+        sectionName,
+        this.mergeSectionValues(localValue, importValue)
+      );
+    }
+    switch (mergeStrategy) {
+      case "prefer_import":
+        return this.documentService.updateSection(content, sectionName, importValue);
+      case "smart":
+        return this.documentService.updateSection(
+          content,
+          sectionName,
+          this.mergeSectionValues(localValue, importValue)
+        );
+      case "prefer_local":
+      default:
+        return content;
+    }
+  }
+  normalizeImportItem(userData, options) {
+    var _a, _b;
+    const dataTypes = (_a = options == null ? void 0 : options.dataTypes) != null ? _a : ["all" /* ALL */];
+    const frontmatter = this.filterImportFrontmatter(
+      { ...(_b = userData.customProperties) != null ? _b : {} },
+      dataTypes
+    );
+    if (userData.legacy) {
+      this.mergeLegacyFields(frontmatter, userData, dataTypes);
+    }
+    return {
+      identifier: userData.identifier,
+      frontmatter,
+      bodySections: hasUserDataType(dataTypes, "bodySections" /* BODY_CONTENT */) ? userData.bodySections : void 0
+    };
+  }
+  mergeLegacyFields(frontmatter, userData, dataTypes) {
+    var _a;
+    const legacy = userData.legacy;
+    if (!legacy)
+      return;
+    if (hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */) && legacy.storage !== void 0 && legacy.storage !== null && legacy.storage !== "") {
+      frontmatter["\u5B58\u50A8"] = legacy.storage;
+    }
+    if (!hasUserDataType(dataTypes, "userProperties" /* USER_PROPERTIES */))
+      return;
+    if (legacy.rate !== void 0 && legacy.rate !== null) {
+      frontmatter["\u8BC4\u5206"] = legacy.rate;
+    }
+    if (legacy.comment) {
+      frontmatter["\u77ED\u8BC4"] = legacy.comment;
+    }
+    if (legacy.tags && legacy.tags.length > 0) {
+      frontmatter.tags = legacy.tags;
+    }
+    if (hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */)) {
+      for (const [ratingKey, ratingValue] of Object.entries((_a = legacy.ratingDetails) != null ? _a : {})) {
+        const mappedKey = mapLegacyRatingField(userData.identifier, ratingKey);
+        if (!mappedKey)
+          continue;
+        frontmatter[mappedKey] = ratingValue;
+      }
+    }
+  }
+  filterImportFrontmatter(frontmatter, dataTypes) {
+    const includeAll = hasUserDataType(dataTypes, "all" /* ALL */);
+    const includeUserProperties = includeAll || hasUserDataType(dataTypes, "userProperties" /* USER_PROPERTIES */);
+    const includeCustomProperties = includeAll || hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */);
+    const filtered = {};
+    for (const [key, value] of Object.entries(frontmatter)) {
+      if (isUserPropertyField(key)) {
+        if (includeUserProperties) {
+          filtered[key] = value;
+        }
+        continue;
+      }
+      if (isCustomPropertyField(key)) {
+        if (includeCustomProperties) {
+          filtered[key] = value;
+        }
+        continue;
+      }
+      if (includeUserProperties && this.isImportManagedUserField(key)) {
+        filtered[key] = value;
+      }
+    }
+    return filtered;
+  }
+  isImportManagedUserField(fieldName) {
+    return isUserPropertyField(fieldName);
+  }
+  isPropertyManageField(fieldName, dataTypes) {
+    if (hasUserDataType(dataTypes, "userProperties" /* USER_PROPERTIES */) && isUserPropertyField(fieldName)) {
+      return true;
+    }
+    if (hasUserDataType(dataTypes, "customProperties" /* CUSTOM_PROPERTIES */) && isCustomPropertyField(fieldName)) {
+      return true;
+    }
+    return false;
+  }
+  getEffectiveFieldName(rawKey, options) {
+    var _a;
+    const manage = (_a = options.propertyManage) == null ? void 0 : _a[rawKey];
+    if (manage == null ? void 0 : manage.ignore)
+      return null;
+    return (manage == null ? void 0 : manage.aliasTo) || rawKey;
+  }
+  buildDiffDecisionMap(diffs) {
+    var _a;
+    const result = /* @__PURE__ */ new Map();
+    for (const item of diffs) {
+      const fieldMap = /* @__PURE__ */ new Map();
+      for (const diff of item.diffs) {
+        fieldMap.set(
+          this.buildDiffDecisionKey((_a = diff.fieldType) != null ? _a : "frontmatter", diff.fieldName),
+          diff.decision
+        );
+      }
+      result.set(item.subjectId, fieldMap);
+    }
+    return result;
+  }
+  buildMissingFieldDecisionMap(decisions) {
+    var _a;
+    const result = /* @__PURE__ */ new Map();
+    for (const decision of decisions) {
+      const fieldMap = (_a = result.get(decision.subjectId)) != null ? _a : /* @__PURE__ */ new Map();
+      fieldMap.set(decision.fieldName, decision.decision);
+      result.set(decision.subjectId, fieldMap);
+    }
+    return result;
+  }
+  buildDiffDecisionKey(fieldType, fieldName) {
+    return `${fieldType}:${fieldName}`;
+  }
+  resolveValueByStrategy(localValue, importValue, fieldName, mergeStrategy, explicitDecision) {
+    switch (explicitDecision) {
+      case "local":
+      case "skip":
+        return void 0;
+      case "import":
+        return importValue;
+      case "merge":
+        return smartMergeImportValues(localValue, importValue, fieldName);
+      default:
+        break;
+    }
+    switch (mergeStrategy) {
+      case "prefer_import":
+        return importValue;
+      case "smart":
+        return smartMergeImportValues(localValue, importValue, fieldName);
+      case "prefer_local":
+      default:
+        return void 0;
+    }
+  }
+  mergeSectionValues(localValue, importValue) {
+    return mergeSectionValues(localValue, importValue);
+  }
+  isEmptyValue(value) {
+    if (value === null || value === void 0)
+      return true;
+    if (typeof value === "string")
+      return value.trim() === "";
+    if (Array.isArray(value))
+      return value.length === 0;
+    if (typeof value === "object")
+      return Object.keys(value).length === 0;
+    return false;
+  }
+  collectLocalFrontmatterNames() {
+    const propertyNames = /* @__PURE__ */ new Set();
+    const files = this.app.vault.getMarkdownFiles();
+    for (const file of files) {
+      const cache = this.app.metadataCache.getFileCache(file);
+      const frontmatter = getFrontmatterRecord(cache == null ? void 0 : cache.frontmatter);
+      if (!frontmatter)
+        continue;
+      for (const key of Object.keys(frontmatter)) {
+        propertyNames.add(key);
+      }
+    }
+    return propertyNames;
+  }
+  getFrontmatterValueRaw(file, fieldName) {
+    const cache = this.app.metadataCache.getFileCache(file);
+    const frontmatter = getFrontmatterRecord(cache == null ? void 0 : cache.frontmatter);
+    return frontmatter == null ? void 0 : frontmatter[fieldName];
+  }
+  async findLocalFile(subjectId) {
+    if (!this.registryReady) {
+      await this.registry.scan(this.scanRoot);
+      this.registryReady = true;
+    }
+    const record = this.registry.getById(subjectId);
+    if (!record)
+      return null;
+    const file = this.app.vault.getAbstractFileByPath(record.path);
+    return file instanceof import_obsidian26.TFile ? file : null;
+  }
+};
+function asString(value) {
+  var _a;
+  if (typeof value === "string")
+    return value;
+  if (value === null || value === void 0)
+    return "";
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  if (typeof value === "symbol") {
+    return (_a = value.description) != null ? _a : "symbol";
+  }
+  if (typeof value === "function") {
+    return "[function]";
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(sortObjectKeysDeep(value));
+    } catch (e) {
+      return "[object]";
+    }
+  }
+  return "";
+}
+function sortObjectKeysDeep(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => sortObjectKeysDeep(item));
+  }
+  if (value && typeof value === "object") {
+    const record = value;
+    return Object.keys(record).sort().reduce((acc, key) => {
+      acc[key] = sortObjectKeysDeep(record[key]);
+      return acc;
+    }, {});
+  }
+  return value;
+}
+
+// src/userData/userDataModal.ts
+var import_obsidian27 = require("obsidian");
+var DEFAULT_EXPORT_DATA_TYPES = [
+  "userProperties" /* USER_PROPERTIES */,
+  "customProperties" /* CUSTOM_PROPERTIES */,
+  "bodySections" /* BODY_CONTENT */
+];
+var UserDataExportModal = class extends import_obsidian27.Modal {
+  constructor(app, scanFolderPath, onExport) {
+    super(app);
+    this.exportDataTypes = [...DEFAULT_EXPORT_DATA_TYPES];
+    this.exporter = new UserDataExporter(app);
+    this.scanFolderPath = scanFolderPath;
+    this.outputDir = scanFolderPath;
+    this.onExport = onExport;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-user-data-export");
+    contentEl.createEl("h2", { text: tn("userData", "exportTitle") });
+    contentEl.createEl("p", {
+      text: tn("userData", "exportDesc"),
+      cls: "bangumi-modal-desc"
+    });
+    new import_obsidian27.Setting(contentEl).setName(tn("userData", "scanFolder")).setDesc(tn("userData", "scanFolderDesc")).addText((text) => {
+      text.setValue(this.scanFolderPath).onChange((value) => {
+        this.scanFolderPath = value;
+      });
+    });
+    new import_obsidian27.Setting(contentEl).setName(tn("userData", "outputDir")).setDesc(tn("userData", "outputDirDesc")).addText((text) => {
+      text.setValue(this.outputDir).onChange((value) => {
+        this.outputDir = value;
+      });
+    });
+    contentEl.createEl("h3", { text: tn("userData", "exportDataTypes") });
+    contentEl.createEl("p", {
+      text: tn("userData", "exportDataTypesDesc"),
+      cls: "bangumi-modal-desc"
+    });
+    this.addDataTypeToggle(contentEl, "userProperties" /* USER_PROPERTIES */, "userProperties", "userPropertiesDesc");
+    this.addDataTypeToggle(contentEl, "customProperties" /* CUSTOM_PROPERTIES */, "customProperties", "customPropertiesDesc");
+    this.addDataTypeToggle(contentEl, "bodySections" /* BODY_CONTENT */, "bodyContent", "bodyContentDesc");
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    buttonDiv.createEl("button", { text: tn("userData", "cancel") }, (btn) => {
+      btn.addEventListener("click", () => this.close());
+    });
+    buttonDiv.createEl("button", {
+      text: tn("userData", "export"),
+      cls: "mod-cta"
+    }, (btn) => {
+      btn.addEventListener("click", () => void this.doExport());
+    });
+  }
+  async doExport() {
+    if (this.exportDataTypes.length === 0) {
+      new import_obsidian27.Notice(tn("userData", "selectAtLeastOneDataType"));
+      return;
+    }
+    const result = await this.exporter.exportByCategory(
+      this.scanFolderPath,
+      this.outputDir,
+      this.exportDataTypes
+    );
+    if (result.success && result.files.length > 0) {
+      new import_obsidian27.Notice(tnFormat("userData", "exportSuccess", { count: result.files.length }));
+      this.onExport(result.files);
+      this.close();
+    } else {
+      new import_obsidian27.Notice(tnFormat("userData", "exportFailed", { error: result.error || "Unknown error" }));
+    }
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+  addDataTypeToggle(container, dataType, nameKey, descKey) {
+    new import_obsidian27.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
+      toggle.setValue(this.exportDataTypes.includes(dataType)).onChange((value) => {
+        this.exportDataTypes = updateDataTypeSelection(this.exportDataTypes, dataType, value);
+      });
+    });
+  }
+};
+var UserDataImportModal = class extends import_obsidian27.Modal {
+  constructor(app, importFiles, onImport, scanRoot = "ACGN") {
+    super(app);
+    this.mergeStrategy = "smart";
+    this.importMode = "item";
+    this.importDataTypes = [...DEFAULT_EXPORT_DATA_TYPES];
+    this.importer = new UserDataImporter(app, scanRoot);
+    this.importFiles = importFiles;
+    this.onImport = onImport;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-user-data-import");
+    contentEl.createEl("h2", { text: tn("userData", "importTitle") });
+    contentEl.createEl("p", {
+      text: tn("userData", "importDesc"),
+      cls: "bangumi-modal-desc"
+    });
+    const fileListEl = contentEl.createDiv({ cls: "bangumi-import-file-list" });
+    for (const file of this.importFiles) {
+      fileListEl.createEl("div", { text: file.name, cls: "bangumi-import-file-item" });
+    }
+    new import_obsidian27.Setting(contentEl).setName(tn("userData", "mergeStrategy")).setDesc(tn("userData", "mergeStrategyDesc")).addDropdown((dropdown) => {
+      dropdown.addOption("prefer_local", tn("userData", "preferLocal")).addOption("prefer_import", tn("userData", "preferImport")).addOption("smart", tn("userData", "smartMerge")).setValue(this.mergeStrategy).onChange((value) => {
+        this.mergeStrategy = value;
+      });
+    });
+    new import_obsidian27.Setting(contentEl).setName(tn("userData", "importMode")).setDesc(tn("userData", "importModeDesc")).addDropdown((dropdown) => {
+      dropdown.addOption("item", tn("userData", "itemImportMode")).addOption("property", tn("userData", "propertyImportMode")).setValue(this.importMode).onChange((value) => {
+        this.importMode = value;
+      });
+    });
+    contentEl.createEl("h3", { text: tn("userData", "importDataTypes") });
+    contentEl.createEl("p", {
+      text: tn("userData", "importDataTypesDesc"),
+      cls: "bangumi-modal-desc"
+    });
+    this.addDataTypeToggle(contentEl, "userProperties" /* USER_PROPERTIES */, "userProperties", "userPropertiesDesc");
+    this.addDataTypeToggle(contentEl, "customProperties" /* CUSTOM_PROPERTIES */, "customProperties", "customPropertiesDesc");
+    this.addDataTypeToggle(contentEl, "bodySections" /* BODY_CONTENT */, "bodyContent", "bodyContentDesc");
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    buttonDiv.createEl("button", { text: tn("userData", "cancel") }, (btn) => {
+      btn.addEventListener("click", () => this.close());
+    });
+    buttonDiv.createEl("button", {
+      text: tn("userData", "import"),
+      cls: "mod-cta"
+    }, (btn) => {
+      btn.addEventListener("click", () => void this.doImport());
+    });
+  }
+  async doImport() {
+    if (this.importDataTypes.length === 0) {
+      new import_obsidian27.Notice(tn("userData", "selectAtLeastOneDataType"));
+      return;
+    }
+    const dataTypeOptions = { dataTypes: this.importDataTypes };
+    const propertyNames = this.importer.collectAllPropertyNames(this.importFiles, dataTypeOptions);
+    const suggestedAliases = this.importer.getSuggestedPropertyAliases(this.importFiles, dataTypeOptions);
+    if (propertyNames.size > 0) {
+      this.close();
+      new PropertyManageModal(this.app, propertyNames, suggestedAliases, (propertyManage) => {
+        void this.continueImport(propertyManage);
+      }).open();
+    } else {
+      await this.continueImport(void 0);
+    }
+  }
+  async continueImport(propertyManage) {
+    const options = {
+      mergeStrategy: this.mergeStrategy,
+      dataTypes: this.importDataTypes,
+      propertyManage
+    };
+    const compareResult = await this.importer.compareImportData(
+      this.importFiles,
+      options
+    );
+    const { autoImported, diffs, missingFields, errors, skipped } = compareResult;
+    if (diffs.length > 0) {
+      this.close();
+      if (this.importMode === "property") {
+        const propertyGroups = groupByProperty(diffs, missingFields);
+        new PropertyImportReviewModal(this.app, propertyGroups, (resolvedDiffs, resolvedMissingFields) => {
+          void (async () => {
+            await this.finishImport(options, resolvedDiffs, resolvedMissingFields, {
+              autoImported,
+              errors,
+              skipped
+            });
+          })();
+        }).open();
+        return;
+      }
+      new ImportCompareModal(this.app, diffs, (resolvedDiffs) => {
+        void (async () => {
+          await this.finishImport(options, resolvedDiffs, missingFields, {
+            autoImported,
+            errors,
+            skipped
+          });
+        })();
+      }).open();
+    } else {
+      if (this.importMode === "property" && missingFields.length > 0) {
+        this.close();
+        const propertyGroups = groupByProperty([], missingFields);
+        new PropertyImportReviewModal(this.app, propertyGroups, (resolvedDiffs, resolvedMissingFields) => {
+          void (async () => {
+            await this.finishImport(options, resolvedDiffs, resolvedMissingFields, {
+              autoImported,
+              errors,
+              skipped
+            });
+          })();
+        }).open();
+        return;
+      }
+      await this.finishImport(options, [], missingFields, {
+        autoImported,
+        errors,
+        skipped
+      });
+    }
+  }
+  async finishImport(options, diffs, missingFields, summary) {
+    const finalize = async (resolvedMissingFields) => {
+      const result = await this.importer.applyImportPlan(
+        this.importFiles,
+        options,
+        diffs,
+        resolvedMissingFields
+      );
+      result.autoImported = summary.autoImported;
+      result.errors = [...summary.errors, ...result.errors];
+      result.skipped = Math.max(summary.skipped, result.skipped);
+      this.onImport(result);
+    };
+    if (missingFields.length > 0) {
+      this.close();
+      new MissingFieldModal(this.app, missingFields, (resolvedMissingFields) => {
+        void finalize(resolvedMissingFields);
+      }).open();
+      return;
+    }
+    await finalize([]);
+    this.close();
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+  addDataTypeToggle(container, dataType, nameKey, descKey) {
+    new import_obsidian27.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
+      toggle.setValue(this.importDataTypes.includes(dataType)).onChange((value) => {
+        this.importDataTypes = updateDataTypeSelection(this.importDataTypes, dataType, value);
+      });
+    });
+  }
+};
+var MissingFieldModal = class extends import_obsidian27.Modal {
+  constructor(app, missingFields, onResolve) {
+    super(app);
+    this.decisions = /* @__PURE__ */ new Map();
+    this.missingFields = missingFields;
+    this.onResolve = onResolve;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-missing-field");
+    contentEl.createEl("h2", { text: tn("userData", "missingFieldTitle") });
+    contentEl.createEl("p", {
+      text: tn("userData", "missingFieldDesc"),
+      cls: "bangumi-modal-desc"
+    });
+    const quickDiv = contentEl.createDiv({ cls: "bangumi-missing-field-quick" });
+    quickDiv.createEl("button", { text: tn("userData", "addAll") }, (btn) => {
+      btn.addEventListener("click", () => this.resolveAll("add"));
+    });
+    quickDiv.createEl("button", { text: tn("userData", "skipAll") }, (btn) => {
+      btn.addEventListener("click", () => this.resolveAll("skip"));
+    });
+    const listEl = contentEl.createDiv({ cls: "bangumi-missing-field-list" });
+    this.renderFieldList(listEl);
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    buttonDiv.createEl("button", {
+      text: tn("userData", "confirm"),
+      cls: "mod-cta"
+    }, (btn) => {
+      btn.addEventListener("click", () => this.doResolve());
+    });
+  }
+  renderFieldList(container) {
+    container.empty();
+    for (let i = 0; i < this.missingFields.length; i++) {
+      const field = this.missingFields[i];
+      const currentDecision = this.decisions.get(i) || null;
+      const itemEl = container.createDiv({ cls: "bangumi-missing-field-item" });
+      if (currentDecision) {
+        itemEl.addClass(`bangumi-missing-field-resolved-${currentDecision}`);
+      }
+      itemEl.createEl("div", {
+        text: `${field.subjectName} (ID: ${field.subjectId})`,
+        cls: "bangumi-missing-field-subject"
+      });
+      const fieldInfoEl = itemEl.createDiv({ cls: "bangumi-missing-field-info" });
+      fieldInfoEl.createEl("span", { text: `${field.fieldName}: ` });
+      fieldInfoEl.createEl("span", { text: String(field.fieldValue), cls: "bangumi-missing-field-value" });
+      itemEl.createEl("div", {
+        text: `${tn("userData", "decision")}: ${missingDecisionLabel(currentDecision)}`,
+        cls: "bangumi-import-compare-diff-count"
+      });
+      const actionEl = itemEl.createDiv({ cls: "bangumi-missing-field-actions" });
+      actionEl.createEl("button", {
+        text: tn("userData", "addField"),
+        cls: currentDecision === "add" ? "mod-cta bangumi-decision-active" : ""
+      }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.decisions.set(i, "add");
+          this.renderFieldList(container);
+        });
+      });
+      actionEl.createEl("button", {
+        text: tn("userData", "skipField"),
+        cls: currentDecision === "skip" ? "mod-warning bangumi-decision-active" : ""
+      }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.decisions.set(i, "skip");
+          this.renderFieldList(container);
+        });
+      });
+    }
+  }
+  resolveAll(decision) {
+    for (let i = 0; i < this.missingFields.length; i++) {
+      this.decisions.set(i, decision);
+    }
+    const items = this.contentEl.querySelectorAll(".bangumi-missing-field-item");
+    const list = this.contentEl.querySelector(".bangumi-missing-field-list");
+    if (list instanceof HTMLElement) {
+      this.renderFieldList(list);
+    } else {
+      items.forEach((item) => {
+        item.addClass(`bangumi-missing-field-resolved-${decision}`);
+      });
+    }
+  }
+  doResolve() {
+    const resolvedDecisions = [];
+    for (let i = 0; i < this.missingFields.length; i++) {
+      const decision = this.decisions.get(i) || "skip";
+      resolvedDecisions.push({
+        ...this.missingFields[i],
+        decision
+      });
+    }
+    this.onResolve(resolvedDecisions);
+    this.close();
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
+var PropertyManageModal = class extends import_obsidian27.Modal {
+  constructor(app, propertyNames, suggestedAliases, onConfirm) {
+    super(app);
+    this.decisions = {};
+    this.propertyNames = propertyNames;
+    this.suggestedAliases = suggestedAliases;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-property-manage-modal");
+    contentEl.createEl("h2", { text: tn("userData", "propertyManageTitle") });
+    contentEl.createEl("p", {
+      text: tn("userData", "propertyManageDesc"),
+      cls: "bangumi-modal-desc"
+    });
+    const table = contentEl.createEl("table", { cls: "bangumi-property-manage-table" });
+    const thead = table.createEl("thead");
+    const headerRow = thead.createEl("tr");
+    headerRow.createEl("th", { text: tn("userData", "propertyName") });
+    headerRow.createEl("th", { text: tn("userData", "ignore") });
+    headerRow.createEl("th", { text: tn("userData", "alias") });
+    const tbody = table.createEl("tbody");
+    for (const name of this.propertyNames) {
+      const row = tbody.createEl("tr");
+      row.createEl("td", { text: name, cls: "bangumi-property-manage-name" });
+      const ignoreCell = row.createEl("td");
+      const ignoreCheckbox = ignoreCell.createEl("input", { type: "checkbox" });
+      ignoreCheckbox.addEventListener("change", () => {
+        if (!this.decisions[name]) {
+          this.decisions[name] = { ignore: false };
+        }
+        this.decisions[name].ignore = ignoreCheckbox.checked;
+      });
+      const aliasCell = row.createEl("td");
+      const aliasInput = aliasCell.createEl("input", {
+        type: "text",
+        placeholder: this.suggestedAliases[name] || name,
+        cls: "bangumi-property-manage-alias-input"
+      });
+      const suggestedAlias = this.suggestedAliases[name];
+      if (suggestedAlias) {
+        aliasInput.value = suggestedAlias;
+        this.decisions[name] = {
+          ignore: false,
+          aliasTo: suggestedAlias
+        };
+      }
+      aliasInput.addEventListener("input", () => {
+        const alias = aliasInput.value.trim();
+        if (!this.decisions[name]) {
+          this.decisions[name] = { ignore: false };
+        }
+        this.decisions[name].aliasTo = alias || void 0;
+      });
+    }
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    buttonDiv.createEl("button", { text: tn("userData", "cancel") }, (btn) => {
+      btn.addEventListener("click", () => this.close());
+    });
+    buttonDiv.createEl("button", {
+      text: tn("userData", "continueImport"),
+      cls: "mod-cta"
+    }, (btn) => {
+      btn.addEventListener("click", () => {
+        this.onConfirm(this.decisions);
+        this.close();
+      });
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var ImportCompareModal = class extends import_obsidian27.Modal {
+  constructor(app, diffs, onConfirm) {
+    super(app);
+    this.diffs = diffs;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-import-compare-modal");
+    contentEl.createEl("h2", { text: tn("userData", "compareTitle") });
+    contentEl.createEl("p", {
+      text: tnFormat("userData", "compareDesc", { count: this.diffs.length }),
+      cls: "bangumi-modal-desc"
+    });
+    const actionBar = contentEl.createDiv({ cls: "bangumi-import-compare-actions" });
+    actionBar.createEl("button", { text: tn("userData", "allLocal") }, (btn) => {
+      btn.addEventListener("click", () => this.batchDecision("local"));
+    });
+    actionBar.createEl("button", { text: tn("userData", "allImport") }, (btn) => {
+      btn.addEventListener("click", () => this.batchDecision("import"));
+    });
+    actionBar.createEl("button", { text: tn("userData", "allSmartMerge") }, (btn) => {
+      btn.addEventListener("click", () => this.batchDecision("merge"));
+    });
+    actionBar.createEl("button", { text: tn("userData", "allSkip") }, (btn) => {
+      btn.addEventListener("click", () => this.batchDecision("skip"));
+    });
+    const listEl = contentEl.createDiv({ cls: "bangumi-import-compare-list" });
+    this.renderDiffList(listEl);
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    buttonDiv.createEl("button", { text: tn("userData", "cancel") }, (btn) => {
+      btn.addEventListener("click", () => this.close());
+    });
+    buttonDiv.createEl("button", {
+      text: tn("userData", "executeImport"),
+      cls: "mod-cta"
+    }, (btn) => {
+      btn.addEventListener("click", () => {
+        this.onConfirm(this.diffs);
+        this.close();
+      });
+    });
+  }
+  renderDiffList(container) {
+    for (const item of this.diffs) {
+      const itemEl = container.createDiv({ cls: "bangumi-import-compare-item" });
+      const headerRow = itemEl.createDiv({ cls: "bangumi-import-compare-header" });
+      headerRow.createEl("span", {
+        text: `${item.name_cn} (ID: ${item.subjectId})`,
+        cls: "bangumi-import-compare-subject"
+      });
+      headerRow.createEl("span", {
+        text: tnFormat("userData", "diffFieldCount", { count: item.diffs.length }),
+        cls: "bangumi-import-compare-diff-count"
+      });
+      const expandBtn = headerRow.createEl("button", {
+        text: tn("statusSyncModal", "expand"),
+        cls: "bangumi-import-compare-expand-btn"
+      });
+      const detailEl = itemEl.createDiv({ cls: "bangumi-import-compare-detail bangumi-hidden" });
+      expandBtn.addEventListener("click", () => {
+        const isHidden = detailEl.hasClass("bangumi-hidden");
+        detailEl.toggleClass("bangumi-hidden", !isHidden);
+        expandBtn.textContent = isHidden ? tn("statusSyncModal", "collapse") : tn("statusSyncModal", "expand");
+      });
+      const table = detailEl.createEl("table", { cls: "bangumi-import-compare-table" });
+      const thead = table.createEl("thead");
+      const headerTr = thead.createEl("tr");
+      headerTr.createEl("th", { text: tn("userData", "field") });
+      headerTr.createEl("th", { text: tn("userData", "localValue") });
+      headerTr.createEl("th", { text: tn("userData", "importValue") });
+      headerTr.createEl("th", { text: tn("userData", "decision") });
+      const tbody = table.createEl("tbody");
+      for (let j = 0; j < item.diffs.length; j++) {
+        const diff = item.diffs[j];
+        const tr = tbody.createEl("tr");
+        tr.createEl("td", { text: diff.fieldName });
+        const localText = diff.localValue != null && diff.localValue !== "" ? formatDisplayValue(diff.localValue) : tn("statusSyncModal", "empty");
+        const importText = diff.importValue != null && diff.importValue !== "" ? formatDisplayValue(diff.importValue) : tn("statusSyncModal", "empty");
+        tr.createEl("td", {
+          text: localText,
+          cls: "bangumi-import-compare-value"
+        });
+        tr.createEl("td", {
+          text: importText,
+          cls: "bangumi-import-compare-value"
+        });
+        const selectCell = tr.createEl("td");
+        const select = selectCell.createEl("select", { cls: "bangumi-import-compare-select" });
+        select.createEl("option", { value: "local", text: tn("userData", "keepLocal") });
+        select.createEl("option", { value: "import", text: tn("userData", "keepImport") });
+        select.createEl("option", { value: "merge", text: tn("userData", "smartMerge") });
+        select.createEl("option", { value: "skip", text: tn("userData", "skip") });
+        select.value = "skip";
+        select.addEventListener("change", () => {
+          diff.decision = select.value;
+        });
+      }
+    }
+  }
+  batchDecision(decision) {
+    for (const item of this.diffs) {
+      for (const diff of item.diffs) {
+        diff.decision = decision;
+      }
+    }
+    const selects = this.contentEl.querySelectorAll(".bangumi-import-compare-select");
+    selects.forEach((select) => {
+      select.value = decision;
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var PropertyImportReviewModal = class extends import_obsidian27.Modal {
+  constructor(app, propertyGroups, onConfirm) {
+    super(app);
+    this.currentIndex = 0;
+    this.propertyGroups = propertyGroups;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    this.render();
+  }
+  render() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("bangumi-property-import-review");
+    if (this.propertyGroups.length === 0) {
+      contentEl.createEl("h2", { text: tn("userData", "propertyReviewTitle") });
+      contentEl.createEl("p", { text: tn("userData", "noDiff"), cls: "bangumi-modal-desc" });
+      const buttonDiv2 = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+      buttonDiv2.createEl("button", { text: tn("userData", "close"), cls: "mod-cta" }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.onConfirm([], []);
+          this.close();
+        });
+      });
+      return;
+    }
+    const group = this.propertyGroups[this.currentIndex];
+    contentEl.createEl("h2", { text: tn("userData", "propertyReviewTitle") });
+    contentEl.createEl("p", {
+      text: tnFormat("userData", "propertyReviewProgress", {
+        current: this.currentIndex + 1,
+        total: this.propertyGroups.length,
+        field: group.fieldName
+      }),
+      cls: "bangumi-modal-desc"
+    });
+    const actionBar = contentEl.createDiv({ cls: "bangumi-import-compare-actions" });
+    actionBar.createEl("button", { text: tn("userData", "allLocal") }, (btn) => {
+      btn.addEventListener("click", () => this.applyGroupDecision(group, "local"));
+    });
+    actionBar.createEl("button", { text: tn("userData", "allImport") }, (btn) => {
+      btn.addEventListener("click", () => this.applyGroupDecision(group, "import"));
+    });
+    actionBar.createEl("button", { text: tn("userData", "smartMerge") }, (btn) => {
+      btn.addEventListener("click", () => this.applyGroupDecision(group, "merge"));
+    });
+    actionBar.createEl("button", { text: tn("userData", "allSkip") }, (btn) => {
+      btn.addEventListener("click", () => this.applyGroupDecision(group, "skip"));
+    });
+    const listEl = contentEl.createDiv({ cls: "bangumi-import-compare-list" });
+    for (const diffEntry of group.diffs) {
+      const itemEl = listEl.createDiv({ cls: "bangumi-import-compare-item" });
+      itemEl.createEl("div", {
+        text: `${diffEntry.item.name_cn} (ID: ${diffEntry.item.subjectId})`,
+        cls: "bangumi-import-compare-subject"
+      });
+      const table = itemEl.createEl("table", { cls: "bangumi-import-compare-table" });
+      const tbody = table.createEl("tbody");
+      const tr = tbody.createEl("tr");
+      tr.createEl("td", { text: tn("userData", "localValue") });
+      tr.createEl("td", {
+        text: formatDisplayValue(diffEntry.diff.localValue),
+        cls: "bangumi-import-compare-value"
+      });
+      const tr2 = tbody.createEl("tr");
+      tr2.createEl("td", { text: tn("userData", "importValue") });
+      tr2.createEl("td", {
+        text: formatDisplayValue(diffEntry.diff.importValue),
+        cls: "bangumi-import-compare-value"
+      });
+      const decisionRow = itemEl.createDiv({ cls: "bangumi-missing-field-actions" });
+      addDecisionButton(decisionRow, tn("userData", "keepLocal"), () => {
+        diffEntry.diff.decision = "local";
+        this.render();
+      });
+      addDecisionButton(decisionRow, tn("userData", "keepImport"), () => {
+        diffEntry.diff.decision = "import";
+        this.render();
+      });
+      addDecisionButton(decisionRow, tn("userData", "smartMerge"), () => {
+        diffEntry.diff.decision = "merge";
+        this.render();
+      });
+      addDecisionButton(decisionRow, tn("userData", "skip"), () => {
+        diffEntry.diff.decision = "skip";
+        this.render();
+      });
+      itemEl.createEl("div", {
+        text: `${tn("userData", "decision")}: ${decisionLabel(diffEntry.diff.decision)}`,
+        cls: "bangumi-import-compare-diff-count"
+      });
+    }
+    for (const missingField of group.missingFields) {
+      const itemEl = listEl.createDiv({ cls: "bangumi-missing-field-item" });
+      itemEl.createEl("div", {
+        text: `${missingField.subjectName} (ID: ${missingField.subjectId})`,
+        cls: "bangumi-missing-field-subject"
+      });
+      itemEl.createEl("div", {
+        text: formatDisplayValue(missingField.fieldValue),
+        cls: "bangumi-missing-field-value"
+      });
+      const actionEl = itemEl.createDiv({ cls: "bangumi-missing-field-actions" });
+      addDecisionButton(actionEl, tn("userData", "addField"), () => {
+        missingField.decision = "add";
+        this.render();
+      });
+      addDecisionButton(actionEl, tn("userData", "skipField"), () => {
+        missingField.decision = "skip";
+        this.render();
+      });
+      itemEl.createEl("div", {
+        text: `${tn("userData", "decision")}: ${missingDecisionLabel(missingField.decision)}`,
+        cls: "bangumi-import-compare-diff-count"
+      });
+    }
+    const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+    if (this.currentIndex > 0) {
+      buttonDiv.createEl("button", { text: tn("userData", "previousProperty") }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.currentIndex--;
+          this.render();
+        });
+      });
+    }
+    if (this.currentIndex < this.propertyGroups.length - 1) {
+      buttonDiv.createEl("button", { text: tn("userData", "nextProperty"), cls: "mod-cta" }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.currentIndex++;
+          this.render();
+        });
+      });
+    } else {
+      buttonDiv.createEl("button", { text: tn("userData", "executeImport"), cls: "mod-cta" }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.onConfirm(extractDiffs(this.propertyGroups), extractMissingFields(this.propertyGroups));
+          this.close();
+        });
+      });
+    }
+  }
+  applyGroupDecision(group, decision) {
+    for (const diff of group.diffs) {
+      diff.diff.decision = decision;
+    }
+    for (const missingField of group.missingFields) {
+      missingField.decision = decision === "skip" || decision === "local" ? "skip" : "add";
+    }
+    this.render();
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var ImportResultModal = class extends import_obsidian27.Modal {
+  constructor(app, result, scanRoot = "ACGN") {
+    super(app);
+    this.result = result;
+    this.importer = new UserDataImporter(app, scanRoot);
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("bangumi-import-result");
+    contentEl.createEl("h2", { text: tn("userData", "importResultTitle") });
+    const statsEl = contentEl.createDiv({ cls: "bangumi-import-result-stats" });
+    statsEl.createEl("div", { text: tnFormat("userData", "importSuccess", { count: this.result.success }) });
+    if (this.result.autoImported > 0) {
+      statsEl.createEl("div", { text: tnFormat("userData", "autoImported", { count: this.result.autoImported }) });
+    }
+    statsEl.createEl("div", { text: tnFormat("userData", "importSkipped", { count: this.result.skipped }) });
+    if (this.result.errors.length > 0) {
+      statsEl.createEl("div", {
+        text: tnFormat("userData", "importErrors", { count: this.result.errors.length }),
+        cls: "bangumi-import-result-error"
+      });
+    }
+    if (this.result.missingFields.length > 0) {
+      contentEl.createEl("p", {
+        text: tnFormat("userData", "missingFieldPrompt", { count: this.result.missingFields.length })
+      });
+      const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+      buttonDiv.createEl("button", {
+        text: tn("userData", "handleMissingFields"),
+        cls: "mod-cta"
+      }, (btn) => {
+        btn.addEventListener("click", () => {
+          this.close();
+          const modal = new MissingFieldModal(
+            this.app,
+            this.result.missingFields,
+            (decisions) => void this.applyDecisions(decisions)
+          );
+          modal.open();
+        });
+      });
+      buttonDiv.createEl("button", { text: tn("userData", "skipMissingFields") }, (btn) => {
+        btn.addEventListener("click", () => this.close());
+      });
+    } else {
+      const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
+      buttonDiv.createEl("button", {
+        text: tn("userData", "close"),
+        cls: "mod-cta"
+      }, (btn) => {
+        btn.addEventListener("click", () => this.close());
+      });
+    }
+  }
+  async applyDecisions(decisions) {
+    await this.importer.applyMissingFieldDecisions(decisions);
+    new import_obsidian27.Notice(tnFormat("userData", "missingFieldsApplied", { count: decisions.filter((d) => d.decision === "add").length }));
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
+function formatDisplayValue(value) {
+  if (typeof value === "string")
+    return value;
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
+  if (Array.isArray(value))
+    return value.join(", ");
+  if (typeof value === "object" && value !== null)
+    return JSON.stringify(value);
+  return "";
+}
+function groupByProperty(diffs, missingFields) {
+  var _a, _b;
+  const grouped = /* @__PURE__ */ new Map();
+  for (const item of diffs) {
+    for (const diff of item.diffs) {
+      const group = (_a = grouped.get(diff.fieldName)) != null ? _a : {
+        fieldName: diff.fieldName,
+        diffs: [],
+        missingFields: []
+      };
+      group.diffs.push({
+        kind: "diff",
+        item,
+        diff
+      });
+      grouped.set(diff.fieldName, group);
+    }
+  }
+  for (const missingField of missingFields) {
+    const group = (_b = grouped.get(missingField.fieldName)) != null ? _b : {
+      fieldName: missingField.fieldName,
+      diffs: [],
+      missingFields: []
+    };
+    group.missingFields.push(missingField);
+    grouped.set(missingField.fieldName, group);
+  }
+  return Array.from(grouped.values()).sort((left, right) => left.fieldName.localeCompare(right.fieldName, "zh-CN"));
+}
+function extractDiffs(groups) {
+  var _a;
+  const grouped = /* @__PURE__ */ new Map();
+  for (const group of groups) {
+    for (const entry of group.diffs) {
+      const existing = (_a = grouped.get(entry.item.subjectId)) != null ? _a : {
+        subjectId: entry.item.subjectId,
+        name_cn: entry.item.name_cn,
+        diffs: [],
+        hasDiff: true
+      };
+      existing.diffs.push(entry.diff);
+      grouped.set(entry.item.subjectId, existing);
+    }
+  }
+  return Array.from(grouped.values());
+}
+function extractMissingFields(groups) {
+  return groups.flatMap((group) => group.missingFields);
+}
+function addDecisionButton(container, text, onClick) {
+  container.createEl("button", { text }, (btn) => {
+    btn.addEventListener("click", onClick);
+  });
+}
+function decisionLabel(decision) {
+  switch (decision) {
+    case "local":
+      return tn("userData", "keepLocal");
+    case "import":
+      return tn("userData", "keepImport");
+    case "merge":
+      return tn("userData", "smartMerge");
+    case "skip":
+      return tn("userData", "skip");
+    default:
+      return tn("statusSyncModal", "empty");
+  }
+}
+function missingDecisionLabel(decision) {
+  switch (decision) {
+    case "add":
+      return tn("userData", "addField");
+    case "skip":
+      return tn("userData", "skipField");
+    default:
+      return tn("statusSyncModal", "empty");
+  }
+}
+function updateDataTypeSelection(selected, dataType, enabled) {
+  const next = new Set(selected);
+  if (enabled) {
+    next.add(dataType);
+  } else {
+    next.delete(dataType);
+  }
+  return Array.from(next);
 }
 
 // src/episode/episodeContextMenu.ts
-var import_obsidian26 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 
 // src/episode/types.ts
 var EPISODE_STATUS_TEXT = {
@@ -14671,13 +17722,13 @@ var EpisodeContextMenu = class {
    */
   async showContextMenu(evt, epBox) {
     const episodeId = parseInt(epBox.getAttribute("data-id") || "0", 10);
-    const epNumber = parseInt(epBox.getAttribute("data-ep") || "0", 10);
+    const epNumber = parseFloat(epBox.getAttribute("data-ep") || "0");
     if (!episodeId || !epNumber) {
       return;
     }
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian26.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian28.MarkdownView);
     if (!view) {
-      new import_obsidian26.Notice(tn("episodeContextMenu", "openAnimeFileFirst"));
+      new import_obsidian28.Notice(tn("episodeContextMenu", "openAnimeFileFirst"));
       return;
     }
     const file = view.file;
@@ -14686,11 +17737,11 @@ var EpisodeContextMenu = class {
     }
     const subjectId = await this.getSubjectIdFromFile(file);
     if (!subjectId) {
-      new import_obsidian26.Notice(tn("episodeContextMenu", "cannotIdentifyId"));
+      new import_obsidian28.Notice(tn("episodeContextMenu", "cannotIdentifyId"));
       return;
     }
     const currentStatus = await this.statusManager.getEpisodeStatus(file, episodeId);
-    const menu = new import_obsidian26.Menu();
+    const menu = new import_obsidian28.Menu();
     menu.addItem((item) => {
       item.setTitle(tnFormat("episodeContextMenu", "watchedUpTo", { ep: epNumber })).onClick(() => void this.setWatchedUpTo(file, epNumber));
     });
@@ -14718,12 +17769,18 @@ var EpisodeContextMenu = class {
    */
   async setEpisodeStatus(file, episodeId, epNumber, status, epBox) {
     try {
+      assertWriteOperationAllowed("episode-status");
+    } catch (e) {
+      new import_obsidian28.Notice(tn("recoveryCenter", "writeBlocked"));
+      return;
+    }
+    try {
       await this.statusManager.updateLocalStatus(file, episodeId, epNumber, status);
       this.updateEpBoxStyle(epBox, status);
-      new import_obsidian26.Notice(tnFormat("episodeContextMenu", "episodeStatusSet", { ep: epNumber, status: getEpisodeStatusText(status) }));
+      new import_obsidian28.Notice(tnFormat("episodeContextMenu", "episodeStatusSet", { ep: epNumber, status: getEpisodeStatusText(status) }));
     } catch (error) {
       console.error("[Bangumi Sync] \u8BBE\u7F6E\u5355\u96C6\u72B6\u6001\u5931\u8D25:", error);
-      new import_obsidian26.Notice(tn("episodeContextMenu", "markFailed"));
+      new import_obsidian28.Notice(tn("episodeContextMenu", "markFailed"));
     }
   }
   /**
@@ -14731,7 +17788,13 @@ var EpisodeContextMenu = class {
    */
   async setWatchedUpTo(file, targetEpNumber) {
     try {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian26.MarkdownView);
+      assertWriteOperationAllowed("episode-status");
+    } catch (e) {
+      new import_obsidian28.Notice(tn("recoveryCenter", "writeBlocked"));
+      return;
+    }
+    try {
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian28.MarkdownView);
       if (!view)
         return;
       const contentEl = view.contentEl;
@@ -14740,7 +17803,7 @@ var EpisodeContextMenu = class {
       epBoxes.forEach((el) => {
         const epBox = el;
         const episodeId = parseInt(epBox.getAttribute("data-id") || "0", 10);
-        const epNumber = parseInt(epBox.getAttribute("data-ep") || "0", 10);
+        const epNumber = parseFloat(epBox.getAttribute("data-ep") || "0");
         if (episodeId && epNumber && epNumber <= targetEpNumber) {
           episodesToUpdate.push({ episodeId, epNumber, epBox });
         }
@@ -14753,10 +17816,10 @@ var EpisodeContextMenu = class {
       episodesToUpdate.forEach(({ epBox }) => {
         this.updateEpBoxStyle(epBox, 2);
       });
-      new import_obsidian26.Notice(tnFormat("episodeContextMenu", "markedEpisodes", { ep: targetEpNumber }));
+      new import_obsidian28.Notice(tnFormat("episodeContextMenu", "markedEpisodes", { ep: targetEpNumber }));
     } catch (error) {
       console.error('[Bangumi Sync] \u8BBE\u7F6E"\u770B\u5230"\u72B6\u6001\u5931\u8D25:', error);
-      new import_obsidian26.Notice(tn("episodeContextMenu", "markFailed"));
+      new import_obsidian28.Notice(tn("episodeContextMenu", "markFailed"));
     }
   }
   /**
@@ -14764,14 +17827,20 @@ var EpisodeContextMenu = class {
    */
   async addEpisodeComment(file, epNumber) {
     try {
+      assertWriteOperationAllowed("episode-comment");
+    } catch (e) {
+      new import_obsidian28.Notice(tn("recoveryCenter", "writeBlocked"));
+      return;
+    }
+    try {
       const result = await this.commentManager.insertEpisodeComment(file, epNumber);
       if (result.success) {
         await this.switchToEditModeAndFocus(result.insertLine, result.insertColumn);
-        new import_obsidian26.Notice(tnFormat("episodeContextMenu", "episodeCommentAdded", { ep: epNumber }));
+        new import_obsidian28.Notice(tnFormat("episodeContextMenu", "episodeCommentAdded", { ep: epNumber }));
       }
     } catch (error) {
       console.error("[Bangumi Sync] \u6DFB\u52A0\u5355\u96C6\u5410\u69FD\u5931\u8D25:", error);
-      new import_obsidian26.Notice(tn("episodeContextMenu", "addCommentFailed"));
+      new import_obsidian28.Notice(tn("episodeContextMenu", "addCommentFailed"));
     }
   }
   /**
@@ -14796,7 +17865,7 @@ var EpisodeContextMenu = class {
    * 切换到编辑模式并定位光标
    */
   async switchToEditModeAndFocus(line, column) {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian26.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian28.MarkdownView);
     if (!view)
       return;
     const ownerWindow = view.contentEl.ownerDocument.defaultView;
@@ -14824,6 +17893,14 @@ var EpisodeStatusManager = class {
   constructor(app, client) {
     this.app = app;
     this.client = client;
+    this.documentService = new SubjectDocumentService(app);
+  }
+  async processKnownSubjectFile(file, updater) {
+    var _a;
+    const identity = await this.documentService.getSubjectIdentity(file);
+    if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length))
+      throw new Error(`Cannot safely write episode status to ${file.path}: subject ID is missing or conflicting.`);
+    await this.documentService.processSubjectFile(file, identity.subjectId, updater);
   }
   /**
    * 从文件中读取单集状态映射
@@ -14885,15 +17962,17 @@ var EpisodeStatusManager = class {
    * 更新本地文件中的单集状态
    */
   async updateLocalStatus(file, episodeId, epNumber, status) {
-    await this.app.vault.process(file, (content) => {
-      return this.applyEpisodeStatusUpdates(content, [{ episodeId, epNumber, status }]);
+    assertWriteOperationAllowed("episode-status");
+    await this.processKnownSubjectFile(file, (content) => {
+      return this.updateEpStatusInContent(content, episodeId, epNumber, status);
     });
   }
   /**
    * 批量更新多个单集状态
    */
   async updateMultipleStatuses(file, episodes) {
-    await this.app.vault.process(file, (content) => {
+    assertWriteOperationAllowed("episode-status");
+    await this.processKnownSubjectFile(file, (content) => {
       return this.applyEpisodeStatusUpdates(content, episodes);
     });
   }
@@ -14909,7 +17988,7 @@ var EpisodeStatusManager = class {
     const suffix = frontmatterMatch[3];
     const bodyContent = frontmatterMatch[4];
     if (status === 0) {
-      const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+:\\d+\\n?`, "m");
+      const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+\\n?`, "m");
       frontmatter = frontmatter.replace(statusLineRegex, "");
       if (frontmatter.includes("ep_statuses:\n") && !frontmatter.match(/ep_statuses:\n\s+- /)) {
         frontmatter = frontmatter.replace(/ep_statuses:\n/, "");
@@ -14918,10 +17997,10 @@ var EpisodeStatusManager = class {
       const statusEntry = `${episodeId}:${epNumber}:${status}`;
       const existingStatusesMatch = frontmatter.match(/^ep_statuses:\s*\n((?:\s+- .+\n?)+)/m);
       if (existingStatusesMatch) {
-        const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+:\\d+$`, "m");
+        const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+$`, "m");
         if (statusLineRegex.test(frontmatter)) {
           frontmatter = frontmatter.replace(
-            new RegExp(`^\\s+- ${episodeId}:\\d+:\\d+$`, "m"),
+            new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+$`, "m"),
             `  - ${statusEntry}`
           );
         } else {
@@ -14943,10 +18022,30 @@ ep_statuses:
   }
   applyEpisodeStatusUpdates(content, episodes) {
     const withoutOldStatuses = this.clearEpisodeStatusArtifacts(content);
-    return episodes.reduce(
+    const withUpdatedBoxes = episodes.reduce(
       (updatedContent, ep) => this.updateEpisodeBoxStatusInContent(updatedContent, ep.episodeId, ep.epNumber, ep.status),
       withoutOldStatuses
     );
+    return this.writeEpisodeStatusesToFrontmatter(withUpdatedBoxes, episodes);
+  }
+  writeEpisodeStatusesToFrontmatter(content, episodes) {
+    const validEntries = episodes.filter((ep) => ep.status !== 0).sort((a, b) => a.episodeId - b.episodeId);
+    if (validEntries.length === 0) {
+      return content;
+    }
+    const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+    if (!frontmatterMatch) {
+      return content;
+    }
+    const prefix = frontmatterMatch[1];
+    const frontmatter = frontmatterMatch[2];
+    const suffix = frontmatterMatch[3];
+    const bodyContent = frontmatterMatch[4];
+    const statusLines = validEntries.map((ep) => `  - ${ep.episodeId}:${ep.epNumber}:${ep.status}`).join("\n");
+    const updatedFrontmatter = `${frontmatter}
+ep_statuses:
+${statusLines}`;
+    return prefix + updatedFrontmatter + suffix + bodyContent;
   }
   createLocalEpisodeStatus(episodeId, epNumber, status) {
     return {
@@ -14969,12 +18068,12 @@ ep_statuses:
     }
     const lines = epStatusesMatch[1].split("\n");
     for (const line of lines) {
-      const match = line.match(/^\s+- (\d+):(\d+):(\d+)/);
+      const match = line.match(/^\s+- (\d+):(\d+(?:\.\d+)?):(\d+)/);
       if (!match) {
         continue;
       }
       const episodeId = parseInt(match[1], 10);
-      const epNumber = parseInt(match[2], 10);
+      const epNumber = parseFloat(match[2]);
       const status = parseInt(match[3], 10);
       statusMap.set(episodeId, this.createLocalEpisodeStatus(episodeId, epNumber, status));
     }
@@ -15042,14 +18141,14 @@ ep_statuses:
   parseEpisodeBox(tag) {
     const classMatch = tag.match(/\bclass="([^"]*\bep-box\b[^"]*)"/);
     const idMatch = tag.match(/\bdata-id="(\d+)"/);
-    const epMatch = tag.match(/\bdata-ep="(\d+)"/);
+    const epMatch = tag.match(/\bdata-ep="(\d+(?:\.\d+)?)"/);
     const statusMatch = tag.match(/\bdata-status="(\d+)"/);
     if (!classMatch || !idMatch || !epMatch) {
       return null;
     }
     const className = classMatch[1];
     const episodeId = parseInt(idMatch[1], 10);
-    const epNumber = parseInt(epMatch[1], 10);
+    const epNumber = parseFloat(epMatch[1]);
     const status = statusMatch ? parseInt(statusMatch[1], 10) : /\bwatched\b/.test(className) ? 2 : 0;
     return {
       episodeId,
@@ -15062,6 +18161,7 @@ ep_statuses:
    * 同步本地状态到云端
    */
   async syncStatusToCloud(file, progressCallback) {
+    assertWriteOperationAllowed("episode-status");
     const statusMap = await this.getEpisodeStatusMap(file);
     const entries = Array.from(statusMap.values()).filter((s) => s.status !== 0);
     const ownerWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
@@ -15087,9 +18187,10 @@ ep_statuses:
    * 从云端拉取状态到本地
    */
   async syncStatusFromCloud(file, subjectId) {
+    assertWriteOperationAllowed("episode-status");
     try {
       const userEpisodes = await this.client.getUserEpisodeStatus(subjectId);
-      await this.app.vault.process(file, (content) => {
+      await this.processKnownSubjectFile(file, (content) => {
         const episodes = userEpisodes.filter((userEp) => userEp.type !== 0 && userEp.episode).map((userEp) => ({
           episodeId: userEp.episode.id,
           epNumber: userEp.episode.ep || userEp.episode.sort || 0,
@@ -15114,7 +18215,8 @@ ep_statuses:
    * 清除所有单集状态
    */
   async clearAllStatuses(file) {
-    await this.app.vault.process(file, (content) => {
+    assertWriteOperationAllowed("episode-status");
+    await this.processKnownSubjectFile(file, (content) => {
       const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
       if (!frontmatterMatch)
         return content;
@@ -15129,13 +18231,19 @@ ep_statuses:
 var EpisodeCommentManager = class {
   constructor(app) {
     this.app = app;
+    this.documentService = new SubjectDocumentService(app);
   }
   /**
    * 插入单集吐槽 callout
    * 返回插入位置信息，用于光标定位
    */
   async insertEpisodeComment(file, epNumber) {
+    var _a;
+    assertWriteOperationAllowed("episode-comment");
     const content = await this.app.vault.read(file);
+    const identity = this.documentService.getSubjectIdentityFromContent(content);
+    if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length))
+      throw new Error(`Cannot safely write an episode comment to ${file.path}: subject ID is missing or conflicting.`);
     const recordMatch = this.findRecordSection(content);
     const callout = this.buildEpisodeCommentCallout(epNumber);
     let newContent;
@@ -15150,7 +18258,7 @@ var EpisodeCommentManager = class {
       calloutStart = created.calloutStart;
     }
     const cursorPosition = this.calculateCursorPosition(newContent, calloutStart, callout);
-    await this.app.vault.process(file, () => newContent);
+    await this.documentService.processSubjectFile(file, identity.subjectId, () => newContent);
     return {
       success: true,
       insertLine: cursorPosition.line,
@@ -15245,10 +18353,10 @@ ${callout}
   async getEpisodeComments(file) {
     const content = await this.app.vault.read(file);
     const comments = [];
-    const calloutRegex = /> \[!note\] 第(\d+)集吐槽[^\n]*\n((?:> .+\n)*)/g;
+    const calloutRegex = /> \[!note\] 第(\d+(?:\.\d+)?)集吐槽[^\n]*\n((?:> .+\n)*)/g;
     let match;
     while ((match = calloutRegex.exec(content)) !== null) {
-      const epNumber = parseInt(match[1], 10);
+      const epNumber = parseFloat(match[1]);
       const rawContent = match[2];
       const commentContent = rawContent.split("\n").map((line) => line.replace(/^> /, "").trim()).filter((line) => line.length > 0).join("\n");
       comments.push({ epNumber, content: commentContent });
@@ -15260,57 +18368,58 @@ ${callout}
    */
   async hasEpisodeComment(file, epNumber) {
     const content = await this.app.vault.read(file);
-    const regex = new RegExp(`> \\[!note\\] \u7B2C${epNumber}\u96C6\u5410\u69FD`);
+    const escapedEp = String(epNumber).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`> \\[!note\\] \u7B2C${escapedEp}\u96C6\u5410\u69FD`);
     return regex.test(content);
   }
 };
 
 // src/note/subjectNoteManager.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 var SubjectNoteManager = class {
   constructor(app, client, settings) {
     this.app = app;
     this.client = client;
     this.settings = settings;
+    this.documentService = new SubjectDocumentService(app);
   }
   async createOrAppendForCurrentFile() {
     const file = this.app.workspace.getActiveFile();
-    if (!(file instanceof import_obsidian27.TFile)) {
-      new import_obsidian27.Notice(tn("subjectNote", "notSyncedFile"));
+    if (!(file instanceof import_obsidian29.TFile)) {
+      new import_obsidian29.Notice(tn("subjectNote", "notSyncedFile"));
       return;
     }
     await this.createOrAppendForLocalFile(file);
   }
   async createOrAppendForLocalFile(localFile) {
+    assertWriteOperationAllowed("subject-note");
     if (!this.settings.notePathTemplate.trim()) {
-      new import_obsidian27.Notice(tn("subjectNote", "configureNotePath"));
+      new import_obsidian29.Notice(tn("subjectNote", "configureNotePath"));
       return;
     }
     const context = await this.resolveContext(localFile);
     if (!context) {
-      new import_obsidian27.Notice(tn("subjectNote", "missingSubjectId"));
+      new import_obsidian29.Notice(tn("subjectNote", "missingSubjectId"));
       return;
     }
     const candidateIds = await this.buildCandidateIds(context.subject, localFile);
     const match = await this.findExistingNote(context.subject.id, candidateIds);
     const targetFile = match ? await this.updateExistingNote(match, candidateIds, context.heading) : await this.createNewNote(context, candidateIds);
-    await this.updateLocalNoteLink(localFile, targetFile.path, context.heading);
+    await this.updateLocalNoteLink(localFile, context.subject.id, targetFile.path, context.heading);
     await this.app.workspace.openLinkText(
       `${targetFile.path.replace(/\.md$/i, "")}#${context.heading}`,
       localFile.path,
       true
     );
-    new import_obsidian27.Notice(tn("subjectNote", match ? "appendedToNote" : "createdNote"));
+    new import_obsidian29.Notice(tn("subjectNote", match ? "appendedToNote" : "createdNote"));
   }
   async resolveContext(localFile) {
-    const cache = this.app.metadataCache.getFileCache(localFile);
-    const frontmatter = cache == null ? void 0 : cache.frontmatter;
-    const rawId = frontmatter == null ? void 0 : frontmatter.id;
-    const subjectId = this.toNumber(rawId);
-    if (!subjectId) {
+    var _a;
+    const identity = await this.documentService.getSubjectIdentity(localFile);
+    if (!identity.subjectId || ((_a = identity.conflicts) == null ? void 0 : _a.length)) {
       return null;
     }
-    const subject = await this.client.getSubject(subjectId);
+    const subject = await this.client.getSubject(identity.subjectId);
     return {
       subject,
       localFile,
@@ -15323,12 +18432,12 @@ var SubjectNoteManager = class {
     const queue = [localFile];
     while (queue.length > 0 && visited.size < 100) {
       const file = queue.shift();
-      if (!(file instanceof import_obsidian27.TFile) || visited.has(file.path)) {
+      if (!(file instanceof import_obsidian29.TFile) || visited.has(file.path)) {
         continue;
       }
       visited.add(file.path);
       const content = await this.app.vault.read(file);
-      const currentId = this.extractSubjectId(content);
+      const currentId = this.getSafeSubjectId(content);
       if (currentId) {
         ids.add(currentId);
       }
@@ -15337,7 +18446,7 @@ var SubjectNoteManager = class {
           continue;
         }
         const relatedContent = await this.app.vault.read(relatedFile);
-        const relatedId = this.extractSubjectId(relatedContent);
+        const relatedId = this.getSafeSubjectId(relatedContent);
         if (relatedId) {
           ids.add(relatedId);
           queue.push(relatedFile);
@@ -15361,28 +18470,10 @@ var SubjectNoteManager = class {
     matches.sort((a, b) => a.file.path.localeCompare(b.file.path, "zh-CN"));
     return matches[0];
   }
-  findLocalSubjectFile(subjectId) {
+  getSafeSubjectId(content) {
     var _a;
-    const scanRoot = (0, import_obsidian27.normalizePath)(this.settings.scanFolderPath || "");
-    for (const file of this.app.vault.getMarkdownFiles()) {
-      if (scanRoot && !file.path.startsWith(scanRoot)) {
-        continue;
-      }
-      const cache = this.app.metadataCache.getFileCache(file);
-      const rawId = (_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.id;
-      if (this.toNumber(rawId) === subjectId) {
-        return file;
-      }
-    }
-    return null;
-  }
-  extractSubjectId(content) {
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (!frontmatterMatch) {
-      return null;
-    }
-    const idMatch = frontmatterMatch[1].match(/^id:\s*"?(\d+)"?\s*$/m);
-    return idMatch ? Number(idMatch[1]) : null;
+    const identity = this.documentService.getSubjectIdentityFromContent(content);
+    return ((_a = identity.conflicts) == null ? void 0 : _a.length) ? null : identity.subjectId;
   }
   resolveRelatedFiles(content, sourceFile) {
     const relatedLinks = this.extractRelatedLinks(content);
@@ -15393,7 +18484,7 @@ var SubjectNoteManager = class {
         continue;
       }
       const target = this.app.metadataCache.getFirstLinkpathDest(linkPath, sourceFile.path);
-      if (target instanceof import_obsidian27.TFile) {
+      if (target instanceof import_obsidian29.TFile) {
         files.push(target);
       }
     }
@@ -15426,15 +18517,38 @@ var SubjectNoteManager = class {
     return match[1].split("#")[0].trim();
   }
   async createNewNote(context, candidateIds) {
-    const notePath = (0, import_obsidian27.normalizePath)(generateFilePath(this.settings.notePathTemplate, context.subject));
-    const existing = this.app.vault.getAbstractFileByPath(notePath);
-    if (existing instanceof import_obsidian27.TFile) {
+    var _a;
+    const preferredPath = (0, import_obsidian29.normalizePath)(generateFilePath(this.settings.notePathTemplate, context.subject));
+    let notePath = preferredPath;
+    let existing = this.app.vault.getAbstractFileByPath(notePath);
+    if (existing instanceof import_obsidian29.TFile) {
       const ids = await this.readNoteIds(existing);
-      return this.updateExistingNote({ file: existing, ids }, candidateIds, context.heading);
+      if (ids.some((id) => candidateIds.includes(id))) {
+        return this.updateExistingNote({ file: existing, ids }, candidateIds, context.heading);
+      }
+      notePath = this.appendNoteSuffix(preferredPath, (_a = this.extractYear(context.subject)) != null ? _a : `bgm-${context.subject.id}`);
+      existing = this.app.vault.getAbstractFileByPath(notePath);
+      if (existing instanceof import_obsidian29.TFile) {
+        const yearIds = await this.readNoteIds(existing);
+        if (yearIds.some((id) => candidateIds.includes(id))) {
+          return this.updateExistingNote({ file: existing, ids: yearIds }, candidateIds, context.heading);
+        }
+        notePath = this.appendNoteSuffix(preferredPath, `bgm-${context.subject.id}`);
+        if (this.app.vault.getAbstractFileByPath(notePath)) {
+          throw new Error(`Shared note path is occupied by an unrelated subject: ${notePath}`);
+        }
+      }
     }
     await this.ensureParentFolder(notePath);
     const content = this.renderNoteTemplate(context.subject, candidateIds, context.heading);
     return this.app.vault.create(notePath, content);
+  }
+  extractYear(subject) {
+    var _a, _b, _c;
+    return (_c = (_b = (_a = subject.date) == null ? void 0 : _a.match(/^(\d{4})/)) == null ? void 0 : _b[1]) != null ? _c : null;
+  }
+  appendNoteSuffix(path, suffix) {
+    return limitPathLength(path.toLocaleLowerCase("en-US").endsWith(".md") ? `${path.slice(0, -3)}\uFF08${suffix}\uFF09.md` : `${path}\uFF08${suffix}\uFF09.md`);
   }
   async updateExistingNote(match, candidateIds, heading) {
     const mergedIds = Array.from(/* @__PURE__ */ new Set([...match.ids, ...candidateIds])).sort((a, b) => a - b);
@@ -15456,10 +18570,10 @@ var SubjectNoteManager = class {
       entry_heading: heading
     });
   }
-  async updateLocalNoteLink(localFile, notePath, heading) {
+  async updateLocalNoteLink(localFile, subjectId, notePath, heading) {
     const noteTarget = notePath.replace(/\.md$/i, "");
     const noteLink = `[[${noteTarget}#${heading}|${heading}\u7B14\u8BB0]]`;
-    await this.app.vault.process(localFile, (content) => this.upsertFrontmatterField(content, "\u7B14\u8BB0", noteLink));
+    await this.documentService.processSubjectFile(localFile, subjectId, (content) => this.upsertFrontmatterField(content, "\u7B14\u8BB0", noteLink));
   }
   async ensureParentFolder(filePath) {
     const slashIndex = filePath.lastIndexOf("/");
@@ -15606,8 +18720,239 @@ ${nextBody}
   }
 };
 
+// src/ui/pathToolsModal.ts
+var import_obsidian30 = require("obsidian");
+var PathDiagnosticModal = class extends import_obsidian30.Modal {
+  constructor(app, report, onExport) {
+    super(app);
+    this.report = report;
+    this.onExport = onExport;
+  }
+  onOpen() {
+    var _a;
+    new import_obsidian30.Setting(this.contentEl).setName(tn("pathTools", "diagnosticTitle")).setHeading();
+    this.contentEl.createEl("p", {
+      text: tnFormat("pathTools", "diagnosticSummary", {
+        valid: this.report.validSubjects,
+        issues: this.report.issues.length
+      })
+    });
+    if (this.report.issues.length > 0) {
+      const list = this.contentEl.createEl("ul", { cls: "bangumi-diagnostic-list" });
+      for (const issue of this.report.issues) {
+        list.createEl("li", {
+          text: `[${issue.severity}/${issue.code}] ${issue.subjectId ? `#${issue.subjectId} ` : ""}${(_a = issue.path) != null ? _a : ""} \u2014 ${issue.message}`
+        });
+      }
+    }
+    new import_obsidian30.Setting(this.contentEl).addButton((button) => button.setButtonText(tn("pathTools", "exportReport")).onClick(async () => {
+      const path = await this.onExport();
+      new import_obsidian30.Notice(tnFormat("pathTools", "reportExported", { path }));
+    })).addButton((button) => button.setButtonText(tn("pathTools", "close")).onClick(() => this.close()));
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var PathMigrationPreviewModal = class extends import_obsidian30.Modal {
+  constructor(app, preview, onApply, onRefresh) {
+    super(app);
+    this.onApply = onApply;
+    this.onRefresh = onRefresh;
+    this.includeUnknown = false;
+    this.includeUserRenamed = false;
+    this.preview = preview;
+  }
+  onOpen() {
+    this.render();
+  }
+  render() {
+    this.contentEl.empty();
+    new import_obsidian30.Setting(this.contentEl).setName(tn("pathTools", "migrationTitle")).setHeading();
+    new import_obsidian30.Setting(this.contentEl).setName(tn("pathTools", "includeUnknown")).addToggle((toggle) => toggle.setValue(this.includeUnknown).onChange(async (value) => {
+      this.includeUnknown = value;
+      await this.refreshPreview();
+    }));
+    new import_obsidian30.Setting(this.contentEl).setName(tn("pathTools", "includeUserRenamed")).addToggle((toggle) => toggle.setValue(this.includeUserRenamed).onChange(async (value) => {
+      this.includeUserRenamed = value;
+      await this.refreshPreview();
+    }));
+    const renameCount = this.preview.entries.filter((entry) => entry.status === "rename").length;
+    const protectedCount = this.preview.entries.filter((entry) => entry.status === "protected").length;
+    const failedCount = this.preview.entries.filter((entry) => entry.status === "failed").length;
+    this.contentEl.createEl("p", {
+      text: tnFormat("pathTools", "migrationSummary", {
+        rename: renameCount,
+        protected: protectedCount,
+        failed: failedCount
+      })
+    });
+    if (renameCount === 0) {
+      this.contentEl.createEl("p", { text: tn("pathTools", "noRenames") });
+    }
+    const list = this.contentEl.createEl("ul", { cls: "bangumi-path-migration-list" });
+    for (const entry of this.preview.entries) {
+      list.createEl("li", {
+        text: entry.status === "rename" ? `#${entry.subjectId} ${entry.name}: ${entry.from} \u2192 ${entry.to}` : `#${entry.subjectId} ${entry.name}: ${entry.status}${entry.reason ? ` \u2014 ${entry.reason}` : ""}`
+      });
+    }
+    new import_obsidian30.Setting(this.contentEl).addButton((button) => {
+      button.setButtonText(tn("pathTools", "applyMigration")).setCta().setDisabled(renameCount === 0).onClick(async () => {
+        button.setDisabled(true);
+        const result = await this.onApply(this.preview);
+        new import_obsidian30.Notice(tnFormat("pathTools", "migrationComplete", result));
+        this.close();
+      });
+    }).addButton((button) => button.setButtonText(tn("pathTools", "close")).onClick(() => this.close()));
+  }
+  async refreshPreview() {
+    this.preview = await this.onRefresh({
+      includeUnknown: this.includeUnknown,
+      includeUserRenamed: this.includeUserRenamed
+    });
+    this.render();
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/ui/recoveryCenterModal.ts
+var import_obsidian31 = require("obsidian");
+var RecoveryCenterModal = class extends import_obsidian31.Modal {
+  constructor(app, handlers) {
+    super(app);
+    this.handlers = handlers;
+    this.working = false;
+    this.lastResult = null;
+    this.actionError = null;
+    this.unsubscribe = null;
+  }
+  onOpen() {
+    this.unsubscribe = this.handlers.subscribe(() => this.render());
+    this.render();
+  }
+  onClose() {
+    var _a;
+    (_a = this.unsubscribe) == null ? void 0 : _a.call(this);
+    this.unsubscribe = null;
+  }
+  render() {
+    var _a, _b, _c, _d, _e, _f, _g;
+    this.contentEl.empty();
+    new import_obsidian31.Setting(this.contentEl).setName(tn("recoveryCenter", "title")).setHeading();
+    const recovery = this.handlers.getRecovery();
+    if (!recovery) {
+      this.contentEl.createEl("p", { text: tn("recoveryCenter", "noRecovery"), cls: "bangumi-sync-stats" });
+      if ((_a = this.lastResult) == null ? void 0 : _a.recovered) {
+        this.contentEl.createEl("p", { text: tn("recoveryCenter", "recovered"), cls: "bangumi-sync-stats" });
+        this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "currentFailures")}: ${(_c = (_b = this.lastResult.rollback) == null ? void 0 : _b.failed) != null ? _c : 0}`, cls: "bangumi-sync-stats" });
+        this.renderAttemptHistory((_d = this.lastResult.attempts) != null ? _d : []);
+      }
+      this.addCloseButton();
+      return;
+    }
+    this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "cause")}: ${recovery.reason}` });
+    this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "detectedAt")}: ${new Date(recovery.detectedAt).toLocaleString()}` });
+    this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "affectedSubjects")}: ${recovery.affectedSubjectIds.join(", ")}` });
+    const expectations = this.contentEl.createEl("details", { attr: { open: "" } });
+    expectations.createEl("summary", { text: `${tn("recoveryCenter", "expectations")} (${recovery.subjectExpectations.length})` });
+    const expectationList = expectations.createEl("ul");
+    for (const item of recovery.subjectExpectations) {
+      expectationList.createEl("li", {
+        text: `${item.subjectId}: ${item.expectedToExist ? tn("recoveryCenter", "expectedPresent") : tn("recoveryCenter", "expectedAbsent")}${item.expectedPath ? ` \u2014 ${item.expectedPath}` : ""}`
+      });
+    }
+    const latest = recovery.latestAttempt;
+    if (latest) {
+      this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "latestAttempt")}: ${latest.action} \u2014 ${latest.status}` });
+    }
+    this.renderAttemptHistory(recovery.attempts);
+    const diagnostics = (_g = (_f = (_e = this.lastResult) == null ? void 0 : _e.diagnostics) != null ? _f : latest == null ? void 0 : latest.diagnostics) != null ? _g : [];
+    if (diagnostics.length > 0)
+      this.renderDiagnostics(diagnostics);
+    if (this.lastResult && !this.lastResult.recovered) {
+      this.contentEl.createEl("p", {
+        text: this.lastResult.status === "failed" ? tn("recoveryCenter", "actionFailed") : tn("recoveryCenter", "blocked"),
+        cls: "bangumi-sync-error"
+      });
+    }
+    if (this.actionError)
+      this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "actionFailed")}: ${this.actionError}`, cls: "bangumi-sync-error" });
+    if (this.working)
+      this.contentEl.createEl("p", { text: tn("recoveryCenter", "working") });
+    const actions = this.contentEl.createDiv({ cls: "bangumi-sync-actions" });
+    this.addActionButton(actions, tn("recoveryCenter", "retryRollback"), "retry-rollback", "mod-warning");
+    this.addActionButton(actions, tn("recoveryCenter", "confirmManual"), "confirm-manual", "mod-cta");
+    this.addActionButton(actions, tn("recoveryCenter", "rescan"), "rescan", "");
+    this.addCloseButton(actions);
+  }
+  renderAttemptHistory(attempts) {
+    if (attempts.length === 0)
+      return;
+    const history = this.contentEl.createEl("details");
+    history.createEl("summary", { text: `${tn("recoveryCenter", "attemptHistory")} (${attempts.length})` });
+    const list = history.createEl("ul");
+    for (const attempt of attempts)
+      list.createEl("li", { text: `${new Date(attempt.finishedAt).toLocaleString()} \u2014 ${attempt.action}: ${attempt.status}` });
+  }
+  addActionButton(container, label, action, cls) {
+    const button = container.createEl("button", { text: label, cls });
+    button.disabled = this.working;
+    button.addEventListener("click", () => void this.runAction(action));
+  }
+  addCloseButton(container = this.contentEl) {
+    const button = container.createEl("button", { text: tn("recoveryCenter", "close") });
+    button.disabled = this.working;
+    button.addEventListener("click", () => this.close());
+  }
+  async runAction(action) {
+    if (this.working)
+      return;
+    this.working = true;
+    this.actionError = null;
+    this.render();
+    try {
+      this.lastResult = action === "retry-rollback" ? await this.handlers.retryRollback() : action === "confirm-manual" ? await this.handlers.confirmManual() : await this.handlers.rescan();
+    } catch (error) {
+      this.actionError = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.working = false;
+      this.render();
+    }
+  }
+  renderDiagnostics(diagnostics) {
+    const details = this.contentEl.createEl("details", { cls: "bangumi-sync-error-details", attr: { open: "" } });
+    details.createEl("summary", { text: `${tn("recoveryCenter", "diagnostics")} (${diagnostics.length})` });
+    const list = details.createEl("ul", { cls: "bangumi-sync-error-list" });
+    for (const diagnostic of diagnostics)
+      list.createEl("li", { text: this.formatDiagnostic(diagnostic) });
+  }
+  formatDiagnostic(diagnostic) {
+    const labels = {
+      "rollback-step-failed": "diagnosticRollbackStepFailed",
+      "rescan-failed": "diagnosticRescanFailed",
+      "state-restore-failed": "diagnosticStateRestoreFailed",
+      "persisted-state-mismatch": "diagnosticPersistedStateMismatch",
+      "incremental-state-mismatch": "diagnosticIncrementalStateMismatch",
+      "blocking-local-file": "diagnosticBlockingLocalFile",
+      "duplicate-subject-id": "diagnosticDuplicateSubjectId",
+      "temporary-file": "diagnosticTemporaryFile",
+      "unexpected-subject-file": "diagnosticUnexpectedSubjectFile",
+      "missing-subject-file": "diagnosticMissingSubjectFile",
+      "subject-path-mismatch": "diagnosticSubjectPathMismatch",
+      "subject-identity-mismatch": "diagnosticSubjectIdentityMismatch",
+      "content-mismatch": "diagnosticContentMismatch",
+      "content-file-missing": "diagnosticContentFileMissing",
+      "unexpected-created-path": "diagnosticUnexpectedCreatedPath"
+    };
+    const context = "path" in diagnostic ? diagnostic.path : "actualPath" in diagnostic ? diagnostic.actualPath : "expectedPath" in diagnostic && diagnostic.expectedPath ? diagnostic.expectedPath : "subjectId" in diagnostic ? String(diagnostic.subjectId) : "";
+    return `${tn("recoveryCenter", labels[diagnostic.code])}${context ? ` \u2014 ${context}` : ""}: ${diagnostic.message}`;
+  }
+};
+
 // main.ts
-var BangumiPlugin = class extends import_obsidian28.Plugin {
+var BangumiPlugin = class extends import_obsidian32.Plugin {
   constructor() {
     super(...arguments);
     this.syncManager = null;
@@ -15616,6 +18961,9 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
     this.syncStatusBarEl = null;
     this.cancellationSignal = null;
     this.controlPanel = null;
+    this.appliedSyncConfig = null;
+    this.lastSavedSettings = null;
+    this.settingsPersistence = new SettingsPersistenceCoordinator();
     // 单集功能
     this.episodeStatusManager = null;
     this.episodeCommentManager = null;
@@ -15628,7 +18976,7 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
   // 10 分钟缓存
   async onload() {
     await this.loadSettings();
-    await this.initSyncManager();
+    await this.initOrUpdateSyncManager();
     this.syncStatusBarEl = this.addStatusBarItem();
     this.syncStatusBarEl.addClass("bangumi-sync-status-bar", "bangumi-hidden");
     this.initEpisodeFeatures();
@@ -15672,6 +19020,8 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
       name: tn("commands", "createSubjectNote"),
       callback: () => {
         var _a;
+        if (!this.ensureWriteCanStart("subject-note"))
+          return;
         void ((_a = this.subjectNoteManager) == null ? void 0 : _a.createOrAppendForCurrentFile());
       }
     });
@@ -15685,6 +19035,21 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
       name: tn("commands", "scanAndLinkRelated"),
       callback: () => void this.scanAndLinkRelated()
     });
+    this.addCommand({
+      id: "open-recovery-center",
+      name: tn("commands", "openRecoveryCenter"),
+      callback: () => this.openRecoveryCenter()
+    });
+    this.addCommand({
+      id: "diagnose-local-subjects",
+      name: tn("commands", "diagnoseLocalSubjects"),
+      callback: () => void this.openPathDiagnostic()
+    });
+    this.addCommand({
+      id: "preview-path-migration",
+      name: tn("commands", "previewPathMigration"),
+      callback: () => void this.openPathMigrationPreview()
+    });
     this.addRibbonIcon("database", tn("ribbon", "collectionManager"), () => {
       this.openControlPanel();
     });
@@ -15692,16 +19057,72 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
       this.app,
       this,
       this.settings,
-      async () => {
-        await this.saveSettings();
-        await this.initSyncManager();
-      }
+      (candidate) => this.applySettingsChanges(candidate),
+      () => this.openPathDiagnostic(),
+      () => this.openPathMigrationPreview()
     ));
     if (this.settings.autoSync) {
       this.setupAutoSync();
     }
   }
+  async openPathDiagnostic() {
+    try {
+      if (!this.syncManager) {
+        new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+        return;
+      }
+      const report = await this.syncManager.diagnoseLocalSubjects();
+      new PathDiagnosticModal(
+        this.app,
+        report,
+        () => {
+          var _a, _b;
+          return (_b = (_a = this.syncManager) == null ? void 0 : _a.exportDiagnosticReport(report)) != null ? _b : Promise.reject(new Error(tn("notices", "syncManagerNotInit")));
+        }
+      ).open();
+    } catch (error) {
+      new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  openRecoveryCenter() {
+    const manager = this.syncManager;
+    if (!manager) {
+      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+      return;
+    }
+    new RecoveryCenterModal(this.app, {
+      getRecovery: () => manager.getRecoveryRequired(),
+      retryRollback: () => manager.retryRecovery(),
+      confirmManual: () => manager.confirmManualRecovery(),
+      rescan: () => manager.rescanRecovery(),
+      subscribe: (listener) => manager.subscribeRecoveryState(listener)
+    }).open();
+  }
+  async openPathMigrationPreview() {
+    try {
+      if (!this.syncManager) {
+        new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+        return;
+      }
+      const preview = await this.syncManager.previewPathMigration();
+      new PathMigrationPreviewModal(
+        this.app,
+        preview,
+        (actualPreview) => {
+          var _a, _b;
+          return (_b = (_a = this.syncManager) == null ? void 0 : _a.applyPathMigration(actualPreview)) != null ? _b : Promise.reject(new Error(tn("notices", "syncManagerNotInit")));
+        },
+        (options) => {
+          var _a, _b;
+          return (_b = (_a = this.syncManager) == null ? void 0 : _a.previewPathMigration(options)) != null ? _b : Promise.reject(new Error(tn("notices", "syncManagerNotInit")));
+        }
+      ).open();
+    } catch (error) {
+      new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
   onunload() {
+    setWriteOperationGuard(null);
     if (this.autoSyncIntervalId !== null) {
       activeWindow.clearInterval(this.autoSyncIntervalId);
       this.autoSyncIntervalId = null;
@@ -15789,26 +19210,121 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
    * 保存设置
    */
   async saveSettings() {
-    await this.saveData(this.settings);
+    const snapshot = this.cloneSettings(this.settings);
+    await this.settingsPersistence.enqueue(() => this.saveData(snapshot));
+    this.lastSavedSettings = snapshot;
   }
   /**
    * 初始化同步管理器
    */
-  async initSyncManager() {
-    const templates = await this.getTemplates();
-    const config = {
-      accessToken: this.settings.accessToken,
-      pathTemplate: this.settings.syncPathTemplate,
-      pathTemplateByType: this.settings.pathTemplateByType,
-      imagePathTemplate: this.settings.imagePathTemplate,
-      notePathTemplate: this.settings.notePathTemplate,
-      downloadImages: this.settings.downloadImages,
-      scanFolderPath: this.settings.scanFolderPath,
-      coverLinkType: this.settings.coverLinkType,
-      customTemplates: templates
-    };
+  async buildSyncManagerConfig(settings = this.settings) {
+    const templates = await this.getTemplates(settings);
+    return cloneSyncManagerConfig({
+      accessToken: settings.accessToken,
+      pathTemplate: settings.syncPathTemplate,
+      pathTemplateByType: settings.pathTemplateByType,
+      imagePathTemplate: settings.imagePathTemplate,
+      notePathTemplate: settings.notePathTemplate,
+      downloadImages: settings.downloadImages,
+      scanFolderPath: settings.scanFolderPath,
+      coverLinkType: settings.coverLinkType,
+      customTemplates: templates,
+      enableRelatedLinks: settings.enableRelatedLinks,
+      dataProtection: settings.dataProtection,
+      subjectPathStates: settings.subjectPathStates,
+      pathNamingStrategy: settings.pathNamingStrategy,
+      onPathStatesChanged: async (states) => {
+        this.settings.subjectPathStates = states;
+        await this.saveSettings();
+      }
+    });
+  }
+  cloneSettings(settings) {
+    return JSON.parse(JSON.stringify(settings));
+  }
+  restoreSettings(snapshot) {
+    for (const key of Object.keys(this.settings))
+      Reflect.deleteProperty(this.settings, key);
+    Object.assign(this.settings, this.cloneSettings(snapshot));
+  }
+  changedSyncConfigFields(previous, next) {
+    if (!previous)
+      return [];
+    const fields = [
+      "accessToken",
+      "scanFolderPath",
+      "pathTemplate",
+      "pathTemplateByType",
+      "pathNamingStrategy",
+      "subjectPathStates",
+      "imagePathTemplate",
+      "notePathTemplate",
+      "coverLinkType",
+      "dataProtection",
+      "downloadImages",
+      "enableRelatedLinks",
+      "customTemplates"
+    ];
+    return fields.filter((field) => !syncConfigFieldEqual(previous, next, field));
+  }
+  refreshDependentServices(manager, settings = this.settings) {
+    this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.cloneSettings(settings));
+  }
+  async applySettingsChanges(candidate) {
+    const previousSettings = this.cloneSettings(this.settings);
+    candidate.subjectPathStates = this.cloneSettings(this.settings).subjectPathStates;
+    const nextConfig = await this.buildSyncManagerConfig(candidate);
+    const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, nextConfig);
+    const outcome = await persistStableManagerSettings({
+      settings: this.cloneSettings(candidate),
+      previousSettings,
+      nextConfig,
+      changedFields,
+      manager: this.syncManager,
+      save: (settings) => this.settingsPersistence.enqueue(() => this.saveData(this.cloneSettings(settings))),
+      restore: (snapshot) => this.restoreSettings(snapshot),
+      applyDependentServices: (settings) => {
+        if (this.syncManager)
+          this.refreshDependentServices(this.syncManager, settings);
+      },
+      restoreDependentServices: (settings) => {
+        if (this.syncManager)
+          this.refreshDependentServices(this.syncManager, settings);
+      },
+      onRollbackFailure: (error) => {
+        var _a;
+        return (_a = this.syncManager) == null ? void 0 : _a.requireConfigurationRecovery(error);
+      }
+    });
+    if (outcome.applied) {
+      this.appliedSyncConfig = cloneSyncManagerConfig(nextConfig);
+      this.lastSavedSettings = this.cloneSettings(this.settings);
+      return { applied: true, settings: this.cloneSettings(this.settings) };
+    }
+    if (outcome.error instanceof ConfigurationChangeBlockedError)
+      new import_obsidian32.Notice(outcome.error.message);
+    else
+      new import_obsidian32.Notice(`Failed to save settings: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`);
+    return { applied: false, settings: this.cloneSettings(this.settings) };
+  }
+  async initOrUpdateSyncManager() {
+    const config = await this.buildSyncManagerConfig();
+    if (this.syncManager) {
+      const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, config);
+      this.syncManager.updateConfig(config, changedFields);
+      this.appliedSyncConfig = cloneSyncManagerConfig(config);
+      this.refreshDependentServices(this.syncManager);
+      return;
+    }
     this.syncManager = new SyncManager(this.app, config);
-    this.subjectNoteManager = new SubjectNoteManager(this.app, this.syncManager.client, this.settings);
+    await this.syncManager.initializeRecovery();
+    if (this.syncManager.getRecoveryRequired())
+      new import_obsidian32.Notice(tn("recoveryCenter", "writeBlocked"));
+    this.appliedSyncConfig = cloneSyncManagerConfig(config);
+    this.lastSavedSettings = this.cloneSettings(this.settings);
+    const manager = this.syncManager;
+    setWriteOperationGuard(() => manager.ensureCanStartSync());
+    this.refreshDependentServices(manager);
   }
   /**
    * 初始化单集功能
@@ -15844,7 +19360,7 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
   /**
    * 获取各类型模板
    */
-  async getTemplates() {
+  async getTemplates(settings = this.settings) {
     const templates = {};
     const templateKeys = [
       "animeTemplateConfig",
@@ -15856,30 +19372,30 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
       "realTemplateConfig"
     ];
     for (const templateKey of templateKeys) {
-      templates[getTemplateFallbackLookupKey(templateKey)] = await this.resolveTemplate(templateKey);
+      templates[getTemplateFallbackLookupKey(templateKey)] = await this.resolveTemplate(templateKey, settings);
     }
     for (const categoryOption of TEMPLATE_CATEGORY_OPTIONS) {
-      templates[categoryOption.category] = await this.resolveTemplateForCategory(categoryOption.key);
+      templates[categoryOption.category] = await this.resolveTemplateForCategory(categoryOption.key, settings);
     }
     return templates;
   }
   /**
    * 解析单个模板配置
    */
-  async resolveTemplate(configKey) {
-    return this.resolveTemplateFromConfig(this.settings[configKey], configKey);
+  async resolveTemplate(configKey, settings = this.settings) {
+    return this.resolveTemplateFromConfig(settings[configKey], configKey);
   }
-  async resolveTemplateForCategory(categoryKey) {
+  async resolveTemplateForCategory(categoryKey, settings = this.settings) {
     var _a;
     const categoryOption = TEMPLATE_CATEGORY_OPTIONS_BY_KEY[categoryKey];
     if (!categoryOption) {
       return "";
     }
-    const categoryConfig = (_a = this.settings.templateConfigByCategory) == null ? void 0 : _a[categoryKey];
+    const categoryConfig = (_a = settings.templateConfigByCategory) == null ? void 0 : _a[categoryKey];
     if (categoryConfig) {
       return this.resolveTemplateFromConfig(categoryConfig, categoryOption.templateKey);
     }
-    return this.resolveTemplate(categoryOption.templateKey);
+    return this.resolveTemplate(categoryOption.templateKey, settings);
   }
   async resolveTemplateFromConfig(config, defaultTemplateKey) {
     switch (config.source) {
@@ -15891,12 +19407,12 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
         if (config.filePath) {
           try {
             const file = this.app.vault.getAbstractFileByPath(config.filePath);
-            if (file instanceof import_obsidian28.TFile) {
+            if (file instanceof import_obsidian32.TFile) {
               return await this.app.vault.read(file);
             }
           } catch (error) {
             console.error(`[Bangumi Sync] \u8BFB\u53D6\u6A21\u677F\u6587\u4EF6\u5931\u8D25: ${config.filePath}`, error);
-            new import_obsidian28.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
+            new import_obsidian32.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
           }
         }
         return getBuiltInTemplateByKey(defaultTemplateKey, true);
@@ -15910,11 +19426,13 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
    * 打开导出用户数据弹窗
    */
   openExportModal() {
+    if (!this.ensureWriteCanStart("user-data-export"))
+      return;
     const modal = new UserDataExportModal(
       this.app,
       this.settings.scanFolderPath,
       (files) => {
-        new import_obsidian28.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
+        new import_obsidian32.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
       }
     );
     modal.open();
@@ -15923,6 +19441,8 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
    * 打开导入用户数据弹窗
    */
   openImportModal() {
+    if (!this.ensureWriteCanStart("user-data-import"))
+      return;
     const input = activeDocument.createElement("input");
     input.type = "file";
     input.accept = ".json";
@@ -15939,7 +19459,7 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
             content: await file.text()
           });
         } catch (error) {
-          new import_obsidian28.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
+          new import_obsidian32.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
           return;
         }
       }
@@ -15947,9 +19467,10 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
         this.app,
         importFiles,
         (result) => {
-          const resultModal = new ImportResultModal(this.app, result);
+          const resultModal = new ImportResultModal(this.app, result, this.settings.scanFolderPath);
           resultModal.open();
-        }
+        },
+        this.settings.scanFolderPath
       );
       modal.open();
     })();
@@ -15959,12 +19480,14 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
    * 打开搜索弹窗
    */
   openSearchModal() {
-    if (!this.settings.accessToken) {
-      new import_obsidian28.Notice(tn("notices", "configureTokenFirst"));
+    if (!this.syncManager) {
+      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
-    if (!this.syncManager) {
-      new import_obsidian28.Notice(tn("notices", "syncManagerNotInit"));
+    if (!this.ensureSyncCanStart())
+      return;
+    if (!this.settings.accessToken) {
+      new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     const modal = new SearchModal(
@@ -15983,8 +19506,10 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
    */
   openControlPanel(options) {
     var _a;
+    if (!this.ensureSyncCanStart())
+      return;
     if (!this.settings.accessToken) {
-      new import_obsidian28.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (this.controlPanel) {
@@ -16001,7 +19526,10 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
       this.syncManager,
       (filters) => {
         this.settings.panelFilters = filters;
-        void this.saveSettings();
+        void this.saveSettings().catch((error) => {
+          console.error("[Bangumi Sync] Failed to persist panel filters:", error);
+          new import_obsidian32.Notice(`Failed to save settings: ${error instanceof Error ? error.message : String(error)}`);
+        });
       },
       cachedPanelData,
       (data) => {
@@ -16028,8 +19556,10 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
    * 打开同步选项弹窗
    */
   openSyncOptions() {
+    if (!this.ensureSyncCanStart())
+      return;
     if (!this.settings.accessToken) {
-      new import_obsidian28.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     const modal = new SyncOptionsModal(
@@ -16061,18 +19591,24 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
    * 批量下载封面图片并替换链接
    */
   async batchDownloadCovers() {
+    if (!this.ensureWriteCanStart("cover-download"))
+      return;
     if (!this.settings.downloadImages) {
-      new import_obsidian28.Notice(tn("notices", "coverDownloadDisabled"));
+      new import_obsidian32.Notice(tn("notices", "coverDownloadDisabled"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian28.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
     this.syncManager.setCancellationSignal(this.cancellationSignal);
     this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-    this.syncModal.setRollbackHandler(() => this.syncManager.rollbackBatch());
+    const modalManager = this.syncManager;
+    this.syncModal.setRollbackHandler(() => modalManager.rollbackBatch());
+    this.syncModal.setCommitHandler(() => modalManager.commitPendingBatch());
+    this.syncModal.setRecoveryStateSubscriber((listener) => modalManager.subscribeRecoveryState(listener));
+    this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
     this.syncModal.open();
     this.syncManager.setProgressCallback((progress) => {
       if (this.syncModal) {
@@ -16090,9 +19626,9 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar();
       if (result.downloaded === 0 && result.skipped === 0) {
-        new import_obsidian28.Notice(tn("notices", "coverDownloadNoItems"));
+        new import_obsidian32.Notice(tn("notices", "coverDownloadNoItems"));
       } else {
-        new import_obsidian28.Notice(tnFormat("notices", "coverDownloadComplete", {
+        new import_obsidian32.Notice(tnFormat("notices", "coverDownloadComplete", {
           downloaded: result.downloaded,
           skipped: result.skipped,
           failed: result.failed
@@ -16107,15 +19643,17 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u5931\u8D25:", error);
-      new import_obsidian28.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
    * 扫描所有本地已同步条目，为相关条目补充双向链接
    */
   async scanAndLinkRelated() {
+    if (!this.ensureWriteCanStart("related-link-scan"))
+      return;
     if (!this.syncManager) {
-      new import_obsidian28.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -16146,33 +19684,39 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u626B\u63CF\u5173\u8054\u5931\u8D25:", error);
-      new import_obsidian28.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
    * 使用指定选项执行同步
    */
   async syncCollectionsWithOptions(options, showPreview = true) {
+    if (!this.ensureSyncCanStart())
+      return;
     if (!this.settings.accessToken) {
-      new import_obsidian28.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (options.subjectTypes.length === 0) {
-      new import_obsidian28.Notice(tn("notices", "selectSubjectType"));
+      new import_obsidian32.Notice(tn("notices", "selectSubjectType"));
       return;
     }
     if (options.collectionTypes.length === 0) {
-      new import_obsidian28.Notice(tn("notices", "selectCollectionType"));
+      new import_obsidian32.Notice(tn("notices", "selectCollectionType"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian28.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
     this.syncManager.setCancellationSignal(this.cancellationSignal);
     this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-    this.syncModal.setRollbackHandler(() => this.syncManager.rollbackBatch());
+    const modalManager = this.syncManager;
+    this.syncModal.setRollbackHandler(() => modalManager.rollbackBatch());
+    this.syncModal.setCommitHandler(() => modalManager.commitPendingBatch());
+    this.syncModal.setRecoveryStateSubscriber((listener) => modalManager.subscribeRecoveryState(listener));
+    this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
     this.syncModal.open();
     this.syncManager.setProgressCallback((progress) => {
       if (this.syncModal) {
@@ -16189,12 +19733,12 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
           force: options.force
         });
         if (!prepareResult.success) {
-          new import_obsidian28.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
+          new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
           this.cleanupSyncState(0);
           return;
         }
         if (!prepareResult.previewItems || prepareResult.previewItems.length === 0) {
-          new import_obsidian28.Notice(tn("notices", "noItemsToSync"));
+          new import_obsidian32.Notice(tn("notices", "noItemsToSync"));
           this.cleanupSyncState(0);
           return;
         }
@@ -16207,7 +19751,7 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
         );
         if (localPropertyResult === null) {
           console.debug("[Bangumi Sync] User cancelled custom properties");
-          new import_obsidian28.Notice(tn("notices", "syncCancelled"));
+          new import_obsidian32.Notice(tn("notices", "syncCancelled"));
           this.cleanupSyncState(0);
           return;
         }
@@ -16220,13 +19764,19 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
           (result) => {
             void (async () => {
               if (result.action === "cancel") {
-                new import_obsidian28.Notice(tn("notices", "syncCancelled"));
+                new import_obsidian32.Notice(tn("notices", "syncCancelled"));
                 return;
               }
+              if (!this.ensureSyncCanStart())
+                return;
               this.cancellationSignal = createCancellationSignal();
               this.syncManager.setCancellationSignal(this.cancellationSignal);
               this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-              this.syncModal.setRollbackHandler(() => this.syncManager.rollbackBatch());
+              const modalManager2 = this.syncManager;
+              this.syncModal.setRollbackHandler(() => modalManager2.rollbackBatch());
+              this.syncModal.setCommitHandler(() => modalManager2.commitPendingBatch());
+              this.syncModal.setRecoveryStateSubscriber((listener) => modalManager2.subscribeRecoveryState(listener));
+              this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
               this.syncModal.open();
               this.syncManager.setProgressCallback((progress) => {
                 if (this.syncModal) {
@@ -16255,7 +19805,7 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
         previewModal.open();
       } catch (error) {
         console.error("[Bangumi Sync] Preview flow error:", error);
-        new import_obsidian28.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+        new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
         this.cleanupSyncState(0);
       }
     } else {
@@ -16274,6 +19824,46 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
       this.cancellationSignal = null;
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar();
+    }
+  }
+  ensureSyncCanStart() {
+    if (!this.syncManager) {
+      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+      return false;
+    }
+    try {
+      this.syncManager.ensureCanStartSync();
+      return true;
+    } catch (error) {
+      if (error instanceof RecoveryRequiredError) {
+        new import_obsidian32.Notice(tn("recoveryCenter", "writeBlocked"));
+        this.openRecoveryCenter();
+      } else if (error instanceof PendingDecisionInProgressError) {
+        new import_obsidian32.Notice(tn("recoveryCenter", "decisionInProgress"));
+      } else if (error instanceof PendingSyncTransactionError) {
+        new import_obsidian32.Notice(tn("recoveryCenter", "pendingDecision"));
+      } else {
+        new import_obsidian32.Notice(error instanceof Error ? error.message : String(error));
+      }
+      return false;
+    }
+  }
+  ensureWriteCanStart(operation) {
+    try {
+      assertWriteOperationAllowed(operation);
+      return true;
+    } catch (error) {
+      if (error instanceof RecoveryRequiredError) {
+        new import_obsidian32.Notice(tn("recoveryCenter", "writeBlocked"));
+        this.openRecoveryCenter();
+      } else if (error instanceof PendingDecisionInProgressError) {
+        new import_obsidian32.Notice(tn("recoveryCenter", "decisionInProgress"));
+      } else if (error instanceof PendingSyncTransactionError) {
+        new import_obsidian32.Notice(tn("recoveryCenter", "pendingDecision"));
+      } else {
+        new import_obsidian32.Notice(error instanceof Error ? error.message : String(error));
+      }
+      return false;
     }
   }
   cleanupSyncState(statusBarDelay = 0) {
@@ -16301,7 +19891,7 @@ var BangumiPlugin = class extends import_obsidian28.Plugin {
       (message) => {
         if (!warned) {
           warned = true;
-          new import_obsidian28.Notice(message);
+          new import_obsidian32.Notice(message);
         }
       }
     );

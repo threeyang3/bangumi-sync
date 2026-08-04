@@ -43,3 +43,63 @@ export function parseYaml(input: string): Record<string, unknown> {
 
 	return result;
 }
+
+export class TAbstractFile {
+	constructor(public path: string) {}
+}
+
+export class TFile extends TAbstractFile {
+	basename: string;
+	extension: string;
+	stat: { mtime: number };
+
+	constructor(path: string) {
+		super(normalizePath(path));
+		const name = this.path.split('/').pop() ?? '';
+		const dotIndex = name.lastIndexOf('.');
+		this.basename = dotIndex > 0 ? name.slice(0, dotIndex) : name;
+		this.extension = dotIndex > 0 ? name.slice(dotIndex + 1) : '';
+		this.stat = { mtime: 0 };
+	}
+}
+
+export class TFolder extends TAbstractFile {}
+
+export class Notice {
+	constructor(_message: string) {}
+}
+
+export function getLanguage(): string {
+	return 'en';
+}
+
+export function normalizePath(path: string): string {
+	return path.replace(/\\/g, '/').replace(/\/{2,}/g, '/').replace(/^\.\//, '').replace(/\/$/, '');
+}
+
+export interface App {
+	vault: {
+		read(file: TFile): Promise<string>;
+		getMarkdownFiles(): TFile[];
+		getAbstractFileByPath(path: string): TAbstractFile | null;
+		adapter: {
+			list(path: string): Promise<{ files: string[]; folders: string[] }>;
+			exists(path: string): Promise<boolean>;
+			read(path: string): Promise<string>;
+			write(path: string, content: string): Promise<void>;
+			rename(from: string, to: string): Promise<void>;
+			remove(path: string): Promise<void>;
+		};
+		configDir: string;
+		create(path: string, content: string): Promise<TFile>;
+		createFolder(path: string): Promise<void>;
+		process(file: TFile, updater: (content: string) => string): Promise<void>;
+	};
+	metadataCache: {
+		getFileCache(file: TFile): { frontmatter?: Record<string, unknown> } | null;
+	};
+	fileManager: {
+		trashFile(file: TFile): Promise<void>;
+		renameFile(file: TFile, newPath: string): Promise<void>;
+	};
+}

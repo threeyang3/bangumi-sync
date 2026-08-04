@@ -101,7 +101,7 @@ export class BangumiClient {
 					const error = this.toApiError(responseJson, response.status);
 					const errorMsg = error.title + (error.description ? `: ${error.description}` : '');
 					console.error(`[Bangumi Sync] API Error ${response.status} on ${method} ${endpoint}:`, errorMsg, data);
-					throw new Error(errorMsg);
+					throw new Error(`HTTP ${response.status}: ${errorMsg}`);
 				}
 
 				// 204 No Content 表示成功但无返回内容

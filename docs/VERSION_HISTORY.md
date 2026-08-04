@@ -1,5 +1,69 @@
 # 版本历史
 
+## v6.11.0
+
+### 稳定性与恢复
+- 配置改为不可变快照；设置页使用 candidate、manager lease 与串行持久化，失败时原子恢复磁盘和运行时状态。
+- 新增原子持久恢复 journal，记录内容、路径状态、created/rename/temporary/封面资源和恢复尝试；插件重载后继续阻断写入并恢复 Recovery Center 上下文。
+- 内容完整性改用标准 SHA-256；concrete path 在整个 Vault 中直接验证，隐藏 temporary file 通过 adapter 枚举发现。
+- 状态同步、批量编辑、导入、封面、关联链接、单集状态/评论和共享笔记统一在写入时复核 Subject ID。
+- 恢复统计区分自动执行与人工验证，多个窗口通过 manager state 同步禁用过期操作。
+
+### 兼容性
+- 无需迁移 Markdown 或 Subject ID；最低 Obsidian 版本仍为 1.8.7。
+
+## v6.10.5
+
+### 修复
+- 设置保存改为原位更新稳定 `SyncManager`，pending/recovery、写门禁和旧窗口不再失去真实事务所有者。
+- 恢复固定使用批次开始时 scan root，并严格验证原始内容指纹与 concrete created path；修改残留文件 ID 不能绕过检查。
+- 人工恢复成功生成当前零失败终态，历史 rollback failure 保留在尝试记录；多个恢复窗口通过状态事件同步。
+
+### 兼容性
+- 无 Markdown 或 Subject ID 迁移；运行期恢复上下文仍不跨插件重启，持久化事务日志继续由 Issue #5 跟踪。
+
+## v6.10.1
+
+### 修复
+- 修复 NFKC 把文件名全角斜杠误转成目录分隔符；碰撞键改为先按 ASCII `/` 切分、逐段规范化和长度前缀编码。
+- 修复内容生成失败后旧文件已被提前重命名的半完成状态；重命名后写入失败会自动恢复创建、内容与路径。
+- 修复搜索添加绕过批量路径规划、碰撞上下文按标题匹配、成功事务残留以及 `unchanged` 误计入 `added`。
+
+### 改进
+- 旧文件仅在当前路径等于相关首选路径时推断为 `inferred-managed`，自定义路径继续保护。
+- 所有本地同步入口统一使用 prepare/render/commit 管线；结果按 `pathAction` / `writeAction` 汇总并支持 `rolled-back`、`rollback-failed`。
+- 新增真实 `SyncManager.sync()`、`syncByCollections()`、`syncSingleSubject()` 集成回归，覆盖多个失败阶段、部分成功和事务生命周期。
+
+## v6.10.0
+
+### 新增
+- 以 Bangumi ID 为唯一身份的本地双向注册表、路径诊断、导出报告和显式迁移预览。
+- 同名作品按年份对称消歧，同年或缺年使用 Bangumi ID 兜底；非法文件名字符转换为全角。
+- 同步文件事务支持创建、更新前内容和重命名回滚；同步结果区分创建、更新、未变化、重命名、冲突解决、失败及 partial success。
+
+### 修复
+- 修复不同 ID 生成同一路径时静默跳过却登记同步成功，并阻止强制同步/用户数据保护跨条目合并。
+- 修复用户重命名后按模板创建重复文件、重复 ID 静默覆盖索引和扫描目录前缀误匹配。
+- 修复同名无关条目仅因共享笔记路径相同而被自动合并。
+
+## v6.9.8
+
+### 修复
+- 修复云端评分为空时无法覆盖本地评分的 bug：`SubjectDocumentService.updateRate` 在 cloudValue 为 `null` 时直接 `return content` 不会删除 frontmatter `评分`；新增 `removeRate`（底层走新增的 `removeFrontmatterField` 帮助函数），executor 在 cloud 决策下空值显式调用 `removeRate`，与 `removeComment` / `removeTags` 行为一致。
+- 修复 SP/OP/ED 集数使用小数编号（如 `29.1`、`0.5`）时云端→本地同步丢失状态的问题：frontmatter `ep_statuses` 行的解析、`updateEpStatusInContent` 内的查找/替换/删除正则、`parseEpisodeBox` 的 `data-ep` 提取、右键菜单的集数读取、吐槽 callout 的读取与匹配全部从 `(\d+)` / `parseInt` 改为 `(\d+(?:\.\d+)?)` / `parseFloat`，并对 `hasEpisodeComment` 拼接的正则做转义。
+
+## v6.9.7
+
+### 修复
+- 修复有 SP/OP/ED 集数的条目在云端 → 本地同步时集数信息丢失的问题：`parseEpisodes` 此前会过滤掉 `type !== 0` 的章节，导致正文 `.ep-box` 中根本没有 SP 元素，云端状态无法落盘。
+- 修复“检查并同步状态”流程中 SP 状态被永久丢失的 bug：`applyEpisodeStatusUpdates` 在清空 frontmatter `ep_statuses` 后只覆盖已有 `.ep-box`，云端新出现的 SP 状态如果本地没有对应元素会直接被清空；现在清空后会按云端数据重建 frontmatter。
+- 修复右键菜单单条更新会顺手清空其他集状态的副作用：`updateLocalStatus` 改为走细粒度 `updateEpStatusInContent`。
+
+## v6.9.6
+
+### 改进
+- 设置面板中硬编码的"模板语法"标题改为走 i18n 国际化。
+
 ## v6.9.5
 
 ### 改进
@@ -675,3 +739,28 @@
 ## v1.0.0
 
 - 基础同步功能
+
+## v6.10.2
+
+- 部分成功批次改为显式保留/回滚，不再隐式提交。
+- 碰撞组与普通条目分组隔离，重命名阶段日志支持完整故障恢复。
+- 路径状态持久化纳入逻辑事务，并在所有终态清空增量批缓存。
+- 增加完整回滚统计、上下文重命名统计和关联后处理警告。
+
+## v6.10.3
+
+- 保留/回滚决策改为原子 compare-and-set 状态机，重复点击和竞争操作共享同一结果。
+- 回滚结果区分是否尝试及是否实际改变文件，空事务不再误报为已回滚。
+- 最终统计按磁盘终态重算，已撤销条目保留 attempted action 并显示 rolled back。
+- 回滚、路径状态恢复或重扫失败时保留恢复上下文，阻止所有新同步和路径迁移。
+- 增加恢复重试与人工恢复确认诊断，检查临时文件、重复 ID、阻塞问题和路径状态不一致。
+- 未决批次的关联条目后处理延迟到明确保留后执行；回滚失败详情展示操作、路径和错误信息。
+
+## v6.10.4
+
+- 人工恢复确认覆盖条目存在/缺失、路径与身份完整矩阵，并在解除门禁前重新保存和双重校验原始 `subjectPathStates`。
+- Retry、Manual Confirm 与 Rescan 共用原子互斥动作；恢复 attempts 历史与 latest 诊断分离。
+- 新增可从命令面板反复打开的 Recovery Center，rollback-failed 结果窗口始终提供恢复入口。
+- 所有用户可触发 Vault/插件状态写入口增加 UI 与服务双层 recovery-required 门禁，只读诊断保持可用。
+- pending/recovery 前结果快照改为必填，自动失败路径也能稳定显示最终统计与恢复详情。
+- 恢复验证完全基于本地数据；磁盘事务日志与插件重启后自动恢复继续由 Issue #5 跟踪。

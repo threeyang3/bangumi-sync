@@ -6,7 +6,7 @@
 import { App, Menu, Modal, Notice, TFile } from 'obsidian';
 import { UserCollection, SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName, getCollectionStatusLabel } from '../../common/api/types';
 import { BangumiPluginSettings, PanelFilters, DEFAULT_PANEL_FILTERS } from '../settings/settings';
-import { SyncManager } from '../sync/syncManager';
+import { ManagerState, SyncManager } from '../sync/syncManager';
 import { IncrementalSync } from '../sync/incrementalSync';
 import { BangumiClient } from '../api/client';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
@@ -133,6 +133,8 @@ export class ControlPanel extends Modal {
 
 	private state: PanelState;
 	private filters: PanelFilters;
+	private managerState: ManagerState = 'idle';
+	private unsubscribeManagerState: (() => void) | null = null;
 
 	// UI 元素
 	private filterBarEl!: HTMLElement;
@@ -255,6 +257,10 @@ export class ControlPanel extends Modal {
 		// 操作栏
 		this.actionBarEl = contentEl.createDiv({ cls: 'bangumi-panel-action-bar' });
 		this.renderActionBar();
+		this.unsubscribeManagerState = this.syncManager.subscribeManagerState(state => {
+			this.managerState = state;
+			if (this.actionBarEl?.isConnected) this.renderActionBar();
+		});
 
 		// 表格区域
 		this.tableEl = contentEl.createDiv({ cls: 'bangumi-panel-table' });
@@ -287,6 +293,8 @@ export class ControlPanel extends Modal {
 	}
 
 	onClose(): void {
+		this.unsubscribeManagerState?.();
+		this.unsubscribeManagerState = null;
 		this.subjectSnapshotSession.cancelWarmup();
 		// 清理触摸事件监听器
 		if (this.touchStartHandler) {
@@ -422,14 +430,24 @@ export class ControlPanel extends Modal {
 			});
 			this.decorateMobileButton(button, action.mobileLabel, action.label);
 			button.addEventListener('click', (evt) => {
+				if (this.isActionBlocked(action)) {
+					new Notice(tn('recoveryCenter', 'writeBlocked'));
+					return;
+				}
 				action.run(evt);
 			});
-			if (action.key === 'undo') {
+			if (this.isActionBlocked(action)) {
+				button.disabled = true;
+			} else if (action.key === 'undo') {
 				button.disabled = !this.frontmatterEditor.canUndo();
 			}
 		}
 
 		this.updateSelectedCount();
+	}
+
+	private isActionBlocked(action: ControlPanelActionDescriptor): boolean {
+		return this.managerState !== 'idle' && action.key !== 'refresh';
 	}
 
         private getToolbarActions(hasSelection: boolean): ControlPanelActionDescriptor[] {
@@ -613,7 +631,7 @@ export class ControlPanel extends Modal {
                         }
 
                         for (const action of sectionActions) {
-                                const disabled = !!action.requiresSelection && !hasSelection;
+						const disabled = this.isActionBlocked(action) || (!!action.requiresSelection && !hasSelection);
                                 menu.addItem((item) => {
                                         item
                                                 .setTitle(disabled ? `${action.label} (${tn('controlPanel', 'selectFirst')})` : action.label)
@@ -1126,8 +1144,11 @@ export class ControlPanel extends Modal {
 
 			this.state.loading = false;
 
-			if (result.success) {
-				new Notice(`${tn('controlPanel', 'syncComplete')}! ${result.added}, ${result.errors}`);
+			if (result.completion === 'success' || result.completion === 'partial-success') {
+				const completionText = result.completion === 'partial-success'
+					? tn('syncModal', 'partialSuccess')
+					: tn('controlPanel', 'syncComplete');
+				new Notice(`${completionText}: ${result.added}, ${result.errors}`);
 
 				// 重新扫描本地文件夹以更新同步状态
 				const scanPath = this.settings.scanFolderPath || 'ACGN';
@@ -1313,7 +1334,8 @@ export class ControlPanel extends Modal {
 				const result = submission.mode === 'uniform'
 					? await this.frontmatterEditor.batchModify(
 						targetItems.map(item => item.filePath),
-						submission.operations ?? []
+						submission.operations ?? [],
+						new Map(targetItems.flatMap(item => item.subjectId === undefined ? [] : [[item.filePath, item.subjectId]])),
 					)
 					: await this.frontmatterEditor.batchApplyPerItemUpdates(submission.perItemUpdates ?? []);
 				new Notice(`${tn('controlPanel', 'batchEdit')}: ${result.success}, ${result.failed}`);

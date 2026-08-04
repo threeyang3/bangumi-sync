@@ -1,6 +1,6 @@
 {
 	"name": "bangumi-sync",
-  "version": "6.9.6",
+	"version": "6.11.0",
 	"description": "Obsidian plugin to sync Bangumi collections",
 	"main": "main.js",
 	"scripts": {
@@ -19,6 +19,9 @@
 	],
 	"author": "threeyang",
 	"license": "MIT",
+	"engines": {
+		"node": ">=22 <23"
+	},
 	"devDependencies": {
 		"@types/node": "^22.19.19",
 		"@typescript-eslint/parser": "^8.59.1",
@@ -26,7 +29,7 @@
 		"esbuild": "0.17.3",
 		"eslint": "^9.39.4",
 		"eslint-plugin-obsidianmd": "^0.2.7",
-		"obsidian": "latest",
+		"obsidian": "1.12.3",
 		"tslib": "2.4.0",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.59.1",

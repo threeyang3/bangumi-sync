@@ -2307,6 +2307,33 @@
 	opacity: 0.9;
 }
 
+/* 非本篇章节（SP/OP/ED）的视觉区分：保持 2.2em 宽度但字号略小，避免和正片集数抢眼 */
+.markdown-rendered .ep-box.ep-sp,
+.markdown-rendered .ep-box.ep-op,
+.markdown-rendered .ep-box.ep-ed,
+.callout .ep-box.ep-sp,
+.callout .ep-box.ep-op,
+.callout .ep-box.ep-ed,
+.ep-box.ep-sp,
+.ep-box.ep-op,
+.ep-box.ep-ed {
+	font-size: 11px;
+	border-style: dashed;
+	opacity: 0.85;
+}
+
+.markdown-rendered .ep-box.ep-sp.watched,
+.markdown-rendered .ep-box.ep-op.watched,
+.markdown-rendered .ep-box.ep-ed.watched,
+.callout .ep-box.ep-sp.watched,
+.callout .ep-box.ep-op.watched,
+.callout .ep-box.ep-ed.watched,
+.ep-box.ep-sp.watched,
+.ep-box.ep-op.watched,
+.ep-box.ep-ed.watched {
+	opacity: 1;
+}
+
 /* ==================== Episode Sync Button ==================== */
 
 .bangumi-episode-sync-btn {

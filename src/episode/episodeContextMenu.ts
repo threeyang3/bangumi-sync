@@ -10,6 +10,7 @@ import { EpisodeCommentManager } from './episodeCommentManager';
 import { EpisodeStatusType, getEpisodeStatusText } from './types';
 import { delay } from '../../common/utils/timing';
 import { tn, tnFormat } from '../i18n/translations';
+import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
 
 /**
  * 集数右键菜单管理器
@@ -62,7 +63,7 @@ export class EpisodeContextMenu {
 	 */
 	private async showContextMenu(evt: MouseEvent, epBox: HTMLElement): Promise<void> {
 		const episodeId = parseInt(epBox.getAttribute('data-id') || '0', 10);
-		const epNumber = parseInt(epBox.getAttribute('data-ep') || '0', 10);
+		const epNumber = parseFloat(epBox.getAttribute('data-ep') || '0');
 
 		if (!episodeId || !epNumber) {
 			return;
@@ -148,6 +149,12 @@ export class EpisodeContextMenu {
 		epBox: HTMLElement
 	): Promise<void> {
 		try {
+			assertWriteOperationAllowed('episode-status');
+		} catch {
+			new Notice(tn('recoveryCenter', 'writeBlocked'));
+			return;
+		}
+		try {
 			// 1. 更新本地文件中的状态标记
 			await this.statusManager.updateLocalStatus(file, episodeId, epNumber, status);
 
@@ -166,6 +173,12 @@ export class EpisodeContextMenu {
 	 */
 	private async setWatchedUpTo(file: TFile, targetEpNumber: number): Promise<void> {
 		try {
+			assertWriteOperationAllowed('episode-status');
+		} catch {
+			new Notice(tn('recoveryCenter', 'writeBlocked'));
+			return;
+		}
+		try {
 			// 获取当前视图中所有的集数按键
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 			if (!view) return;
@@ -179,7 +192,7 @@ export class EpisodeContextMenu {
 			epBoxes.forEach((el) => {
 				const epBox = el as HTMLElement;
 				const episodeId = parseInt(epBox.getAttribute('data-id') || '0', 10);
-				const epNumber = parseInt(epBox.getAttribute('data-ep') || '0', 10);
+				const epNumber = parseFloat(epBox.getAttribute('data-ep') || '0');
 
 				if (episodeId && epNumber && epNumber <= targetEpNumber) {
 					episodesToUpdate.push({ episodeId, epNumber, epBox });
@@ -209,6 +222,12 @@ export class EpisodeContextMenu {
 	 * 添加单集吐槽
 	 */
 	private async addEpisodeComment(file: TFile, epNumber: number): Promise<void> {
+		try {
+			assertWriteOperationAllowed('episode-comment');
+		} catch {
+			new Notice(tn('recoveryCenter', 'writeBlocked'));
+			return;
+		}
 		try {
 			// 1. 在文件中插入 callout
 			const result = await this.commentManager.insertEpisodeComment(file, epNumber);

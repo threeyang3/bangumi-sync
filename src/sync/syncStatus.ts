@@ -19,12 +19,41 @@ export interface SyncOptions {
  */
 export interface SyncResult {
 	success: boolean;
+	completion: 'success' | 'partial-success' | 'failed' | 'cancelled' | 'rolled-back' | 'rollback-failed';
 	total: number;          // 需要同步的总数
 	added: number;
 	skipped: number;        // 已存在跳过的数量
 	errors: number;
+	created: number;
+	updated: number;
+	unchanged: number;
+	renamed: number;
+	collisionResolved: number;
+	failed: number;
 	duration: number;
 	errorDetails: string[]; // 失败条目的详细错误信息
+	outcomes: SubjectSyncOutcome[];
+	warnings: SyncWarning[];
+	rolledBack: number;
+}
+
+export interface SyncWarning {
+	subjectId?: number;
+	operation: string;
+	message: string;
+}
+
+export interface SubjectSyncOutcome {
+	subjectId: number;
+	name?: string;
+	preferredPath?: string;
+	actualPath?: string;
+	previousPath?: string;
+	pathAction: 'unchanged' | 'renamed' | 'collision-resolved' | 'rolled-back' | 'failed';
+	writeAction: 'created' | 'updated' | 'unchanged' | 'skipped' | 'failed' | 'rolled-back';
+	attemptedPathAction?: Exclude<SubjectSyncOutcome['pathAction'], 'rolled-back'>;
+	attemptedWriteAction?: Exclude<SubjectSyncOutcome['writeAction'], 'rolled-back'>;
+	error?: string;
 }
 
 /**
@@ -66,6 +95,30 @@ export interface BatchSyncedFile {
 export interface SyncResultWithRollback extends SyncResult {
 	batchFiles: BatchSyncedFile[];
 	wasCancelled: boolean;
+	canRollback: boolean;
+	rollback?: {
+		attempted: boolean;
+		changed: boolean;
+		deletedCreatedFiles: number;
+		restoredContents: number;
+		restoredPaths: number;
+		failed: number;
+		failures?: Array<{
+			operation: 'delete-created' | 'restore-content' | 'stage-path' | 'restore-path' | 'rescan' | 'restore-path-states';
+			path: string;
+			message: string;
+		}>;
+	};
+}
+
+export function determineSyncCompletion(
+	succeeded: number,
+	failed: number,
+	cancelled: boolean,
+): SyncResult['completion'] {
+	if (cancelled) return 'cancelled';
+	if (failed === 0) return 'success';
+	return succeeded > 0 ? 'partial-success' : 'failed';
 }
 
 /**

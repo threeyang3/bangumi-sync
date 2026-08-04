@@ -11,7 +11,8 @@
 import { Plugin, Notice, TFile } from 'obsidian';
 import { BangumiPluginSettings, DEFAULT_SETTINGS, PanelFilters } from './src/settings/settings';
 import { BangumiSettingTab } from './src/settings/settingsTab';
-import { SyncManager, SyncManagerConfig } from './src/sync/syncManager';
+import { persistStableManagerSettings, SettingsPersistenceCoordinator } from './src/settings/settingsLifecycle';
+import { ConfigurationChangeBlockedError, PendingDecisionInProgressError, PendingSyncTransactionError, RecoveryRequiredError, SyncConfigField, SyncManager, SyncManagerConfig } from './src/sync/syncManager';
 import { SyncModal } from './src/ui/syncModal';
 import { SyncOptionsModal, SyncOptionsInput } from './src/ui/syncOptionsModal';
 import { SyncPreviewModal, SyncPreviewResult } from './src/ui/syncPreviewModal';
@@ -36,6 +37,10 @@ import { EpisodeStatusManager } from './src/episode/episodeStatusManager';
 import { EpisodeCommentManager } from './src/episode/episodeCommentManager';
 import { SubjectNoteManager } from './src/note/subjectNoteManager';
 import { StatusSyncFieldSelection } from './src/sync/statusSyncTypes';
+import { PathDiagnosticModal, PathMigrationPreviewModal } from './src/ui/pathToolsModal';
+import { RecoveryCenterModal } from './src/ui/recoveryCenterModal';
+import { assertWriteOperationAllowed, setWriteOperationGuard, WriteOperation } from './src/sync/writeOperationGate';
+import { cloneSyncManagerConfig, syncConfigFieldEqual } from './src/sync/syncConfig';
 
 /**
  * 缓存数据结构
@@ -59,6 +64,9 @@ export default class BangumiPlugin extends Plugin {
 	private syncStatusBarEl: HTMLElement | null = null;
 	private cancellationSignal: ReturnType<typeof createCancellationSignal> | null = null;
 	private controlPanel: ControlPanel | null = null;
+	private appliedSyncConfig: SyncManagerConfig | null = null;
+	private lastSavedSettings: BangumiPluginSettings | null = null;
+	private readonly settingsPersistence = new SettingsPersistenceCoordinator();
 
 	// 单集功能
 	episodeStatusManager: EpisodeStatusManager | null = null;
@@ -74,7 +82,7 @@ export default class BangumiPlugin extends Plugin {
 		await this.loadSettings();
 
 		// 初始化同步管理器
-		await this.initSyncManager();
+		await this.initOrUpdateSyncManager();
 
 		// 状态栏指示器（默认隐藏）
 		this.syncStatusBarEl = this.addStatusBarItem();
@@ -136,6 +144,7 @@ export default class BangumiPlugin extends Plugin {
                         id: 'create-subject-note',
                         name: tn('commands', 'createSubjectNote'),
 			callback: () => {
+				if (!this.ensureWriteCanStart('subject-note')) return;
 				void this.subjectNoteManager?.createOrAppendForCurrentFile();
 			},
 		});
@@ -152,6 +161,24 @@ export default class BangumiPlugin extends Plugin {
 			callback: () => void this.scanAndLinkRelated(),
 		});
 
+		this.addCommand({
+			id: 'open-recovery-center',
+			name: tn('commands', 'openRecoveryCenter'),
+			callback: () => this.openRecoveryCenter(),
+		});
+
+		this.addCommand({
+			id: 'diagnose-local-subjects',
+			name: tn('commands', 'diagnoseLocalSubjects'),
+			callback: () => void this.openPathDiagnostic(),
+		});
+
+		this.addCommand({
+			id: 'preview-path-migration',
+			name: tn('commands', 'previewPathMigration'),
+			callback: () => void this.openPathMigrationPreview(),
+		});
+
 		// 添加 Ribbon 图标
 		this.addRibbonIcon('database', tn('ribbon', 'collectionManager'), () => {
 			this.openControlPanel();
@@ -162,10 +189,9 @@ export default class BangumiPlugin extends Plugin {
 			this.app,
 			this,
 			this.settings,
-			async () => {
-				await this.saveSettings();
-				await this.initSyncManager();
-			}
+			candidate => this.applySettingsChanges(candidate),
+			() => this.openPathDiagnostic(),
+			() => this.openPathMigrationPreview(),
 		));
 
 		// 设置自动同步
@@ -175,7 +201,58 @@ export default class BangumiPlugin extends Plugin {
 
 	}
 
+	private async openPathDiagnostic(): Promise<void> {
+		try {
+			if (!this.syncManager) {
+				new Notice(tn('notices', 'syncManagerNotInit'));
+				return;
+			}
+			const report = await this.syncManager.diagnoseLocalSubjects();
+			new PathDiagnosticModal(
+				this.app,
+				report,
+				() => this.syncManager?.exportDiagnosticReport(report) ?? Promise.reject(new Error(tn('notices', 'syncManagerNotInit'))),
+			).open();
+		} catch (error) {
+			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	private openRecoveryCenter(): void {
+		const manager = this.syncManager;
+		if (!manager) {
+			new Notice(tn('notices', 'syncManagerNotInit'));
+			return;
+		}
+		new RecoveryCenterModal(this.app, {
+			getRecovery: () => manager.getRecoveryRequired(),
+			retryRollback: () => manager.retryRecovery(),
+			confirmManual: () => manager.confirmManualRecovery(),
+			rescan: () => manager.rescanRecovery(),
+			subscribe: listener => manager.subscribeRecoveryState(listener),
+		}).open();
+	}
+
+	private async openPathMigrationPreview(): Promise<void> {
+		try {
+			if (!this.syncManager) {
+				new Notice(tn('notices', 'syncManagerNotInit'));
+				return;
+			}
+			const preview = await this.syncManager.previewPathMigration();
+			new PathMigrationPreviewModal(
+				this.app,
+				preview,
+				actualPreview => this.syncManager?.applyPathMigration(actualPreview) ?? Promise.reject(new Error(tn('notices', 'syncManagerNotInit'))),
+				options => this.syncManager?.previewPathMigration(options) ?? Promise.reject(new Error(tn('notices', 'syncManagerNotInit'))),
+			).open();
+		} catch (error) {
+			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
 	onunload() {
+		setWriteOperationGuard(null);
 		// 清除自动同步定时器
 		if (this.autoSyncIntervalId !== null) {
 			activeWindow.clearInterval(this.autoSyncIntervalId);
@@ -279,29 +356,105 @@ export default class BangumiPlugin extends Plugin {
 	 * 保存设置
 	 */
 	async saveSettings() {
-		await this.saveData(this.settings);
+		const snapshot = this.cloneSettings(this.settings);
+		await this.settingsPersistence.enqueue(() => this.saveData(snapshot));
+		this.lastSavedSettings = snapshot;
 	}
 
 	/**
 	 * 初始化同步管理器
 	 */
-	private async initSyncManager() {
-		const templates = await this.getTemplates();
-
-		const config: SyncManagerConfig = {
-			accessToken: this.settings.accessToken,
-			pathTemplate: this.settings.syncPathTemplate,
-			pathTemplateByType: this.settings.pathTemplateByType,
-			imagePathTemplate: this.settings.imagePathTemplate,
-			notePathTemplate: this.settings.notePathTemplate,
-			downloadImages: this.settings.downloadImages,
-			scanFolderPath: this.settings.scanFolderPath,
-			coverLinkType: this.settings.coverLinkType,
+	private async buildSyncManagerConfig(settings: BangumiPluginSettings = this.settings): Promise<SyncManagerConfig> {
+		const templates = await this.getTemplates(settings);
+		return cloneSyncManagerConfig({
+			accessToken: settings.accessToken,
+			pathTemplate: settings.syncPathTemplate,
+			pathTemplateByType: settings.pathTemplateByType,
+			imagePathTemplate: settings.imagePathTemplate,
+			notePathTemplate: settings.notePathTemplate,
+			downloadImages: settings.downloadImages,
+			scanFolderPath: settings.scanFolderPath,
+			coverLinkType: settings.coverLinkType,
 			customTemplates: templates,
-		};
+			enableRelatedLinks: settings.enableRelatedLinks,
+			dataProtection: settings.dataProtection,
+			subjectPathStates: settings.subjectPathStates,
+			pathNamingStrategy: settings.pathNamingStrategy,
+			onPathStatesChanged: async states => {
+				this.settings.subjectPathStates = states;
+				await this.saveSettings();
+			},
+		});
+	}
+
+	private cloneSettings(settings: BangumiPluginSettings): BangumiPluginSettings {
+		return JSON.parse(JSON.stringify(settings)) as BangumiPluginSettings;
+	}
+
+	private restoreSettings(snapshot: BangumiPluginSettings): void {
+		for (const key of Object.keys(this.settings)) Reflect.deleteProperty(this.settings, key);
+		Object.assign(this.settings, this.cloneSettings(snapshot));
+	}
+
+	private changedSyncConfigFields(previous: SyncManagerConfig | null, next: SyncManagerConfig): SyncConfigField[] {
+		if (!previous) return [];
+		const fields: SyncConfigField[] = [
+			'accessToken', 'scanFolderPath', 'pathTemplate', 'pathTemplateByType', 'pathNamingStrategy',
+			'subjectPathStates', 'imagePathTemplate', 'notePathTemplate', 'coverLinkType', 'dataProtection',
+			'downloadImages', 'enableRelatedLinks', 'customTemplates',
+		];
+		return fields.filter(field => !syncConfigFieldEqual(previous, next, field));
+	}
+
+	private refreshDependentServices(manager: SyncManager, settings: BangumiPluginSettings = this.settings): void {
+		this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.cloneSettings(settings));
+	}
+
+	private async applySettingsChanges(candidate: BangumiPluginSettings): Promise<{ applied: boolean; settings: BangumiPluginSettings }> {
+		const previousSettings = this.cloneSettings(this.settings);
+		candidate.subjectPathStates = this.cloneSettings(this.settings).subjectPathStates;
+		const nextConfig = await this.buildSyncManagerConfig(candidate);
+		const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, nextConfig);
+		const outcome = await persistStableManagerSettings({
+			settings: this.cloneSettings(candidate),
+			previousSettings,
+			nextConfig,
+			changedFields,
+			manager: this.syncManager,
+			save: settings => this.settingsPersistence.enqueue(() => this.saveData(this.cloneSettings(settings))),
+			restore: snapshot => this.restoreSettings(snapshot),
+			applyDependentServices: settings => { if (this.syncManager) this.refreshDependentServices(this.syncManager, settings); },
+			restoreDependentServices: settings => { if (this.syncManager) this.refreshDependentServices(this.syncManager, settings); },
+			onRollbackFailure: error => this.syncManager?.requireConfigurationRecovery(error),
+		});
+		if (outcome.applied) {
+			this.appliedSyncConfig = cloneSyncManagerConfig(nextConfig);
+			this.lastSavedSettings = this.cloneSettings(this.settings);
+			return { applied: true, settings: this.cloneSettings(this.settings) };
+		}
+		if (outcome.error instanceof ConfigurationChangeBlockedError) new Notice(outcome.error.message);
+		else new Notice(`Failed to save settings: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`);
+		return { applied: false, settings: this.cloneSettings(this.settings) };
+	}
+
+	private async initOrUpdateSyncManager(): Promise<void> {
+		const config = await this.buildSyncManagerConfig();
+		if (this.syncManager) {
+			const changedFields = this.changedSyncConfigFields(this.appliedSyncConfig, config);
+			this.syncManager.updateConfig(config, changedFields);
+			this.appliedSyncConfig = cloneSyncManagerConfig(config);
+			this.refreshDependentServices(this.syncManager);
+			return;
+		}
 
 		this.syncManager = new SyncManager(this.app, config);
-		this.subjectNoteManager = new SubjectNoteManager(this.app, this.syncManager.client, this.settings);
+		await this.syncManager.initializeRecovery();
+		if (this.syncManager.getRecoveryRequired()) new Notice(tn('recoveryCenter', 'writeBlocked'));
+		this.appliedSyncConfig = cloneSyncManagerConfig(config);
+		this.lastSavedSettings = this.cloneSettings(this.settings);
+		const manager = this.syncManager;
+		setWriteOperationGuard(() => manager.ensureCanStartSync());
+		this.refreshDependentServices(manager);
 	}
 
 	/**
@@ -339,7 +492,7 @@ export default class BangumiPlugin extends Plugin {
 	/**
 	 * 获取各类型模板
 	 */
-	private async getTemplates(): Promise<TemplatesMap> {
+	private async getTemplates(settings: BangumiPluginSettings = this.settings): Promise<TemplatesMap> {
 		const templates: TemplatesMap = {};
 		const templateKeys: TemplateKey[] = [
 			'animeTemplateConfig',
@@ -352,11 +505,11 @@ export default class BangumiPlugin extends Plugin {
 		];
 
 		for (const templateKey of templateKeys) {
-			templates[getTemplateFallbackLookupKey(templateKey)] = await this.resolveTemplate(templateKey);
+			templates[getTemplateFallbackLookupKey(templateKey)] = await this.resolveTemplate(templateKey, settings);
 		}
 
 		for (const categoryOption of TEMPLATE_CATEGORY_OPTIONS) {
-			templates[categoryOption.category] = await this.resolveTemplateForCategory(categoryOption.key);
+			templates[categoryOption.category] = await this.resolveTemplateForCategory(categoryOption.key, settings);
 		}
 
 		return templates;
@@ -365,22 +518,22 @@ export default class BangumiPlugin extends Plugin {
 	/**
 	 * 解析单个模板配置
 	 */
-	private async resolveTemplate(configKey: TemplateKey): Promise<string> {
-		return this.resolveTemplateFromConfig(this.settings[configKey], configKey);
+	private async resolveTemplate(configKey: TemplateKey, settings: BangumiPluginSettings = this.settings): Promise<string> {
+		return this.resolveTemplateFromConfig(settings[configKey], configKey);
 	}
 
-	private async resolveTemplateForCategory(categoryKey: string): Promise<string> {
+	private async resolveTemplateForCategory(categoryKey: string, settings: BangumiPluginSettings = this.settings): Promise<string> {
 		const categoryOption = TEMPLATE_CATEGORY_OPTIONS_BY_KEY[categoryKey];
 		if (!categoryOption) {
 			return '';
 		}
 
-		const categoryConfig = this.settings.templateConfigByCategory?.[categoryKey];
+		const categoryConfig = settings.templateConfigByCategory?.[categoryKey];
 		if (categoryConfig) {
 			return this.resolveTemplateFromConfig(categoryConfig, categoryOption.templateKey);
 		}
 
-		return this.resolveTemplate(categoryOption.templateKey);
+		return this.resolveTemplate(categoryOption.templateKey, settings);
 	}
 
 	private async resolveTemplateFromConfig(
@@ -421,6 +574,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 打开导出用户数据弹窗
 	 */
 	openExportModal() {
+		if (!this.ensureWriteCanStart('user-data-export')) return;
 		const modal = new UserDataExportModal(
 			this.app,
 			this.settings.scanFolderPath,
@@ -435,6 +589,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 打开导入用户数据弹窗
 	 */
 	openImportModal() {
+		if (!this.ensureWriteCanStart('user-data-import')) return;
 		// 创建文件选择器
 		const input = activeDocument.createElement('input');
 		input.type = 'file';
@@ -462,9 +617,10 @@ export default class BangumiPlugin extends Plugin {
 				this.app,
 				importFiles,
 				(result) => {
-					const resultModal = new ImportResultModal(this.app, result);
+					const resultModal = new ImportResultModal(this.app, result, this.settings.scanFolderPath);
 					resultModal.open();
-				}
+				},
+				this.settings.scanFolderPath,
 			);
 			modal.open();
 		})();
@@ -476,13 +632,14 @@ export default class BangumiPlugin extends Plugin {
 	 * 打开搜索弹窗
 	 */
 	openSearchModal() {
-		if (!this.settings.accessToken) {
-			new Notice(tn('notices', 'configureTokenFirst'));
-			return;
-		}
-
 		if (!this.syncManager) {
 			new Notice(tn('notices', 'syncManagerNotInit'));
+			return;
+		}
+		if (!this.ensureSyncCanStart()) return;
+
+		if (!this.settings.accessToken) {
+			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
 		}
 
@@ -502,6 +659,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 打开控制面板
 	 */
         openControlPanel(options?: { autoSyncSelection?: StatusSyncFieldSelection | 'prompt' | null }) {
+		if (!this.ensureSyncCanStart()) return;
 		if (!this.settings.accessToken) {
 			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
@@ -525,7 +683,10 @@ export default class BangumiPlugin extends Plugin {
 			(filters: PanelFilters) => {
 				// 保存筛选条件
 				this.settings.panelFilters = filters;
-				void this.saveSettings();
+				void this.saveSettings().catch(error => {
+					console.error('[Bangumi Sync] Failed to persist panel filters:', error);
+					new Notice(`Failed to save settings: ${error instanceof Error ? error.message : String(error)}`);
+				});
 			},
 			cachedPanelData,
                         (data) => {
@@ -550,6 +711,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 打开同步选项弹窗
 	 */
 	openSyncOptions() {
+		if (!this.ensureSyncCanStart()) return;
 		if (!this.settings.accessToken) {
 			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
@@ -586,6 +748,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 批量下载封面图片并替换链接
 	 */
 	async batchDownloadCovers() {
+		if (!this.ensureWriteCanStart('cover-download')) return;
 		if (!this.settings.downloadImages) {
 			new Notice(tn('notices', 'coverDownloadDisabled'));
 			return;
@@ -599,7 +762,11 @@ export default class BangumiPlugin extends Plugin {
 		this.cancellationSignal = createCancellationSignal();
 		this.syncManager.setCancellationSignal(this.cancellationSignal);
 		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-		this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
+		const modalManager = this.syncManager;
+		this.syncModal.setRollbackHandler(() => modalManager.rollbackBatch());
+		this.syncModal.setCommitHandler(() => modalManager.commitPendingBatch());
+		this.syncModal.setRecoveryStateSubscriber(listener => modalManager.subscribeRecoveryState(listener));
+		this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
 		this.syncModal.open();
 
 		this.syncManager.setProgressCallback((progress: SyncProgress) => {
@@ -646,6 +813,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 扫描所有本地已同步条目，为相关条目补充双向链接
 	 */
 	async scanAndLinkRelated() {
+		if (!this.ensureWriteCanStart('related-link-scan')) return;
 		if (!this.syncManager) {
 			new Notice(tn('notices', 'syncManagerNotInit'));
 			return;
@@ -690,6 +858,7 @@ export default class BangumiPlugin extends Plugin {
 	 * 使用指定选项执行同步
 	 */
 	async syncCollectionsWithOptions(options: SyncOptionsInput, showPreview: boolean = true) {
+		if (!this.ensureSyncCanStart()) return;
 		if (!this.settings.accessToken) {
 			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
@@ -713,7 +882,11 @@ export default class BangumiPlugin extends Plugin {
 		this.cancellationSignal = createCancellationSignal();
 		this.syncManager.setCancellationSignal(this.cancellationSignal);
 		this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-		this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
+		const modalManager = this.syncManager;
+		this.syncModal.setRollbackHandler(() => modalManager.rollbackBatch());
+		this.syncModal.setCommitHandler(() => modalManager.commitPendingBatch());
+		this.syncModal.setRecoveryStateSubscriber(listener => modalManager.subscribeRecoveryState(listener));
+		this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
 		this.syncModal.open();
 
 		this.syncManager.setProgressCallback((progress: SyncProgress) => {
@@ -775,11 +948,16 @@ export default class BangumiPlugin extends Plugin {
 							new Notice(tn('notices', 'syncCancelled'));
 							return;
 						}
+						if (!this.ensureSyncCanStart()) return;
 
 						this.cancellationSignal = createCancellationSignal();
 						this.syncManager!.setCancellationSignal(this.cancellationSignal);
 						this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-						this.syncModal.setRollbackHandler(() => this.syncManager!.rollbackBatch());
+						const modalManager = this.syncManager!;
+						this.syncModal.setRollbackHandler(() => modalManager.rollbackBatch());
+						this.syncModal.setCommitHandler(() => modalManager.commitPendingBatch());
+						this.syncModal.setRecoveryStateSubscriber(listener => modalManager.subscribeRecoveryState(listener));
+						this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
 						this.syncModal.open();
 
 						this.syncManager!.setProgressCallback((progress: SyncProgress) => {
@@ -835,6 +1013,48 @@ export default class BangumiPlugin extends Plugin {
 			this.cancellationSignal = null;
 			this.syncManager.setCancellationSignal(null);
 			this.hideStatusBar();
+		}
+	}
+
+	private ensureSyncCanStart(): boolean {
+		if (!this.syncManager) {
+			new Notice(tn('notices', 'syncManagerNotInit'));
+			return false;
+		}
+		try {
+			this.syncManager.ensureCanStartSync();
+			return true;
+		} catch (error) {
+			if (error instanceof RecoveryRequiredError) {
+				new Notice(tn('recoveryCenter', 'writeBlocked'));
+				this.openRecoveryCenter();
+			} else if (error instanceof PendingDecisionInProgressError) {
+				new Notice(tn('recoveryCenter', 'decisionInProgress'));
+			} else if (error instanceof PendingSyncTransactionError) {
+				new Notice(tn('recoveryCenter', 'pendingDecision'));
+			} else {
+				new Notice(error instanceof Error ? error.message : String(error));
+			}
+			return false;
+		}
+	}
+
+	private ensureWriteCanStart(operation: WriteOperation): boolean {
+		try {
+			assertWriteOperationAllowed(operation);
+			return true;
+		} catch (error) {
+			if (error instanceof RecoveryRequiredError) {
+				new Notice(tn('recoveryCenter', 'writeBlocked'));
+				this.openRecoveryCenter();
+			} else if (error instanceof PendingDecisionInProgressError) {
+				new Notice(tn('recoveryCenter', 'decisionInProgress'));
+			} else if (error instanceof PendingSyncTransactionError) {
+				new Notice(tn('recoveryCenter', 'pendingDecision'));
+			} else {
+				new Notice(error instanceof Error ? error.message : String(error));
+			}
+			return false;
 		}
 	}
 

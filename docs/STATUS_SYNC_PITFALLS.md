@@ -75,3 +75,17 @@
 
 - 右键“添加吐槽”插入 callout 后，返回的应是正文可编辑区域的精确光标位置，而不是 callout 块起始位置。
 - 切到源码模式后除了 `setCursor`，还要同步设置空选区并 `focus()`，否则有时视图切过去了但光标没落到正文。
+
+## 11. 云端评分为空时无法覆盖本地
+
+- `SubjectDocumentService.updateRate` 在 `newRate` 为 `null` 或越界时直接 `return content`，导致云端清空评分时无法删除本地 frontmatter 里的 `评分` 字段。
+- 处理方式与 `removeComment` / `removeTags` 一致：在 `updateRate` 之外新增 `removeRate`（底层走新增的 `removeFrontmatterField` 帮助函数），并在 `statusSyncExecutor` 里对“cloud decision + cloudValue 为空”分支显式调用 `removeRate`。
+
+## 12. SP/OP/ED 集数的小数编号（如 29.1）被吞掉
+
+- Bangumi 条目偶尔会出现 `ep = 29.1`、`0.5` 这类小数集数（典型场景：咒术回战 369304 的 SP “29.1 闲话前编”）。
+- 早前所有 frontmatter `ep_statuses` 行和 `data-ep` 属性都按 `(\d+):(\d+):(\d+)` / `data-ep="(\d+)"` 解析，会被 `parseInt` 截成 `29`，导致：
+  - 写入 `  - 1228215:29.1:2` 后再读取时整行失配，状态被丢弃；
+  - `parseEpisodeBox` 把 `data-ep="29.1"` 误读为 `29`，上下文菜单与 box 渲染都丢掉小数部分；
+  - `updateEpStatusInContent` 找不到行，后续更新又会重复插入。
+- 修复统一把 `(\d+)` 改成 `(\d+(?:\.\d+)?)`、把 `parseInt` 改成 `parseFloat`，覆盖：frontmatter 读取、`updateEpStatusInContent` 内的查找/替换/删除正则、`parseEpisodeBox` 的 `data-ep` 提取、`episodeContextMenu` 的右键菜单读取、`episodeCommentManager` 的吐槽 callout 匹配。

@@ -10,6 +10,7 @@ import {
 	StatusSyncDiff,
 	StatusSyncExecutionSummary,
 } from './statusSyncTypes';
+import { assertWriteOperationAllowed } from './writeOperationGate';
 
 export class StatusSyncExecutor {
 	private app: App;
@@ -30,6 +31,7 @@ export class StatusSyncExecutor {
 	}
 
 	async executeSync(diffs: StatusSyncDiff[]): Promise<StatusSyncExecutionSummary> {
+		assertWriteOperationAllowed('status-sync');
 		let successCount = 0;
 		let failCount = 0;
 		const actionableDiffs = diffs.filter(diff => diff.hasAnyDiff);
@@ -61,7 +63,9 @@ export class StatusSyncExecutor {
 			if (diff.rate.decision === 'local') {
 				cloudUpdates.rate = diff.rate.localValue || undefined;
 			} else if (diff.rate.decision === 'cloud') {
-				content = this.documentService.updateRate(content, diff.rate.cloudValue);
+				content = diff.rate.cloudValue
+					? this.documentService.updateRate(content, diff.rate.cloudValue)
+					: this.documentService.removeRate(content);
 			}
 		}
 
@@ -114,7 +118,7 @@ export class StatusSyncExecutor {
 
 		if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== 'skip' && this.episodeStatusManager) {
 			if (content !== originalContent) {
-				await this.app.vault.process(file, () => content);
+				await this.documentService.processSubjectFile(file, diff.subjectId, () => content);
 				content = await this.app.vault.read(file);
 			}
 
@@ -137,7 +141,7 @@ export class StatusSyncExecutor {
 		}
 
 		if (content !== originalContent) {
-			await this.app.vault.process(file, () => content);
+			await this.documentService.processSubjectFile(file, diff.subjectId, () => content);
 		}
 	}
 

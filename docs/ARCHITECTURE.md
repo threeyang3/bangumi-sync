@@ -1,5 +1,11 @@
 # 项目架构与模块说明
 
+## 6.11.0 稳定事务与持久恢复
+
+`BangumiPlugin` 持有稳定的 `SyncManager`。设置 UI 编辑 candidate，`SettingsPersistenceCoordinator` 串行磁盘写入，manager 配置 lease 在任何 `await` 前取得；持久化、不可变配置快照应用与依赖刷新全部成功后才提交。失败时恢复磁盘、manager、正式设置和依赖服务，回滚持久化再次失败则建立 recovery-required journal。
+
+`RecoveryJournalStore` 用 temp/current/previous 轮换原子保存事务事实，并在首次 Vault 修改、rename 阶段、创建、覆盖、awaiting、rollback 和 recovery attempt 前后刷新。启动时恢复 journal；损坏版本先备份再阻断。具体事务路径在 Vault 全局直接验证，adapter 递归扫描可发现 Obsidian 索引不可见的点前缀 temporary file。统一 manager state 事件同步 SyncModal、Recovery Center 和控制面板。
+
 本文档描述 Bangumi Sync 当前代码结构、主要模块职责、核心运行链路，以及模块之间如何协作。
 
 如果你要看更细的判断条件，请继续读 [LOGIC_REFERENCE.md](./LOGIC_REFERENCE.md)。
@@ -527,9 +533,42 @@ SearchModal
 
 ## 12. 文档阅读顺序建议
 
+## 13. ID 与路径事实层
+
+- `SubjectDocumentService` 统一解析 `id`、旧 `BangumiID`、Bangumi URL 和封面兜底，并报告来源冲突。
+- `LocalSubjectRegistry` 建立 ID/路径双向索引，检测重复 ID、规范化路径占用和异常文件。
+- `SubjectPathResolver` 使用逐段碰撞键统一分组、预留路径，执行年份/ID 消歧并保护用户命名。
+- `SyncTransaction` 使用 Obsidian API 执行临时路径重命名，记录创建、更新前内容和重命名；生命周期为 active → committed / rolled-back，回滚幂等。
+- `SyncManager` 将 `sync()`、`syncByCollections()`、`executeSync()` 与 `syncSingleSubject()` 汇入同一个 prepare/render/commit 管线。路径上下文按首选路径所有者查询，不再按标题猜测；内容生成先于重命名，状态持久化晚于成功提交。
+- 每个条目输出独立的 `pathAction` 与 `writeAction`，聚合计数由 outcomes 反算，`unchanged` 不计入 `added`。
+
+完整不变量见 [PATH_AND_ID_MODEL.md](PATH_AND_ID_MODEL.md)，升级流程见 [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)。
+
 如果你是：
 
 - 新接手开发者：先看本文，再看 [LOGIC_REFERENCE.md](./LOGIC_REFERENCE.md)
 - 模板维护者：看 [TEMPLATE_GUIDE.md](./TEMPLATE_GUIDE.md)
 - 状态同步维护者：看 [STATUS_SYNC_PITFALLS.md](./STATUS_SYNC_PITFALLS.md)
 - 发布维护者：看 [DEVELOPMENT.md](./DEVELOPMENT.md)
+
+## 6.10.2 事务终结
+
+`SyncManager` 维护显式批次状态机：`none → active → awaiting-user-decision → committed|rolled-back|rollback-failed`。未决的部分成功批次不能被替换或隐式提交。碰撞组共享原子事务；无关条目使用独立事务，成功分组在路径状态保存成功或用户明确保留前一直可回滚。
+
+`SyncTransaction` 将重命名记录为 `original`、`temporary` 或 `final`。回滚先移开 final 路径，再把每个 temporary 路径恢复到原位，并逐项报告失败。`IncrementalSync.finishBatch()`/`clearBatch()` 与文件事务一同关闭内存批次生命周期。
+
+## 6.10.3 原子决策与恢复门禁
+
+未决事务内部使用 `awaiting → committing|rolling-back → committed|rolled-back|rollback-failed`。状态转换发生在第一个异步操作之前，进行中的选择由单一 Promise 表示，因此双击和“保留/回滚”竞争只能产生一个磁盘操作序列。
+
+每个事务组记录对应 outcome 索引。回滚后 outcome 保留 `attemptedPathAction` / `attemptedWriteAction`，最终 action 改为 `rolled-back`，所有聚合计数重新计算。关联条目写回保存在 `deferredRelations`，仅在提交成功后执行。
+
+回滚失败不会丢弃 pending transaction。`RecoveryRequiredState` 保存原因、回滚详情、受影响 ID 与原始路径状态；所有同步入口和路径迁移通过 `ensureCanStartSync()` 统一阻断。恢复可重试未完成事务，或在人工处理后通过纯本地扫描确认无临时文件、重复 ID、阻塞诊断和路径状态不一致。
+
+## 6.10.4 恢复闭环
+
+`PendingSyncTransaction.resultSnapshot` 与 `subjectExpectations` 均为必填，并在进入 awaiting/recovery 之前生成。期望记录明确保存批次前条目是否存在、原路径和期望身份；`RecoveryDiagnostic` 用结构化 union 表示 unexpected、missing、path mismatch、identity mismatch、临时文件、重复 ID、扫描与状态恢复错误。
+
+Retry、Manual Confirm 与 Rescan 共用单个运行时互斥 Promise。人工确认依次执行本地扫描与矩阵校验、保存原始 `subjectPathStates`、比较配置和 `IncrementalSync` 状态、再次扫描与复核；任何一步失败都保留上下文。Recovery Center 是可重开的独立 Modal，SyncModal 的 rollback-failed 终态提供稳定入口。
+
+`writeOperationGate` 在 UI 与写服务两层阻止收藏/单条同步、迁移应用、封面、关联链接、状态同步、批量编辑、导入导出、集数、吐槽和共享笔记写入。恢复诊断不依赖网络。6.11.0 将上下文写入独立 journal，重启后加载为 recovery-required；干净提交、完整回滚或人工验证通过后才清除。

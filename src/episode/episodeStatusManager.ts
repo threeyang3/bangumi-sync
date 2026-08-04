@@ -7,6 +7,8 @@ import { App, TFile } from 'obsidian';
 import { BangumiClient } from '../api/client';
 import { LocalEpisodeStatus, EpisodeStatusType, getEpisodeStatusText } from './types';
 import { delay } from '../../common/utils/timing';
+import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
+import { SubjectDocumentService } from '../document/subjectDocumentService';
 
 /**
  * 单集状态管理器
@@ -14,10 +16,18 @@ import { delay } from '../../common/utils/timing';
 export class EpisodeStatusManager {
 	private app: App;
 	private client: BangumiClient;
+	private readonly documentService: SubjectDocumentService;
 
 	constructor(app: App, client: BangumiClient) {
 		this.app = app;
 		this.client = client;
+		this.documentService = new SubjectDocumentService(app);
+	}
+
+	private async processKnownSubjectFile(file: TFile, updater: (content: string) => string): Promise<void> {
+		const identity = await this.documentService.getSubjectIdentity(file);
+		if (identity.subjectId === null || identity.conflicts?.length) throw new Error(`Cannot safely write episode status to ${file.path}: subject ID is missing or conflicting.`);
+		await this.documentService.processSubjectFile(file, identity.subjectId, updater);
 	}
 
 	/**
@@ -107,8 +117,11 @@ export class EpisodeStatusManager {
 		epNumber: number,
 		status: EpisodeStatusType
 	): Promise<void> {
-		await this.app.vault.process(file, (content) => {
-			return this.applyEpisodeStatusUpdates(content, [{ episodeId, epNumber, status }]);
+		assertWriteOperationAllowed('episode-status');
+		await this.processKnownSubjectFile(file, (content) => {
+			// 单条更新走细粒度 updateEpStatusInContent，避免触发 applyEpisodeStatusUpdates
+			// 的"先清空再重建"流程把其他集的状态也清掉。
+			return this.updateEpStatusInContent(content, episodeId, epNumber, status);
 		});
 	}
 
@@ -119,7 +132,8 @@ export class EpisodeStatusManager {
 		file: TFile,
 		episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>
 	): Promise<void> {
-		await this.app.vault.process(file, (content) => {
+		assertWriteOperationAllowed('episode-status');
+		await this.processKnownSubjectFile(file, (content) => {
 			return this.applyEpisodeStatusUpdates(content, episodes);
 		});
 	}
@@ -144,7 +158,7 @@ export class EpisodeStatusManager {
 
 		// 如果状态为 0（未收藏），则移除该条目
 		if (status === 0) {
-			const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+:\\d+\\n?`, 'm');
+			const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+\\n?`, 'm');
 			frontmatter = frontmatter.replace(statusLineRegex, '');
 
 			// 如果 ep_statuses 为空，移除整个字段
@@ -160,11 +174,11 @@ export class EpisodeStatusManager {
 
 			if (existingStatusesMatch) {
 				// 检查是否已有该集数的状态
-				const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+:\\d+$`, 'm');
+				const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+$`, 'm');
 				if (statusLineRegex.test(frontmatter)) {
 					// 更新现有状态
 					frontmatter = frontmatter.replace(
-						new RegExp(`^\\s+- ${episodeId}:\\d+:\\d+$`, 'm'),
+						new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+$`, 'm'),
 						`  - ${statusEntry}`
 					);
 				} else {
@@ -189,10 +203,45 @@ export class EpisodeStatusManager {
 		episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>
 	): string {
 		const withoutOldStatuses = this.clearEpisodeStatusArtifacts(content);
-		return episodes.reduce(
+		const withUpdatedBoxes = episodes.reduce(
 			(updatedContent, ep) => this.updateEpisodeBoxStatusInContent(updatedContent, ep.episodeId, ep.epNumber, ep.status),
 			withoutOldStatuses
 		);
+		// 同步云端时 frontmatter `ep_statuses` 会被 `clearEpisodeStatusArtifacts` 清空，
+		// 而 `.ep-box` 只覆盖已有元素；云端新出现的 SP 状态如果本地没有 .ep-box 就会永久丢失。
+		// 这里在清空后按云端数据重建 frontmatter，避免 SP/OP/ED 等非本篇集的状态无法保留。
+		return this.writeEpisodeStatusesToFrontmatter(withUpdatedBoxes, episodes);
+	}
+
+	private writeEpisodeStatusesToFrontmatter(
+		content: string,
+		episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>
+	): string {
+		const validEntries = episodes
+			.filter(ep => ep.status !== 0)
+			.sort((a, b) => a.episodeId - b.episodeId);
+
+		if (validEntries.length === 0) {
+			return content;
+		}
+
+		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+		if (!frontmatterMatch) {
+			return content;
+		}
+
+		const prefix = frontmatterMatch[1];
+		const frontmatter = frontmatterMatch[2];
+		const suffix = frontmatterMatch[3];
+		const bodyContent = frontmatterMatch[4];
+
+		const statusLines = validEntries
+			.map(ep => `  - ${ep.episodeId}:${ep.epNumber}:${ep.status}`)
+			.join('\n');
+
+		const updatedFrontmatter = `${frontmatter}\nep_statuses:\n${statusLines}`;
+
+		return prefix + updatedFrontmatter + suffix + bodyContent;
 	}
 
 	private createLocalEpisodeStatus(episodeId: number, epNumber: number, status: EpisodeStatusType): LocalEpisodeStatus {
@@ -219,13 +268,13 @@ export class EpisodeStatusManager {
 
 		const lines = epStatusesMatch[1].split('\n');
 		for (const line of lines) {
-			const match = line.match(/^\s+- (\d+):(\d+):(\d+)/);
+			const match = line.match(/^\s+- (\d+):(\d+(?:\.\d+)?):(\d+)/);
 			if (!match) {
 				continue;
 			}
 
 			const episodeId = parseInt(match[1], 10);
-			const epNumber = parseInt(match[2], 10);
+			const epNumber = parseFloat(match[2]);
 			const status = parseInt(match[3], 10) as EpisodeStatusType;
 
 			statusMap.set(episodeId, this.createLocalEpisodeStatus(episodeId, epNumber, status));
@@ -315,7 +364,7 @@ export class EpisodeStatusManager {
 	private parseEpisodeBox(tag: string): { episodeId: number; epNumber: number; status: EpisodeStatusType; className: string } | null {
 		const classMatch = tag.match(/\bclass="([^"]*\bep-box\b[^"]*)"/);
 		const idMatch = tag.match(/\bdata-id="(\d+)"/);
-		const epMatch = tag.match(/\bdata-ep="(\d+)"/);
+		const epMatch = tag.match(/\bdata-ep="(\d+(?:\.\d+)?)"/);
 		const statusMatch = tag.match(/\bdata-status="(\d+)"/);
 
 		if (!classMatch || !idMatch || !epMatch) {
@@ -324,7 +373,7 @@ export class EpisodeStatusManager {
 
 		const className = classMatch[1];
 		const episodeId = parseInt(idMatch[1], 10);
-		const epNumber = parseInt(epMatch[1], 10);
+		const epNumber = parseFloat(epMatch[1]);
 		const status = statusMatch
 			? parseInt(statusMatch[1], 10) as EpisodeStatusType
 			: (/\bwatched\b/.test(className) ? 2 : 0);
@@ -344,6 +393,7 @@ export class EpisodeStatusManager {
 		file: TFile,
 		progressCallback?: (current: number, total: number, message: string) => void
 	): Promise<{ success: number; failed: number }> {
+		assertWriteOperationAllowed('episode-status');
 		const statusMap = await this.getEpisodeStatusMap(file);
 		const entries = Array.from(statusMap.values()).filter(s => s.status !== 0);
 		const ownerWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
@@ -380,11 +430,12 @@ export class EpisodeStatusManager {
 		file: TFile,
 		subjectId: number
 	): Promise<boolean> {
+		assertWriteOperationAllowed('episode-status');
 		try {
 			const userEpisodes = await this.client.getUserEpisodeStatus(subjectId);
 
 			// 更新本地文件
-			await this.app.vault.process(file, (content) => {
+			await this.processKnownSubjectFile(file, (content) => {
 				const episodes = userEpisodes
 					.filter(userEp => userEp.type !== 0 && userEp.episode)
 					.map(userEp => ({
@@ -415,7 +466,8 @@ export class EpisodeStatusManager {
 	 * 清除所有单集状态
 	 */
 	async clearAllStatuses(file: TFile): Promise<void> {
-		await this.app.vault.process(file, (content) => {
+		assertWriteOperationAllowed('episode-status');
+		await this.processKnownSubjectFile(file, (content) => {
 			const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
 			if (!frontmatterMatch) return content;
 

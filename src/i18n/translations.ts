@@ -23,6 +23,9 @@ export interface TranslationStrings {
                 createSubjectNote: string;
                 batchDownloadCovers: string;
                 scanAndLinkRelated: string;
+                diagnoseLocalSubjects: string;
+                previewPathMigration: string;
+		openRecoveryCenter: string;
         };
 
 	// Ribbon
@@ -100,6 +103,15 @@ export interface TranslationStrings {
 		notePathTemplateDesc: string;
 		noteTemplateContent: string;
 		noteTemplateContentDesc: string;
+		pathNamingStrategy: string;
+		pathNamingStrategyDesc: string;
+		pathNamingSimple: string;
+		pathNamingYear: string;
+		pathNamingId: string;
+		pathNamingCustom: string;
+		pathTemplateRisk: string;
+		previewNormal: string;
+		previewCollision: string;
 		templateSettings: string;
 		templateVarTip: string;
 		templateSyntax: string;
@@ -229,7 +241,17 @@ export interface TranslationStrings {
 		rollback: string;
 		rollbackComplete: string;
 		rollbackFailed: string;
+		rollbackAvailable: string;
+		pendingDecision: string;
+		keepSuccessful: string;
+		keptSuccessful: string;
+		rollbackBatch: string;
+		returnToResult: string;
+		rolledBack: string;
+		warnings: string;
 		completedStats: string;
+		detailedStats: string;
+		partialSuccess: string;
 		errorDetails: string;
 		scanCompleted: string;
 		scanCompletedStats: string;
@@ -632,6 +654,35 @@ export interface TranslationStrings {
 		createdNote: string;
 	};
 
+	pathTools: {
+		diagnosticTitle: string;
+		diagnosticSummary: string;
+		exportReport: string;
+		reportExported: string;
+		migrationTitle: string;
+		migrationSummary: string;
+		applyMigration: string;
+		migrationComplete: string;
+		noRenames: string;
+		includeUnknown: string;
+		includeUserRenamed: string;
+		close: string;
+	};
+
+	recoveryCenter: {
+		title: string; noRecovery: string; cause: string; detectedAt: string; affectedSubjects: string;
+		expectations: string; expectedPresent: string; expectedAbsent: string; latestAttempt: string; attemptHistory: string;
+		retryRollback: string; confirmManual: string; rescan: string; close: string; working: string;
+		recovered: string; currentFailures: string; blocked: string; actionFailed: string; diagnostics: string; openCenter: string;
+		writeBlocked: string; pendingDecision: string; decisionInProgress: string;
+		diagnosticRescanFailed: string; diagnosticStateRestoreFailed: string; diagnosticPersistedStateMismatch: string;
+		diagnosticIncrementalStateMismatch: string; diagnosticBlockingLocalFile: string; diagnosticDuplicateSubjectId: string;
+		diagnosticTemporaryFile: string; diagnosticUnexpectedSubjectFile: string; diagnosticMissingSubjectFile: string;
+		diagnosticSubjectPathMismatch: string; diagnosticSubjectIdentityMismatch: string;
+		diagnosticRollbackStepFailed: string; diagnosticContentMismatch: string; diagnosticContentFileMissing: string;
+		diagnosticUnexpectedCreatedPath: string;
+	};
+
 }
 
 /**
@@ -649,6 +700,9 @@ const en: TranslationStrings = {
                 createSubjectNote: 'Create or append subject note',
                 batchDownloadCovers: 'Batch download cover images',
                 scanAndLinkRelated: 'Scan and link related subjects',
+                diagnoseLocalSubjects: 'Check local Bangumi subjects',
+                previewPathMigration: 'Preview and apply current path template',
+		openRecoveryCenter: 'Open Bangumi Sync Recovery Center',
 	},
 
 	ribbon: {
@@ -699,7 +753,7 @@ const en: TranslationStrings = {
 		enterAccessToken: 'Enter Access token',
 		pathSettings: 'Path settings',
 		filePathTemplate: 'File path template',
-		filePathTemplateDesc: 'Supported variables: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}',
+		filePathTemplateDesc: 'Supported variables: {{type}}, {{category}}, {{platform}}, {{name}}, {{name_cn}}, {{name_cn_with_type}}, {{year}}, {{author}}, {{id}}',
 		pathTemplateByType: 'Per-type path templates',
 		pathTemplateByTypeDesc: 'Optional overrides; empty falls back to the default template above',
 		scanFolderPath: 'Scan folder path',
@@ -723,6 +777,15 @@ const en: TranslationStrings = {
 		notePathTemplateDesc: 'Full shared note file path template. Example: 收集箱/笔记/ACGN/{{name_cn}}.md',
 		noteTemplateContent: 'Note template content',
 		noteTemplateContentDesc: 'Template used when creating a new shared note file. Supported variables: {{id_yaml}}, {{primary_id}}, {{name}}, {{name_cn}}, {{entry_heading}}',
+		pathNamingStrategy: 'Naming strategy',
+		pathNamingStrategyDesc: 'Existing subjects keep their current ID-linked path; collision suffixes are added at runtime.',
+		pathNamingSimple: 'Simple names; disambiguate on collision',
+		pathNamingYear: 'Always append year',
+		pathNamingId: 'Always append Bangumi ID',
+		pathNamingCustom: 'Use custom template',
+		pathTemplateRisk: 'This template omits {{id}}. Runtime year/ID disambiguation still protects collisions.',
+		previewNormal: 'Normal',
+		previewCollision: 'On collision',
 		templateSettings: 'Template settings',
 		templateVarTip: 'Template variable tip: {{tags}} uses your own tags, empty if none',
 		templateSyntax: 'Template syntax',
@@ -844,9 +907,19 @@ const en: TranslationStrings = {
 		paused: 'Paused',
 		syncing: 'Syncing',
 		rollback: 'Rollback',
-		rollbackComplete: 'Rollback complete: {deleted} deleted, {failed} failed',
+		rollbackComplete: 'Rollback complete: {deleted} created files deleted, {contents} contents and {paths} paths restored, {failed} failed',
 		rollbackFailed: 'Rollback failed',
+		rollbackAvailable: 'This cancelled batch changed local files and can be rolled back safely.',
+		pendingDecision: 'Some changes succeeded. Keep those results or roll back this batch before closing or starting another sync.',
+		keepSuccessful: 'Keep successful results',
+		keptSuccessful: 'Successful results kept',
+		rollbackBatch: 'Roll back this batch',
+		returnToResult: 'Return to results',
+		rolledBack: 'Sync failed; changes were automatically rolled back.',
+		warnings: 'Warnings',
 		completedStats: 'Added: {added}, Skipped: {skipped}, Errors: {errors}',
+		detailedStats: 'Created {created}, updated {updated}, unchanged {unchanged}, renamed {renamed}, collisions resolved {collisionResolved}, skipped {skipped}, failed {failed}',
+		partialSuccess: 'Sync partially completed',
 		errorDetails: 'Error details',
 		scanCompleted: 'Scan completed',
 		scanCompletedStats: 'Checked {checked} items, updated {linked}, skipped {skipped}, failed {failed}',
@@ -1231,6 +1304,36 @@ const en: TranslationStrings = {
 		appendedToNote: 'Appended to shared note',
 		createdNote: 'Created shared note',
 	},
+
+	pathTools: {
+		diagnosticTitle: 'Local Bangumi subject diagnostic',
+		diagnosticSummary: '{valid} valid subjects, {issues} issues',
+		exportReport: 'Export report',
+		reportExported: 'Diagnostic report exported: {path}',
+		migrationTitle: 'Path migration preview',
+		migrationSummary: '{rename} renames, {protected} protected, {failed} failed',
+		applyMigration: 'Apply migration',
+		migrationComplete: 'Path migration complete: {renamed} renamed, {failed} failed',
+		noRenames: 'No managed paths need migration.',
+		includeUnknown: 'Include legacy paths with unknown ownership state',
+		includeUserRenamed: 'Include user-renamed paths',
+		close: 'Close',
+	},
+
+	recoveryCenter: {
+		title: 'Bangumi Sync Recovery Center', noRecovery: 'No local recovery is required.', cause: 'Cause', detectedAt: 'Detected', affectedSubjects: 'Affected subjects',
+		expectations: 'Pre-batch expectations', expectedPresent: 'must exist', expectedAbsent: 'must be absent', latestAttempt: 'Latest attempt', attemptHistory: 'Attempt history',
+		retryRollback: 'Retry automatic rollback', confirmManual: 'Confirm manual recovery', rescan: 'Rescan local state', close: 'Close', working: 'Checking local recovery…',
+		recovered: 'Local recovery completed. Write operations are available again.', currentFailures: 'Current failures', blocked: 'Recovery is still blocked. Resolve the diagnostics below and rescan.', actionFailed: 'Recovery action failed', diagnostics: 'Blocking diagnostics', openCenter: 'Open Recovery Center',
+		writeBlocked: 'Local recovery is required before this write operation can run.', pendingDecision: 'Resolve the previous partial sync before starting another write operation.', decisionInProgress: 'The previous sync decision or recovery action is still running.',
+		diagnosticRescanFailed: 'Local rescan failed', diagnosticStateRestoreFailed: 'Path-state restore failed', diagnosticPersistedStateMismatch: 'Persisted path states do not match the pre-batch snapshot',
+		diagnosticIncrementalStateMismatch: 'Incremental path states do not match the pre-batch snapshot', diagnosticBlockingLocalFile: 'Blocking local file', diagnosticDuplicateSubjectId: 'Duplicate subject ID',
+		diagnosticTemporaryFile: 'Temporary transaction file remains', diagnosticUnexpectedSubjectFile: 'Subject file should be absent', diagnosticMissingSubjectFile: 'Expected subject file is missing',
+		diagnosticSubjectPathMismatch: 'Subject path does not match', diagnosticSubjectIdentityMismatch: 'Expected path belongs to another subject',
+		diagnosticRollbackStepFailed: 'Rollback step failed',
+		diagnosticContentMismatch: 'Original content does not match', diagnosticContentFileMissing: 'Original content file is missing',
+		diagnosticUnexpectedCreatedPath: 'Created path still exists',
+	},
 };
 
 /**
@@ -1248,6 +1351,9 @@ const zhCN: TranslationStrings = {
                 createSubjectNote: '创建或追加条目笔记',
                 batchDownloadCovers: '批量下载封面图片',
                 scanAndLinkRelated: '扫描并关联相关条目',
+                diagnoseLocalSubjects: '检查本地 Bangumi 条目',
+                previewPathMigration: '预览并应用当前路径模板',
+		openRecoveryCenter: '打开 Bangumi Sync 恢复中心',
         },
 
 	ribbon: {
@@ -1298,7 +1404,7 @@ const zhCN: TranslationStrings = {
 		enterAccessToken: '输入 Access Token',
 		pathSettings: '路径设置',
 		filePathTemplate: '文件路径模板',
-		filePathTemplateDesc: '支持变量: {{type}}, {{category}}, {{name}}, {{name_cn}}, {{year}}, {{author}}, {{id}}',
+		filePathTemplateDesc: '支持变量: {{type}}, {{category}}, {{platform}}, {{name}}, {{name_cn}}, {{name_cn_with_type}}, {{year}}, {{author}}, {{id}}',
 		pathTemplateByType: '各类型路径模板',
 		pathTemplateByTypeDesc: '可选覆盖，为空则使用上方默认模板',
 		scanFolderPath: '扫描文件夹路径',
@@ -1322,6 +1428,15 @@ const zhCN: TranslationStrings = {
 		noteTemplateContent: '笔记模板内容',
 		noteTemplateContentDesc: '创建新的共享笔记文件时使用。支持变量：{{id_yaml}}、{{primary_id}}、{{name}}、{{name_cn}}、{{entry_heading}}',
 		notePathTemplateDesc: '共享笔记完整文件路径模板，例如：收集箱/笔记/ACGN/{{name_cn}}.md',
+		pathNamingStrategy: '命名策略',
+		pathNamingStrategyDesc: '已有条目保留 ID 对应的当前路径；运行时仅在冲突时追加消歧后缀。',
+		pathNamingSimple: '简洁命名，仅冲突时消歧',
+		pathNamingYear: '始终追加年份',
+		pathNamingId: '始终追加 Bangumi ID',
+		pathNamingCustom: '完全按自定义模板',
+		pathTemplateRisk: '模板未包含 {{id}}；运行时仍会使用年份和 ID 自动消歧。',
+		previewNormal: '普通',
+		previewCollision: '发生重名',
 		templateSettings: '模板设置',
 		templateVarTip: '模板变量提示：{{tags}} 使用用户自己的标签，如果没有则留空',
 		templateSyntax: '模板语法',
@@ -1443,9 +1558,19 @@ const zhCN: TranslationStrings = {
 		paused: '已暂停',
 		syncing: '同步中',
 		rollback: '回滚',
-		rollbackComplete: '回滚完成：删除 {deleted} 个，失败 {failed} 个',
+		rollbackComplete: '回滚完成：删除新建文件 {deleted} 个，恢复内容 {contents} 个，恢复路径 {paths} 个，失败 {failed} 个',
 		rollbackFailed: '回滚失败',
+		rollbackAvailable: '本次已取消的同步修改了本地文件，可以安全回滚。',
+		pendingDecision: '部分修改已成功。关闭或开始新同步前，请选择保留成功结果或回滚本批次。',
+		keepSuccessful: '保留成功结果',
+		keptSuccessful: '已保留成功结果',
+		rollbackBatch: '回滚本批次',
+		returnToResult: '返回结果',
+		rolledBack: '同步失败，修改已自动回滚。',
+		warnings: '警告',
 		completedStats: '新增 {added}，跳过 {skipped}，失败 {errors}',
+		detailedStats: '创建 {created}，更新 {updated}，未变化 {unchanged}，重命名 {renamed}，解决冲突 {collisionResolved}，跳过 {skipped}，失败 {failed}',
+		partialSuccess: '同步部分成功',
 		errorDetails: '错误详情',
 		scanCompleted: '扫描关联完成',
 		scanCompletedStats: '检查 {checked} 个条目，更新 {linked} 个，跳过 {skipped} 个，失败 {failed} 个',
@@ -1829,6 +1954,36 @@ const zhCN: TranslationStrings = {
 		missingSubjectId: '当前文件缺少有效的条目 ID，无法创建条目笔记',
 		appendedToNote: '已追加到共享笔记',
 		createdNote: '已创建共享笔记',
+	},
+
+	pathTools: {
+		diagnosticTitle: '本地 Bangumi 条目诊断',
+		diagnosticSummary: '有效条目 {valid} 个，发现问题 {issues} 个',
+		exportReport: '导出报告',
+		reportExported: '诊断报告已导出：{path}',
+		migrationTitle: '路径迁移预览',
+		migrationSummary: '将重命名 {rename} 个，保护 {protected} 个，失败 {failed} 个',
+		applyMigration: '应用迁移',
+		migrationComplete: '路径迁移完成：重命名 {renamed} 个，失败 {failed} 个',
+		noRenames: '没有需要迁移的插件管理路径。',
+		includeUnknown: '包含管理状态未知的旧路径',
+		includeUserRenamed: '包含用户手动重命名的路径',
+		close: '关闭',
+	},
+
+	recoveryCenter: {
+		title: 'Bangumi Sync 恢复中心', noRecovery: '当前不需要本地恢复。', cause: '原因', detectedAt: '发现时间', affectedSubjects: '受影响条目',
+		expectations: '批次前预期', expectedPresent: '应当存在', expectedAbsent: '应当不存在', latestAttempt: '最近一次尝试', attemptHistory: '尝试历史',
+		retryRollback: '重试自动回滚', confirmManual: '确认手动恢复', rescan: '重新扫描本地状态', close: '关闭', working: '正在检查本地恢复状态…',
+		recovered: '本地恢复已完成，写入操作已重新开放。', currentFailures: '当前失败', blocked: '恢复仍被阻塞。请处理下方诊断后重新扫描。', actionFailed: '恢复操作失败', diagnostics: '阻塞诊断', openCenter: '打开恢复中心',
+		writeBlocked: '完成本地恢复前无法执行此写入操作。', pendingDecision: '请先处理上一次部分同步，再开始新的写入操作。', decisionInProgress: '上一次同步决策或恢复操作仍在执行。',
+		diagnosticRescanFailed: '本地重新扫描失败', diagnosticStateRestoreFailed: '路径状态恢复失败', diagnosticPersistedStateMismatch: '持久化路径状态与批次前快照不一致',
+		diagnosticIncrementalStateMismatch: '增量同步路径状态与批次前快照不一致', diagnosticBlockingLocalFile: '存在阻塞的本地文件', diagnosticDuplicateSubjectId: '条目 ID 重复',
+		diagnosticTemporaryFile: '仍有事务临时文件', diagnosticUnexpectedSubjectFile: '本应不存在的条目文件仍存在', diagnosticMissingSubjectFile: '预期的条目文件缺失',
+		diagnosticSubjectPathMismatch: '条目路径不一致', diagnosticSubjectIdentityMismatch: '预期路径属于其他条目',
+		diagnosticRollbackStepFailed: '回滚步骤失败',
+		diagnosticContentMismatch: '原始内容不一致', diagnosticContentFileMissing: '原始内容文件缺失',
+		diagnosticUnexpectedCreatedPath: '批次新建路径仍然存在',
 	},
 
 };

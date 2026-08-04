@@ -1,5 +1,15 @@
 # 开发指南
 
+## 6.11.0 恢复安全开发约束
+
+- 设置变更必须经过 candidate、`persistStableManagerSettings()`、配置 lease 与串行保存队列；禁止在设置回调中原地修改正式对象或重建 manager。
+- manager 配置必须由 `cloneSyncManagerConfig()` 生成独立快照；不得共享嵌套对象引用。
+- 所有 Vault 修改前必须持久化可验证恢复事实；内容指纹使用原始 UTF-8 的 SHA-256，concrete path 不得受 scan root 限制。
+- 新写入口必须通过 `SubjectDocumentService` 在 `vault.process()` 回调内复核 Subject ID，并接入全局写门禁。
+- journal 只能在 committed、完整 rolled-back 或 manual verification 终态清理；损坏 journal 和 orphan temp 必须阻断写入。
+- 新增恢复状态必须通知订阅者，并分别断言历史尝试与当前终态统计。
+- 发布前运行 `npm ci`、`npm run lint`、`npm run test`、`npm run build`、`git diff --check`，再完成 Windows Obsidian Sandbox 回归。
+
 本文档只保留“开发环境、提交流程、发布流程、代码约束”这类维护信息。
 
 如果你要理解代码本身，请优先看：
@@ -12,7 +22,7 @@
 
 ## 环境要求
 
-- Node.js 16+
+- Node.js 22（与 `package.json` engines 一致）
 - npm 或 pnpm
 
 ## 开发命令
@@ -27,6 +37,10 @@ npm run test:watch
 ```
 
 ## 测试策略
+
+CI 在 Node.js 22 上同时运行 Ubuntu 与 Windows，依次执行 `npm ci`、`npm run lint`、`npm run test`、`npm run build`。路径规则必须在大小写不敏感、Windows 保留名和路径长度场景下有自动化覆盖。
+
+身份与路径代码应遵守 [PATH_AND_ID_MODEL.md](PATH_AND_ID_MODEL.md)：禁止新增第二套 ID 正则解析、路径冲突分配或根据标题判定身份的实现。
 
 当前采用“两层护栏”：
 
@@ -248,3 +262,21 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 ### Q: 发布后插件不工作？
 
 检查 manifest.json 中的版本号是否与 Release tag 一致。
+
+## 测试 6.10.2 事务终结
+
+依次运行 `npm run lint`、`npm test` 和 `npm run build`。故障注入覆盖位于 `tests/sync/syncTransaction.test.ts` 与 `tests/sync/syncManagerPathTransaction.test.ts`；UI 状态映射由纯函数测试 `tests/sync/syncCompletionPresentation.test.ts` 覆盖。
+
+Obsidian 集成检查应部署生产构建的 `main.js`、`manifest.json`、`styles.css`，执行 `obsidian plugin:reload id=bangumi-sync`，再检查 `obsidian dev:errors` 与 `obsidian dev:console level=error`。完成后恢复用户原安装版本。
+
+## 测试 6.10.3 原子决策与恢复
+
+除完整 lint/test/build 外，定向运行 `syncManagerPathTransaction`、`syncTransaction` 与 `syncCompletionPresentation`。故障注入必须覆盖：双击共享 Promise、提交与回滚竞争、空事务、手动回滚后的最终统计、路径/内容/状态恢复失败、恢复重试以及恢复期间入口阻断。
+
+Sandbox 中应验证两个决策按钮会一起禁用、关闭提示只存在一个、终态会重绘统计、回滚失败详情包含 operation/path/message，并确认控制面板、搜索、预览、自动同步和路径迁移在恢复状态下不会发起网络或文件写入。
+
+## 测试 6.10.4 恢复闭环
+
+自动化测试必须覆盖完整存在/缺失矩阵：absent/absent、absent/present（unexpected）、present/absent（missing）、路径不一致及期望路径身份不一致；同时验证原路径状态重新持久化、配置与 `IncrementalSync` 双重比较、二次扫描、Retry/Manual Confirm 互斥、恢复尝试历史与 latest 分离，以及所有写服务门禁。
+
+Sandbox 中从命令面板打开“Bangumi Sync: Open Bangumi Sync Recovery Center”，确认窗口可关闭并重新打开、上下文仍在；三个动作执行时按钮禁用，完成或异常后整页重绘并重新启用，错误不会产生 unhandled rejection。恢复检查不得请求网络。6.10.4 不测试重启后自动恢复，因为磁盘事务日志仍由 Issue #5 跟踪。

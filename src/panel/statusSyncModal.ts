@@ -2,6 +2,7 @@ import { App, Modal, Notice } from 'obsidian';
 import { CollectionType, SubjectType, getCollectionStatusLabel } from '../../common/api/types';
 import { tn } from '../i18n';
 import { StatusSyncService } from '../sync/statusSyncService';
+import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
 import {
         FieldDecision,
         FieldDiff,
@@ -466,22 +467,37 @@ export class StatusSyncModal extends Modal {
         }
 
         private async executeSync(): Promise<void> {
-                this.statusEl.setText(tn('statusSyncModal', 'syncProgress'));
-                const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
+				try {
+						assertWriteOperationAllowed('status-sync');
+				} catch {
+						new Notice(tn('recoveryCenter', 'writeBlocked'));
+						return;
+				}
+				try {
+						this.statusEl.setText(tn('statusSyncModal', 'syncProgress'));
+						const { successCount, failCount } = await this.statusSyncService.executeSync(this.diffs);
 
-                const message = tn('statusSyncModal', 'syncComplete')
-                        .replace('{success}', String(successCount))
-                        .replace('{failed}', String(failCount));
-                this.statusEl.setText(message);
+						const summary = tn('statusSyncModal', 'syncComplete')
+						.replace('{success}', String(successCount))
+						.replace('{failed}', String(failCount));
+						const message = successCount > 0 && failCount > 0
+						? `${tn('syncModal', 'partialSuccess')}: ${summary}`
+						: summary;
+						this.statusEl.setText(message);
 
-                if (successCount > 0) {
-                        new Notice(message);
-                        this.onComplete();
-                        this.close();
-                        return;
-                }
+						if (successCount > 0) {
+								new Notice(message);
+								this.onComplete();
+								this.close();
+								return;
+						}
 
-                new Notice(tn('statusSyncModal', 'syncFailed'));
+						new Notice(tn('statusSyncModal', 'syncFailed'));
+				} catch (error) {
+						console.error('[Bangumi Sync] Status sync failed:', error);
+						this.statusEl.setText(tn('statusSyncModal', 'syncFailed'));
+						new Notice(`${tn('statusSyncModal', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
+				}
         }
 
         private scheduleRender(): void {

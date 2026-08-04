@@ -3,7 +3,7 @@
  */
 
 import { App, PluginSettingTab, Setting, Notice, Modal, TextAreaComponent, TFile, FuzzySuggestModal, Plugin } from 'obsidian';
-import { BangumiPluginSettings, TemplateConfig, TemplateSource, CoverLinkType } from './settings';
+import { BangumiPluginSettings, TemplateConfig, TemplateSource, CoverLinkType, PathNamingStrategy } from './settings';
 import { SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName } from '../../common/api/types';
 import { tn, t, getLocale } from '../i18n';
 import {
@@ -39,11 +39,30 @@ const TEMPLATE_TYPES: TemplateTypeOption[] = [
 export class BangumiSettingTab extends PluginSettingTab {
 	private settings: BangumiPluginSettings;
 	private onSave: () => Promise<void>;
+	private onDiagnose: () => Promise<void>;
+	private onPreviewMigration: () => Promise<void>;
 
-	constructor(app: App, plugin: Plugin, settings: BangumiPluginSettings, onSave: () => Promise<void>) {
+	constructor(
+		app: App,
+		plugin: Plugin,
+		settings: BangumiPluginSettings,
+		onSave: (candidate: BangumiPluginSettings) => Promise<{ applied: boolean; settings: BangumiPluginSettings }>,
+		onDiagnose: () => Promise<void>,
+		onPreviewMigration: () => Promise<void>,
+	) {
 		super(app, plugin);
-		this.settings = settings;
-		this.onSave = onSave;
+		this.settings = this.cloneSettings(settings);
+		this.onSave = async () => {
+			const outcome = await onSave(this.cloneSettings(this.settings));
+			this.settings = this.cloneSettings(outcome.settings);
+			if (!outcome.applied) this.display();
+		};
+		this.onDiagnose = onDiagnose;
+		this.onPreviewMigration = onPreviewMigration;
+	}
+
+	private cloneSettings(settings: BangumiPluginSettings): BangumiPluginSettings {
+		return JSON.parse(JSON.stringify(settings)) as BangumiPluginSettings;
 	}
 
 	display(): void {
@@ -169,6 +188,36 @@ export class BangumiSettingTab extends PluginSettingTab {
 		// 路径预览
 		const previewEl = containerEl.createDiv({ cls: 'bangumi-path-preview' });
 		this.updatePathPreview(previewEl, this.settings.syncPathTemplate);
+
+		const namingStrategies: Record<string, PathNamingStrategy> = {
+			'simple-until-collision': 'simple-until-collision',
+			'always-year': 'always-year',
+			'always-id': 'always-id',
+			'custom-template': 'custom-template',
+		};
+		new Setting(containerEl)
+			.setName(tn('settings', 'pathNamingStrategy'))
+			.setDesc(tn('settings', 'pathNamingStrategyDesc'))
+			.addDropdown(dropdown => dropdown
+				.addOption('simple-until-collision', tn('settings', 'pathNamingSimple'))
+				.addOption('always-year', tn('settings', 'pathNamingYear'))
+				.addOption('always-id', tn('settings', 'pathNamingId'))
+				.addOption('custom-template', tn('settings', 'pathNamingCustom'))
+				.setValue(this.settings.pathNamingStrategy)
+				.onChange(async value => {
+					const strategy = namingStrategies[value];
+					if (!strategy) return;
+					this.settings.pathNamingStrategy = strategy;
+					await this.onSave();
+				}));
+
+		new Setting(containerEl)
+			.addButton(button => button
+				.setButtonText(tn('commands', 'diagnoseLocalSubjects'))
+				.onClick(() => this.onDiagnose()))
+			.addButton(button => button
+				.setButtonText(tn('commands', 'previewPathMigration'))
+				.onClick(() => this.onPreviewMigration()));
 
 		// 各类型路径模板
 		new Setting(containerEl)
@@ -678,19 +727,24 @@ export class BangumiSettingTab extends PluginSettingTab {
 	 */
 	private updatePathPreview(el: HTMLElement, template: string): void {
 		el.empty();
-		el.createEl('span', { text: `${tn('settings', 'preview')}: `, cls: 'bangumi-preview-label' });
-
 		const preview = template
 			.replace(/\{\{type\}\}/g, 'anime')
 			.replace(/\{\{category\}\}/g, 'TV')
-			.replace(/\{\{name\}\}/g, '進撃の巨人')
-			.replace(/\{\{name_cn\}\}/g, '进击的巨人')
-			.replace(/\{\{name_cn_with_type\}\}/g, '进击的巨人(动画)')
-			.replace(/\{\{year\}\}/g, '2013')
-			.replace(/\{\{author\}\}/g, '谏山创')
-			.replace(/\{\{id\}\}/g, '10060');
-
-		el.createEl('code', { text: preview });
+			.replace(/\{\{platform\}\}/g, 'TV')
+			.replace(/\{\{name\}\}/g, 'Ranma 1／2')
+			.replace(/\{\{name_cn\}\}/g, '乱马1／2')
+			.replace(/\{\{name_cn_with_type\}\}/g, '乱马1／2(TV)')
+			.replace(/\{\{year\}\}/g, '1989')
+			.replace(/\{\{author\}\}/g, '高桥留美子')
+			.replace(/\{\{id\}\}/g, '12345');
+		const collisionPreview = preview.toLocaleLowerCase('en-US').endsWith('.md')
+			? `${preview.slice(0, -3)}（1989）.md`
+			: `${preview}（1989）.md`;
+		el.createEl('div').createEl('code', { text: `${tn('settings', 'previewNormal')}: ${preview}` });
+		el.createEl('div').createEl('code', { text: `${tn('settings', 'previewCollision')}: ${collisionPreview}` });
+		if (!template.includes('{{id}}')) {
+			el.createEl('div', { text: tn('settings', 'pathTemplateRisk'), cls: 'bangumi-setting-warning' });
+		}
 	}
 
 	/**

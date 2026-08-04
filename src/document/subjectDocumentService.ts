@@ -18,6 +18,7 @@ import {
 	hasFrontmatterField,
 	readNumberField,
 	readTextField,
+	removeFrontmatterField,
 	removeYamlListField,
 	upsertFrontmatterField,
 	upsertQuotedTextField,
@@ -29,6 +30,14 @@ import {
 	LocalSubjectSnapshot,
 	PlatformMetadataUpdate,
 } from './types';
+import { SubjectIdentity, SubjectIdentityConflict, SubjectIdentitySource, parsePositiveSubjectId } from './subjectIdentity';
+
+export class SubjectIdentityMismatchError extends Error {
+	constructor(readonly path: string, readonly expectedSubjectId: number, readonly actualSubjectId: number | null) {
+		super(`${path} belongs to subject ${String(actualSubjectId)}, expected subject ${expectedSubjectId}.`);
+		this.name = 'SubjectIdentityMismatchError';
+	}
+}
 
 export class SubjectDocumentService {
 	private app: App;
@@ -37,6 +46,74 @@ export class SubjectDocumentService {
 	constructor(app: App, episodeStatusManager?: EpisodeStatusManager | null) {
 		this.app = app;
 		this.episodeStatusManager = episodeStatusManager ?? null;
+	}
+
+	getSubjectIdentityFromContent(content: string): SubjectIdentity {
+		const frontmatter = this.extractFrontmatterRecord(content);
+		const candidates: Array<{ source: Exclude<SubjectIdentitySource, 'missing'>; value: number }> = [];
+		const addCandidate = (source: Exclude<SubjectIdentitySource, 'missing'>, value: number | null): void => {
+			if (value !== null) {
+				candidates.push({ source, value });
+			}
+		};
+
+		addCandidate('id', parsePositiveSubjectId(frontmatter.id ?? frontmatter.ID));
+		addCandidate('BangumiID', parsePositiveSubjectId(frontmatter.BangumiID));
+		const canonicalUrl = frontmatter['Bangumi链接'] ?? frontmatter.bangumi_url ?? frontmatter.BangumiURL;
+		const urlSource = typeof canonicalUrl === 'string'
+			? canonicalUrl
+			: candidates.length === 0 ? content : '';
+		const urlMatch = urlSource.match(/(?:bgm\.tv|bangumi\.tv|chii\.in)\/subject\/(\d+)/i);
+		addCandidate('bangumi-url', urlMatch ? parsePositiveSubjectId(urlMatch[1]) : null);
+		const canonicalCover = frontmatter['封面'] ?? frontmatter.cover;
+		const coverSource = typeof canonicalCover === 'string'
+			? canonicalCover
+			: candidates.length === 0 ? content : '';
+		const coverMatch = coverSource.match(/(?:^|[/\\])(\d+)_cover\.(?:jpe?g|png|webp|avif)(?:[)\]"'\s]|$)/im);
+		addCandidate('cover-path', coverMatch ? parsePositiveSubjectId(coverMatch[1]) : null);
+
+		const primary = candidates.find(candidate => candidate.source === 'id')
+			?? candidates.find(candidate => candidate.source === 'BangumiID')
+			?? candidates.find(candidate => candidate.source === 'bangumi-url')
+			?? candidates.find(candidate => candidate.source === 'cover-path');
+		if (!primary) {
+			return { subjectId: null, source: 'missing' };
+		}
+
+		const conflicts: SubjectIdentityConflict[] = candidates
+			.filter(candidate => candidate.value !== primary.value)
+			.map(candidate => ({ source: candidate.source, value: candidate.value }));
+		return {
+			subjectId: primary.value,
+			source: primary.source,
+			...(conflicts.length > 0 ? { conflicts } : {}),
+		};
+	}
+
+	async getSubjectIdentity(file: TFile): Promise<SubjectIdentity> {
+		return this.getSubjectIdentityFromContent(await this.app.vault.read(file));
+	}
+
+	assertContentSubjectId(content: string, expectedSubjectId: number, path: string): void {
+		const identity = this.getSubjectIdentityFromContent(content);
+		if (identity.subjectId !== expectedSubjectId || identity.conflicts?.length) {
+			throw new SubjectIdentityMismatchError(path, expectedSubjectId, identity.subjectId);
+		}
+	}
+
+	async assertFileSubjectId(file: TFile, expectedSubjectId: number): Promise<void> {
+		this.assertContentSubjectId(await this.app.vault.read(file), expectedSubjectId, file.path);
+	}
+
+	async processSubjectFile(
+		file: TFile,
+		expectedSubjectId: number,
+		updater: (content: string) => string,
+	): Promise<void> {
+		await this.app.vault.process(file, content => {
+			this.assertContentSubjectId(content, expectedSubjectId, file.path);
+			return updater(content);
+		});
 	}
 
 	async readSnapshot(file: TFile, subjectType: SubjectType): Promise<LocalSubjectSnapshot> {
@@ -149,6 +226,10 @@ export class SubjectDocumentService {
 
 	addFrontmatterField(content: string, field: string, value: unknown): string {
 		return addFrontmatterField(content, field, value);
+	}
+
+	removeFrontmatterField(content: string, field: string): string {
+		return removeFrontmatterField(content, field);
 	}
 
 	extractFrontmatterRecord(content: string): Record<string, unknown> {
@@ -270,6 +351,10 @@ export class SubjectDocumentService {
 			return content;
 		}
 		return upsertFrontmatterField(content, '评分', newRate);
+	}
+
+	removeRate(content: string): string {
+		return removeFrontmatterField(content, '评分');
 	}
 
 	updateStatus(content: string, newStatus: CollectionType, statusFieldName: string): string {
