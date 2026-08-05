@@ -6,6 +6,7 @@ import { ConfigurationChangeBlockedError, ConfigurationUpdateInProgressError, Ma
 import { SubjectPathState } from '../../src/sync/localSubjectRegistry';
 import { InMemoryVault } from '../mocks/inMemoryVault';
 import { RECOVERY_JOURNAL_PATH } from '../../src/sync/recoveryJournal';
+import { setRequestUrlHandler } from '../mocks/obsidian';
 
 function makeSubject(id: number, date: string, name = '乱马'): Subject {
 	return {
@@ -795,5 +796,141 @@ describe('SyncManager path transaction integration', () => {
 		expect(firstObserver).toHaveBeenLastCalledWith(null);
 		expect(secondObserver).toHaveBeenLastCalledWith(null);
 		unsubscribeFirst();
+	});
+
+	it('keeps the gate after commit cleanup failure and restarts in cleanup-only mode', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '提交保留');
+		const failed = makeSubject(11, '2021-01-01', '失败');
+		const manager = createManager(vault, [first, failed], { failures: new Set([11]) });
+		const states: string[] = [];
+		manager.subscribeManagerState(state => states.push(state));
+		await manager.syncByCollections([makeCollection(first), makeCollection(failed)], { concurrency: 1 });
+		const adapter = vault.app.vault.adapter;
+		const originalRemove = adapter.remove.bind(adapter);
+		adapter.remove = path => path === RECOVERY_JOURNAL_PATH
+			? Promise.reject(new Error('injected journal cleanup failure')) : originalRemove(path);
+
+		const committed = await manager.commitPendingBatch();
+
+		expect(committed.status).toBe('cleanup-failed');
+		expect(manager.getManagerState()).toBe('recovery-required');
+		expect(manager.getRecoveryRequired()?.reason).toBe('journal-cleanup-failed');
+		expect(() => manager.ensureCanStartSync()).toThrow(RecoveryRequiredError);
+		expect(states.at(-1)).toBe('recovery-required');
+		expect(JSON.parse(vault.contents.get(RECOVERY_JOURNAL_PATH) ?? '{}')).toMatchObject({ state: 'committed-cleanup-pending' });
+		expect(vault.files.has('ACGN/music/提交保留.md')).toBe(true);
+
+		adapter.remove = originalRemove;
+		const reloaded = createManager(vault, []);
+		await reloaded.initializeRecovery();
+		expect(reloaded.getRecoveryRequired()?.reason).toBe('journal-cleanup-failed');
+		expect(await reloaded.retryRecovery()).toMatchObject({ status: 'recovered', recovered: true });
+		expect(vault.files.has('ACGN/music/提交保留.md')).toBe(true);
+		expect(reloaded.getManagerState()).toBe('idle');
+	});
+
+	it('keeps the gate after rollback cleanup failure and never restores rolled-back data on restart', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '回滚删除');
+		const failed = makeSubject(11, '2021-01-01', '失败');
+		const manager = createManager(vault, [first, failed], { failures: new Set([11]) });
+		await manager.syncByCollections([makeCollection(first), makeCollection(failed)], { concurrency: 1 });
+		const adapter = vault.app.vault.adapter;
+		const originalRemove = adapter.remove.bind(adapter);
+		adapter.remove = path => path === RECOVERY_JOURNAL_PATH
+			? Promise.reject(new Error('injected rollback cleanup failure')) : originalRemove(path);
+
+		expect(await manager.rollbackBatch()).toMatchObject({ status: 'cleanup-failed' });
+		expect(manager.getRecoveryRequired()?.reason).toBe('journal-cleanup-failed');
+		expect(vault.files.has('ACGN/music/回滚删除.md')).toBe(false);
+		expect(JSON.parse(vault.contents.get(RECOVERY_JOURNAL_PATH) ?? '{}')).toMatchObject({ state: 'rolled-back-cleanup-pending' });
+
+		adapter.remove = originalRemove;
+		const reloaded = createManager(vault, []);
+		await reloaded.initializeRecovery();
+		expect(await reloaded.retryJournalCleanup()).toMatchObject({ status: 'recovered', recovered: true });
+		expect(vault.files.has('ACGN/music/回滚删除.md')).toBe(false);
+	});
+
+	it('keeps manual recovery gated when its terminal journal cleanup fails', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(10, '2020-01-01', '手动恢复');
+		const failed = makeSubject(11, '2021-01-01', '失败');
+		const originalTrash = vault.app.fileManager.trashFile.bind(vault.app.fileManager);
+		vault.app.fileManager.trashFile = () => Promise.reject(new Error('injected rollback failure'));
+		const manager = createManager(vault, [first, failed], { failures: new Set([11]) });
+		await manager.syncByCollections([makeCollection(first), makeCollection(failed)], { concurrency: 1 });
+		await manager.rollbackBatch();
+		vault.app.fileManager.trashFile = originalTrash;
+		await originalTrash(vault.files.get('ACGN/music/手动恢复.md')!);
+		const adapter = vault.app.vault.adapter;
+		const originalRemove = adapter.remove.bind(adapter);
+		adapter.remove = path => path === RECOVERY_JOURNAL_PATH
+			? Promise.reject(new Error('injected manual cleanup failure')) : originalRemove(path);
+
+		expect(await manager.confirmManualRecovery()).toMatchObject({ status: 'failed', recovered: false });
+		expect(manager.getRecoveryRequired()?.reason).toBe('journal-cleanup-failed');
+		expect(() => manager.ensureCanStartSync()).toThrow(RecoveryRequiredError);
+		adapter.remove = originalRemove;
+		expect(await manager.retryJournalCleanup()).toMatchObject({ status: 'recovered', recovered: true });
+	});
+
+	it('restores an updated cover when modifyBinary writes and then rejects', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2024-01-01', '写后更新失败');
+		vault.addFile('ACGN/music/写后更新失败.md', '---\nid: 20\n封面: "https://example.com/20.jpg"\n---\n');
+		const cover = vault.addBinaryFile('assets/20.jpg', new Uint8Array([1, 2, 3]));
+		const manager = createManager(vault, [subject]);
+		manager.updateConfig({ downloadImages: true, imageUpdateExisting: true, imagePathTemplate: 'assets/{{id}}.jpg' }, ['downloadImages', 'imageUpdateExisting', 'imagePathTemplate']);
+		setRequestUrlHandler(() => Promise.resolve({ status: 200, arrayBuffer: new Uint8Array([4, 5, 6]).buffer }));
+		const originalModify = vault.app.vault.modifyBinary.bind(vault.app.vault);
+		let firstMutation = true;
+		vault.app.vault.modifyBinary = (file, content) => {
+			if (!firstMutation) return originalModify(file, content);
+			firstMutation = false;
+			vault.binaryContents.set(cover.path, new Uint8Array(content).slice());
+			return Promise.reject(new Error('injected post-modify failure'));
+		};
+
+		expect(await manager.batchDownloadCovers()).toMatchObject({ downloaded: 0, failed: 1 });
+		expect(Array.from(vault.binaryContents.get('assets/20.jpg') ?? [])).toEqual([1, 2, 3]);
+		expect(manager.getRecoveryRequired()).toBeNull();
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+	});
+
+	it('deletes a created cover when createBinary writes and then rejects', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2024-01-01', '写后创建失败');
+		vault.addFile('ACGN/music/写后创建失败.md', '---\nid: 20\n封面: "https://example.com/20.jpg"\n---\n');
+		const manager = createManager(vault, [subject]);
+		manager.updateConfig({ downloadImages: true, imagePathTemplate: 'assets/{{id}}.jpg' }, ['downloadImages', 'imagePathTemplate']);
+		setRequestUrlHandler(() => Promise.resolve({ status: 200, arrayBuffer: new Uint8Array([7, 8, 9]).buffer }));
+		vault.app.vault.createBinary = (path, content) => {
+			vault.addBinaryFile(path, new Uint8Array(content));
+			return Promise.reject(new Error('injected post-create failure'));
+		};
+
+		expect(await manager.batchDownloadCovers()).toMatchObject({ downloaded: 0, failed: 1 });
+		expect(vault.files.has('assets/20.jpg')).toBe(false);
+		expect(manager.getRecoveryRequired()).toBeNull();
+	});
+
+	it('rolls back a post-create cover failure during ordinary collection sync', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2024-01-01', '普通封面不确定');
+		subject.images = { large: 'https://example.com/20.jpg' };
+		const manager = createManager(vault, [subject]);
+		manager.updateConfig({ downloadImages: true, imagePathTemplate: 'assets/{{id}}.jpg' }, ['downloadImages', 'imagePathTemplate']);
+		setRequestUrlHandler(() => Promise.resolve({ status: 200, arrayBuffer: new Uint8Array([7, 8, 9]).buffer }));
+		vault.app.vault.createBinary = (path, content) => {
+			vault.addBinaryFile(path, new Uint8Array(content));
+			return Promise.reject(new Error('injected collection post-create failure'));
+		};
+
+		const result = await manager.syncByCollections([makeCollection(subject)], { concurrency: 1 });
+		expect(result.failed).toBe(1);
+		expect(vault.files.has('assets/20.jpg')).toBe(false);
+		expect(manager.getRecoveryRequired()).toBeNull();
 	});
 });

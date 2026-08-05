@@ -436,11 +436,12 @@ export default class BangumiPlugin extends Plugin {
 			onRollbackFailure: async (error, facts) => {
 				const diskSettings: unknown = await this.loadData();
 				await this.syncManager?.requireConfigurationRecovery(error, {
-					previousSettings: this.cloneSettings(facts.previousSettings),
-					candidateSettings: this.cloneSettings(facts.candidateSettings),
-					currentSettings: this.cloneSettings(this.settings),
-					diskSettings,
-					managerConfig: cloneSyncManagerConfig(this.appliedSyncConfig ?? facts.nextConfig),
+					previousSettings: { ...this.cloneSettings(facts.previousSettings) },
+					candidateSettings: { ...this.cloneSettings(facts.candidateSettings) },
+					currentSettings: { ...this.cloneSettings(this.settings) },
+					diskSettings: diskSettings && typeof diskSettings === 'object' && !Array.isArray(diskSettings)
+						? { ...(diskSettings as Record<string, unknown>) } : {},
+					managerConfig: { ...cloneSyncManagerConfig(this.appliedSyncConfig ?? facts.nextConfig) },
 				});
 			},
 		});
@@ -455,7 +456,13 @@ export default class BangumiPlugin extends Plugin {
 	}
 
 	private async reconcileConfigurationRecovery(facts: import('./src/sync/recoveryJournal').ConfigurationRecoveryFacts): Promise<SyncManagerConfig> {
-		const previous = this.cloneSettings(facts.previousSettings as BangumiPluginSettings);
+		const currentDisk: unknown = await this.loadData();
+		const diskToken = currentDisk && typeof currentDisk === 'object' && !Array.isArray(currentDisk)
+			? (currentDisk as Record<string, unknown>).accessToken : undefined;
+		const runtimeToken = this.settings.accessToken;
+		const accessToken = typeof diskToken === 'string' ? diskToken : typeof runtimeToken === 'string' ? runtimeToken : undefined;
+		if (accessToken === undefined) throw new Error('A safe Access Token source could not be determined; configuration recovery remains blocked.');
+		const previous = this.cloneSettings({ ...facts.previousSettings, accessToken } as unknown as BangumiPluginSettings);
 		await this.saveData(previous);
 		const disk: unknown = await this.loadData();
 		if (JSON.stringify(disk) !== JSON.stringify(previous)) throw new Error('Persisted settings do not match the selected previous settings snapshot.');

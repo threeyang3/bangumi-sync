@@ -1,6 +1,6 @@
 # 项目架构与模块说明
 
-## 6.11.1 稳定事务与持久恢复
+## 6.11.2 稳定事务与持久恢复
 
 `BangumiPlugin` 持有稳定的 `SyncManager`。设置 UI 提交字段 patch，主入口在串行队列内把 patch 应用到最新正式 settings；manager 配置 lease 在任何 `await` 前取得。持久化、不可变配置快照应用与依赖刷新全部成功后才提交。失败时恢复磁盘、manager、正式设置、依赖服务和设置 UI；回滚持久化再次失败则记录 previous/candidate/current/disk/manager facts 并建立 recovery-required journal。
 
@@ -576,4 +576,6 @@ SearchModal
 
 Retry、Manual Confirm 与 Rescan 共用单个运行时互斥 Promise。人工确认依次执行本地扫描与矩阵校验、保存原始 `subjectPathStates`、比较配置和 `IncrementalSync` 状态、再次扫描与复核；任何一步失败都保留上下文。Recovery Center 是可重开的独立 Modal，SyncModal 的 rollback-failed 终态提供稳定入口。
 
-`writeOperationGate` 在 UI 与写服务两层阻止收藏/单条同步、迁移应用、封面、关联链接、状态同步、批量编辑、导入导出、集数、吐槽和共享笔记写入。恢复诊断不依赖网络。6.11.1 会先验证独立 journal 的完整结构，重启后按原因加载为 recovery-required；只有干净提交或完整诊断通过的回滚/人工恢复才清除。
+`writeOperationGate` 在 UI 与写服务两层阻止收藏/单条同步、迁移应用、封面、关联链接、状态同步、批量编辑、导入导出、集数、吐槽和共享笔记写入。恢复诊断不依赖网络。6.11.2 会先独立发现、解析和校验 current/previous/temp 候选，备份无效候选后优先加载有效 current，否则安全回退 previous。提交和回滚先持久化 terminal marker，再按 previous、temp、current 顺序清理并复核不存在；cleanup 未完成时 manager 保持 recovery-required，重启只重试 cleanup，不执行旧事务回滚。
+
+配置 recovery facts 在持久化边界递归删除 Access Token、authorization、Bearer、API key 和其他 secret-bearing keys，仅保留非敏感设置与 `accessTokenChanged` 元数据。图片网络阶段可返回普通 failed；create/modify 或写后验证无法确认时抛出结构化 uncertain mutation，由上层 active journal 和二进制 SHA-256 rollback 处理。

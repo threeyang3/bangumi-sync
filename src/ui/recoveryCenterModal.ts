@@ -94,9 +94,10 @@ export class RecoveryCenterModal extends Modal {
 		const actions = this.contentEl.createDiv({ cls: 'bangumi-sync-actions' });
 		for (const action of getVisibleRecoveryActions(policy)) {
 			const label = action === 'retry-rollback' ? tn('recoveryCenter', 'retryRollback')
+				: action === 'retry-cleanup' ? tn('recoveryCenter', 'retryCleanup')
 				: action === 'confirm-manual' ? tn('recoveryCenter', 'confirmManual')
 					: tn('recoveryCenter', 'rescan');
-			const cls = action === 'retry-rollback' ? 'mod-warning' : action === 'confirm-manual' ? 'mod-cta' : '';
+			const cls = action === 'retry-rollback' || action === 'retry-cleanup' ? 'mod-warning' : action === 'confirm-manual' ? 'mod-cta' : '';
 			this.addActionButton(actions, label, action, cls);
 		}
 		this.addCloseButton(actions);
@@ -133,7 +134,7 @@ export class RecoveryCenterModal extends Modal {
 				? this.contentEl.ownerDocument.defaultView?.confirm(tn('recoveryCenter', 'corruptRiskPrompt')) === true
 				: false;
 			if (action === 'confirm-manual' && recovery?.reason === 'journal-corrupt' && !acceptsRisk) return;
-			this.lastResult = action === 'retry-rollback'
+			this.lastResult = action === 'retry-rollback' || action === 'retry-cleanup'
 				? await this.handlers.retryRollback()
 				: action === 'confirm-manual'
 					? await this.handlers.confirmManual(acceptsRisk)

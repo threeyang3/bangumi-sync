@@ -3,6 +3,8 @@ import {
 	RecoveryJournalStore,
 	RECOVERY_JOURNAL_PATH,
 	RECOVERY_JOURNAL_PREVIOUS_PATH,
+	RECOVERY_JOURNAL_TEMP_PATH,
+	sanitizeConfigurationRecoveryFacts,
 	validatePersistentRecoveryJournal,
 } from '../../src/sync/recoveryJournal';
 import type { PersistentRecoveryJournal } from '../../src/sync/recoveryJournal';
@@ -105,5 +107,97 @@ describe('persistent recovery journal', () => {
 			expect(result.backupPath).toContain('corrupt-structure');
 			expect(vault.contents.get(result.backupPath)).toBe(JSON.stringify({ schemaVersion: 1 }));
 		}
+	});
+
+	it.each([
+		['invalid JSON', '{broken', 'corrupt-current'],
+		['unsupported schema', JSON.stringify({ schemaVersion: 99 }), 'unsupported-current'],
+		['malformed schema 1', JSON.stringify({ schemaVersion: 1 }), 'corrupt-structure-current'],
+	])('loads a valid previous journal when current is %s', async (_name, current, backupMarker) => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, current);
+		vault.addFile(RECOVERY_JOURNAL_PREVIOUS_PATH, JSON.stringify({ ...journal(), journalId: 'previous-valid' }));
+
+		const result = await new RecoveryJournalStore(vault.app).load();
+
+		expect(result).toMatchObject({ status: 'loaded', recoveredFromPrevious: true, journal: { journalId: 'previous-valid' } });
+		expect(vault.files.has(RECOVERY_JOURNAL_PREVIOUS_PATH)).toBe(true);
+		expect(Array.from(vault.files.keys()).some(path => path.includes(backupMarker))).toBe(true);
+	});
+
+	it('loads a previous-only journal and preserves it as the last valid candidate', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PREVIOUS_PATH, JSON.stringify({ ...journal(), journalId: 'previous-only' }));
+		expect(await new RecoveryJournalStore(vault.app).load()).toMatchObject({
+			status: 'loaded', recoveredFromPrevious: true, journal: { journalId: 'previous-only' },
+		});
+		expect(vault.files.has(RECOVERY_JOURNAL_PREVIOUS_PATH)).toBe(true);
+	});
+
+	it('backs up interrupted temp without blocking a valid current or previous candidate', async () => {
+		for (const source of [RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH]) {
+			const vault = new InMemoryVault();
+			vault.addFile(source, JSON.stringify({ ...journal(), journalId: source }));
+			vault.addFile(RECOVERY_JOURNAL_TEMP_PATH, '{interrupted');
+			const result = await new RecoveryJournalStore(vault.app).load();
+			expect(result).toMatchObject({ status: 'loaded', journal: { journalId: source }, temporaryFilePresent: true });
+			expect(Array.from(vault.files.keys()).some(path => path.includes('interrupted-'))).toBe(true);
+		}
+	});
+
+	it('backs up both invalid candidates and reports that neither is usable', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, '{broken-current');
+		vault.addFile(RECOVERY_JOURNAL_PREVIOUS_PATH, JSON.stringify({ schemaVersion: 1 }));
+		const result = await new RecoveryJournalStore(vault.app).load();
+		expect(result).toMatchObject({ status: 'corrupt' });
+		if (result.status === 'corrupt') {
+			expect(result.message).toContain('No valid recovery journal candidate');
+			expect(result.backupPaths).toHaveLength(2);
+		}
+		expect(vault.files.has(RECOVERY_JOURNAL_PATH)).toBe(false);
+		expect(vault.files.has(RECOVERY_JOURNAL_PREVIOUS_PATH)).toBe(false);
+	});
+
+	it('removes secret-bearing keys recursively from configuration recovery facts', () => {
+		const secret = 'SECRET_TOKEN_MUST_NEVER_REACH_JOURNAL_6_11_2';
+		const facts = sanitizeConfigurationRecoveryFacts({
+			previousSettings: { accessToken: secret, nested: { authorization: `Bearer ${secret}`, safe: 'kept' } },
+			candidateSettings: { accessToken: `${secret}-next` },
+			currentSettings: { token: secret },
+			diskSettings: { apiKey: secret },
+			managerConfig: { bearerToken: secret, pathTemplate: 'ACGN/{{id}}.md' },
+		});
+		const serialized = JSON.stringify(facts);
+		expect(serialized).not.toContain(secret);
+		expect(serialized).not.toContain('Bearer ');
+		expect(facts.previousSettings).toEqual({ nested: { safe: 'kept' } });
+		expect(facts.accessTokenChanged).toBe(true);
+	});
+
+	it('keeps a terminal current journal when previous cleanup fails', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, JSON.stringify({ ...journal(), state: 'committed-cleanup-pending' }));
+		vault.addFile(RECOVERY_JOURNAL_PREVIOUS_PATH, JSON.stringify(journal()));
+		const adapter = vault.app.vault.adapter;
+		const originalRemove = adapter.remove.bind(adapter);
+		adapter.remove = path => path === RECOVERY_JOURNAL_PREVIOUS_PATH
+			? Promise.reject(new Error('previous cannot be removed')) : originalRemove(path);
+
+		await expect(new RecoveryJournalStore(vault.app).clear()).rejects.toThrow('previous cannot be removed');
+		expect(vault.files.has(RECOVERY_JOURNAL_PATH)).toBe(true);
+	});
+
+	it('keeps a terminal current journal when temp cleanup fails', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, JSON.stringify({ ...journal(), state: 'rolled-back-cleanup-pending' }));
+		vault.addFile(RECOVERY_JOURNAL_TEMP_PATH, JSON.stringify(journal()));
+		const adapter = vault.app.vault.adapter;
+		const originalRemove = adapter.remove.bind(adapter);
+		adapter.remove = path => path === RECOVERY_JOURNAL_TEMP_PATH
+			? Promise.reject(new Error('temp cannot be removed')) : originalRemove(path);
+
+		await expect(new RecoveryJournalStore(vault.app).clear()).rejects.toThrow('temp cannot be removed');
+		expect(vault.files.has(RECOVERY_JOURNAL_PATH)).toBe(true);
 	});
 });

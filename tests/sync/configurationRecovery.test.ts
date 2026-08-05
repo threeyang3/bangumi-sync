@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ConfigurationRecoveryFacts } from '../../src/sync/recoveryJournal';
+import type { RuntimeConfigurationRecoveryFacts } from '../../src/sync/recoveryJournal';
 import { RECOVERY_JOURNAL_PATH } from '../../src/sync/recoveryJournal';
 import type { SyncManagerConfig } from '../../src/sync/syncManager';
 import { RecoveryRequiredError, SyncManager } from '../../src/sync/syncManager';
@@ -16,7 +16,7 @@ function config(
 	};
 }
 
-function facts(): ConfigurationRecoveryFacts {
+function facts(): RuntimeConfigurationRecoveryFacts {
 	return {
 		previousSettings: { accessToken: 'old-token' },
 		candidateSettings: { accessToken: 'new-token' },
@@ -61,11 +61,33 @@ describe('configuration rollback recovery', () => {
 		await manager.requireConfigurationRecovery(new Error('rollback write failed'), recoveryFacts);
 
 		expect(await manager.confirmManualRecovery()).toMatchObject({ status: 'recovered', recovered: true });
-		expect(recoverConfiguration).toHaveBeenCalledWith(recoveryFacts);
+		expect(recoverConfiguration).toHaveBeenCalledWith({
+			previousSettings: {}, candidateSettings: {}, currentSettings: {}, diskSettings: {}, managerConfig: {}, accessTokenChanged: true,
+		});
 		expect(dependentRefresh).toHaveBeenCalledOnce();
 		expect(manager.getRecoveryRequired()).toBeNull();
 		expect(() => manager.ensureCanStartSync()).not.toThrow();
 		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+	});
+
+	it('never persists or reports a configuration token canary', async () => {
+		const secret = 'SECRET_TOKEN_MUST_NEVER_REACH_JOURNAL_6_11_2';
+		const vault = new InMemoryVault();
+		const manager = new SyncManager(vault.app, config());
+		await manager.requireConfigurationRecovery(new Error(`rollback failed for Bearer ${secret}`), {
+			previousSettings: { accessToken: secret, scanFolderPath: 'Before' },
+			candidateSettings: { accessToken: `${secret}-next`, scanFolderPath: 'After' },
+			currentSettings: { accessToken: secret }, diskSettings: { authorization: `Bearer ${secret}` },
+			managerConfig: { accessToken: secret, pathTemplate: 'ACGN/{{id}}.md' },
+		});
+
+		const serialized = vault.contents.get(RECOVERY_JOURNAL_PATH) ?? '';
+		expect(serialized).not.toContain(secret);
+		expect(serialized).not.toContain('Bearer ');
+		expect(manager.getRecoveryRequired()?.journalIssue).not.toContain(secret);
+		expect(JSON.parse(serialized)).toMatchObject({
+			configurationFacts: { previousSettings: { scanFolderPath: 'Before' }, candidateSettings: { scanFolderPath: 'After' }, accessTokenChanged: true },
+		});
 	});
 
 	it('retains the gate when dependent services cannot be refreshed after manager apply', async () => {

@@ -2,18 +2,20 @@ import type { RecoveryRequiredState } from './syncManager';
 
 export interface RecoveryActionPolicy {
 	allowRetryRollback: boolean;
+	allowRetryCleanup: boolean;
 	allowManualConfirmation: boolean;
 	allowRescan: boolean;
 	retryRequiresPostValidation: boolean;
 	requiresUnverifiableRiskAcceptance: boolean;
 }
 
-export type VisibleRecoveryAction = 'retry-rollback' | 'confirm-manual' | 'rescan';
+export type VisibleRecoveryAction = 'retry-rollback' | 'retry-cleanup' | 'confirm-manual' | 'rescan';
 
 /** Single source of truth for the Recovery Center buttons and service action policy. */
 export function getVisibleRecoveryActions(policy: RecoveryActionPolicy): VisibleRecoveryAction[] {
 	const actions: VisibleRecoveryAction[] = [];
 	if (policy.allowRetryRollback) actions.push('retry-rollback');
+	if (policy.allowRetryCleanup) actions.push('retry-cleanup');
 	if (policy.allowManualConfirmation) actions.push('confirm-manual');
 	if (policy.allowRescan) actions.push('rescan');
 	return actions;
@@ -28,9 +30,19 @@ export function getRecoveryActionPolicy(
 		|| recovery.resourcePathsAfterRollback.length > 0
 		|| recovery.updatedResourceExpectations.length > 0;
 	switch (recovery.reason) {
+		case 'journal-cleanup-failed':
+			return {
+				allowRetryRollback: false,
+				allowRetryCleanup: true,
+				allowManualConfirmation: false,
+				allowRescan: true,
+				retryRequiresPostValidation: false,
+				requiresUnverifiableRiskAcceptance: false,
+			};
 		case 'journal-corrupt':
 			return {
 				allowRetryRollback: false,
+				allowRetryCleanup: false,
 				allowManualConfirmation: true,
 				allowRescan: true,
 				retryRequiresPostValidation: true,
@@ -40,6 +52,7 @@ export function getRecoveryActionPolicy(
 		case 'configuration-rollback-failed':
 			return {
 				allowRetryRollback: false,
+				allowRetryCleanup: false,
 				allowManualConfirmation: true,
 				allowRescan: true,
 				retryRequiresPostValidation: true,
@@ -48,6 +61,7 @@ export function getRecoveryActionPolicy(
 		case 'journal-recovered':
 			return {
 				allowRetryRollback: hasRollbackFacts,
+				allowRetryCleanup: false,
 				allowManualConfirmation: true,
 				allowRescan: true,
 				retryRequiresPostValidation: true,
@@ -56,6 +70,7 @@ export function getRecoveryActionPolicy(
 		default:
 			return {
 				allowRetryRollback: true,
+				allowRetryCleanup: false,
 				allowManualConfirmation: true,
 				allowRescan: true,
 				retryRequiresPostValidation: true,

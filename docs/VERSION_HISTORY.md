@@ -1,5 +1,16 @@
 # 版本历史
 
+## v6.11.2
+
+### 修复
+- 配置恢复 journal 递归脱敏，永不持久化 Access Token、Bearer、authorization、API key 或其他 secret-bearing 字段，并记录 token 是否变化。
+- current journal 损坏、schema 不支持或结构非法时独立校验并安全回退有效 previous；无效候选分别备份，temp 单独处理。
+- journal cleanup 纳入终态事务；提交/回滚先写 terminal marker，cleanup 失败保持写门禁，重启只重试 cleanup。
+- binary create/modify 写入后不确定失败改为结构化异常，由 active journal 和 SHA-256 rollback 处理，不再伪装成普通下载失败。
+
+### 兼容性
+- 兼容 schema-1 journal、现有 Markdown、frontmatter、Subject ID 和设置；最低 Obsidian 版本仍为 1.8.7。
+
 ## v6.11.1
 
 ### 修复

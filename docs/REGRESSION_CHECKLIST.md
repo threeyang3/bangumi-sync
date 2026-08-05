@@ -1,4 +1,17 @@
-# 6.11.1 当前发布回归清单
+# 6.11.2 当前发布回归清单
+
+## 6.11.2 安全与恢复验收
+
+- [x] 配置恢复 journal 递归脱敏，token canary 不出现在 journal、日志或错误信息。
+- [x] corrupt/unsupported/malformed current 分别备份，并在 previous 有效时安全回退。
+- [x] invalid current 与 previous 都无效时分别备份并保持 recovery-required。
+- [x] temp 中断文件单独备份；只有 temp 时安全阻断。
+- [x] commit、rollback、manual recovery cleanup 失败保持写门禁，不广播 idle。
+- [x] committed/rolled-back cleanup-pending journal 重启后只重试 cleanup。
+- [x] previous、temp、current 删除失败均保留足够终态事实。
+- [x] binary modify/create 写入后 reject 传播为 uncertain mutation，并自动 rollback。
+- [x] binary rollback 后验证 byte length 与 SHA-256；失败继续 recovery-required。
+- [x] 普通同步、单条同步和批量封面共用 active journal 事实。
 
 本文件只记录 6.11.1 的发布门槛。6.10.x 历史项目见 [history/REGRESSION_CHECKLIST-6.10.x.md](./history/REGRESSION_CHECKLIST-6.10.x.md)。
 

@@ -15,19 +15,81 @@ export interface RecoveryBinaryContentExpectation {
 	originalContentBase64: string;
 }
 
-export interface ConfigurationRecoveryFacts {
-	previousSettings: unknown;
-	candidateSettings: unknown;
-	currentSettings: unknown;
-	diskSettings: unknown;
-	managerConfig: unknown;
+export type PersistentConfigurationValue = null | boolean | number | string | PersistentConfigurationValue[] | { [key: string]: PersistentConfigurationValue };
+export type PersistentConfigurationSnapshot = { [key: string]: PersistentConfigurationValue };
+
+export interface RuntimeConfigurationRecoveryFacts {
+	previousSettings: Record<string, unknown>;
+	candidateSettings: Record<string, unknown>;
+	currentSettings: Record<string, unknown>;
+	diskSettings: Record<string, unknown>;
+	managerConfig: Record<string, unknown>;
+}
+
+export interface PersistentConfigurationRecoveryFacts {
+	previousSettings: PersistentConfigurationSnapshot;
+	candidateSettings: PersistentConfigurationSnapshot;
+	currentSettings: PersistentConfigurationSnapshot;
+	diskSettings: PersistentConfigurationSnapshot;
+	managerConfig: PersistentConfigurationSnapshot;
+	accessTokenChanged: boolean;
+}
+
+/** Compatibility name retained for runtime callers; only persistent facts are journaled. */
+export type ConfigurationRecoveryFacts = PersistentConfigurationRecoveryFacts;
+
+function isSecretKey(key: string): boolean {
+	const normalized = key.replace(/[\s_-]/gu, '').toLowerCase();
+	return normalized === 'token' || normalized === 'accesstoken' || normalized === 'refreshtoken'
+		|| normalized === 'authtoken' || normalized === 'bearertoken' || normalized === 'authorization'
+		|| normalized === 'apikey' || normalized === 'secret' || normalized === 'clientsecret' || normalized === 'password'
+		|| normalized.endsWith('token') || normalized.endsWith('secret');
+}
+
+function sanitizePersistentValue(value: unknown, key?: string): PersistentConfigurationValue | undefined {
+	if (key !== undefined && isSecretKey(key)) return undefined;
+	if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+	if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+	if (Array.isArray(value)) return value.map(item => sanitizePersistentValue(item)).filter((item): item is PersistentConfigurationValue => item !== undefined);
+	if (isRecord(value)) {
+		const result: PersistentConfigurationSnapshot = {};
+		for (const [childKey, childValue] of Object.entries(value)) {
+			const sanitized = sanitizePersistentValue(childValue, childKey);
+			if (sanitized !== undefined) result[childKey] = sanitized;
+		}
+		return result;
+	}
+	return undefined;
+}
+
+export function sanitizeConfigurationRecoveryFacts(runtime: RuntimeConfigurationRecoveryFacts): PersistentConfigurationRecoveryFacts {
+	const snapshot = (value: Record<string, unknown>): PersistentConfigurationSnapshot => sanitizePersistentValue(value) as PersistentConfigurationSnapshot;
+	return {
+		previousSettings: snapshot(runtime.previousSettings), candidateSettings: snapshot(runtime.candidateSettings),
+		currentSettings: snapshot(runtime.currentSettings), diskSettings: snapshot(runtime.diskSettings),
+		managerConfig: snapshot(runtime.managerConfig),
+		accessTokenChanged: runtime.previousSettings.accessToken !== runtime.candidateSettings.accessToken,
+	};
+}
+
+export function redactConfigurationRecoveryMessage(message: string, runtime: RuntimeConfigurationRecoveryFacts, additionalSecrets: readonly string[] = []): string {
+	const secrets = new Set(additionalSecrets.filter(value => value.length > 0));
+	const visit = (value: unknown, key?: string): void => {
+		if (key !== undefined && isSecretKey(key) && typeof value === 'string' && value.length > 0) secrets.add(value);
+		if (Array.isArray(value)) value.forEach(item => visit(item));
+		else if (isRecord(value)) Object.entries(value).forEach(([childKey, child]) => visit(child, childKey));
+	};
+	visit(runtime);
+	let redacted = message;
+	for (const secret of Array.from(secrets).sort((left, right) => right.length - left.length)) redacted = redacted.split(secret).join('[REDACTED]');
+	return redacted.replace(/Bearer\s+[^\s,;]+/giu, 'Bearer [REDACTED]');
 }
 
 export interface PersistentRecoveryJournal {
 	schemaVersion: 1;
 	journalId: string;
 	pluginVersion: string;
-	state: 'active' | 'awaiting-decision' | 'rolling-back' | 'rollback-failed' | 'recovery-required';
+	state: 'active' | 'awaiting-decision' | 'rolling-back' | 'rollback-failed' | 'recovery-required' | 'committed-cleanup-pending' | 'rolled-back-cleanup-pending';
 	createdAt: number;
 	updatedAt: number;
 	scanRoot: string;
@@ -49,8 +111,8 @@ export interface PersistentRecoveryJournal {
 export type RecoveryJournalLoadResult =
 	| { status: 'none' }
 	| { status: 'loaded'; journal: PersistentRecoveryJournal; recoveredFromPrevious: boolean; temporaryFilePresent: boolean }
-	| { status: 'corrupt'; message: string; backupPath: string }
-	| { status: 'unsupported'; schemaVersion: unknown; backupPath: string };
+	| { status: 'corrupt'; message: string; backupPath: string; backupPaths?: string[] }
+	| { status: 'unsupported'; schemaVersion: unknown; backupPath: string; backupPaths?: string[] };
 
 export type PersistentRecoveryJournalValidation =
 	| { valid: true; journal: PersistentRecoveryJournal }
@@ -171,7 +233,7 @@ export function validatePersistentRecoveryJournal(value: unknown): PersistentRec
 	if (value.schemaVersion !== 1) errors.push('schemaVersion must equal 1.');
 	validateString(value.journalId, 'journalId', errors, true);
 	validateString(value.pluginVersion, 'pluginVersion', errors);
-	if (!['active', 'awaiting-decision', 'rolling-back', 'rollback-failed', 'recovery-required'].includes(String(value.state))) errors.push('state is invalid.');
+	if (!['active', 'awaiting-decision', 'rolling-back', 'rollback-failed', 'recovery-required', 'committed-cleanup-pending', 'rolled-back-cleanup-pending'].includes(String(value.state))) errors.push('state is invalid.');
 	for (const field of ['createdAt', 'updatedAt']) if (!finiteNumber(value[field])) errors.push(`${field} must be a finite number.`);
 	validateString(value.scanRoot, 'scanRoot', errors);
 	if (validateArray(value.affectedSubjectIds, 'affectedSubjectIds', errors)) value.affectedSubjectIds.forEach((id, index) => {
@@ -228,15 +290,30 @@ export function validatePersistentRecoveryJournal(value: unknown): PersistentRec
 	if (validateArray(orphanPaths, 'orphanTemporaryPaths', errors)) orphanPaths.forEach((item, index) => validateString(item, `orphanTemporaryPaths[${index}]`, errors));
 	if (value.configurationFacts !== undefined) {
 		if (!isRecord(value.configurationFacts)) errors.push('configurationFacts must be a plain object.');
-		else for (const field of ['previousSettings', 'candidateSettings', 'currentSettings', 'diskSettings', 'managerConfig']) {
-			if (!isRecord(value.configurationFacts[field])) errors.push(`configurationFacts.${field} must be a plain object.`);
+		else {
+			for (const field of ['previousSettings', 'candidateSettings', 'currentSettings', 'diskSettings', 'managerConfig']) {
+				if (!isRecord(value.configurationFacts[field])) errors.push(`configurationFacts.${field} must be a plain object.`);
+			}
+			if (typeof value.configurationFacts.accessTokenChanged !== 'boolean') errors.push('configurationFacts.accessTokenChanged must be boolean.');
+			const visit = (candidate: unknown, path: string): void => {
+				if (Array.isArray(candidate)) {
+					candidate.forEach((child, index) => visit(child, `${path}[${index}]`));
+					return;
+				}
+				if (!isRecord(candidate)) return;
+				for (const [key, child] of Object.entries(candidate)) {
+					if (isSecretKey(key)) errors.push(`${path}.${key} is not allowed in a persistent recovery journal.`);
+					visit(child, `${path}.${key}`);
+				}
+			};
+			visit(value.configurationFacts, 'configurationFacts');
 		}
 	}
 	validateResultSnapshot(value.resultSnapshot, errors);
 	if (validateArray(value.attempts, 'attempts', errors)) value.attempts.forEach((item, index) => {
 		const path = `attempts[${index}]`;
 		if (!isRecord(item)) { errors.push(`${path} must be a plain object.`); return; }
-		if (!['automatic-rollback', 'retry-rollback', 'confirm-manual', 'rescan'].includes(String(item.action))) errors.push(`${path}.action is invalid.`);
+		if (!['automatic-rollback', 'retry-rollback', 'retry-cleanup', 'confirm-manual', 'rescan'].includes(String(item.action))) errors.push(`${path}.action is invalid.`);
 		if (!['rolled-back', 'rollback-failed', 'recovered', 'blocked', 'failed', 'no-recovery'].includes(String(item.status))) errors.push(`${path}.status is invalid.`);
 		for (const field of ['startedAt', 'finishedAt']) if (!finiteNumber(item[field])) errors.push(`${path}.${field} must be a finite number.`);
 		validateDiagnostics(item.diagnostics, `${path}.diagnostics`, errors);
@@ -269,8 +346,12 @@ export class RecoveryJournalStore {
 		const adapter = this.app.vault.adapter;
 		const serialized = JSON.stringify({ ...journal, updatedAt: Date.now() }, null, 2);
 		await adapter.write(RECOVERY_JOURNAL_TEMP_PATH, serialized);
-		if (await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH)) await adapter.remove(RECOVERY_JOURNAL_PREVIOUS_PATH);
-		if (await adapter.exists(RECOVERY_JOURNAL_PATH)) await adapter.rename(RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH);
+		const currentExists = await adapter.exists(RECOVERY_JOURNAL_PATH);
+		const previousExists = await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH);
+		if (currentExists) {
+			if (previousExists) await adapter.remove(RECOVERY_JOURNAL_PREVIOUS_PATH);
+			await adapter.rename(RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH);
+		}
 		try {
 			await adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PATH);
 		} catch (error) {
@@ -297,34 +378,51 @@ export class RecoveryJournalStore {
 			const interruptedPath = `.bangumi-sync-recovery.interrupted-${Date.now()}.json`;
 			await adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, interruptedPath);
 		}
-		const sourcePath = hasCurrent ? RECOVERY_JOURNAL_PATH : RECOVERY_JOURNAL_PREVIOUS_PATH;
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(await adapter.read(sourcePath));
-		} catch (error) {
-			const backupPath = `.bangumi-sync-recovery.corrupt-${Date.now()}.json`;
-			await adapter.rename(sourcePath, backupPath);
-			return { status: 'corrupt', message: error instanceof Error ? error.message : String(error), backupPath };
+		const invalid: Array<{ status: 'corrupt' | 'unsupported'; message?: string; schemaVersion?: unknown; backupPath: string }> = [];
+		const valid: Array<{ path: string; journal: PersistentRecoveryJournal }> = [];
+		for (const sourcePath of [RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH]) {
+			if (!await adapter.exists(sourcePath)) continue;
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(await adapter.read(sourcePath));
+			} catch (error) {
+				const backupPath = `.bangumi-sync-recovery.corrupt-${sourcePath === RECOVERY_JOURNAL_PATH ? 'current' : 'previous'}-${Date.now()}.json`;
+				await adapter.rename(sourcePath, backupPath);
+				invalid.push({ status: 'corrupt', message: error instanceof Error ? error.message : 'Invalid JSON.', backupPath });
+				continue;
+			}
+			const schemaVersion = (parsed as { schemaVersion?: unknown } | null)?.schemaVersion;
+			if (schemaVersion !== 1) {
+				const backupPath = `.bangumi-sync-recovery.unsupported-${sourcePath === RECOVERY_JOURNAL_PATH ? 'current' : 'previous'}-${Date.now()}.json`;
+				await adapter.rename(sourcePath, backupPath);
+				invalid.push({ status: 'unsupported', schemaVersion, backupPath });
+				continue;
+			}
+			const validation = validatePersistentRecoveryJournal(parsed);
+			if (!validation.valid) {
+				const backupPath = `.bangumi-sync-recovery.corrupt-structure-${sourcePath === RECOVERY_JOURNAL_PATH ? 'current' : 'previous'}-${Date.now()}.json`;
+				await adapter.rename(sourcePath, backupPath);
+				invalid.push({ status: 'corrupt', message: validation.errors.slice(0, 8).join(' '), backupPath });
+				continue;
+			}
+			valid.push({ path: sourcePath, journal: validation.journal });
 		}
-		const schemaVersion = (parsed as { schemaVersion?: unknown } | null)?.schemaVersion;
-		if (schemaVersion !== 1) {
-			const backupPath = `.bangumi-sync-recovery.unsupported-${Date.now()}.json`;
-			await adapter.rename(sourcePath, backupPath);
-			return { status: 'unsupported', schemaVersion, backupPath };
+		if (valid.length > 0) {
+			const selected = valid.find(item => item.path === RECOVERY_JOURNAL_PATH) ?? valid[0];
+			return { status: 'loaded', journal: selected.journal, recoveredFromPrevious: selected.path === RECOVERY_JOURNAL_PREVIOUS_PATH, temporaryFilePresent };
 		}
-		const validation = validatePersistentRecoveryJournal(parsed);
-		if (!validation.valid) {
-			const backupPath = `.bangumi-sync-recovery.corrupt-structure-${Date.now()}.json`;
-			await adapter.rename(sourcePath, backupPath);
-			return { status: 'corrupt', message: validation.errors.slice(0, 8).join(' '), backupPath };
-		}
-		return { status: 'loaded', journal: validation.journal, recoveredFromPrevious: !hasCurrent, temporaryFilePresent };
+		const first = invalid[0];
+		if (first?.status === 'unsupported') return { status: 'unsupported', schemaVersion: first.schemaVersion, backupPath: first.backupPath, backupPaths: invalid.map(item => item.backupPath) };
+		return { status: 'corrupt', message: invalid.length > 1 ? `No valid recovery journal candidate remained. ${invalid.map(item => item.message).filter(Boolean).join(' ')}` : (first?.message ?? 'Recovery journal is unavailable.'), backupPath: first?.backupPath ?? '', backupPaths: invalid.map(item => item.backupPath) };
 	}
 
 	async clear(): Promise<void> {
 		await this.writeQueue;
-		for (const path of [RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH]) {
+		for (const path of [RECOVERY_JOURNAL_PREVIOUS_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PATH]) {
 			if (await this.app.vault.adapter.exists(path)) await this.app.vault.adapter.remove(path);
+		}
+		for (const path of [RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH]) {
+			if (await this.app.vault.adapter.exists(path)) throw new Error(`Recovery journal cleanup incomplete: ${path}`);
 		}
 	}
 }
