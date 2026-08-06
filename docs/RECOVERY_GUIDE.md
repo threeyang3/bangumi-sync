@@ -2,13 +2,15 @@
 
 Bangumi Sync 6.11.2 在首次 Vault 修改前写入根目录 `.bangumi-sync-recovery.json`。journal 保存批次前内容、Subject ID、路径状态、created/rename 事实、封面资源和恢复尝试，不保存 Access Token、authorization、Bearer 值、API key 或其他 secret-bearing 字段。配置恢复只持久化脱敏的非敏感设置事实和 `accessTokenChanged`；恢复时 token 取自可确认的当前磁盘或运行期安全来源，无法确认则保持门禁。
 
-启动时 current、previous 和 temp 分别解析校验。有效 current 优先；current 损坏、schema 不支持或结构非法时会备份它并加载有效 previous，previous 不会在候选选择前被删除。temp 会单独备份，不阻止有效 current/previous；只有 temp 的中断状态仍会安全阻断。
+启动时 current、previous 和 temp 分别解析校验。已知 6.11.1 configuration journal 在任何 rename 或 backup 前先在内存中脱敏并验证；安全写回失败会保留原 source、阻止写入且不创建额外 backup。有效 current 优先；current 损坏、schema 不支持或结构非法时会备份它并加载有效 previous，previous 不会在候选选择前被删除。非 legacy temp 会单独备份，不阻止有效 current/previous；只有 temp 的中断状态仍会安全阻断。
 
 提交和回滚会先写入 `committed-cleanup-pending` 或 `rolled-back-cleanup-pending` terminal marker，再删除 previous、temp、current 并复核。任何 write/rename/remove 或 cleanup 失败都会进入 `journal-finalization-failed`，保持 recovery-required 和写门禁；Recovery Center 提供重试 finalization。重启读取 terminal marker 时只继续删除 journal，不回滚已经明确提交或已回滚的文件。
 
 图片请求失败可以计为普通下载失败；binary create/modify 已写入后 reject、写后读取复核失败或 journal 事实无法确认时，会进入 uncertain mutation recovery。系统会保留 active journal，自动删除新建资源或按记录恢复旧 binary，并复核长度和 SHA-256；rollback 不完整时继续保持 recovery-required。
 
 同一批次出现 uncertain binary mutation 时会停止新的条目，回滚本批次所有 Markdown transaction 和 binary 事实，不提供部分 Commit。关联链接不属于主事务，只有主事务正式 Commit 且 journal cleanup 成功后才作为 post-commit best-effort 副作用执行；失败只记录 warning，重载不会重复执行。
+
+Legacy migration failure 会记录 source path，不写入空 recovery journal，也不会轮转、覆盖或删除唯一旧 journal。Recovery Center 只显示“重试旧恢复日志迁移”；Retry rollback、Retry cleanup 和 Manual confirm 均由服务层拒绝。迁移成功后才恢复配置 recovery facts，写门禁继续保持到配置恢复完成。空字符串 previous Token 也会计算并匹配 SHA-256；无法证明 previous Token 时继续保持门禁。同步整批回滚、rollback-failed 或 journal finalization failure 的最终 progress 为 error，不显示同步完成。
 
 ## 启动校验
 
@@ -23,8 +25,8 @@ Bangumi Sync 6.11.2 在首次 Vault 修改前写入根目录 `.bangumi-sync-reco
 
 ## 动作矩阵
 
-| Recovery reason | Retry rollback | Rescan | Manual confirm |
-|---|---|---|---|
+| Recovery reason | Retry rollback | Retry cleanup | Retry migration | Rescan | Manual confirm |
+|---|---|---|---|---|---|
 | `rollback-failed` | 允许 | 允许 | 允许，诊断为零后完成 |
 | `rescan-failed` | 允许 | 允许 | 允许，诊断为零后完成 |
 | `state-restore-failed` | 允许 | 允许 | 允许，诊断为零后完成 |
@@ -33,6 +35,7 @@ Bangumi Sync 6.11.2 在首次 Vault 修改前写入根目录 `.bangumi-sync-reco
 | `journal-corrupt` | 禁止 | 允许全局诊断 | 仅在备份 Vault、明确接受原事务不可验证风险且诊断为零后允许 |
 | `configuration-rollback-failed` | 禁止 | 允许诊断 | 仅在磁盘、正式 settings 与 manager config 重新对齐后允许 |
 | `journal-finalization-failed` | 按 journal 阶段重试 finalization | 允许 | 禁止，保持写门禁 |
+| `legacy-journal-migration-failed` | 禁止 | 禁止 | 仅允许迁移旧日志 | 禁止 | 禁止 |
 
 Recovery Center 只显示策略允许的按钮；直接调用服务 API 也执行同一策略，不能绕过 UI。
 

@@ -10,6 +10,9 @@
 - uncertain binary mutation 现在停止批次并整批回滚；关联链接延后为主事务清理后的 post-commit best-effort 操作。
 - 已知 6.11.1 configuration journal 安全迁移并保存 Token hash；changed Token 无法确认 previous 时保持门禁。
 - journal finalization 的 write/rename/remove 失败统一保持 recovery-required；批量封面 recovery 正确计为 failed 并报告 error。
+- legacy current/previous/temp configuration journal 在备份前先脱敏；migration failure 保留 source 并只允许 migration retry，不写空 journal。
+- post-commit relations 只在明确 Commit、增量状态完成和 journal cleanup 成功后返回；rolled-back、rollback-failed 和 finalization failure 的 progress 统一为 error。
+- previous accessToken 为空字符串时仍计算 SHA-256，恢复选择使用存在性判断而不是 truthy 判断。
 
 ### 兼容性
 - 兼容 schema-1 journal、现有 Markdown、frontmatter、Subject ID 和设置；最低 Obsidian 版本仍为 1.8.7。

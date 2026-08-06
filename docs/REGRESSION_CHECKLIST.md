@@ -12,12 +12,18 @@
 - [x] binary modify/create 写入后 reject 传播为 uncertain mutation，并自动 rollback。
 - [x] binary rollback 后验证 byte length 与 SHA-256；失败继续 recovery-required。
 - [x] 普通同步、单条同步和批量封面共用 active journal 事实。
-- [ ] uncertain binary mutation 整批回滚，不进入 awaiting-user-decision。
-- [ ] 6.11.1 legacy configuration journal 安全迁移，Vault 无 token canary。
-- [ ] changed Token 只接受可证明的 previous Token，无法确认时保持门禁。
-- [ ] 关联链接只在主事务 commit 与 journal cleanup 成功后执行。
-- [ ] terminal journal write/rename/remove 失败进入 journal-finalization-failed 并保持门禁。
+- [x] uncertain binary mutation 整批回滚，不进入 awaiting-user-decision。
+- [x] 6.11.1 legacy configuration journal 安全迁移，Vault 无 token canary。
+- [x] changed Token 只接受可证明的 previous Token，无法确认时保持门禁。
+- [x] 关联链接只在主事务 commit 与 journal cleanup 成功后执行。
+- [x] terminal journal write/rename/remove 失败进入 journal-finalization-failed 并保持门禁。
 - [ ] 批量封面 recovery 返回 failed 计数且最终 progress 为 error。
+- [x] legacy secret temp journal 在 backup 前脱敏，Vault 无 token canary。
+- [x] legacy migration failure 只允许 Retry migration，原 journal 不被覆盖。
+- [x] terminal marker 失败并回滚后不返回 relations，已有相关文件不变。
+- [x] empty previous Token 具有稳定 SHA-256，并可在同运行期和重启后匹配。
+- [x] rolled-back、rollback-failed 和 finalization-failed sync progress 为 error。
+- [x] 最终 production build 完成 Obsidian Sandbox 六场景验证。
 
 本文件记录 6.11.2 的发布门槛。6.10.x 历史项目见 [history/REGRESSION_CHECKLIST-6.10.x.md](./history/REGRESSION_CHECKLIST-6.10.x.md)。
 
@@ -84,10 +90,10 @@ git diff --check
 
 ## Obsidian Sandbox
 
-- [ ] 使用最终 production `main.js`、`manifest.json`、`styles.css`。
-- [ ] 完成上述启动、Recovery Center、commit、rename reload、cover 和 settings 故障注入。
-- [ ] 保存步骤、截图、console error、最终文件 hash、journal 与写门禁状态。
-- [ ] Sandbox 验证后 production build hash 与 Release assets 一致。
+- [x] 使用最终 production `main.js`、`manifest.json`、`styles.css`。
+- [x] 完成上述启动、Recovery Center、commit、rename reload、cover 和 settings 故障注入。
+- [x] 保存步骤、截图、console error、最终文件 hash、journal 与写门禁状态。
+- [x] Sandbox 验证后 production build hash 与 Release assets 一致。
 
 ## 发布
 

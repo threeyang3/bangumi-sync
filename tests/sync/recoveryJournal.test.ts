@@ -4,10 +4,12 @@ import {
 	RECOVERY_JOURNAL_PATH,
 	RECOVERY_JOURNAL_PREVIOUS_PATH,
 	RECOVERY_JOURNAL_TEMP_PATH,
+	migrateLegacyConfigurationJournal,
 	sanitizeConfigurationRecoveryFacts,
 	validatePersistentRecoveryJournal,
 } from '../../src/sync/recoveryJournal';
 import type { PersistentRecoveryJournal } from '../../src/sync/recoveryJournal';
+import { hashRecoveryContent } from '../../src/sync/recoveryContent';
 import { InMemoryVault } from '../mocks/inMemoryVault';
 
 function journal(): PersistentRecoveryJournal {
@@ -26,16 +28,16 @@ function journal(): PersistentRecoveryJournal {
 
 const LEGACY_SECRET = 'SECRET_TOKEN_MUST_NOT_SURVIVE_6_11_2_MIGRATION';
 
-function legacyConfigurationJournal(): Record<string, unknown> {
+function legacyConfigurationJournal(secret = LEGACY_SECRET): Record<string, unknown> {
 	return {
 		...journal(),
 		state: 'recovery-required',
 		configurationFacts: {
-			previousSettings: { accessToken: LEGACY_SECRET, scanFolderPath: 'Before' },
-			candidateSettings: { accessToken: `${LEGACY_SECRET}-candidate`, scanFolderPath: 'After' },
-			currentSettings: { accessToken: `${LEGACY_SECRET}-candidate` },
-			diskSettings: { accessToken: `${LEGACY_SECRET}-candidate` },
-			managerConfig: { accessToken: LEGACY_SECRET, pathTemplate: 'ACGN/{{id}}.md' },
+			previousSettings: { accessToken: secret, scanFolderPath: 'Before' },
+			candidateSettings: { accessToken: `${secret}-candidate`, scanFolderPath: 'After' },
+			currentSettings: { accessToken: `${secret}-candidate` },
+			diskSettings: { accessToken: `${secret}-candidate` },
+			managerConfig: { accessToken: secret, pathTemplate: 'ACGN/{{id}}.md' },
 		},
 	};
 }
@@ -129,6 +131,52 @@ describe('persistent recovery journal', () => {
 			expect(result.backupPath).toContain('corrupt-structure');
 			expect(vault.contents.get(result.backupPath)).toBe(JSON.stringify({ schemaVersion: 1 }));
 		}
+	});
+
+	it('sanitizes a temporary-only legacy configuration journal before preserving the interrupted candidate', async () => {
+		const secret = 'SECRET_TOKEN_MUST_NOT_SURVIVE_LEGACY_TEMP_MIGRATION';
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_TEMP_PATH, JSON.stringify(legacyConfigurationJournal(secret)));
+
+		const result = await new RecoveryJournalStore(vault.app).load();
+
+		expect(result.status).toBe('corrupt');
+		expect(recoveryFiles(vault).join('\n')).not.toContain(secret);
+		expect(Array.from(vault.files.keys()).some(path => path.includes('corrupt-temp-'))).toBe(true);
+	});
+
+	it.each([RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH])(
+		'sanitizes a legacy temporary journal before loading a valid candidate from %s',
+		async sourcePath => {
+			const secret = 'SECRET_TOKEN_MUST_NOT_SURVIVE_LEGACY_TEMP_MIGRATION';
+			const vault = new InMemoryVault();
+			vault.addFile(sourcePath, JSON.stringify({ ...journal(), journalId: sourcePath }));
+			vault.addFile(RECOVERY_JOURNAL_TEMP_PATH, JSON.stringify(legacyConfigurationJournal(secret)));
+
+			const result = await new RecoveryJournalStore(vault.app).load();
+
+			expect(result).toMatchObject({ status: 'loaded', journal: { journalId: sourcePath } });
+			expect(recoveryFiles(vault).join('\n')).not.toContain(secret);
+		},
+	);
+
+	it('keeps a legacy temporary migration failure isolated without creating another secret copy', async () => {
+		const secret = 'SECRET_TOKEN_MUST_NOT_SURVIVE_LEGACY_TEMP_MIGRATION';
+		const vault = new InMemoryVault();
+		const original = JSON.stringify(legacyConfigurationJournal(secret));
+		vault.addFile(RECOVERY_JOURNAL_TEMP_PATH, original);
+		const adapter = vault.app.vault.adapter;
+		const originalWrite = adapter.write.bind(adapter);
+		adapter.write = (path, data) => path === RECOVERY_JOURNAL_TEMP_PATH
+			? Promise.reject(new Error(`injected ${secret}`))
+			: originalWrite(path, data);
+
+		const result = await new RecoveryJournalStore(vault.app).load();
+
+		expect(result).toMatchObject({ status: 'migration-failed', sourcePath: RECOVERY_JOURNAL_TEMP_PATH });
+		if (result.status === 'migration-failed') expect(result.message).not.toContain(secret);
+		expect(vault.contents.get(RECOVERY_JOURNAL_TEMP_PATH)).toBe(original);
+		expect(Array.from(vault.files.keys()).filter(path => path !== RECOVERY_JOURNAL_TEMP_PATH)).toEqual([]);
 	});
 
 	it.each([
@@ -270,6 +318,18 @@ describe('persistent recovery journal', () => {
 		expect((await store.load()).status).toBe('loaded');
 		expect((await store.load()).status).toBe('loaded');
 		expect(recoveryFiles(vault).join('\n')).not.toContain(LEGACY_SECRET);
+	});
+
+	it('hashes an empty previous access token while migrating a legacy journal', async () => {
+		const legacy = legacyConfigurationJournal('');
+		const facts = (legacy.configurationFacts as Record<string, Record<string, unknown>>);
+		facts.candidateSettings.accessToken = 'new-token';
+		facts.currentSettings.accessToken = 'new-token';
+		facts.diskSettings.accessToken = 'new-token';
+
+		const migrated = await migrateLegacyConfigurationJournal(legacy);
+
+		expect(migrated?.configurationFacts?.previousAccessTokenSha256).toBe(await hashRecoveryContent(''));
 	});
 
 	it('keeps a terminal current journal when previous cleanup fails', async () => {

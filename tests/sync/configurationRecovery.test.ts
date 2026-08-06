@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { RuntimeConfigurationRecoveryFacts } from '../../src/sync/recoveryJournal';
-import { RECOVERY_JOURNAL_PATH, selectPreviousAccessToken } from '../../src/sync/recoveryJournal';
+import { RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH, RECOVERY_JOURNAL_TEMP_PATH, selectPreviousAccessToken } from '../../src/sync/recoveryJournal';
 import { hashRecoveryContent } from '../../src/sync/recoveryContent';
 import type { SyncManagerConfig } from '../../src/sync/syncManager';
 import { RecoveryRequiredError, SyncManager } from '../../src/sync/syncManager';
@@ -24,6 +24,23 @@ function facts(): RuntimeConfigurationRecoveryFacts {
 		currentSettings: { accessToken: 'new-token' },
 		diskSettings: { accessToken: 'new-token' },
 		managerConfig: { accessToken: 'old-token' },
+	};
+}
+
+function legacyConfigurationJournal(): Record<string, unknown> {
+	return {
+		schemaVersion: 1, journalId: 'legacy-configuration', pluginVersion: '6.11.1', state: 'recovery-required', createdAt: 1, updatedAt: 1,
+		scanRoot: 'ACGN', affectedSubjectIds: [], originalPathStates: {}, subjectExpectations: [], contentExpectations: [],
+		createdPathExpectations: [], renameExpectations: [], createdResourcePaths: [], updatedResourceExpectations: [], orphanTemporaryPaths: [], attempts: [],
+		resultSnapshot: {
+			total: 0, added: 0, skipped: 0, errors: 0, created: 0, updated: 0, unchanged: 0, renamed: 0, collisionResolved: 0,
+			failed: 0, duration: 0, errorDetails: [], outcomes: [], warnings: [], rolledBack: 0, success: false, completion: 'failed', batchFiles: [], wasCancelled: false, canRollback: false,
+		},
+		configurationFacts: {
+			previousSettings: { accessToken: 'legacy-old', scanFolderPath: 'Before' },
+			candidateSettings: { accessToken: 'legacy-new', scanFolderPath: 'After' },
+			currentSettings: { accessToken: 'legacy-new' }, diskSettings: { accessToken: 'legacy-new' }, managerConfig: { accessToken: 'legacy-old' },
+		},
 	};
 }
 
@@ -138,5 +155,58 @@ describe('configuration rollback recovery', () => {
 		expect(await selectPreviousAccessToken({ accessTokenChanged: true, previousAccessTokenSha256: previousHash, diskToken: 'new-token' })).toBeUndefined();
 		expect(await selectPreviousAccessToken({ accessTokenChanged: true, previousAccessTokenSha256: previousHash, diskToken: 'wrong-token' })).toBeUndefined();
 		expect(await selectPreviousAccessToken({ accessTokenChanged: true, diskToken: 'new-token', runtimePreviousToken: 'old-token' })).toBeUndefined();
+	});
+
+	it('selects an empty previous token only when its hash proves the source', async () => {
+		const previousHash = await hashRecoveryContent('');
+		expect(await selectPreviousAccessToken({ accessTokenChanged: true, previousAccessTokenSha256: previousHash, runtimePreviousToken: '', diskToken: 'new-token' })).toBe('');
+		expect(await selectPreviousAccessToken({ accessTokenChanged: true, previousAccessTokenSha256: previousHash, diskToken: '' })).toBe('');
+		expect(await selectPreviousAccessToken({ accessTokenChanged: true, previousAccessTokenSha256: previousHash, diskToken: 'new-token' })).toBeUndefined();
+	});
+
+	it('persists the hash for an empty previous token during runtime recovery', async () => {
+		const vault = new InMemoryVault();
+		const manager = new SyncManager(vault.app, config());
+		const recoveryFacts = facts();
+		recoveryFacts.previousSettings.accessToken = '';
+		await manager.requireConfigurationRecovery(new Error('rollback write failed'), recoveryFacts);
+
+		const persisted = JSON.parse(vault.contents.get(RECOVERY_JOURNAL_PATH) ?? '{}') as {
+			configurationFacts?: { previousAccessTokenSha256?: string };
+		};
+		expect(persisted.configurationFacts?.previousAccessTokenSha256).toBe(await hashRecoveryContent(''));
+	});
+
+	it('keeps legacy migration failure migration-only across retry and reload', async () => {
+		const vault = new InMemoryVault();
+		const original = JSON.stringify(legacyConfigurationJournal());
+		vault.addFile(RECOVERY_JOURNAL_PATH, original);
+		const adapter = vault.app.vault.adapter;
+		const originalWrite = adapter.write.bind(adapter);
+		adapter.write = (path, data) => path === RECOVERY_JOURNAL_TEMP_PATH
+			? Promise.reject(new Error('injected migration write failure'))
+			: originalWrite(path, data);
+
+		const manager = new SyncManager(vault.app, config());
+		await manager.initializeRecovery();
+		expect(manager.getRecoveryRequired()).toMatchObject({ reason: 'legacy-journal-migration-failed', legacyMigration: { sourcePath: RECOVERY_JOURNAL_PATH } });
+		expect(manager.getRecoveryActionPolicy()).toMatchObject({ allowRetryMigration: true, allowRetryRollback: false, allowRetryCleanup: false, allowManualConfirmation: false });
+		expect(await manager.retryRollbackRecovery()).toMatchObject({ status: 'blocked', recovered: false });
+		expect(await manager.retryJournalCleanup()).toMatchObject({ status: 'blocked', recovered: false });
+		expect(await manager.confirmManualRecovery()).toMatchObject({ status: 'blocked', recovered: false });
+		const failedMigration = await manager.retryLegacyJournalMigration();
+		expect(failedMigration).toMatchObject({ status: 'failed', recovered: false });
+		expect(vault.contents.get(RECOVERY_JOURNAL_PATH)).toBe(original);
+
+		const reloaded = new SyncManager(vault.app, config());
+		await reloaded.initializeRecovery();
+		expect(reloaded.getRecoveryRequired()?.reason).toBe('legacy-journal-migration-failed');
+
+		adapter.write = originalWrite;
+		const migrated = await reloaded.retryLegacyJournalMigration();
+		expect(migrated).toMatchObject({ action: 'retry-migration', status: 'recovered', recovered: true });
+		expect(reloaded.getRecoveryRequired()?.reason).toBe('configuration-rollback-failed');
+		expect(vault.contents.get(RECOVERY_JOURNAL_PATH)).not.toContain('legacy-old');
+		expect(vault.contents.get(RECOVERY_JOURNAL_PREVIOUS_PATH) ?? '').not.toContain('legacy-old');
 	});
 });

@@ -687,6 +687,39 @@ describe('SyncManager path transaction integration', () => {
 		if (markerFailureResult.status === 'rollback-failed') expect(manager.getManagerState()).toBe('recovery-required');
 	});
 
+	it('does not emit automatic relations after a committed marker failure rolls the batch back', async () => {
+		const vault = new InMemoryVault();
+		const incoming = makeSubject(10, '2020-01-01', '新条目');
+		const related = makeSubject(99, '2019-01-01', '已有条目');
+		const relatedPath = 'ACGN/music/已有条目.md';
+		const relatedContent = '---\nid: 99\n中文名: "已有条目"\n---\n原始内容';
+		vault.addFile(relatedPath, relatedContent);
+		const manager = createManager(vault, [incoming, related], {
+			relationsById: new Map([[10, [{ id: 99, type: SubjectType.Music, name: '已有条目', name_cn: '已有条目', relation: '关联' }]]]),
+		});
+		manager.updateConfig({ enableRelatedLinks: true });
+		const progress: string[] = [];
+		manager.setProgressCallback(value => progress.push(value.status));
+		const adapter = vault.app.vault.adapter;
+		const originalWrite = adapter.write.bind(adapter);
+		let failedTerminalWrite = false;
+		adapter.write = (path, data) => {
+			const state = path === '.bangumi-sync-recovery.tmp.json' ? (JSON.parse(data) as { state?: string }).state : undefined;
+			if (!failedTerminalWrite && state === 'committed-cleanup-pending') {
+				failedTerminalWrite = true;
+				return Promise.reject(new Error('injected automatic terminal marker failure'));
+			}
+			return originalWrite(path, data);
+		};
+
+		const result = await manager.syncByCollections([makeCollection(incoming)], { concurrency: 1 });
+
+		expect(['rolled-back', 'rollback-failed']).toContain(result.completion);
+		expect(vault.files.has('ACGN/music/新条目.md')).toBe(false);
+		expect(vault.contents.get(relatedPath)).toBe(relatedContent);
+		expect(progress.at(-1)).toBe('error');
+	});
+
 	it('retains recovery context after rollback failure and retries only unresolved work', async () => {
 		const vault = new InMemoryVault();
 		const first = makeSubject(10, '2020-01-01', '成功');
@@ -1040,6 +1073,37 @@ describe('SyncManager path transaction integration', () => {
 		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
 	});
 
+	it.each(['sync', 'syncByCollections', 'executeSync'] as const)(
+		'reports error progress when %s ends in an uncertain-binary rollback',
+		async entry => {
+			const vault = new InMemoryVault();
+			const subject = makeSubject(20, '2024-01-01', `进度-${entry}`);
+			subject.images = { large: 'https://example.com/20.jpg' };
+			const manager = createManager(vault, [subject]);
+			manager.updateConfig({ downloadImages: true, imagePathTemplate: 'assets/{{id}}.jpg' }, ['downloadImages', 'imagePathTemplate']);
+			setRequestUrlHandler(() => Promise.resolve({ status: 200, arrayBuffer: new Uint8Array([7, 8, 9]).buffer }));
+			vault.app.vault.createBinary = (path, content) => {
+				vault.addBinaryFile(path, new Uint8Array(content));
+				return Promise.reject(new Error('injected post-create failure'));
+			};
+			const progress: string[] = [];
+			manager.setProgressCallback(value => progress.push(value.status));
+
+			const result = entry === 'sync'
+				? await manager.sync({ subjectTypes: [SubjectType.Music], collectionTypes: [CollectionType.Done], limit: 0, force: false }, 1)
+				: entry === 'syncByCollections'
+					? await manager.syncByCollections([makeCollection(subject)], { concurrency: 1 })
+					: await (async () => {
+						const prepared = await manager.prepareSync({ subjectTypes: [SubjectType.Music], collectionTypes: [CollectionType.Done], limit: 0, force: false });
+						expect(prepared.success).toBe(true);
+						return manager.executeSync(prepared.previewItems ?? [], 'all', undefined, 1);
+					})();
+
+			expect(result.completion).toBe('rolled-back');
+			expect(progress.at(-1)).toBe('error');
+		},
+	);
+
 	it('restores a later uncertain cover update and keeps no partial batch commit', async () => {
 		const vault = new InMemoryVault();
 		const first = makeSubject(10, '2024-01-01', '先成功');
@@ -1086,9 +1150,13 @@ describe('SyncManager path transaction integration', () => {
 		const originalRemove = adapter.remove.bind(adapter);
 		adapter.remove = path => path === 'assets/10.jpg' ? Promise.reject(new Error('injected binary rollback failure')) : originalRemove(path);
 
-		await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+		const progress: string[] = [];
+		manager.setProgressCallback(value => progress.push(value.status));
+		const result = await manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
 
 		expect(manager.getRecoveryRequired()?.reason).toBe('rollback-failed');
+		expect(result.completion).toBe('rollback-failed');
+		expect(progress.at(-1)).toBe('error');
 		expect(() => manager.ensureCanStartSync()).toThrow(RecoveryRequiredError);
 		expect(await adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(true);
 		adapter.remove = originalRemove;

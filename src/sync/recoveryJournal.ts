@@ -97,8 +97,8 @@ export async function migrateLegacyConfigurationJournal(value: unknown): Promise
 	const previousToken = typeof runtime.previousSettings.accessToken === 'string' ? runtime.previousSettings.accessToken : undefined;
 	const candidateToken = typeof runtime.candidateSettings.accessToken === 'string' ? runtime.candidateSettings.accessToken : undefined;
 	const facts = sanitizeConfigurationRecoveryFacts(runtime, {
-		previousAccessTokenSha256: previousToken ? await hashRecoveryContent(previousToken) : undefined,
-		candidateAccessTokenSha256: candidateToken ? await hashRecoveryContent(candidateToken) : undefined,
+		previousAccessTokenSha256: previousToken !== undefined ? await hashRecoveryContent(previousToken) : undefined,
+		candidateAccessTokenSha256: candidateToken !== undefined ? await hashRecoveryContent(candidateToken) : undefined,
 	});
 	return { ...value, configurationFacts: facts } as unknown as PersistentRecoveryJournal;
 }
@@ -372,7 +372,7 @@ export function validatePersistentRecoveryJournal(value: unknown): PersistentRec
 	if (validateArray(value.attempts, 'attempts', errors)) value.attempts.forEach((item, index) => {
 		const path = `attempts[${index}]`;
 		if (!isRecord(item)) { errors.push(`${path} must be a plain object.`); return; }
-		if (!['automatic-rollback', 'retry-rollback', 'retry-cleanup', 'confirm-manual', 'rescan'].includes(String(item.action))) errors.push(`${path}.action is invalid.`);
+		if (!['automatic-rollback', 'retry-rollback', 'retry-cleanup', 'retry-migration', 'confirm-manual', 'rescan'].includes(String(item.action))) errors.push(`${path}.action is invalid.`);
 		if (!['rolled-back', 'rollback-failed', 'recovered', 'blocked', 'failed', 'no-recovery'].includes(String(item.status))) errors.push(`${path}.status is invalid.`);
 		for (const field of ['startedAt', 'finishedAt']) if (!finiteNumber(item[field])) errors.push(`${path}.${field} must be a finite number.`);
 		validateDiagnostics(item.diagnostics, `${path}.diagnostics`, errors);
@@ -425,6 +425,8 @@ export class RecoveryJournalStore {
 	private async migrateCandidate(sourcePath: string, parsed: unknown): Promise<PersistentRecoveryJournal | null> {
 		const migrated = await migrateLegacyConfigurationJournal(parsed);
 		if (!migrated) return null;
+		const validation = validatePersistentRecoveryJournal(migrated);
+		if (!validation.valid) throw new Error('Migrated legacy recovery journal is invalid.');
 		const serialized = JSON.stringify(migrated, null, 2);
 		await this.app.vault.adapter.write(RECOVERY_JOURNAL_TEMP_PATH, serialized);
 		const original = await this.app.vault.adapter.read(sourcePath);
@@ -443,11 +445,40 @@ export class RecoveryJournalStore {
 		return migrated;
 	}
 
+	private async sanitizeLegacyTemporaryCandidate(sourcePath: string): Promise<'not-legacy' | 'sanitized' | 'migration-failed'> {
+		const adapter = this.app.vault.adapter;
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(await adapter.read(sourcePath));
+		} catch {
+			return 'not-legacy';
+		}
+		if (!detectLegacyConfigurationJournal(parsed)) return 'not-legacy';
+		try {
+			const migrated = await migrateLegacyConfigurationJournal(parsed);
+			if (!migrated) return 'not-legacy';
+			const validation = validatePersistentRecoveryJournal(migrated);
+			if (!validation.valid) throw new Error('Migrated legacy temporary recovery journal is invalid.');
+			await adapter.write(sourcePath, JSON.stringify(validation.journal, null, 2));
+			const persisted = validatePersistentRecoveryJournal(JSON.parse(await adapter.read(sourcePath)));
+			if (!persisted.valid) throw new Error('Sanitized legacy temporary recovery journal could not be verified.');
+			return 'sanitized';
+		} catch {
+			return 'migration-failed';
+		}
+	}
+
 	async load(): Promise<RecoveryJournalLoadResult> {
 		const adapter = this.app.vault.adapter;
 		const hasCurrent = await adapter.exists(RECOVERY_JOURNAL_PATH);
 		const hasPrevious = await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH);
 		const temporaryFilePresent = await adapter.exists(RECOVERY_JOURNAL_TEMP_PATH);
+		if (temporaryFilePresent) {
+			const temporaryMigration = await this.sanitizeLegacyTemporaryCandidate(RECOVERY_JOURNAL_TEMP_PATH);
+			if (temporaryMigration === 'migration-failed') {
+				return { status: 'migration-failed', sourcePath: RECOVERY_JOURNAL_TEMP_PATH, message: 'Legacy temporary configuration journal migration failed.' };
+			}
+		}
 		if (!hasCurrent && !hasPrevious && temporaryFilePresent) {
 			const backupPath = `.bangumi-sync-recovery.corrupt-temp-${Date.now()}.json`;
 			await adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, backupPath);

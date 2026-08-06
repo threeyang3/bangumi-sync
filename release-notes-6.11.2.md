@@ -12,6 +12,9 @@
 - 关联链接改为主事务提交并清理 journal 后的 post-commit best-effort 操作；失败只产生 warning。
 - terminal marker 的写入、rename 或 cleanup 失败统一进入 `journal-finalization-failed` recovery。
 - 批量封面只有完成 binary、Markdown 和 journal finalization 才计为 downloaded/skipped；recovery 返回 failed 并报告 error。
+- legacy current/previous/temp configuration journal 在任何 backup 前先安全脱敏；migration failure 保留原 source，Recovery Center 只允许 Retry migration。
+- post-commit relations 只有在 path states、terminal marker、transaction commit、incremental finish 和 journal cleanup 全部成功后才执行；回滚批次不返回 relations。
+- 空字符串 previous Token 也会计算有效 SHA-256；rolled-back、rollback-failed 和 finalization failure 不再把同步 progress 报为 completed。
 
 ## Compatibility
 

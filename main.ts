@@ -229,7 +229,9 @@ export default class BangumiPlugin extends Plugin {
 		}
 		new RecoveryCenterModal(this.app, {
 			getRecovery: () => manager.getRecoveryRequired(),
-			retryRollback: () => manager.retryRecovery(),
+			retryRollback: () => manager.retryRollbackRecovery(),
+			retryCleanup: () => manager.retryJournalCleanup(),
+			retryMigration: () => manager.retryLegacyJournalMigration(),
 			confirmManual: acceptRisk => manager.confirmManualRecovery({ acceptUnverifiableJournalRisk: acceptRisk }),
 			rescan: () => manager.rescanRecovery(),
 			subscribe: listener => manager.subscribeRecoveryState(listener),
