@@ -12,8 +12,14 @@
 - [x] binary modify/create 写入后 reject 传播为 uncertain mutation，并自动 rollback。
 - [x] binary rollback 后验证 byte length 与 SHA-256；失败继续 recovery-required。
 - [x] 普通同步、单条同步和批量封面共用 active journal 事实。
+- [ ] uncertain binary mutation 整批回滚，不进入 awaiting-user-decision。
+- [ ] 6.11.1 legacy configuration journal 安全迁移，Vault 无 token canary。
+- [ ] changed Token 只接受可证明的 previous Token，无法确认时保持门禁。
+- [ ] 关联链接只在主事务 commit 与 journal cleanup 成功后执行。
+- [ ] terminal journal write/rename/remove 失败进入 journal-finalization-failed 并保持门禁。
+- [ ] 批量封面 recovery 返回 failed 计数且最终 progress 为 error。
 
-本文件只记录 6.11.1 的发布门槛。6.10.x 历史项目见 [history/REGRESSION_CHECKLIST-6.10.x.md](./history/REGRESSION_CHECKLIST-6.10.x.md)。
+本文件记录 6.11.2 的发布门槛。6.10.x 历史项目见 [history/REGRESSION_CHECKLIST-6.10.x.md](./history/REGRESSION_CHECKLIST-6.10.x.md)。
 
 ## 自动化前置检查
 

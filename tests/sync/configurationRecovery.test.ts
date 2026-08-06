@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { RuntimeConfigurationRecoveryFacts } from '../../src/sync/recoveryJournal';
-import { RECOVERY_JOURNAL_PATH } from '../../src/sync/recoveryJournal';
+import { RECOVERY_JOURNAL_PATH, selectPreviousAccessToken } from '../../src/sync/recoveryJournal';
+import { hashRecoveryContent } from '../../src/sync/recoveryContent';
 import type { SyncManagerConfig } from '../../src/sync/syncManager';
 import { RecoveryRequiredError, SyncManager } from '../../src/sync/syncManager';
 import { InMemoryVault } from '../mocks/inMemoryVault';
@@ -61,9 +62,11 @@ describe('configuration rollback recovery', () => {
 		await manager.requireConfigurationRecovery(new Error('rollback write failed'), recoveryFacts);
 
 		expect(await manager.confirmManualRecovery()).toMatchObject({ status: 'recovered', recovered: true });
-		expect(recoverConfiguration).toHaveBeenCalledWith({
+		expect(recoverConfiguration).toHaveBeenCalledWith(expect.objectContaining({
 			previousSettings: {}, candidateSettings: {}, currentSettings: {}, diskSettings: {}, managerConfig: {}, accessTokenChanged: true,
-		});
+			previousAccessTokenSha256: await hashRecoveryContent('old-token'),
+			candidateAccessTokenSha256: await hashRecoveryContent('new-token'),
+		}));
 		expect(dependentRefresh).toHaveBeenCalledOnce();
 		expect(manager.getRecoveryRequired()).toBeNull();
 		expect(() => manager.ensureCanStartSync()).not.toThrow();
@@ -125,5 +128,15 @@ describe('configuration rollback recovery', () => {
 		expect(await manager.confirmManualRecovery({ acceptUnverifiableJournalRisk: true }))
 			.toMatchObject({ status: 'recovered', recovered: true });
 		expect(manager.getRecoveryRequired()).toBeNull();
+	});
+
+	it('selects only a token that can represent the previous configuration', async () => {
+		const previousHash = await hashRecoveryContent('old-token');
+		expect(await selectPreviousAccessToken({ accessTokenChanged: false, previousAccessTokenSha256: previousHash, diskToken: 'old-token' })).toBe('old-token');
+		expect(await selectPreviousAccessToken({ accessTokenChanged: true, previousAccessTokenSha256: previousHash, diskToken: 'new-token', runtimePreviousToken: 'old-token' })).toBe('old-token');
+		expect(await selectPreviousAccessToken({ accessTokenChanged: true, previousAccessTokenSha256: previousHash, diskToken: 'old-token' })).toBe('old-token');
+		expect(await selectPreviousAccessToken({ accessTokenChanged: true, previousAccessTokenSha256: previousHash, diskToken: 'new-token' })).toBeUndefined();
+		expect(await selectPreviousAccessToken({ accessTokenChanged: true, previousAccessTokenSha256: previousHash, diskToken: 'wrong-token' })).toBeUndefined();
+		expect(await selectPreviousAccessToken({ accessTokenChanged: true, diskToken: 'new-token', runtimePreviousToken: 'old-token' })).toBeUndefined();
 	});
 });

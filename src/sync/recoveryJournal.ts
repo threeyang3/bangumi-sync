@@ -3,6 +3,7 @@ import type { SubjectPathState } from './localSubjectRegistry';
 import type { RecoveryAttempt, RecoveryRequiredState } from './syncManager';
 import type { RecoveryCreatedFileExpectation, RecoveryRenameExpectation } from './syncTransaction';
 import type { SyncResultWithRollback } from './syncStatus';
+import { hashRecoveryContent } from './recoveryContent';
 
 export const RECOVERY_JOURNAL_PATH = '.bangumi-sync-recovery.json';
 export const RECOVERY_JOURNAL_TEMP_PATH = '.bangumi-sync-recovery.tmp.json';
@@ -33,6 +34,8 @@ export interface PersistentConfigurationRecoveryFacts {
 	diskSettings: PersistentConfigurationSnapshot;
 	managerConfig: PersistentConfigurationSnapshot;
 	accessTokenChanged: boolean;
+	previousAccessTokenSha256?: string;
+	candidateAccessTokenSha256?: string;
 }
 
 /** Compatibility name retained for runtime callers; only persistent facts are journaled. */
@@ -62,14 +65,63 @@ function sanitizePersistentValue(value: unknown, key?: string): PersistentConfig
 	return undefined;
 }
 
-export function sanitizeConfigurationRecoveryFacts(runtime: RuntimeConfigurationRecoveryFacts): PersistentConfigurationRecoveryFacts {
+export function sanitizeConfigurationRecoveryFacts(
+	runtime: RuntimeConfigurationRecoveryFacts,
+	hashes: { previousAccessTokenSha256?: string; candidateAccessTokenSha256?: string } = {},
+): PersistentConfigurationRecoveryFacts {
 	const snapshot = (value: Record<string, unknown>): PersistentConfigurationSnapshot => sanitizePersistentValue(value) as PersistentConfigurationSnapshot;
 	return {
 		previousSettings: snapshot(runtime.previousSettings), candidateSettings: snapshot(runtime.candidateSettings),
 		currentSettings: snapshot(runtime.currentSettings), diskSettings: snapshot(runtime.diskSettings),
 		managerConfig: snapshot(runtime.managerConfig),
 		accessTokenChanged: runtime.previousSettings.accessToken !== runtime.candidateSettings.accessToken,
+		...hashes,
 	};
+}
+
+export function detectLegacyConfigurationJournal(value: unknown): value is Record<string, unknown> & {
+	configurationFacts: Record<string, unknown>;
+} {
+	if (!isRecord(value) || value.schemaVersion !== 1 || !isRecord(value.configurationFacts)) return false;
+	const configurationFacts = value.configurationFacts;
+	return !Object.prototype.hasOwnProperty.call(configurationFacts, 'accessTokenChanged')
+		&& ['previousSettings', 'candidateSettings', 'currentSettings', 'diskSettings', 'managerConfig']
+			.every(field => isRecord(configurationFacts[field]));
+}
+
+/** Migrate the known 6.11.1 configuration-facts shape without creating a secret-bearing backup. */
+export async function migrateLegacyConfigurationJournal(value: unknown): Promise<PersistentRecoveryJournal | null> {
+	if (!detectLegacyConfigurationJournal(value)) return null;
+	const legacy = value.configurationFacts;
+	const runtime = legacy as unknown as RuntimeConfigurationRecoveryFacts;
+	const previousToken = typeof runtime.previousSettings.accessToken === 'string' ? runtime.previousSettings.accessToken : undefined;
+	const candidateToken = typeof runtime.candidateSettings.accessToken === 'string' ? runtime.candidateSettings.accessToken : undefined;
+	const facts = sanitizeConfigurationRecoveryFacts(runtime, {
+		previousAccessTokenSha256: previousToken ? await hashRecoveryContent(previousToken) : undefined,
+		candidateAccessTokenSha256: candidateToken ? await hashRecoveryContent(candidateToken) : undefined,
+	});
+	return { ...value, configurationFacts: facts } as unknown as PersistentRecoveryJournal;
+}
+
+export async function selectPreviousAccessToken(options: {
+	accessTokenChanged: boolean;
+	previousAccessTokenSha256?: string;
+	diskToken?: string;
+	runtimeToken?: string;
+	runtimePreviousToken?: string;
+}): Promise<string | undefined> {
+	const matchesPrevious = async (token: string | undefined): Promise<boolean> => token !== undefined
+		&& (options.previousAccessTokenSha256 === undefined
+			? !options.accessTokenChanged
+			: await hashRecoveryContent(token) === options.previousAccessTokenSha256);
+	if (options.accessTokenChanged) {
+		if (await matchesPrevious(options.runtimePreviousToken)) return options.runtimePreviousToken;
+		if (await matchesPrevious(options.diskToken)) return options.diskToken;
+		return undefined;
+	}
+	if (await matchesPrevious(options.diskToken)) return options.diskToken;
+	if (await matchesPrevious(options.runtimeToken)) return options.runtimeToken;
+	return undefined;
 }
 
 export function redactConfigurationRecoveryMessage(message: string, runtime: RuntimeConfigurationRecoveryFacts, additionalSecrets: readonly string[] = []): string {
@@ -112,7 +164,8 @@ export type RecoveryJournalLoadResult =
 	| { status: 'none' }
 	| { status: 'loaded'; journal: PersistentRecoveryJournal; recoveredFromPrevious: boolean; temporaryFilePresent: boolean }
 	| { status: 'corrupt'; message: string; backupPath: string; backupPaths?: string[] }
-	| { status: 'unsupported'; schemaVersion: unknown; backupPath: string; backupPaths?: string[] };
+	| { status: 'unsupported'; schemaVersion: unknown; backupPath: string; backupPaths?: string[] }
+	| { status: 'migration-failed'; message: string; sourcePath: string };
 
 export type PersistentRecoveryJournalValidation =
 	| { valid: true; journal: PersistentRecoveryJournal }
@@ -295,6 +348,12 @@ export function validatePersistentRecoveryJournal(value: unknown): PersistentRec
 				if (!isRecord(value.configurationFacts[field])) errors.push(`configurationFacts.${field} must be a plain object.`);
 			}
 			if (typeof value.configurationFacts.accessTokenChanged !== 'boolean') errors.push('configurationFacts.accessTokenChanged must be boolean.');
+			for (const field of ['previousAccessTokenSha256', 'candidateAccessTokenSha256']) {
+				const hash = value.configurationFacts[field];
+				if (hash !== undefined && (typeof hash !== 'string' || !/^[a-f0-9]{64}$/iu.test(hash))) {
+					errors.push(`configurationFacts.${field} must be a SHA-256 hex string.`);
+				}
+			}
 			const visit = (candidate: unknown, path: string): void => {
 				if (Array.isArray(candidate)) {
 					candidate.forEach((child, index) => visit(child, `${path}[${index}]`));
@@ -363,6 +422,27 @@ export class RecoveryJournalStore {
 		if (await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH)) await adapter.remove(RECOVERY_JOURNAL_PREVIOUS_PATH);
 	}
 
+	private async migrateCandidate(sourcePath: string, parsed: unknown): Promise<PersistentRecoveryJournal | null> {
+		const migrated = await migrateLegacyConfigurationJournal(parsed);
+		if (!migrated) return null;
+		const serialized = JSON.stringify(migrated, null, 2);
+		await this.app.vault.adapter.write(RECOVERY_JOURNAL_TEMP_PATH, serialized);
+		const original = await this.app.vault.adapter.read(sourcePath);
+		try {
+			await this.app.vault.adapter.remove(sourcePath);
+			await this.app.vault.adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, sourcePath);
+		} catch (error) {
+			// Never create a secret-bearing backup. Restore the original in place when removal succeeded but promotion failed.
+			try {
+				if (!await this.app.vault.adapter.exists(sourcePath)) await this.app.vault.adapter.write(sourcePath, original);
+			} catch {
+				// The original remains unavailable; the secure temp is still preferable to copying the secret elsewhere.
+			}
+			throw error;
+		}
+		return migrated;
+	}
+
 	async load(): Promise<RecoveryJournalLoadResult> {
 		const adapter = this.app.vault.adapter;
 		const hasCurrent = await adapter.exists(RECOVERY_JOURNAL_PATH);
@@ -398,7 +478,16 @@ export class RecoveryJournalStore {
 				invalid.push({ status: 'unsupported', schemaVersion, backupPath });
 				continue;
 			}
-			const validation = validatePersistentRecoveryJournal(parsed);
+			let candidate = parsed;
+			if (detectLegacyConfigurationJournal(parsed)) {
+				try {
+					const migrated = await this.migrateCandidate(sourcePath, parsed);
+					if (migrated) candidate = migrated;
+				} catch {
+					return { status: 'migration-failed', sourcePath, message: 'Legacy configuration journal migration failed.' };
+				}
+			}
+			const validation = validatePersistentRecoveryJournal(candidate);
 			if (!validation.valid) {
 				const backupPath = `.bangumi-sync-recovery.corrupt-structure-${sourcePath === RECOVERY_JOURNAL_PATH ? 'current' : 'previous'}-${Date.now()}.json`;
 				await adapter.rename(sourcePath, backupPath);

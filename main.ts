@@ -42,6 +42,7 @@ import { PathDiagnosticModal, PathMigrationPreviewModal } from './src/ui/pathToo
 import { RecoveryCenterModal } from './src/ui/recoveryCenterModal';
 import { assertWriteOperationAllowed, setWriteOperationGuard, WriteOperation } from './src/sync/writeOperationGate';
 import { cloneSyncManagerConfig, syncConfigFieldEqual } from './src/sync/syncConfig';
+import { selectPreviousAccessToken } from './src/sync/recoveryJournal';
 
 /**
  * 缓存数据结构
@@ -67,6 +68,7 @@ export default class BangumiPlugin extends Plugin {
 	private controlPanel: ControlPanel | null = null;
 	private appliedSyncConfig: SyncManagerConfig | null = null;
 	private lastSavedSettings: BangumiPluginSettings | null = null;
+	private runtimePreviousRecoveryToken: string | undefined;
 	private readonly settingsPersistence = new SettingsPersistenceCoordinator();
 
 	// 单集功能
@@ -434,6 +436,8 @@ export default class BangumiPlugin extends Plugin {
 			applyDependentServices: settings => { if (this.syncManager) this.refreshDependentServices(this.syncManager, settings); },
 			restoreDependentServices: settings => { if (this.syncManager) this.refreshDependentServices(this.syncManager, settings); },
 			onRollbackFailure: async (error, facts) => {
+					this.runtimePreviousRecoveryToken = typeof facts.previousSettings.accessToken === 'string'
+						? facts.previousSettings.accessToken : undefined;
 				const diskSettings: unknown = await this.loadData();
 				await this.syncManager?.requireConfigurationRecovery(error, {
 					previousSettings: { ...this.cloneSettings(facts.previousSettings) },
@@ -460,7 +464,13 @@ export default class BangumiPlugin extends Plugin {
 		const diskToken = currentDisk && typeof currentDisk === 'object' && !Array.isArray(currentDisk)
 			? (currentDisk as Record<string, unknown>).accessToken : undefined;
 		const runtimeToken = this.settings.accessToken;
-		const accessToken = typeof diskToken === 'string' ? diskToken : typeof runtimeToken === 'string' ? runtimeToken : undefined;
+		const accessToken = await selectPreviousAccessToken({
+			accessTokenChanged: facts.accessTokenChanged,
+			previousAccessTokenSha256: facts.previousAccessTokenSha256,
+			diskToken: typeof diskToken === 'string' ? diskToken : undefined,
+			runtimeToken: typeof runtimeToken === 'string' ? runtimeToken : undefined,
+			runtimePreviousToken: this.runtimePreviousRecoveryToken,
+		});
 		if (accessToken === undefined) throw new Error('A safe Access Token source could not be determined; configuration recovery remains blocked.');
 		const previous = this.cloneSettings({ ...facts.previousSettings, accessToken } as unknown as BangumiPluginSettings);
 		await this.saveData(previous);
@@ -473,6 +483,7 @@ export default class BangumiPlugin extends Plugin {
 		};
 		this.lastSavedSettings = this.cloneSettings(previous);
 		this.appliedSyncConfig = cloneSyncManagerConfig(config);
+		this.runtimePreviousRecoveryToken = undefined;
 		return config;
 	}
 

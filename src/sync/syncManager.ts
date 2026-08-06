@@ -14,7 +14,7 @@ import { Notice, App, TFile, normalizePath } from 'obsidian';
 import { BangumiClient } from '../api/client';
 import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType, RelatedSubject } from '../../common/api/types';
 import { FileManager, FileWriteStatus } from '../../common/file/fileManager';
-import { ImageHandler, ImageQuality } from '../../common/file/imageHandler';
+import { ImageHandler, ImageMutationUncertainError, ImageQuality } from '../../common/file/imageHandler';
 import { IncrementalSync } from './incrementalSync';
 import { determineSyncCompletion, SyncOptions, SyncResult, SyncProgress, SyncCancellationSignal, SyncResultWithRollback, SyncWarning } from './syncStatus';
 import { parseCharacters } from '../../common/parser/characterParser';
@@ -153,7 +153,7 @@ export interface PendingDecisionResult {
 }
 
 export interface RecoveryRequiredState {
-	reason: 'rollback-failed' | 'rescan-failed' | 'state-restore-failed' | 'journal-recovered' | 'journal-corrupt' | 'orphan-temporary' | 'configuration-rollback-failed' | 'journal-cleanup-failed';
+	reason: 'rollback-failed' | 'rescan-failed' | 'state-restore-failed' | 'journal-recovered' | 'journal-corrupt' | 'orphan-temporary' | 'configuration-rollback-failed' | 'journal-cleanup-failed' | 'journal-finalization-failed';
 	rollback: SyncRollbackResult;
 	affectedSubjectIds: number[];
 	originalPathStates: Record<string, SubjectPathState>;
@@ -354,6 +354,11 @@ export class SyncManager {
 			this.restorePersistentJournal(journal, 'journal-corrupt');
 			return;
 		}
+		if (loaded.status === 'migration-failed') {
+			const journal = this.createEmptyRecoveryJournal('recovery-required', `Legacy configuration journal migration failed during ${loaded.sourcePath}: ${errorMessage(loaded.message)}`);
+			this.restorePersistentJournal(journal, 'journal-finalization-failed');
+			return;
+		}
 		const orphanTemps = await this.findTransactionTemporaryPaths();
 		if (orphanTemps.length > 0) {
 			const journal = this.createEmptyRecoveryJournal('recovery-required');
@@ -384,7 +389,14 @@ export class SyncManager {
 			? `Settings persistence rollback failed: ${redactConfigurationRecoveryMessage(errorMessage(error), facts, [this.config.accessToken])}`
 			: 'Settings persistence rollback failed; no sanitized recovery facts were available.';
 		const journal = this.createEmptyRecoveryJournal('recovery-required', message);
-		journal.configurationFacts = facts ? sanitizeConfigurationRecoveryFacts(facts) : undefined;
+		if (facts) {
+			const previousToken = typeof facts.previousSettings.accessToken === 'string' ? facts.previousSettings.accessToken : undefined;
+			const candidateToken = typeof facts.candidateSettings.accessToken === 'string' ? facts.candidateSettings.accessToken : undefined;
+			journal.configurationFacts = sanitizeConfigurationRecoveryFacts(facts, {
+				previousAccessTokenSha256: previousToken ? await hashRecoveryContent(previousToken) : undefined,
+				candidateAccessTokenSha256: candidateToken ? await hashRecoveryContent(candidateToken) : undefined,
+			});
+		}
 		this.restorePersistentJournal(journal, 'configuration-rollback-failed');
 		await this.recoveryJournalStore.write(journal);
 	}
@@ -420,7 +432,7 @@ export class SyncManager {
 		};
 		this.pendingTransaction = pending;
 		this.recoveryRequired = {
-			reason: cleanupTerminal ? 'journal-cleanup-failed' : forcedReason, rollback: this.emptyRollbackResult(), affectedSubjectIds: [...journal.affectedSubjectIds],
+			reason: cleanupTerminal ? 'journal-finalization-failed' : forcedReason, rollback: this.emptyRollbackResult(), affectedSubjectIds: [...journal.affectedSubjectIds],
 			originalPathStates: this.clonePathStates(journal.originalPathStates), subjectExpectations: journal.subjectExpectations.map(item => ({ ...item })),
 			scanRoot: journal.scanRoot, contentExpectations: journal.contentExpectations.map(item => ({ ...item })),
 			forbiddenPathsAfterRollback: journal.createdPathExpectations.map(item => item.createdPath),
@@ -576,7 +588,9 @@ export class SyncManager {
 	}
 
 	retryRecovery(): Promise<RecoveryActionResult> {
-		return this.resolveRecoveryAction(this.recoveryRequired?.reason === 'journal-cleanup-failed' ? 'retry-cleanup' : 'retry-rollback');
+		const cleanupPending = this.activeRecoveryJournal?.state === 'committed-cleanup-pending'
+			|| this.activeRecoveryJournal?.state === 'rolled-back-cleanup-pending';
+		return this.resolveRecoveryAction(cleanupPending ? 'retry-cleanup' : 'retry-rollback');
 	}
 
 	retryJournalCleanup(): Promise<RecoveryActionResult> {
@@ -805,7 +819,34 @@ export class SyncManager {
 
 	private async persistPendingJournal(pending: PendingSyncTransaction, state: PersistentRecoveryJournal['state']): Promise<void> {
 		this.activeRecoveryJournal = this.journalFromPending(pending, state);
-		await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+		try {
+			await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+		} catch (error) {
+			this.enterJournalFinalizationRecovery(pending, error, 'terminal-write');
+			throw error;
+		}
+	}
+
+	private enterJournalFinalizationRecovery(
+		pending: PendingSyncTransaction,
+		error: unknown,
+		phase: 'terminal-write' | 'cleanup',
+	): void {
+		const message = `Recovery journal finalization failed (${phase}): ${errorMessage(error)}`;
+		if (this.activeRecoveryJournal) this.activeRecoveryJournal.blockingIssue = message;
+		this.pendingTransaction = pending;
+		this.recoveryRequired = {
+			reason: 'journal-finalization-failed', rollback: this.emptyRollbackResult(),
+			affectedSubjectIds: [...pending.affectedSubjectIds], originalPathStates: this.clonePathStates(pending.previousPathStates),
+			subjectExpectations: pending.subjectExpectations.map(item => ({ ...item })), scanRoot: pending.scanRootAtBatchStart,
+			contentExpectations: pending.contentExpectations.map(item => ({ ...item })),
+			forbiddenPathsAfterRollback: [...pending.forbiddenPathsAfterRollback], resourcePathsAfterRollback: [...pending.resourcePathsAfterRollback],
+			updatedResourceExpectations: pending.updatedResourceExpectations.map(item => ({ ...item })), orphanTemporaryPaths: [...pending.orphanTemporaryPaths],
+			configurationFacts: pending.configurationFacts, renameExpectations: pending.renameExpectations.map(item => ({ ...item })), attempts: [],
+			detectedAt: Date.now(), journalIssue: message,
+		};
+		this.setBatchTransactionState('rollback-failed');
+		this.notifyRecoveryStateChanged();
 	}
 
 	private pendingFromActiveJournal(state: PendingDecisionState): PendingSyncTransaction {
@@ -824,24 +865,6 @@ export class SyncManager {
 		};
 	}
 
-	private enterJournalCleanupRecovery(pending: PendingSyncTransaction, error: unknown): void {
-		const message = `Recovery journal cleanup failed: ${errorMessage(error)}`;
-		if (this.activeRecoveryJournal) this.activeRecoveryJournal.blockingIssue = message;
-		this.pendingTransaction = pending;
-		this.recoveryRequired = {
-			reason: 'journal-cleanup-failed', rollback: this.emptyRollbackResult(),
-			affectedSubjectIds: [...pending.affectedSubjectIds], originalPathStates: this.clonePathStates(pending.previousPathStates),
-			subjectExpectations: pending.subjectExpectations.map(item => ({ ...item })), scanRoot: pending.scanRootAtBatchStart,
-			contentExpectations: pending.contentExpectations.map(item => ({ ...item })),
-			forbiddenPathsAfterRollback: [...pending.forbiddenPathsAfterRollback], resourcePathsAfterRollback: [...pending.resourcePathsAfterRollback],
-			updatedResourceExpectations: pending.updatedResourceExpectations.map(item => ({ ...item })),
-			orphanTemporaryPaths: [...pending.orphanTemporaryPaths], configurationFacts: pending.configurationFacts,
-			renameExpectations: pending.renameExpectations.map(item => ({ ...item })), attempts: [], detectedAt: Date.now(), journalIssue: message,
-		};
-		this.setBatchTransactionState('rollback-failed');
-		this.notifyRecoveryStateChanged();
-	}
-
 	private async finalizePersistedTerminalJournal(
 		pending: PendingSyncTransaction,
 		terminal: 'committed' | 'rolled-back',
@@ -849,7 +872,7 @@ export class SyncManager {
 		try {
 			await this.recoveryJournalStore.clear();
 		} catch (error) {
-			this.enterJournalCleanupRecovery(pending, error);
+			this.enterJournalFinalizationRecovery(pending, error, 'cleanup');
 			return false;
 		}
 		pending.state = terminal;
@@ -959,7 +982,8 @@ export class SyncManager {
 			rollback: outcome.rollback,
 			error: outcome.error,
 		};
-		if (this.recoveryRequired && this.recoveryRequired.reason !== 'journal-cleanup-failed') {
+		if (this.recoveryRequired && this.recoveryRequired.reason !== 'journal-cleanup-failed'
+			&& this.recoveryRequired.reason !== 'journal-finalization-failed') {
 			this.recoveryRequired.attempts.push(attempt);
 			this.recoveryRequired.latestAttempt = attempt;
 			outcome.recovery = this.getRecoveryRequired() ?? undefined;
@@ -1106,15 +1130,7 @@ export class SyncManager {
 			this.setBatchTransactionState('rolling-back');
 			return this.rollbackPendingTransaction(pending, error);
 		}
-		let warnings: SyncWarning[] = [];
-		try {
-			warnings = pending.deferredRelations.length > 0
-				? await this.postProcessBatchRelations(pending.deferredRelations)
-				: [];
-		} catch (error) {
-			warnings = [{ operation: 'related-link-postprocess', message: errorMessage(error) }];
-		}
-		const result = this.snapshotAfterDecision(pending, 'committed', undefined, warnings);
+		const result = this.snapshotAfterDecision(pending, 'committed');
 		pending.resultSnapshot = result;
 		try {
 			await this.persistPendingJournal(pending, 'committed-cleanup-pending');
@@ -1126,8 +1142,17 @@ export class SyncManager {
 		for (const transaction of pending.transactions) transaction.commit();
 		this.incrementalSync.finishBatch();
 		if (!await this.finalizePersistedTerminalJournal(pending, 'committed')) {
-			return { status: 'cleanup-failed', result, warnings, error: this.recoveryRequired?.journalIssue };
+			return { status: 'cleanup-failed', result, error: this.recoveryRequired?.journalIssue };
 		}
+		let warnings: SyncWarning[] = [];
+		try {
+			warnings = pending.deferredRelations.length > 0
+				? await this.postProcessBatchRelations(pending.deferredRelations)
+				: [];
+		} catch (error) {
+			warnings = [{ operation: 'related-link-postprocess', message: errorMessage(error) }];
+		}
+		result.warnings.push(...warnings);
 		return { status: 'committed', result, warnings };
 	}
 
@@ -1785,7 +1810,7 @@ export class SyncManager {
 		result.completion = this.lastAutomaticRollback?.attempted
 			? this.lastAutomaticRollback.failed > 0 ? 'rollback-failed' : 'rolled-back'
 			: determineSyncCompletion(result.added, result.failed, wasCancelled);
-		if (this.recoveryRequired?.reason === 'journal-cleanup-failed') {
+		if (this.recoveryRequired?.reason === 'journal-cleanup-failed' || this.recoveryRequired?.reason === 'journal-finalization-failed') {
 			result.completion = 'failed';
 			result.success = false;
 		}
@@ -1822,9 +1847,11 @@ export class SyncManager {
 		for (const failure of batch.failures) this.recordPreparedFailure(result, failure);
 
 		let wasCancelled = false;
+		let batchHasUncertainBinaryMutation = false;
 		const renderedByGroup = new Map<string, RenderedCollection[]>();
 		const failedGroups = new Set<string>();
 		await this.processConcurrently(batch.prepared, concurrency, async (prepared, index) => {
+			if (batchHasUncertainBinaryMutation) return;
 			const groupKey = batch.groupKeyBySubjectId.get(prepared.collection.subject_id) ?? `subject:${prepared.collection.subject_id}`;
 			if (await this.checkCancellation()) {
 				wasCancelled = true;
@@ -1838,9 +1865,37 @@ export class SyncManager {
 				renderedByGroup.set(groupKey, items);
 			} catch (error) {
 				failedGroups.add(groupKey);
+				if (error instanceof ImageMutationUncertainError) batchHasUncertainBinaryMutation = true;
 				this.recordProcessingFailure(result, prepared, error);
 			}
 		});
+
+		if (batchHasUncertainBinaryMutation) {
+			this.finalizeSyncResult(result, false);
+			const journal = this.activeRecoveryJournal;
+			const pending: PendingSyncTransaction = {
+				transactions: [], groups: [], previousPathStates,
+				affectedSubjectIds: Array.from(plannedSubjectIds),
+				subjectExpectations: this.recoveryExpectationsFor(plannedSubjectIds, originalRecords),
+				scanRootAtBatchStart, contentExpectations: journal?.contentExpectations.map(item => ({ ...item })) ?? [],
+				forbiddenPathsAfterRollback: journal?.createdPathExpectations.map(item => item.createdPath) ?? [],
+				resourcePathsAfterRollback: journal?.createdResourcePaths ? [...journal.createdResourcePaths] : [],
+				updatedResourceExpectations: journal?.updatedResourceExpectations.map(item => ({ ...item })) ?? [],
+				orphanTemporaryPaths: journal?.orphanTemporaryPaths ? [...journal.orphanTemporaryPaths] : [],
+				configurationFacts: journal?.configurationFacts,
+				renameExpectations: journal?.renameExpectations.map(item => ({ ...item })) ?? [], deferredRelations: [],
+				resultSnapshot: this.captureResultSnapshot(result, false), createdAt: Date.now(), state: 'rolling-back',
+			};
+			this.pendingTransaction = pending;
+			try {
+				await this.persistPendingJournal(pending, 'rolling-back');
+				const decision = await this.rollbackPendingTransaction(pending);
+				this.lastAutomaticRollback = decision.rollback;
+			} catch (error) {
+				this.enterJournalFinalizationRecovery(pending, error, 'terminal-write');
+			}
+			return { wasCancelled, relations: [] };
+		}
 
 		const relations: Array<{ subjectId: number; filePath: string; relations: RelatedSubject[] }> = [];
 		const successfulTransactions: SyncTransaction[] = [];
@@ -3008,6 +3063,7 @@ export class SyncManager {
 			const localSubjects = this.incrementalSync.getLocalSubjects();
 			const result = { downloaded: 0, skipped: 0, failed: 0 };
 			let processed = 0;
+			let stoppedForRecovery = false;
 
 			for (const [subjectId, info] of Array.from(localSubjects)) {
 			processed++;
@@ -3057,7 +3113,11 @@ export class SyncManager {
 					const pending = this.pendingFromActiveJournal('rolled-back');
 					this.pendingTransaction = pending;
 					await this.persistPendingJournal(pending, 'rolled-back-cleanup-pending');
-					if (!await this.finalizePersistedTerminalJournal(pending, 'rolled-back')) break;
+					if (!await this.finalizePersistedTerminalJournal(pending, 'rolled-back')) {
+						result.failed++;
+						stoppedForRecovery = true;
+						break;
+					}
 					result.failed++;
 					continue;
 				}
@@ -3065,7 +3125,11 @@ export class SyncManager {
 					const pending = this.pendingFromActiveJournal('rolled-back');
 					this.pendingTransaction = pending;
 					await this.persistPendingJournal(pending, 'rolled-back-cleanup-pending');
-					if (!await this.finalizePersistedTerminalJournal(pending, 'rolled-back')) break;
+					if (!await this.finalizePersistedTerminalJournal(pending, 'rolled-back')) {
+						result.failed++;
+						stoppedForRecovery = true;
+						break;
+					}
 					result.skipped++;
 					continue;
 				}
@@ -3078,22 +3142,27 @@ export class SyncManager {
 				const pending = this.pendingFromActiveJournal('committed');
 				this.pendingTransaction = pending;
 				await this.persistPendingJournal(pending, 'committed-cleanup-pending');
-				if (!await this.finalizePersistedTerminalJournal(pending, 'committed')) break;
+				if (!await this.finalizePersistedTerminalJournal(pending, 'committed')) {
+					result.failed++;
+					stoppedForRecovery = true;
+					break;
+				}
 				result.downloaded++;
 				console.debug(`[Bangumi Sync] 封面下载完成: ${info.name_cn} -> ${localPath}`);
 			} catch (error) {
 				console.error(`[Bangumi Sync] 封面下载失败: ${info.name_cn}`, error);
 				result.failed++;
+				if (error instanceof ImageMutationUncertainError) stoppedForRecovery = true;
 				if (this.activeRecoveryJournal) {
 					this.restorePersistentJournal(this.activeRecoveryJournal);
 					const recovery = await this.retryRecovery();
-					if (!recovery.recovered) break;
+					if (!recovery.recovered || stoppedForRecovery) break;
 				}
 			}
 			}
 
 			this.reportProgress({
-			status: 'completed',
+			status: this.recoveryRequired || stoppedForRecovery ? 'error' : 'completed',
 			message: tnFormat('notices', 'coverDownloadComplete', {
 				downloaded: result.downloaded,
 				skipped: result.skipped,

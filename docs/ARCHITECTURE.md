@@ -4,7 +4,7 @@
 
 `BangumiPlugin` 持有稳定的 `SyncManager`。设置 UI 提交字段 patch，主入口在串行队列内把 patch 应用到最新正式 settings；manager 配置 lease 在任何 `await` 前取得。持久化、不可变配置快照应用与依赖刷新全部成功后才提交。失败时恢复磁盘、manager、正式设置、依赖服务和设置 UI；回滚持久化再次失败则记录 previous/candidate/current/disk/manager facts 并建立 recovery-required journal。
 
-`RecoveryJournalStore` 用 temp/current/previous 轮换原子保存事务事实，并在首次 Vault 修改、rename 阶段、创建、覆盖、awaiting、rollback 和 recovery attempt 前后刷新。启动时先执行完整运行时结构校验；损坏 JSON、结构错误 schema-1 和不支持版本分别备份再阻断。具体事务路径在 Vault 全局直接验证，adapter 递归扫描可发现 Obsidian 索引不可见的点前缀 temporary file。恢复 action policy 同时控制 UI 与服务 API，所有成功路径在清 journal 前重新扫描并完整诊断。统一 manager state setter 保证 SyncModal、Recovery Center 和控制面板收到 commit/rollback/recovery 终态。
+`RecoveryJournalStore` 用 temp/current/previous 轮换原子保存事务事实，并在首次 Vault 修改、rename 阶段、创建、覆盖、awaiting、rollback 和 recovery attempt 前后刷新。启动时先执行完整运行时结构校验；损坏 JSON、结构错误 schema-1 和不支持版本分别备份再阻断。已知 6.11.1 configuration journal 在严格校验前安全迁移，永不生成 secret-bearing backup。具体事务路径在 Vault 全局直接验证，adapter 递归扫描可发现 Obsidian 索引不可见的点前缀 temporary file。恢复 action policy 同时控制 UI 与服务 API，所有成功路径在清 journal 前重新扫描并完整诊断。统一 manager state setter 保证 SyncModal、Recovery Center 和控制面板收到 commit/rollback/recovery 终态。
 
 本文档描述 Bangumi Sync 当前代码结构、主要模块职责、核心运行链路，以及模块之间如何协作。
 

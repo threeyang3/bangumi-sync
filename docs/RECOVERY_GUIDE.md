@@ -4,9 +4,11 @@ Bangumi Sync 6.11.2 在首次 Vault 修改前写入根目录 `.bangumi-sync-reco
 
 启动时 current、previous 和 temp 分别解析校验。有效 current 优先；current 损坏、schema 不支持或结构非法时会备份它并加载有效 previous，previous 不会在候选选择前被删除。temp 会单独备份，不阻止有效 current/previous；只有 temp 的中断状态仍会安全阻断。
 
-提交和回滚会先写入 `committed-cleanup-pending` 或 `rolled-back-cleanup-pending` terminal marker，再删除 previous、temp、current 并复核。任何 cleanup 失败都会保持 recovery-required 和写门禁，Recovery Center 提供“重试恢复日志清理”。重启读取 terminal marker 时只继续删除 journal，不回滚已经明确提交或已回滚的文件。
+提交和回滚会先写入 `committed-cleanup-pending` 或 `rolled-back-cleanup-pending` terminal marker，再删除 previous、temp、current 并复核。任何 write/rename/remove 或 cleanup 失败都会进入 `journal-finalization-failed`，保持 recovery-required 和写门禁；Recovery Center 提供重试 finalization。重启读取 terminal marker 时只继续删除 journal，不回滚已经明确提交或已回滚的文件。
 
 图片请求失败可以计为普通下载失败；binary create/modify 已写入后 reject、写后读取复核失败或 journal 事实无法确认时，会进入 uncertain mutation recovery。系统会保留 active journal，自动删除新建资源或按记录恢复旧 binary，并复核长度和 SHA-256；rollback 不完整时继续保持 recovery-required。
+
+同一批次出现 uncertain binary mutation 时会停止新的条目，回滚本批次所有 Markdown transaction 和 binary 事实，不提供部分 Commit。关联链接不属于主事务，只有主事务正式 Commit 且 journal cleanup 成功后才作为 post-commit best-effort 副作用执行；失败只记录 warning，重载不会重复执行。
 
 ## 启动校验
 
@@ -30,6 +32,7 @@ Bangumi Sync 6.11.2 在首次 Vault 修改前写入根目录 `.bangumi-sync-reco
 | `orphan-temporary` | 禁止 | 允许诊断 | 手工处理真实路径、Rescan 后允许 |
 | `journal-corrupt` | 禁止 | 允许全局诊断 | 仅在备份 Vault、明确接受原事务不可验证风险且诊断为零后允许 |
 | `configuration-rollback-failed` | 禁止 | 允许诊断 | 仅在磁盘、正式 settings 与 manager config 重新对齐后允许 |
+| `journal-finalization-failed` | 按 journal 阶段重试 finalization | 允许 | 禁止，保持写门禁 |
 
 Recovery Center 只显示策略允许的按钮；直接调用服务 API 也执行同一策略，不能绕过 UI。
 

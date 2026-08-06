@@ -31,8 +31,9 @@ export function getRecoveryActionPolicy(
 		|| recovery.updatedResourceExpectations.length > 0;
 	switch (recovery.reason) {
 		case 'journal-cleanup-failed':
+		case 'journal-finalization-failed':
 			return {
-				allowRetryRollback: false,
+				allowRetryRollback: recovery.reason === 'journal-finalization-failed',
 				allowRetryCleanup: true,
 				allowManualConfirmation: false,
 				allowRescan: true,

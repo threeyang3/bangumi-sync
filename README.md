@@ -6,7 +6,7 @@
 
 事务在首次 Vault 修改前写入独立的 `.bangumi-sync-recovery.json`，记录原始内容、Subject ID、路径状态、创建路径、封面资源以及 rename 的 original/temporary/final 路径。已有封面更新前会保存原 binary、长度和 SHA-256；超过 16 MiB 时拒绝不可逆覆盖。内容使用原始 UTF-8 字节的标准 SHA-256；CRLF 与 LF 不等价。插件重载后会恢复门禁和 Recovery Center 上下文，journal 经过完整运行时结构校验，并且只在明确提交或完整诊断通过后删除。
 
-损坏、不完整或不支持的 journal 会保留时间戳备份并阻止写入；有效 `previous` 会在 `current` 损坏时独立校验并作为回退候选。配置恢复 journal 只保存脱敏的非敏感设置事实，永不保存 Access Token、Bearer 值或其他 secret。Vault 任意目录中的孤立 `.bangumi-sync-*.tmp.md` 也会进入恢复状态，不会自动删除。terminal journal cleanup 失败时保持写门禁，并只开放 cleanup 重试；binary 写入后无法确认终态时进入 recovery，而不是普通下载失败。详细操作见 [恢复指南](docs/RECOVERY_GUIDE.md)。升级到 6.11.2 不需要迁移 Markdown。
+损坏、不完整或不支持的 journal 会保留时间戳备份并阻止写入；有效 `previous` 会在 `current` 损坏时独立校验并作为回退候选。已知 6.11.1 configuration journal 会先安全迁移并移除明文 Token，迁移失败不复制原文件。配置恢复只保存脱敏事实和 Token hash；Token 改变时无法确认 previous Token 就保持门禁。Vault 任意目录中的孤立 `.bangumi-sync-*.tmp.md` 也会进入恢复状态，不会自动删除。terminal journal 写入或 cleanup 失败统一保持写门禁并进入 finalization recovery；binary 写入后无法确认终态时整批回滚，而不是普通下载失败。关联链接只在主事务提交并清理 journal 后 best-effort 执行。详细操作见 [恢复指南](docs/RECOVERY_GUIDE.md)。升级到 6.11.2 不需要迁移 Markdown。
 
 一个用于 Obsidian 的插件，可以将你在 Bangumi（番组计划）上的收藏同步到 Obsidian 笔记中。
 

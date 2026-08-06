@@ -24,6 +24,28 @@ function journal(): PersistentRecoveryJournal {
 	};
 }
 
+const LEGACY_SECRET = 'SECRET_TOKEN_MUST_NOT_SURVIVE_6_11_2_MIGRATION';
+
+function legacyConfigurationJournal(): Record<string, unknown> {
+	return {
+		...journal(),
+		state: 'recovery-required',
+		configurationFacts: {
+			previousSettings: { accessToken: LEGACY_SECRET, scanFolderPath: 'Before' },
+			candidateSettings: { accessToken: `${LEGACY_SECRET}-candidate`, scanFolderPath: 'After' },
+			currentSettings: { accessToken: `${LEGACY_SECRET}-candidate` },
+			diskSettings: { accessToken: `${LEGACY_SECRET}-candidate` },
+			managerConfig: { accessToken: LEGACY_SECRET, pathTemplate: 'ACGN/{{id}}.md' },
+		},
+	};
+}
+
+function recoveryFiles(vault: InMemoryVault): string[] {
+	return Array.from(vault.contents.entries())
+		.filter(([path]) => path.startsWith('.bangumi-sync-recovery') && path.endsWith('.json'))
+		.map(([, content]) => content);
+}
+
 describe('persistent recovery journal', () => {
 	it('atomically writes, loads, and clears a complete journal', async () => {
 		const vault = new InMemoryVault();
@@ -110,6 +132,38 @@ describe('persistent recovery journal', () => {
 	});
 
 	it.each([
+		['temp write', 'write'],
+		['previous removal', 'remove'],
+		['current rotation', 'rotate'],
+		['temp promotion', 'promote'],
+	] as const)('keeps a valid journal candidate when %s fails', async (_name, failure) => {
+		const vault = new InMemoryVault();
+		const store = new RecoveryJournalStore(vault.app);
+		await store.write(journal());
+		if (failure === 'remove') vault.addFile(RECOVERY_JOURNAL_PREVIOUS_PATH, JSON.stringify(journal()));
+		const adapter = vault.app.vault.adapter;
+		const originalWrite = adapter.write.bind(adapter);
+		const originalRemove = adapter.remove.bind(adapter);
+		const originalRename = adapter.rename.bind(adapter);
+		adapter.write = (path, data) => failure === 'write' && path === RECOVERY_JOURNAL_TEMP_PATH
+			? Promise.reject(new Error('injected write failure')) : originalWrite(path, data);
+		adapter.remove = path => failure === 'remove' && path === RECOVERY_JOURNAL_PREVIOUS_PATH
+			? Promise.reject(new Error('injected remove failure')) : originalRemove(path);
+		adapter.rename = (from, to) => {
+			if (failure === 'rotate' && from === RECOVERY_JOURNAL_PATH) return Promise.reject(new Error('injected rotate failure'));
+			if (failure === 'promote' && from === RECOVERY_JOURNAL_TEMP_PATH) return Promise.reject(new Error('injected promote failure'));
+			return originalRename(from, to);
+		};
+
+		await expect(store.write({ ...journal(), journalId: 'journal-2' })).rejects.toThrow('injected');
+		adapter.write = originalWrite;
+		adapter.remove = originalRemove;
+		adapter.rename = originalRename;
+		const loaded = await store.load();
+		expect(loaded.status).toBe('loaded');
+	});
+
+	it.each([
 		['invalid JSON', '{broken', 'corrupt-current'],
 		['unsupported schema', JSON.stringify({ schemaVersion: 99 }), 'unsupported-current'],
 		['malformed schema 1', JSON.stringify({ schemaVersion: 1 }), 'corrupt-structure-current'],
@@ -173,6 +227,49 @@ describe('persistent recovery journal', () => {
 		expect(serialized).not.toContain('Bearer ');
 		expect(facts.previousSettings).toEqual({ nested: { safe: 'kept' } });
 		expect(facts.accessTokenChanged).toBe(true);
+	});
+
+	it.each([RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH])('securely migrates a legacy configuration journal from %s', async sourcePath => {
+		const vault = new InMemoryVault();
+		vault.addFile(sourcePath, JSON.stringify(legacyConfigurationJournal()));
+		const result = await new RecoveryJournalStore(vault.app).load();
+		expect(result).toMatchObject({ status: 'loaded', journal: { configurationFacts: { accessTokenChanged: true } } });
+		expect(recoveryFiles(vault).join('\n')).not.toContain(LEGACY_SECRET);
+	});
+
+	it('migrates a valid legacy previous journal while retaining a corrupt-current backup without secrets', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, '{broken');
+		vault.addFile(RECOVERY_JOURNAL_PREVIOUS_PATH, JSON.stringify(legacyConfigurationJournal()));
+		const result = await new RecoveryJournalStore(vault.app).load();
+		expect(result).toMatchObject({ status: 'loaded', recoveredFromPrevious: true });
+		expect(recoveryFiles(vault).join('\n')).not.toContain(LEGACY_SECRET);
+	});
+
+	it.each(['write', 'remove'] as const)('keeps the original legacy source and creates no secret backup when migration %s fails', async operation => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, JSON.stringify(legacyConfigurationJournal()));
+		const adapter = vault.app.vault.adapter;
+		const originalWrite = adapter.write.bind(adapter);
+		const originalRemove = adapter.remove.bind(adapter);
+		adapter.write = (path, data) => operation === 'write' && path === RECOVERY_JOURNAL_TEMP_PATH
+			? Promise.reject(new Error(`injected ${LEGACY_SECRET}`)) : originalWrite(path, data);
+		adapter.remove = path => operation === 'remove' && path === RECOVERY_JOURNAL_PATH
+			? Promise.reject(new Error(`injected ${LEGACY_SECRET}`)) : originalRemove(path);
+		const result = await new RecoveryJournalStore(vault.app).load();
+		expect(result).toMatchObject({ status: 'migration-failed', sourcePath: RECOVERY_JOURNAL_PATH });
+		if (result.status === 'migration-failed') expect(result.message).not.toContain(LEGACY_SECRET);
+		expect(vault.contents.get(RECOVERY_JOURNAL_PATH)).toContain(LEGACY_SECRET);
+		expect(Array.from(vault.files.keys()).some(path => path.includes('.corrupt-') || path.includes('.interrupted-'))).toBe(false);
+	});
+
+	it('reloads the sanitized journal after a successful legacy migration', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, JSON.stringify(legacyConfigurationJournal()));
+		const store = new RecoveryJournalStore(vault.app);
+		expect((await store.load()).status).toBe('loaded');
+		expect((await store.load()).status).toBe('loaded');
+		expect(recoveryFiles(vault).join('\n')).not.toContain(LEGACY_SECRET);
 	});
 
 	it('keeps a terminal current journal when previous cleanup fails', async () => {
