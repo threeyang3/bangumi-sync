@@ -18,18 +18,20 @@
 - [x] `{0,0,0}` 仍显示 no-items，成功结果仍显示 complete。
 - [x] Recovery Guide 动作矩阵与 `getRecoveryActionPolicy()` 一致。
 - [x] 最终 `npm ci`、lint、TypeScript、完整测试（36 files / 265 tests）、build 和 `git diff --check` 全部通过。
-- [ ] PR #15 最新 head 的 Ubuntu CI 通过。
-- [ ] PR #15 最新 head 的 Windows CI 通过。
+- [x] PR #15 最新 head 的 Ubuntu CI 通过。
+- [x] PR #15 最新 head 的 Windows CI 通过。
 
 ## 最终 Sandbox
 
-- [ ] 使用最终 production `main.js`、`manifest.json`、`styles.css`。
-- [ ] Commit cleanup failure 只显示 Retry cleanup；直接 rollback 被拒绝，cleanup 成功后 manager idle。
-- [ ] legacy temp staging partial-write failure 不破坏最后完整候选，也不产生新的 canary 副本。
-- [ ] temp-only migration 首次失败、reload、Retry 后进入 `configuration-rollback-failed`。
-- [ ] whole-journal canary 迁移后全 Vault 搜索为 0。
-- [ ] 批量封面 `{0,0,1}` 显示失败数量；recovery active 时提示 Recovery Center。
-- [ ] 记录 Obsidian 版本、代码 commit、production SHA-256、按钮、journal/file/manager 状态、notice、console error 和 canary 搜索结果。
+- [x] 使用最终 production `main.js`、`manifest.json`、`styles.css`。
+- [x] Commit cleanup failure 只显示 Retry cleanup；直接 rollback 被拒绝，cleanup 成功后 manager idle。
+- [x] legacy temp staging partial-write failure 不破坏最后完整候选，也不产生新的 canary 副本。
+- [x] temp-only migration 首次失败、reload、Retry 后进入 `configuration-rollback-failed`。
+- [x] whole-journal canary 迁移后全 Vault 搜索为 0。
+- [x] 批量封面 `{0,0,1}` 显示失败数量；recovery active 时提示 Recovery Center。
+- [x] 记录 Obsidian 版本、代码 commit、production SHA-256、按钮、journal/file/manager 状态、notice、console error 和 canary 搜索结果。
+
+Sandbox 证据：Obsidian `1.13.4`（installer `1.12.7`），commit `0ecc1ac5d497821c3deb88a3547c206b6d9db743`，production SHA-256 `F603B7A7E92CB7477C4332D44787D1478804DF7635723749A0AE0DCED8E1979A`。Commit cleanup failure 时 journal 为 `committed-cleanup-pending`，Recovery Center 仅显示 Retry cleanup、Rescan 和 Close，直接 rollback 返回 `blocked`；cleanup 后 manager 为 `idle` 且 recovery journal 文件为 0。Partial-write 后 legacy source 完整且非 source canary 副本为 0。Temp-only 首次 reload 为 `legacy-journal-migration-failed`，Retry 后为 `configuration-rollback-failed`，保留脱敏 current journal。Whole-journal canary 在 journal 内容和 Obsidian 全 Vault 搜索中均为 0。批量封面 notice 分别为“封面下载失败：下载 0，跳过 0，失败 1”和“封面下载需要恢复：下载 0，跳过 0，失败 1。请打开恢复中心。”；开启 debugger 后复跑全部场景，`dev:errors` 与 error-level console 均为 0，最终 manager 为 `idle`。
 
 ## 合并后检查
 
