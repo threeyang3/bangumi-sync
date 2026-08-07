@@ -52,6 +52,7 @@ describe('recovery action policy', () => {
 	});
 
 	it.each([
+		['journal-finalization-failed', ['retry-rollback', 'rescan']],
 		['journal-cleanup-failed', ['retry-cleanup', 'rescan']],
 		['rollback-failed', ['retry-rollback', 'confirm-manual', 'rescan']],
 		['journal-corrupt', ['confirm-manual', 'rescan']],

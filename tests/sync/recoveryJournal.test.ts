@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	RecoveryJournalStore,
 	RECOVERY_JOURNAL_PATH,
+	RECOVERY_JOURNAL_MIGRATION_TEMP_PATH,
 	RECOVERY_JOURNAL_PREVIOUS_PATH,
 	RECOVERY_JOURNAL_TEMP_PATH,
 	migrateLegacyConfigurationJournal,
@@ -39,6 +40,17 @@ function legacyConfigurationJournal(secret = LEGACY_SECRET): Record<string, unkn
 			diskSettings: { accessToken: `${secret}-candidate` },
 			managerConfig: { accessToken: secret, pathTemplate: 'ACGN/{{id}}.md' },
 		},
+		blockingIssue: `Request failed: Bearer ${secret}`,
+		resultSnapshot: {
+			...journal().resultSnapshot,
+			errorDetails: [`failed with ${secret}`],
+			warnings: [{ operation: 'request', message: `warning ${secret}` }],
+		},
+		attempts: [{
+			action: 'automatic-rollback', status: 'failed', startedAt: 1, finishedAt: 2,
+			diagnostics: [{ code: 'blocking-local-file', message: `Bearer ${secret}` }],
+			error: `token=${secret}`,
+		}],
 	};
 }
 
@@ -133,16 +145,17 @@ describe('persistent recovery journal', () => {
 		}
 	});
 
-	it('sanitizes a temporary-only legacy configuration journal before preserving the interrupted candidate', async () => {
+	it('promotes a temporary-only legacy configuration journal after sanitization', async () => {
 		const secret = 'SECRET_TOKEN_MUST_NOT_SURVIVE_LEGACY_TEMP_MIGRATION';
 		const vault = new InMemoryVault();
 		vault.addFile(RECOVERY_JOURNAL_TEMP_PATH, JSON.stringify(legacyConfigurationJournal(secret)));
 
 		const result = await new RecoveryJournalStore(vault.app).load();
 
-		expect(result.status).toBe('corrupt');
+		expect(result).toMatchObject({ status: 'loaded', journal: { configurationFacts: { accessTokenChanged: true } } });
+		expect(vault.files.has(RECOVERY_JOURNAL_PATH)).toBe(true);
+		expect(vault.files.has(RECOVERY_JOURNAL_TEMP_PATH)).toBe(false);
 		expect(recoveryFiles(vault).join('\n')).not.toContain(secret);
-		expect(Array.from(vault.files.keys()).some(path => path.includes('corrupt-temp-'))).toBe(true);
 	});
 
 	it.each([RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH])(
@@ -167,7 +180,7 @@ describe('persistent recovery journal', () => {
 		vault.addFile(RECOVERY_JOURNAL_TEMP_PATH, original);
 		const adapter = vault.app.vault.adapter;
 		const originalWrite = adapter.write.bind(adapter);
-		adapter.write = (path, data) => path === RECOVERY_JOURNAL_TEMP_PATH
+		adapter.write = (path, data) => path === RECOVERY_JOURNAL_MIGRATION_TEMP_PATH
 			? Promise.reject(new Error(`injected ${secret}`))
 			: originalWrite(path, data);
 
@@ -282,7 +295,10 @@ describe('persistent recovery journal', () => {
 		vault.addFile(sourcePath, JSON.stringify(legacyConfigurationJournal()));
 		const result = await new RecoveryJournalStore(vault.app).load();
 		expect(result).toMatchObject({ status: 'loaded', journal: { configurationFacts: { accessTokenChanged: true } } });
-		expect(recoveryFiles(vault).join('\n')).not.toContain(LEGACY_SECRET);
+		const nonSourceContents = Array.from(vault.contents.entries())
+			.filter(([path]) => path !== RECOVERY_JOURNAL_PATH)
+			.map(([, content]) => content).join('\n');
+		expect(nonSourceContents).not.toContain(LEGACY_SECRET);
 	});
 
 	it('migrates a valid legacy previous journal while retaining a corrupt-current backup without secrets', async () => {
@@ -300,7 +316,7 @@ describe('persistent recovery journal', () => {
 		const adapter = vault.app.vault.adapter;
 		const originalWrite = adapter.write.bind(adapter);
 		const originalRemove = adapter.remove.bind(adapter);
-		adapter.write = (path, data) => operation === 'write' && path === RECOVERY_JOURNAL_TEMP_PATH
+		adapter.write = (path, data) => operation === 'write' && path === RECOVERY_JOURNAL_MIGRATION_TEMP_PATH
 			? Promise.reject(new Error(`injected ${LEGACY_SECRET}`)) : originalWrite(path, data);
 		adapter.remove = path => operation === 'remove' && path === RECOVERY_JOURNAL_PATH
 			? Promise.reject(new Error(`injected ${LEGACY_SECRET}`)) : originalRemove(path);
@@ -311,6 +327,98 @@ describe('persistent recovery journal', () => {
 		expect(Array.from(vault.files.keys()).some(path => path.includes('.corrupt-') || path.includes('.interrupted-'))).toBe(false);
 	});
 
+	it.each(['partial-write', 'promote'] as const)('keeps a complete candidate after legacy migration %s failure', async operation => {
+		const vault = new InMemoryVault();
+		const original = JSON.stringify(legacyConfigurationJournal());
+		vault.addFile(RECOVERY_JOURNAL_PATH, original);
+		const adapter = vault.app.vault.adapter;
+		const originalWrite = adapter.write.bind(adapter);
+		const originalRename = adapter.rename.bind(adapter);
+		adapter.write = (path, data) => {
+			if (operation === 'partial-write' && path === RECOVERY_JOURNAL_MIGRATION_TEMP_PATH) {
+				return originalWrite(path, data.slice(0, 12)).then(() => Promise.reject(new Error('injected partial staging write')));
+			}
+			return originalWrite(path, data);
+		};
+		adapter.rename = (from, to) => operation === 'promote' && from === RECOVERY_JOURNAL_MIGRATION_TEMP_PATH
+			? Promise.reject(new Error('injected staging promotion'))
+			: originalRename(from, to);
+
+		const result = await new RecoveryJournalStore(vault.app).load();
+
+		expect(result).toMatchObject({ status: 'migration-failed', sourcePath: RECOVERY_JOURNAL_PATH });
+		expect(vault.contents.get(RECOVERY_JOURNAL_PATH)).toBe(original);
+		const nonSourceContents = Array.from(vault.contents.entries())
+			.filter(([path]) => path !== RECOVERY_JOURNAL_PATH)
+			.map(([, content]) => content).join('\n');
+		expect(nonSourceContents).not.toContain(LEGACY_SECRET);
+	});
+
+	it.each(['staging-read', 'staging-validation', 'source-remove', 'promotion-validation'] as const)(
+		'keeps the legacy source after %s failure',
+		async operation => {
+			const vault = new InMemoryVault();
+			const original = JSON.stringify(legacyConfigurationJournal());
+			vault.addFile(RECOVERY_JOURNAL_PATH, original);
+			const adapter = vault.app.vault.adapter;
+			const originalRead = adapter.read.bind(adapter);
+			const originalRemove = adapter.remove.bind(adapter);
+			adapter.read = path => {
+				if (operation === 'staging-read' && path === RECOVERY_JOURNAL_MIGRATION_TEMP_PATH) {
+					return Promise.reject(new Error('injected staging read failure'));
+				}
+				if (operation === 'staging-validation' && path === RECOVERY_JOURNAL_MIGRATION_TEMP_PATH) {
+					return Promise.resolve('{}');
+				}
+				if (operation === 'promotion-validation'
+					&& path === RECOVERY_JOURNAL_PATH
+					&& !(vault.contents.get(path) ?? '').includes(LEGACY_SECRET)) {
+					return Promise.resolve('{}');
+				}
+				return originalRead(path);
+			};
+			adapter.remove = path => operation === 'source-remove' && path === RECOVERY_JOURNAL_PATH
+				? Promise.reject(new Error('injected source remove failure'))
+				: originalRemove(path);
+
+			const result = await new RecoveryJournalStore(vault.app).load();
+
+			expect(result).toMatchObject({ status: 'migration-failed', sourcePath: RECOVERY_JOURNAL_PATH });
+			expect(vault.contents.get(RECOVERY_JOURNAL_PATH)).toBe(original);
+			expect(vault.files.has(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH)).toBe(false);
+		},
+	);
+
+	it('reloads a valid sanitized staging candidate when promotion and source restoration fail', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, JSON.stringify(legacyConfigurationJournal()));
+		const adapter = vault.app.vault.adapter;
+		const originalWrite = adapter.write.bind(adapter);
+		const originalRename = adapter.rename.bind(adapter);
+		adapter.rename = (from, to) => from === RECOVERY_JOURNAL_MIGRATION_TEMP_PATH && to === RECOVERY_JOURNAL_PATH
+			? Promise.reject(new Error('injected promotion failure'))
+			: originalRename(from, to);
+		adapter.write = (path, data) => path === RECOVERY_JOURNAL_PATH
+			? Promise.reject(new Error('injected source restoration failure'))
+			: originalWrite(path, data);
+
+		const failed = await new RecoveryJournalStore(vault.app).load();
+
+		expect(failed).toMatchObject({ status: 'migration-failed', sourcePath: RECOVERY_JOURNAL_PATH });
+		expect(vault.files.has(RECOVERY_JOURNAL_PATH)).toBe(false);
+		expect(validatePersistentRecoveryJournal(JSON.parse(
+			vault.contents.get(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH) ?? '',
+		)).valid).toBe(true);
+		expect(vault.contents.get(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH)).not.toContain(LEGACY_SECRET);
+
+		adapter.rename = originalRename;
+		adapter.write = originalWrite;
+		const reloaded = await new RecoveryJournalStore(vault.app).load();
+		expect(reloaded.status).toBe('loaded');
+		expect(vault.files.has(RECOVERY_JOURNAL_PATH)).toBe(true);
+		expect(vault.files.has(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH)).toBe(false);
+	});
+
 	it('reloads the sanitized journal after a successful legacy migration', async () => {
 		const vault = new InMemoryVault();
 		vault.addFile(RECOVERY_JOURNAL_PATH, JSON.stringify(legacyConfigurationJournal()));
@@ -318,6 +426,17 @@ describe('persistent recovery journal', () => {
 		expect((await store.load()).status).toBe('loaded');
 		expect((await store.load()).status).toBe('loaded');
 		expect(recoveryFiles(vault).join('\n')).not.toContain(LEGACY_SECRET);
+	});
+
+	it('redacts legacy token strings from blocking issues, results, warnings, attempts, and diagnostics', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, JSON.stringify(legacyConfigurationJournal()));
+
+		const result = await new RecoveryJournalStore(vault.app).load();
+
+		expect(result.status).toBe('loaded');
+		expect(recoveryFiles(vault).join('\n')).not.toContain(LEGACY_SECRET);
+		expect(recoveryFiles(vault).join('\n')).not.toContain(`Bearer ${LEGACY_SECRET}`);
 	});
 
 	it('hashes an empty previous access token while migrating a legacy journal', async () => {

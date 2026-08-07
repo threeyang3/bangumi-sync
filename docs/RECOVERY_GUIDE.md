@@ -2,9 +2,11 @@
 
 Bangumi Sync 6.11.2 在首次 Vault 修改前写入根目录 `.bangumi-sync-recovery.json`。journal 保存批次前内容、Subject ID、路径状态、created/rename 事实、封面资源和恢复尝试，不保存 Access Token、authorization、Bearer 值、API key 或其他 secret-bearing 字段。配置恢复只持久化脱敏的非敏感设置事实和 `accessTokenChanged`；恢复时 token 取自可确认的当前磁盘或运行期安全来源，无法确认则保持门禁。
 
-启动时 current、previous 和 temp 分别解析校验。已知 6.11.1 configuration journal 在任何 rename 或 backup 前先在内存中脱敏并验证；安全写回失败会保留原 source、阻止写入且不创建额外 backup。有效 current 优先；current 损坏、schema 不支持或结构非法时会备份它并加载有效 previous，previous 不会在候选选择前被删除。非 legacy temp 会单独备份，不阻止有效 current/previous；只有 temp 的中断状态仍会安全阻断。
+启动时 current、previous、temp 和 legacy migration staging 分别解析校验。已知 6.11.1 configuration journal 在任何 rename 或 backup 前先在内存中脱敏并验证；current、previous 和 temp 的整个 journal 字符串都会递归清理已知 secret，包括 blocking issue、result error/warning、attempt error 和 diagnostic message。legacy temp 使用独立的 `.bangumi-sync-recovery.migration.tmp.json` staging，写入、重读、结构校验和 secret 扫描全部成功后才替换 source。失败时保留原 source 或一个完整的安全 staging，不创建新的 secret-bearing backup。
 
-提交和回滚会先写入 `committed-cleanup-pending` 或 `rolled-back-cleanup-pending` terminal marker，再删除 previous、temp、current 并复核。任何 write/rename/remove 或 cleanup 失败都会进入 `journal-finalization-failed`，保持 recovery-required 和写门禁；Recovery Center 提供重试 finalization。重启读取 terminal marker 时只继续删除 journal，不回滚已经明确提交或已回滚的文件。
+有效 current 优先；current 损坏、schema 不支持或结构非法时会备份它并加载有效 previous，previous 不会在候选选择前被删除。已完成脱敏且结构有效的 temp-only journal 会提升为 current，Retry migration 随后进入正常 configuration recovery；普通损坏 temp 仍单独备份。启动发现孤立的有效 migration staging 时会将其提升为 current，损坏 staging 会进入可见的阻断恢复。
+
+提交和回滚会先写入 `committed-cleanup-pending` 或 `rolled-back-cleanup-pending` terminal marker，再删除 previous、temp、migration staging、current 并复核。terminal marker 尚未持久化时的 write/rename 失败进入 `journal-finalization-failed`，只允许 Retry rollback；terminal marker 已持久化后的 remove/cleanup 失败进入 `journal-cleanup-failed`，只允许 Retry cleanup。两者都保持 recovery-required 和写门禁。重启读取 terminal marker 时恢复为 `journal-cleanup-failed`，只继续删除 journal，不改变已经明确的 Commit 或 rollback 方向。
 
 图片请求失败可以计为普通下载失败；binary create/modify 已写入后 reject、写后读取复核失败或 journal 事实无法确认时，会进入 uncertain mutation recovery。系统会保留 active journal，自动删除新建资源或按记录恢复旧 binary，并复核长度和 SHA-256；rollback 不完整时继续保持 recovery-required。
 
@@ -19,23 +21,25 @@ Legacy migration failure 会记录 source path，不写入空 recovery journal�
 - JSON 无法解析：备份为 `.bangumi-sync-recovery.corrupt-<timestamp>.json`。
 - schema-1 JSON 可解析但结构错误：备份为 `.bangumi-sync-recovery.corrupt-structure-<timestamp>.json`。
 - schema 不支持：备份为 `.bangumi-sync-recovery.unsupported-<timestamp>.json`。
-- 只有中断的 temp journal：备份为 `.bangumi-sync-recovery.corrupt-temp-<timestamp>.json`。
+- 只有已脱敏且结构有效的 legacy temp journal：提升为 current 并进入正常恢复。
+- 只有普通损坏 temp journal：备份为 `.bangumi-sync-recovery.corrupt-temp-<timestamp>.json`。
 
 这些情况不会中断插件加载；Recovery Center 仍可打开，所有 Vault 写入口继续受阻。
 
 ## 动作矩阵
 
 | Recovery reason | Retry rollback | Retry cleanup | Retry migration | Rescan | Manual confirm |
-|---|---|---|---|---|---|
-| `rollback-failed` | 允许 | 允许 | 允许，诊断为零后完成 |
-| `rescan-failed` | 允许 | 允许 | 允许，诊断为零后完成 |
-| `state-restore-failed` | 允许 | 允许 | 允许，诊断为零后完成 |
-| `journal-recovered` | 仅有 rename/content/created/resource/binary 事实时允许 | 允许 | 允许，诊断为零后完成 |
-| `orphan-temporary` | 禁止 | 允许诊断 | 手工处理真实路径、Rescan 后允许 |
-| `journal-corrupt` | 禁止 | 允许全局诊断 | 仅在备份 Vault、明确接受原事务不可验证风险且诊断为零后允许 |
-| `configuration-rollback-failed` | 禁止 | 允许诊断 | 仅在磁盘、正式 settings 与 manager config 重新对齐后允许 |
-| `journal-finalization-failed` | 按 journal 阶段重试 finalization | 允许 | 禁止，保持写门禁 |
-| `legacy-journal-migration-failed` | 禁止 | 禁止 | 仅允许迁移旧日志 | 禁止 | 禁止 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `rollback-failed` | 允许 | 禁止 | 禁止 | 允许 | 允许 |
+| `rescan-failed` | 允许 | 禁止 | 禁止 | 允许 | 允许 |
+| `state-restore-failed` | 允许 | 禁止 | 禁止 | 允许 | 允许 |
+| `journal-recovered` | 有回滚事实时允许 | 禁止 | 禁止 | 允许 | 允许 |
+| `journal-finalization-failed` | 允许 | 禁止 | 禁止 | 允许 | 禁止 |
+| `journal-cleanup-failed` | 禁止 | 允许 | 禁止 | 允许 | 禁止 |
+| `legacy-journal-migration-failed` | 禁止 | 禁止 | 允许 | 禁止 | 禁止 |
+| `configuration-rollback-failed` | 禁止 | 禁止 | 禁止 | 允许 | 允许 |
+| `orphan-temporary` | 禁止 | 禁止 | 禁止 | 允许 | 允许 |
+| `journal-corrupt` | 禁止 | 禁止 | 禁止 | 允许 | 明确接受风险后允许 |
 
 Recovery Center 只显示策略允许的按钮；直接调用服务 API 也执行同一策略，不能绕过 UI。
 

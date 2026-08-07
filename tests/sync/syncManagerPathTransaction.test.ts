@@ -902,7 +902,8 @@ describe('SyncManager path transaction integration', () => {
 
 		expect(committed.status).toBe('cleanup-failed');
 		expect(manager.getManagerState()).toBe('recovery-required');
-		expect(manager.getRecoveryRequired()?.reason).toBe('journal-finalization-failed');
+		expect(manager.getRecoveryRequired()?.reason).toBe('journal-cleanup-failed');
+		expect(await manager.retryRollbackRecovery()).toMatchObject({ status: 'blocked', recovered: false });
 		expect(() => manager.ensureCanStartSync()).toThrow(RecoveryRequiredError);
 		expect(states.at(-1)).toBe('recovery-required');
 		expect(JSON.parse(vault.contents.get(RECOVERY_JOURNAL_PATH) ?? '{}')).toMatchObject({ state: 'committed-cleanup-pending' });
@@ -911,7 +912,8 @@ describe('SyncManager path transaction integration', () => {
 		adapter.remove = originalRemove;
 		const reloaded = createManager(vault, []);
 		await reloaded.initializeRecovery();
-		expect(reloaded.getRecoveryRequired()?.reason).toBe('journal-finalization-failed');
+		expect(reloaded.getRecoveryRequired()?.reason).toBe('journal-cleanup-failed');
+		expect(await reloaded.retryRollbackRecovery()).toMatchObject({ status: 'blocked', recovered: false });
 		expect(await reloaded.retryRecovery()).toMatchObject({ status: 'recovered', recovered: true });
 		expect(vault.files.has('ACGN/music/提交保留.md')).toBe(true);
 		expect(reloaded.getManagerState()).toBe('idle');
@@ -929,7 +931,8 @@ describe('SyncManager path transaction integration', () => {
 			? Promise.reject(new Error('injected rollback cleanup failure')) : originalRemove(path);
 
 		expect(await manager.rollbackBatch()).toMatchObject({ status: 'cleanup-failed' });
-		expect(manager.getRecoveryRequired()?.reason).toBe('journal-finalization-failed');
+		expect(manager.getRecoveryRequired()?.reason).toBe('journal-cleanup-failed');
+		expect(await manager.retryRollbackRecovery()).toMatchObject({ status: 'blocked', recovered: false });
 		expect(vault.files.has('ACGN/music/回滚删除.md')).toBe(false);
 		expect(JSON.parse(vault.contents.get(RECOVERY_JOURNAL_PATH) ?? '{}')).toMatchObject({ state: 'rolled-back-cleanup-pending' });
 
@@ -957,7 +960,7 @@ describe('SyncManager path transaction integration', () => {
 			? Promise.reject(new Error('injected manual cleanup failure')) : originalRemove(path);
 
 		expect(await manager.confirmManualRecovery()).toMatchObject({ status: 'failed', recovered: false });
-		expect(manager.getRecoveryRequired()?.reason).toBe('journal-finalization-failed');
+		expect(manager.getRecoveryRequired()?.reason).toBe('journal-cleanup-failed');
 		expect(() => manager.ensureCanStartSync()).toThrow(RecoveryRequiredError);
 		adapter.remove = originalRemove;
 		expect(await manager.retryJournalCleanup()).toMatchObject({ status: 'recovered', recovered: true });

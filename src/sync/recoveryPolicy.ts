@@ -43,10 +43,19 @@ export function getRecoveryActionPolicy(
 				requiresUnverifiableRiskAcceptance: false,
 			};
 		case 'journal-cleanup-failed':
+			return {
+				allowRetryRollback: false,
+				allowRetryCleanup: true,
+				allowRetryMigration: false,
+				allowManualConfirmation: false,
+				allowRescan: true,
+				retryRequiresPostValidation: false,
+				requiresUnverifiableRiskAcceptance: false,
+			};
 		case 'journal-finalization-failed':
 			return {
-				allowRetryRollback: recovery.reason === 'journal-finalization-failed',
-				allowRetryCleanup: true,
+				allowRetryRollback: true,
+				allowRetryCleanup: false,
 				allowRetryMigration: false,
 				allowManualConfirmation: false,
 				allowRescan: true,

@@ -8,6 +8,7 @@ import { hashRecoveryContent } from './recoveryContent';
 export const RECOVERY_JOURNAL_PATH = '.bangumi-sync-recovery.json';
 export const RECOVERY_JOURNAL_TEMP_PATH = '.bangumi-sync-recovery.tmp.json';
 export const RECOVERY_JOURNAL_PREVIOUS_PATH = '.bangumi-sync-recovery.previous.json';
+export const RECOVERY_JOURNAL_MIGRATION_TEMP_PATH = '.bangumi-sync-recovery.migration.tmp.json';
 
 export interface RecoveryBinaryContentExpectation {
 	path: string;
@@ -47,6 +48,38 @@ function isSecretKey(key: string): boolean {
 		|| normalized === 'authtoken' || normalized === 'bearertoken' || normalized === 'authorization'
 		|| normalized === 'apikey' || normalized === 'secret' || normalized === 'clientsecret' || normalized === 'password'
 		|| normalized.endsWith('token') || normalized.endsWith('secret');
+}
+
+function collectLegacySecrets(value: unknown, secrets = new Set<string>()): Set<string> {
+	if (Array.isArray(value)) {
+		for (const item of value) collectLegacySecrets(item, secrets);
+		return secrets;
+	}
+	if (!isRecord(value)) return secrets;
+	for (const [key, child] of Object.entries(value)) {
+		if (isSecretKey(key) && typeof child === 'string' && child.length > 0) secrets.add(child);
+		collectLegacySecrets(child, secrets);
+	}
+	return secrets;
+}
+
+function redactLegacyJournalStrings(value: unknown, secrets: readonly string[]): unknown {
+	if (typeof value === 'string') {
+		let redacted = value;
+		for (const secret of secrets) redacted = redacted.split(secret).join('[REDACTED]');
+		return redacted.replace(/Bearer\s+[^\s,;]+/giu, 'Bearer [REDACTED]');
+	}
+	if (Array.isArray(value)) return value.map(item => redactLegacyJournalStrings(item, secrets));
+	if (isRecord(value)) {
+		const result: Record<string, unknown> = {};
+		for (const [key, child] of Object.entries(value)) result[key] = redactLegacyJournalStrings(child, secrets);
+		return result;
+	}
+	return value;
+}
+
+function serializedContainsSecret(serialized: string, secrets: readonly string[]): boolean {
+	return secrets.some(secret => secret.length > 0 && serialized.includes(secret));
 }
 
 function sanitizePersistentValue(value: unknown, key?: string): PersistentConfigurationValue | undefined {
@@ -94,13 +127,15 @@ export async function migrateLegacyConfigurationJournal(value: unknown): Promise
 	if (!detectLegacyConfigurationJournal(value)) return null;
 	const legacy = value.configurationFacts;
 	const runtime = legacy as unknown as RuntimeConfigurationRecoveryFacts;
+	const secrets = Array.from(collectLegacySecrets(value)).sort((left, right) => right.length - left.length);
+	const redactedJournal = redactLegacyJournalStrings(value, secrets) as Record<string, unknown>;
 	const previousToken = typeof runtime.previousSettings.accessToken === 'string' ? runtime.previousSettings.accessToken : undefined;
 	const candidateToken = typeof runtime.candidateSettings.accessToken === 'string' ? runtime.candidateSettings.accessToken : undefined;
 	const facts = sanitizeConfigurationRecoveryFacts(runtime, {
 		previousAccessTokenSha256: previousToken !== undefined ? await hashRecoveryContent(previousToken) : undefined,
 		candidateAccessTokenSha256: candidateToken !== undefined ? await hashRecoveryContent(candidateToken) : undefined,
 	});
-	return { ...value, configurationFacts: facts } as unknown as PersistentRecoveryJournal;
+	return { ...redactedJournal, configurationFacts: facts } as unknown as PersistentRecoveryJournal;
 }
 
 export async function selectPreviousAccessToken(options: {
@@ -422,46 +457,91 @@ export class RecoveryJournalStore {
 		if (await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH)) await adapter.remove(RECOVERY_JOURNAL_PREVIOUS_PATH);
 	}
 
+	private async removeMigrationStaging(): Promise<void> {
+		try {
+			if (await this.app.vault.adapter.exists(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH)) {
+				await this.app.vault.adapter.remove(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH);
+			}
+		} catch {
+			// A complete sanitized staging candidate is safer than copying the legacy source.
+		}
+	}
+
+	private async restoreLegacySource(sourcePath: string, original: string, sanitized: string): Promise<void> {
+		const adapter = this.app.vault.adapter;
+		try {
+			await adapter.write(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, sanitized);
+			const staged = validatePersistentRecoveryJournal(JSON.parse(
+				await adapter.read(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH),
+			));
+			if (!staged.valid) return;
+		} catch {
+			// The promoted source remains the last complete candidate when staging cannot be recreated.
+			return;
+		}
+		try {
+			if (await adapter.exists(sourcePath)) await adapter.remove(sourcePath);
+			await adapter.write(sourcePath, original);
+			await this.removeMigrationStaging();
+		} catch {
+			// Keep the verified sanitized staging candidate when the legacy source cannot be restored.
+		}
+	}
+
 	private async migrateCandidate(sourcePath: string, parsed: unknown): Promise<PersistentRecoveryJournal | null> {
 		const migrated = await migrateLegacyConfigurationJournal(parsed);
 		if (!migrated) return null;
 		const validation = validatePersistentRecoveryJournal(migrated);
 		if (!validation.valid) throw new Error('Migrated legacy recovery journal is invalid.');
-		const serialized = JSON.stringify(migrated, null, 2);
-		await this.app.vault.adapter.write(RECOVERY_JOURNAL_TEMP_PATH, serialized);
-		const original = await this.app.vault.adapter.read(sourcePath);
+		const serialized = JSON.stringify(validation.journal, null, 2);
+		const secrets = Array.from(collectLegacySecrets(parsed)).sort((left, right) => right.length - left.length);
+		if (serializedContainsSecret(serialized, secrets)) throw new Error('Migrated legacy recovery journal still contains a secret.');
+		const adapter = this.app.vault.adapter;
+		const original = await adapter.read(sourcePath);
+		await this.removeMigrationStaging();
 		try {
-			await this.app.vault.adapter.remove(sourcePath);
-			await this.app.vault.adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, sourcePath);
-		} catch (error) {
-			// Never create a secret-bearing backup. Restore the original in place when removal succeeded but promotion failed.
-			try {
-				if (!await this.app.vault.adapter.exists(sourcePath)) await this.app.vault.adapter.write(sourcePath, original);
-			} catch {
-				// The original remains unavailable; the secure temp is still preferable to copying the secret elsewhere.
-			}
-			throw error;
+			await adapter.write(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, serialized);
+			const stagedText = await adapter.read(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH);
+			const staged = validatePersistentRecoveryJournal(JSON.parse(stagedText));
+			if (!staged.valid || serializedContainsSecret(stagedText, secrets)) throw new Error('Migration staging validation failed.');
+		} catch {
+			await this.removeMigrationStaging();
+			throw new Error('Legacy recovery journal migration staging failed.');
 		}
-		return migrated;
+		try {
+			await adapter.remove(sourcePath);
+		} catch {
+			await this.removeMigrationStaging();
+			throw new Error('Legacy recovery journal source could not be replaced.');
+		}
+		try {
+			await adapter.rename(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, sourcePath);
+		} catch {
+			await this.restoreLegacySource(sourcePath, original, serialized);
+			throw new Error('Legacy recovery journal migration promotion failed.');
+		}
+		try {
+			const persistedText = await adapter.read(sourcePath);
+			const persisted = validatePersistentRecoveryJournal(JSON.parse(persistedText));
+			if (!persisted.valid || serializedContainsSecret(persistedText, secrets)) throw new Error('Migration promotion validation failed.');
+			return persisted.journal;
+		} catch {
+			await this.restoreLegacySource(sourcePath, original, serialized);
+			throw new Error('Legacy recovery journal migration could not be verified.');
+		}
 	}
 
 	private async sanitizeLegacyTemporaryCandidate(sourcePath: string): Promise<'not-legacy' | 'sanitized' | 'migration-failed'> {
-		const adapter = this.app.vault.adapter;
 		let parsed: unknown;
 		try {
-			parsed = JSON.parse(await adapter.read(sourcePath));
+			parsed = JSON.parse(await this.app.vault.adapter.read(sourcePath));
 		} catch {
 			return 'not-legacy';
 		}
 		if (!detectLegacyConfigurationJournal(parsed)) return 'not-legacy';
 		try {
-			const migrated = await migrateLegacyConfigurationJournal(parsed);
+			const migrated = await this.migrateCandidate(sourcePath, parsed);
 			if (!migrated) return 'not-legacy';
-			const validation = validatePersistentRecoveryJournal(migrated);
-			if (!validation.valid) throw new Error('Migrated legacy temporary recovery journal is invalid.');
-			await adapter.write(sourcePath, JSON.stringify(validation.journal, null, 2));
-			const persisted = validatePersistentRecoveryJournal(JSON.parse(await adapter.read(sourcePath)));
-			if (!persisted.valid) throw new Error('Sanitized legacy temporary recovery journal could not be verified.');
 			return 'sanitized';
 		} catch {
 			return 'migration-failed';
@@ -470,13 +550,47 @@ export class RecoveryJournalStore {
 
 	async load(): Promise<RecoveryJournalLoadResult> {
 		const adapter = this.app.vault.adapter;
-		const hasCurrent = await adapter.exists(RECOVERY_JOURNAL_PATH);
+		let hasCurrent = await adapter.exists(RECOVERY_JOURNAL_PATH);
 		const hasPrevious = await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH);
-		const temporaryFilePresent = await adapter.exists(RECOVERY_JOURNAL_TEMP_PATH);
+		let temporaryFilePresent = await adapter.exists(RECOVERY_JOURNAL_TEMP_PATH);
+		const migrationStagingPresent = await adapter.exists(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH);
+		if (migrationStagingPresent && !hasCurrent && !hasPrevious && !temporaryFilePresent) {
+			try {
+				const stagedText = await adapter.read(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH);
+				const staged = validatePersistentRecoveryJournal(JSON.parse(stagedText));
+				if (!staged.valid) throw new Error('Migration staging journal is invalid.');
+				await adapter.rename(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, RECOVERY_JOURNAL_PATH);
+				hasCurrent = true;
+			} catch {
+				if (await adapter.exists(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH)) {
+					const backupPath = `.bangumi-sync-recovery.corrupt-migration-${Date.now()}.json`;
+					try {
+						await adapter.rename(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, backupPath);
+						return { status: 'corrupt', message: 'Recovery journal migration staging was invalid.', backupPath };
+					} catch {
+						return { status: 'migration-failed', sourcePath: RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, message: 'Recovery journal migration staging could not be preserved as a backup.' };
+					}
+				}
+				return { status: 'migration-failed', sourcePath: RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, message: 'Recovery journal migration staging could not be promoted.' };
+			}
+		}
+		let temporaryMigration: 'not-legacy' | 'sanitized' | 'migration-failed' = 'not-legacy';
 		if (temporaryFilePresent) {
-			const temporaryMigration = await this.sanitizeLegacyTemporaryCandidate(RECOVERY_JOURNAL_TEMP_PATH);
+			temporaryMigration = await this.sanitizeLegacyTemporaryCandidate(RECOVERY_JOURNAL_TEMP_PATH);
 			if (temporaryMigration === 'migration-failed') {
 				return { status: 'migration-failed', sourcePath: RECOVERY_JOURNAL_TEMP_PATH, message: 'Legacy temporary configuration journal migration failed.' };
+			}
+		}
+		temporaryFilePresent = await adapter.exists(RECOVERY_JOURNAL_TEMP_PATH);
+		if (temporaryMigration === 'sanitized' && !hasCurrent && !hasPrevious && temporaryFilePresent) {
+			try {
+				const sanitized = validatePersistentRecoveryJournal(JSON.parse(await adapter.read(RECOVERY_JOURNAL_TEMP_PATH)));
+				if (!sanitized.valid) throw new Error('Sanitized temporary journal is invalid.');
+				await adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PATH);
+				hasCurrent = true;
+				temporaryFilePresent = false;
+			} catch {
+				return { status: 'migration-failed', sourcePath: RECOVERY_JOURNAL_TEMP_PATH, message: 'Sanitized temporary recovery journal could not be promoted.' };
 			}
 		}
 		if (!hasCurrent && !hasPrevious && temporaryFilePresent) {
@@ -538,10 +652,10 @@ export class RecoveryJournalStore {
 
 	async clear(): Promise<void> {
 		await this.writeQueue;
-		for (const path of [RECOVERY_JOURNAL_PREVIOUS_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PATH]) {
+		for (const path of [RECOVERY_JOURNAL_PREVIOUS_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, RECOVERY_JOURNAL_PATH]) {
 			if (await this.app.vault.adapter.exists(path)) await this.app.vault.adapter.remove(path);
 		}
-		for (const path of [RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH]) {
+		for (const path of [RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH]) {
 			if (await this.app.vault.adapter.exists(path)) throw new Error(`Recovery journal cleanup incomplete: ${path}`);
 		}
 	}

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { RuntimeConfigurationRecoveryFacts } from '../../src/sync/recoveryJournal';
-import { RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH, RECOVERY_JOURNAL_TEMP_PATH, selectPreviousAccessToken } from '../../src/sync/recoveryJournal';
+import { RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH, RECOVERY_JOURNAL_TEMP_PATH, selectPreviousAccessToken } from '../../src/sync/recoveryJournal';
 import { hashRecoveryContent } from '../../src/sync/recoveryContent';
 import type { SyncManagerConfig } from '../../src/sync/syncManager';
 import { RecoveryRequiredError, SyncManager } from '../../src/sync/syncManager';
@@ -183,7 +183,7 @@ describe('configuration rollback recovery', () => {
 		vault.addFile(RECOVERY_JOURNAL_PATH, original);
 		const adapter = vault.app.vault.adapter;
 		const originalWrite = adapter.write.bind(adapter);
-		adapter.write = (path, data) => path === RECOVERY_JOURNAL_TEMP_PATH
+		adapter.write = (path, data) => path === RECOVERY_JOURNAL_MIGRATION_TEMP_PATH
 			? Promise.reject(new Error('injected migration write failure'))
 			: originalWrite(path, data);
 
@@ -208,5 +208,28 @@ describe('configuration rollback recovery', () => {
 		expect(reloaded.getRecoveryRequired()?.reason).toBe('configuration-rollback-failed');
 		expect(vault.contents.get(RECOVERY_JOURNAL_PATH)).not.toContain('legacy-old');
 		expect(vault.contents.get(RECOVERY_JOURNAL_PREVIOUS_PATH) ?? '').not.toContain('legacy-old');
+	});
+
+	it('promotes a temp-only legacy journal after migration retry into configuration recovery', async () => {
+		const vault = new InMemoryVault();
+		const original = JSON.stringify(legacyConfigurationJournal());
+		vault.addFile(RECOVERY_JOURNAL_TEMP_PATH, original);
+		const adapter = vault.app.vault.adapter;
+		const originalWrite = adapter.write.bind(adapter);
+		adapter.write = (path, data) => path === RECOVERY_JOURNAL_MIGRATION_TEMP_PATH
+			? Promise.reject(new Error('injected first migration failure'))
+			: originalWrite(path, data);
+
+		const manager = new SyncManager(vault.app, config());
+		await manager.initializeRecovery();
+		expect(manager.getRecoveryRequired()?.reason).toBe('legacy-journal-migration-failed');
+		expect(vault.files.has(RECOVERY_JOURNAL_TEMP_PATH)).toBe(true);
+
+		adapter.write = originalWrite;
+		const retried = await manager.retryLegacyJournalMigration();
+		expect(retried).toMatchObject({ action: 'retry-migration', status: 'recovered', recovered: true });
+		expect(manager.getRecoveryRequired()?.reason).toBe('configuration-rollback-failed');
+		expect(vault.files.has(RECOVERY_JOURNAL_TEMP_PATH)).toBe(false);
+		expect(vault.files.has(RECOVERY_JOURNAL_PATH)).toBe(true);
 	});
 });

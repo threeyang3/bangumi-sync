@@ -355,6 +355,8 @@ var en = {
     templateReadFailed: "Failed to read template file: {path}",
     noteManagerNotInit: "Subject note manager not initialized",
     coverDownloadComplete: "Cover download complete: {downloaded} downloaded, {skipped} skipped, {failed} failed",
+    coverDownloadFailed: "Cover download failed: {downloaded} downloaded, {skipped} skipped, {failed} failed",
+    coverDownloadRecoveryRequired: "Cover download requires recovery: {downloaded} downloaded, {skipped} skipped, {failed} failed. Open Recovery Center.",
     coverDownloadDisabled: 'Please enable "Download cover images" in settings first',
     coverDownloadNoItems: "No items with network cover links found"
   },
@@ -1015,6 +1017,8 @@ var zhCN = {
     templateReadFailed: "\u6A21\u677F\u6587\u4EF6\u8BFB\u53D6\u5931\u8D25: {path}",
     noteManagerNotInit: "\u6761\u76EE\u7B14\u8BB0\u7BA1\u7406\u5668\u672A\u521D\u59CB\u5316",
     coverDownloadComplete: "\u5C01\u9762\u4E0B\u8F7D\u5B8C\u6210\uFF1A\u4E0B\u8F7D {downloaded}\uFF0C\u8DF3\u8FC7 {skipped}\uFF0C\u5931\u8D25 {failed}",
+    coverDownloadFailed: "\u5C01\u9762\u4E0B\u8F7D\u5931\u8D25\uFF1A\u4E0B\u8F7D {downloaded}\uFF0C\u8DF3\u8FC7 {skipped}\uFF0C\u5931\u8D25 {failed}",
+    coverDownloadRecoveryRequired: "\u5C01\u9762\u4E0B\u8F7D\u9700\u8981\u6062\u590D\uFF1A\u4E0B\u8F7D {downloaded}\uFF0C\u8DF3\u8FC7 {skipped}\uFF0C\u5931\u8D25 {failed}\u3002\u8BF7\u6253\u5F00\u6062\u590D\u4E2D\u5FC3\u3002",
     coverDownloadDisabled: '\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u542F\u7528"\u4E0B\u8F7D\u5C01\u9762\u56FE\u7247"',
     coverDownloadNoItems: "\u6CA1\u6709\u627E\u5230\u542B\u7F51\u7EDC\u5C01\u9762\u94FE\u63A5\u7684\u6761\u76EE"
   },
@@ -6125,6 +6129,15 @@ function determineSyncCompletion(succeeded, failed, cancelled) {
     return "success";
   return succeeded > 0 ? "partial-success" : "failed";
 }
+function determineCoverDownloadNotice(downloaded, skipped, failed, recoveryActive) {
+  if (recoveryActive)
+    return "recovery";
+  if (failed > 0)
+    return "failed";
+  if (downloaded === 0 && skipped === 0)
+    return "empty";
+  return "complete";
+}
 function createCancellationSignal() {
   return {
     cancelled: false,
@@ -8070,9 +8083,45 @@ function syncConfigFieldEqual(left, right, field) {
 var RECOVERY_JOURNAL_PATH = ".bangumi-sync-recovery.json";
 var RECOVERY_JOURNAL_TEMP_PATH = ".bangumi-sync-recovery.tmp.json";
 var RECOVERY_JOURNAL_PREVIOUS_PATH = ".bangumi-sync-recovery.previous.json";
+var RECOVERY_JOURNAL_MIGRATION_TEMP_PATH = ".bangumi-sync-recovery.migration.tmp.json";
 function isSecretKey(key) {
   const normalized = key.replace(/[\s_-]/gu, "").toLowerCase();
   return normalized === "token" || normalized === "accesstoken" || normalized === "refreshtoken" || normalized === "authtoken" || normalized === "bearertoken" || normalized === "authorization" || normalized === "apikey" || normalized === "secret" || normalized === "clientsecret" || normalized === "password" || normalized.endsWith("token") || normalized.endsWith("secret");
+}
+function collectLegacySecrets(value, secrets = /* @__PURE__ */ new Set()) {
+  if (Array.isArray(value)) {
+    for (const item of value)
+      collectLegacySecrets(item, secrets);
+    return secrets;
+  }
+  if (!isRecord(value))
+    return secrets;
+  for (const [key, child] of Object.entries(value)) {
+    if (isSecretKey(key) && typeof child === "string" && child.length > 0)
+      secrets.add(child);
+    collectLegacySecrets(child, secrets);
+  }
+  return secrets;
+}
+function redactLegacyJournalStrings(value, secrets) {
+  if (typeof value === "string") {
+    let redacted = value;
+    for (const secret of secrets)
+      redacted = redacted.split(secret).join("[REDACTED]");
+    return redacted.replace(/Bearer\s+[^\s,;]+/giu, "Bearer [REDACTED]");
+  }
+  if (Array.isArray(value))
+    return value.map((item) => redactLegacyJournalStrings(item, secrets));
+  if (isRecord(value)) {
+    const result = {};
+    for (const [key, child] of Object.entries(value))
+      result[key] = redactLegacyJournalStrings(child, secrets);
+    return result;
+  }
+  return value;
+}
+function serializedContainsSecret(serialized, secrets) {
+  return secrets.some((secret) => secret.length > 0 && serialized.includes(secret));
 }
 function sanitizePersistentValue(value, key) {
   if (key !== void 0 && isSecretKey(key))
@@ -8117,13 +8166,15 @@ async function migrateLegacyConfigurationJournal(value) {
     return null;
   const legacy = value.configurationFacts;
   const runtime = legacy;
+  const secrets = Array.from(collectLegacySecrets(value)).sort((left, right) => right.length - left.length);
+  const redactedJournal = redactLegacyJournalStrings(value, secrets);
   const previousToken = typeof runtime.previousSettings.accessToken === "string" ? runtime.previousSettings.accessToken : void 0;
   const candidateToken = typeof runtime.candidateSettings.accessToken === "string" ? runtime.candidateSettings.accessToken : void 0;
   const facts = sanitizeConfigurationRecoveryFacts(runtime, {
     previousAccessTokenSha256: previousToken !== void 0 ? await hashRecoveryContent(previousToken) : void 0,
     candidateAccessTokenSha256: candidateToken !== void 0 ? await hashRecoveryContent(candidateToken) : void 0
   });
-  return { ...value, configurationFacts: facts };
+  return { ...redactedJournal, configurationFacts: facts };
 }
 async function selectPreviousAccessToken(options) {
   const matchesPrevious = async (token) => token !== void 0 && (options.previousAccessTokenSha256 === void 0 ? !options.accessTokenChanged : await hashRecoveryContent(token) === options.previousAccessTokenSha256);
@@ -8502,6 +8553,34 @@ var RecoveryJournalStore = class {
     if (await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH))
       await adapter.remove(RECOVERY_JOURNAL_PREVIOUS_PATH);
   }
+  async removeMigrationStaging() {
+    try {
+      if (await this.app.vault.adapter.exists(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH)) {
+        await this.app.vault.adapter.remove(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH);
+      }
+    } catch (e) {
+    }
+  }
+  async restoreLegacySource(sourcePath, original, sanitized) {
+    const adapter = this.app.vault.adapter;
+    try {
+      await adapter.write(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, sanitized);
+      const staged = validatePersistentRecoveryJournal(JSON.parse(
+        await adapter.read(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH)
+      ));
+      if (!staged.valid)
+        return;
+    } catch (e) {
+      return;
+    }
+    try {
+      if (await adapter.exists(sourcePath))
+        await adapter.remove(sourcePath);
+      await adapter.write(sourcePath, original);
+      await this.removeMigrationStaging();
+    } catch (e) {
+    }
+  }
   async migrateCandidate(sourcePath, parsed) {
     const migrated = await migrateLegacyConfigurationJournal(parsed);
     if (!migrated)
@@ -8509,43 +8588,59 @@ var RecoveryJournalStore = class {
     const validation = validatePersistentRecoveryJournal(migrated);
     if (!validation.valid)
       throw new Error("Migrated legacy recovery journal is invalid.");
-    const serialized = JSON.stringify(migrated, null, 2);
-    await this.app.vault.adapter.write(RECOVERY_JOURNAL_TEMP_PATH, serialized);
-    const original = await this.app.vault.adapter.read(sourcePath);
+    const serialized = JSON.stringify(validation.journal, null, 2);
+    const secrets = Array.from(collectLegacySecrets(parsed)).sort((left, right) => right.length - left.length);
+    if (serializedContainsSecret(serialized, secrets))
+      throw new Error("Migrated legacy recovery journal still contains a secret.");
+    const adapter = this.app.vault.adapter;
+    const original = await adapter.read(sourcePath);
+    await this.removeMigrationStaging();
     try {
-      await this.app.vault.adapter.remove(sourcePath);
-      await this.app.vault.adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, sourcePath);
-    } catch (error) {
-      try {
-        if (!await this.app.vault.adapter.exists(sourcePath))
-          await this.app.vault.adapter.write(sourcePath, original);
-      } catch (e) {
-      }
-      throw error;
+      await adapter.write(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, serialized);
+      const stagedText = await adapter.read(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH);
+      const staged = validatePersistentRecoveryJournal(JSON.parse(stagedText));
+      if (!staged.valid || serializedContainsSecret(stagedText, secrets))
+        throw new Error("Migration staging validation failed.");
+    } catch (e) {
+      await this.removeMigrationStaging();
+      throw new Error("Legacy recovery journal migration staging failed.");
     }
-    return migrated;
+    try {
+      await adapter.remove(sourcePath);
+    } catch (e) {
+      await this.removeMigrationStaging();
+      throw new Error("Legacy recovery journal source could not be replaced.");
+    }
+    try {
+      await adapter.rename(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, sourcePath);
+    } catch (e) {
+      await this.restoreLegacySource(sourcePath, original, serialized);
+      throw new Error("Legacy recovery journal migration promotion failed.");
+    }
+    try {
+      const persistedText = await adapter.read(sourcePath);
+      const persisted = validatePersistentRecoveryJournal(JSON.parse(persistedText));
+      if (!persisted.valid || serializedContainsSecret(persistedText, secrets))
+        throw new Error("Migration promotion validation failed.");
+      return persisted.journal;
+    } catch (e) {
+      await this.restoreLegacySource(sourcePath, original, serialized);
+      throw new Error("Legacy recovery journal migration could not be verified.");
+    }
   }
   async sanitizeLegacyTemporaryCandidate(sourcePath) {
-    const adapter = this.app.vault.adapter;
     let parsed;
     try {
-      parsed = JSON.parse(await adapter.read(sourcePath));
+      parsed = JSON.parse(await this.app.vault.adapter.read(sourcePath));
     } catch (e) {
       return "not-legacy";
     }
     if (!detectLegacyConfigurationJournal(parsed))
       return "not-legacy";
     try {
-      const migrated = await migrateLegacyConfigurationJournal(parsed);
+      const migrated = await this.migrateCandidate(sourcePath, parsed);
       if (!migrated)
         return "not-legacy";
-      const validation = validatePersistentRecoveryJournal(migrated);
-      if (!validation.valid)
-        throw new Error("Migrated legacy temporary recovery journal is invalid.");
-      await adapter.write(sourcePath, JSON.stringify(validation.journal, null, 2));
-      const persisted = validatePersistentRecoveryJournal(JSON.parse(await adapter.read(sourcePath)));
-      if (!persisted.valid)
-        throw new Error("Sanitized legacy temporary recovery journal could not be verified.");
       return "sanitized";
     } catch (e) {
       return "migration-failed";
@@ -8554,13 +8649,49 @@ var RecoveryJournalStore = class {
   async load() {
     var _a, _b, _c;
     const adapter = this.app.vault.adapter;
-    const hasCurrent = await adapter.exists(RECOVERY_JOURNAL_PATH);
+    let hasCurrent = await adapter.exists(RECOVERY_JOURNAL_PATH);
     const hasPrevious = await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH);
-    const temporaryFilePresent = await adapter.exists(RECOVERY_JOURNAL_TEMP_PATH);
+    let temporaryFilePresent = await adapter.exists(RECOVERY_JOURNAL_TEMP_PATH);
+    const migrationStagingPresent = await adapter.exists(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH);
+    if (migrationStagingPresent && !hasCurrent && !hasPrevious && !temporaryFilePresent) {
+      try {
+        const stagedText = await adapter.read(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH);
+        const staged = validatePersistentRecoveryJournal(JSON.parse(stagedText));
+        if (!staged.valid)
+          throw new Error("Migration staging journal is invalid.");
+        await adapter.rename(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, RECOVERY_JOURNAL_PATH);
+        hasCurrent = true;
+      } catch (e) {
+        if (await adapter.exists(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH)) {
+          const backupPath = `.bangumi-sync-recovery.corrupt-migration-${Date.now()}.json`;
+          try {
+            await adapter.rename(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, backupPath);
+            return { status: "corrupt", message: "Recovery journal migration staging was invalid.", backupPath };
+          } catch (e2) {
+            return { status: "migration-failed", sourcePath: RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, message: "Recovery journal migration staging could not be preserved as a backup." };
+          }
+        }
+        return { status: "migration-failed", sourcePath: RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, message: "Recovery journal migration staging could not be promoted." };
+      }
+    }
+    let temporaryMigration = "not-legacy";
     if (temporaryFilePresent) {
-      const temporaryMigration = await this.sanitizeLegacyTemporaryCandidate(RECOVERY_JOURNAL_TEMP_PATH);
+      temporaryMigration = await this.sanitizeLegacyTemporaryCandidate(RECOVERY_JOURNAL_TEMP_PATH);
       if (temporaryMigration === "migration-failed") {
         return { status: "migration-failed", sourcePath: RECOVERY_JOURNAL_TEMP_PATH, message: "Legacy temporary configuration journal migration failed." };
+      }
+    }
+    temporaryFilePresent = await adapter.exists(RECOVERY_JOURNAL_TEMP_PATH);
+    if (temporaryMigration === "sanitized" && !hasCurrent && !hasPrevious && temporaryFilePresent) {
+      try {
+        const sanitized = validatePersistentRecoveryJournal(JSON.parse(await adapter.read(RECOVERY_JOURNAL_TEMP_PATH)));
+        if (!sanitized.valid)
+          throw new Error("Sanitized temporary journal is invalid.");
+        await adapter.rename(RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PATH);
+        hasCurrent = true;
+        temporaryFilePresent = false;
+      } catch (e) {
+        return { status: "migration-failed", sourcePath: RECOVERY_JOURNAL_TEMP_PATH, message: "Sanitized temporary recovery journal could not be promoted." };
       }
     }
     if (!hasCurrent && !hasPrevious && temporaryFilePresent) {
@@ -8625,11 +8756,11 @@ var RecoveryJournalStore = class {
   }
   async clear() {
     await this.writeQueue;
-    for (const path of [RECOVERY_JOURNAL_PREVIOUS_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PATH]) {
+    for (const path of [RECOVERY_JOURNAL_PREVIOUS_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, RECOVERY_JOURNAL_PATH]) {
       if (await this.app.vault.adapter.exists(path))
         await this.app.vault.adapter.remove(path);
     }
-    for (const path of [RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH]) {
+    for (const path of [RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_TEMP_PATH, RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH]) {
       if (await this.app.vault.adapter.exists(path))
         throw new Error(`Recovery journal cleanup incomplete: ${path}`);
     }
@@ -8696,10 +8827,19 @@ function getRecoveryActionPolicy(recovery) {
         requiresUnverifiableRiskAcceptance: false
       };
     case "journal-cleanup-failed":
+      return {
+        allowRetryRollback: false,
+        allowRetryCleanup: true,
+        allowRetryMigration: false,
+        allowManualConfirmation: false,
+        allowRescan: true,
+        retryRequiresPostValidation: false,
+        requiresUnverifiableRiskAcceptance: false
+      };
     case "journal-finalization-failed":
       return {
-        allowRetryRollback: recovery.reason === "journal-finalization-failed",
-        allowRetryCleanup: true,
+        allowRetryRollback: true,
+        allowRetryCleanup: false,
         allowRetryMigration: false,
         allowManualConfirmation: false,
         allowRescan: true,
@@ -8948,7 +9088,7 @@ var SyncManager = class {
     };
     this.pendingTransaction = pending;
     this.recoveryRequired = {
-      reason: cleanupTerminal ? "journal-finalization-failed" : forcedReason,
+      reason: cleanupTerminal ? "journal-cleanup-failed" : forcedReason,
       rollback: this.emptyRollbackResult(),
       affectedSubjectIds: [...journal.affectedSubjectIds],
       originalPathStates: this.clonePathStates(journal.originalPathStates),
@@ -9104,10 +9244,14 @@ var SyncManager = class {
     } : null;
   }
   retryRecovery() {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e;
     if (((_a = this.recoveryRequired) == null ? void 0 : _a.reason) === "legacy-journal-migration-failed")
       return this.resolveRecoveryAction("retry-migration");
-    const cleanupPending = ((_b = this.activeRecoveryJournal) == null ? void 0 : _b.state) === "committed-cleanup-pending" || ((_c = this.activeRecoveryJournal) == null ? void 0 : _c.state) === "rolled-back-cleanup-pending";
+    if (((_b = this.recoveryRequired) == null ? void 0 : _b.reason) === "journal-cleanup-failed")
+      return this.resolveRecoveryAction("retry-cleanup");
+    if (((_c = this.recoveryRequired) == null ? void 0 : _c.reason) === "journal-finalization-failed")
+      return this.resolveRecoveryAction("retry-rollback");
+    const cleanupPending = ((_d = this.activeRecoveryJournal) == null ? void 0 : _d.state) === "committed-cleanup-pending" || ((_e = this.activeRecoveryJournal) == null ? void 0 : _e.state) === "rolled-back-cleanup-pending";
     return this.resolveRecoveryAction(cleanupPending ? "retry-cleanup" : "retry-rollback");
   }
   retryRollbackRecovery() {
@@ -9378,12 +9522,13 @@ var SyncManager = class {
     this.notifyRecoveryStateChanged();
   }
   enterJournalFinalizationRecovery(pending, error, phase) {
-    const message = `Recovery journal finalization failed (${phase}): ${errorMessage(error)}`;
+    const reason = phase === "cleanup" ? "journal-cleanup-failed" : "journal-finalization-failed";
+    const message = `Recovery journal ${phase === "cleanup" ? "cleanup" : "finalization"} failed: ${errorMessage(error)}`;
     if (this.activeRecoveryJournal)
       this.activeRecoveryJournal.blockingIssue = message;
     this.pendingTransaction = pending;
     this.recoveryRequired = {
-      reason: "journal-finalization-failed",
+      reason,
       rollback: this.emptyRollbackResult(),
       affectedSubjectIds: [...pending.affectedSubjectIds],
       originalPathStates: this.clonePathStates(pending.previousPathStates),
@@ -20922,7 +21067,25 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       this.cancellationSignal = null;
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar();
-      if (result.downloaded === 0 && result.skipped === 0) {
+      const noticeKind = determineCoverDownloadNotice(
+        result.downloaded,
+        result.skipped,
+        result.failed,
+        this.syncManager.getRecoveryRequired() !== null
+      );
+      if (noticeKind === "recovery") {
+        new import_obsidian32.Notice(tnFormat("notices", "coverDownloadRecoveryRequired", {
+          downloaded: result.downloaded,
+          skipped: result.skipped,
+          failed: result.failed
+        }));
+      } else if (noticeKind === "failed") {
+        new import_obsidian32.Notice(tnFormat("notices", "coverDownloadFailed", {
+          downloaded: result.downloaded,
+          skipped: result.skipped,
+          failed: result.failed
+        }));
+      } else if (noticeKind === "empty") {
         new import_obsidian32.Notice(tn("notices", "coverDownloadNoItems"));
       } else {
         new import_obsidian32.Notice(tnFormat("notices", "coverDownloadComplete", {

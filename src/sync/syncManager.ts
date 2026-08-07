@@ -432,7 +432,7 @@ export class SyncManager {
 		};
 		this.pendingTransaction = pending;
 		this.recoveryRequired = {
-			reason: cleanupTerminal ? 'journal-finalization-failed' : forcedReason, rollback: this.emptyRollbackResult(), affectedSubjectIds: [...journal.affectedSubjectIds],
+			reason: cleanupTerminal ? 'journal-cleanup-failed' : forcedReason, rollback: this.emptyRollbackResult(), affectedSubjectIds: [...journal.affectedSubjectIds],
 			originalPathStates: this.clonePathStates(journal.originalPathStates), subjectExpectations: journal.subjectExpectations.map(item => ({ ...item })),
 			scanRoot: journal.scanRoot, contentExpectations: journal.contentExpectations.map(item => ({ ...item })),
 			forbiddenPathsAfterRollback: journal.createdPathExpectations.map(item => item.createdPath),
@@ -590,6 +590,8 @@ export class SyncManager {
 
 	retryRecovery(): Promise<RecoveryActionResult> {
 		if (this.recoveryRequired?.reason === 'legacy-journal-migration-failed') return this.resolveRecoveryAction('retry-migration');
+		if (this.recoveryRequired?.reason === 'journal-cleanup-failed') return this.resolveRecoveryAction('retry-cleanup');
+		if (this.recoveryRequired?.reason === 'journal-finalization-failed') return this.resolveRecoveryAction('retry-rollback');
 		const cleanupPending = this.activeRecoveryJournal?.state === 'committed-cleanup-pending'
 			|| this.activeRecoveryJournal?.state === 'rolled-back-cleanup-pending';
 		return this.resolveRecoveryAction(cleanupPending ? 'retry-cleanup' : 'retry-rollback');
@@ -856,11 +858,14 @@ export class SyncManager {
 		error: unknown,
 		phase: 'terminal-write' | 'cleanup',
 	): void {
-		const message = `Recovery journal finalization failed (${phase}): ${errorMessage(error)}`;
+		const reason: RecoveryRequiredState['reason'] = phase === 'cleanup'
+			? 'journal-cleanup-failed'
+			: 'journal-finalization-failed';
+		const message = `Recovery journal ${phase === 'cleanup' ? 'cleanup' : 'finalization'} failed: ${errorMessage(error)}`;
 		if (this.activeRecoveryJournal) this.activeRecoveryJournal.blockingIssue = message;
 		this.pendingTransaction = pending;
 		this.recoveryRequired = {
-			reason: 'journal-finalization-failed', rollback: this.emptyRollbackResult(),
+			reason, rollback: this.emptyRollbackResult(),
 			affectedSubjectIds: [...pending.affectedSubjectIds], originalPathStates: this.clonePathStates(pending.previousPathStates),
 			subjectExpectations: pending.subjectExpectations.map(item => ({ ...item })), scanRoot: pending.scanRootAtBatchStart,
 			contentExpectations: pending.contentExpectations.map(item => ({ ...item })),

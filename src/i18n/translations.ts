@@ -56,6 +56,8 @@ export interface TranslationStrings {
 		templateReadFailed: string;
 		noteManagerNotInit: string;
 		coverDownloadComplete: string;
+		coverDownloadFailed: string;
+		coverDownloadRecoveryRequired: string;
 		coverDownloadDisabled: string;
 		coverDownloadNoItems: string;
 	};
@@ -732,6 +734,8 @@ const en: TranslationStrings = {
 		templateReadFailed: 'Failed to read template file: {path}',
 		noteManagerNotInit: 'Subject note manager not initialized',
 		coverDownloadComplete: 'Cover download complete: {downloaded} downloaded, {skipped} skipped, {failed} failed',
+		coverDownloadFailed: 'Cover download failed: {downloaded} downloaded, {skipped} skipped, {failed} failed',
+		coverDownloadRecoveryRequired: 'Cover download requires recovery: {downloaded} downloaded, {skipped} skipped, {failed} failed. Open Recovery Center.',
 		coverDownloadDisabled: 'Please enable "Download cover images" in settings first',
 		coverDownloadNoItems: 'No items with network cover links found',
 	},
@@ -1384,6 +1388,8 @@ const zhCN: TranslationStrings = {
 		templateReadFailed: '模板文件读取失败: {path}',
 		noteManagerNotInit: '条目笔记管理器未初始化',
 		coverDownloadComplete: '封面下载完成：下载 {downloaded}，跳过 {skipped}，失败 {failed}',
+		coverDownloadFailed: '封面下载失败：下载 {downloaded}，跳过 {skipped}，失败 {failed}',
+		coverDownloadRecoveryRequired: '封面下载需要恢复：下载 {downloaded}，跳过 {skipped}，失败 {failed}。请打开恢复中心。',
 		coverDownloadDisabled: '请先在设置中启用"下载封面图片"',
 		coverDownloadNoItems: '没有找到含网络封面链接的条目',
 	},

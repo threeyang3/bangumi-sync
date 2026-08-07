@@ -20,7 +20,7 @@ import { SyncPreviewModal, SyncPreviewResult } from './src/ui/syncPreviewModal';
 import { SearchModal } from './src/ui/searchModal';
 import { loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult } from './src/ui/localPropertyModal';
 import { ControlPanel } from './src/panel/controlPanel';
-import { SyncProgress, createCancellationSignal } from './src/sync/syncStatus';
+import { determineCoverDownloadNotice, SyncProgress, createCancellationSignal } from './src/sync/syncStatus';
 import { UserCollection } from './common/api/types';
 import { tn, tnFormat } from './src/i18n';
 import {
@@ -839,7 +839,25 @@ export default class BangumiPlugin extends Plugin {
 			this.syncManager.setCancellationSignal(null);
 			this.hideStatusBar();
 
-			if (result.downloaded === 0 && result.skipped === 0) {
+			const noticeKind = determineCoverDownloadNotice(
+				result.downloaded,
+				result.skipped,
+				result.failed,
+				this.syncManager.getRecoveryRequired() !== null,
+			);
+			if (noticeKind === 'recovery') {
+				new Notice(tnFormat('notices', 'coverDownloadRecoveryRequired', {
+					downloaded: result.downloaded,
+					skipped: result.skipped,
+					failed: result.failed,
+				}));
+			} else if (noticeKind === 'failed') {
+				new Notice(tnFormat('notices', 'coverDownloadFailed', {
+					downloaded: result.downloaded,
+					skipped: result.skipped,
+					failed: result.failed,
+				}));
+			} else if (noticeKind === 'empty') {
 				new Notice(tn('notices', 'coverDownloadNoItems'));
 			} else {
 				new Notice(tnFormat('notices', 'coverDownloadComplete', {
