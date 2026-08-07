@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { RuntimeConfigurationRecoveryFacts } from '../../src/sync/recoveryJournal';
-import { RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH, RECOVERY_JOURNAL_TEMP_PATH, selectPreviousAccessToken } from '../../src/sync/recoveryJournal';
+import { RECOVERY_JOURNAL_PATH, RECOVERY_JOURNAL_MIGRATION_TEMP_PATH, RECOVERY_JOURNAL_PREVIOUS_PATH, RECOVERY_JOURNAL_TEMP_PATH, selectPreviousAccessToken, validatePersistentRecoveryJournal } from '../../src/sync/recoveryJournal';
 import { hashRecoveryContent } from '../../src/sync/recoveryContent';
 import type { SyncManagerConfig } from '../../src/sync/syncManager';
 import { RecoveryRequiredError, SyncManager } from '../../src/sync/syncManager';
@@ -89,6 +89,78 @@ describe('configuration rollback recovery', () => {
 		expect(() => manager.ensureCanStartSync()).not.toThrow();
 		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
 	});
+
+	it('keeps configuration recovery semantics after restart', async () => {
+		const vault = new InMemoryVault();
+		const original = new SyncManager(vault.app, config());
+		await original.requireConfigurationRecovery(new Error('rollback write failed'), facts());
+
+		const restarted = new SyncManager(vault.app, config());
+		await restarted.initializeRecovery();
+
+		expect(restarted.getRecoveryRequired()).toMatchObject({
+			reason: 'configuration-rollback-failed',
+			configurationFacts: { accessTokenChanged: true },
+		});
+		expect(restarted.getRecoveryActionPolicy()).toMatchObject({ allowRetryRollback: false, allowManualConfirmation: true });
+		expect(await restarted.retryRollbackRecovery()).toMatchObject({ status: 'blocked', recovered: false });
+		expect(() => restarted.ensureCanStartSync()).toThrow(RecoveryRequiredError);
+	});
+
+	it('runs configuration reconciliation after restart and clears the gate', async () => {
+		const vault = new InMemoryVault();
+		const original = new SyncManager(vault.app, config());
+		await original.requireConfigurationRecovery(new Error('rollback write failed'), facts());
+		const recoverConfiguration = vi.fn().mockResolvedValue(config());
+		const restarted = new SyncManager(vault.app, config(recoverConfiguration));
+		await restarted.initializeRecovery();
+
+		expect(await restarted.confirmManualRecovery()).toMatchObject({ status: 'recovered', recovered: true });
+		expect(recoverConfiguration).toHaveBeenCalledOnce();
+		expect(recoverConfiguration).toHaveBeenCalledWith(expect.objectContaining({
+			accessTokenChanged: true,
+			previousAccessTokenSha256: await hashRecoveryContent('old-token'),
+		}));
+		expect(restarted.getRecoveryRequired()).toBeNull();
+		expect(restarted.getManagerState()).toBe('idle');
+	});
+
+	it('starts a migrated 6.11.1 configuration journal in configuration recovery', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, JSON.stringify(legacyConfigurationJournal()));
+		const manager = new SyncManager(vault.app, config());
+
+		await manager.initializeRecovery();
+
+		expect(manager.getRecoveryRequired()?.reason).toBe('configuration-rollback-failed');
+		const persisted = vault.contents.get(RECOVERY_JOURNAL_PATH) ?? '';
+		expect(JSON.parse(persisted)).toMatchObject({
+			configurationFacts: {
+				accessTokenChanged: true,
+				previousAccessTokenSha256: await hashRecoveryContent('legacy-old'),
+			},
+		});
+		expect(persisted).not.toContain('legacy-old');
+		expect(persisted).not.toContain('legacy-new');
+	});
+
+	it.each(['committed-cleanup-pending', 'rolled-back-cleanup-pending'] as const)(
+		'keeps terminal marker priority over configuration facts for %s',
+		async state => {
+			const vault = new InMemoryVault();
+			const original = new SyncManager(vault.app, config());
+			await original.requireConfigurationRecovery(new Error('rollback write failed'), facts());
+			const journal = JSON.parse(vault.contents.get(RECOVERY_JOURNAL_PATH) ?? '{}') as Record<string, unknown>;
+			journal.state = state;
+			await vault.app.vault.adapter.write(RECOVERY_JOURNAL_PATH, JSON.stringify(journal));
+
+			const restarted = new SyncManager(vault.app, config());
+			await restarted.initializeRecovery();
+
+			expect(restarted.getRecoveryRequired()?.reason).toBe('journal-cleanup-failed');
+			expect(restarted.getRecoveryActionPolicy()).toMatchObject({ allowRetryCleanup: true, allowRetryRollback: false });
+		},
+	);
 
 	it('never persists or reports a configuration token canary', async () => {
 		const secret = 'SECRET_TOKEN_MUST_NEVER_REACH_JOURNAL_6_11_2';
@@ -231,5 +303,60 @@ describe('configuration rollback recovery', () => {
 		expect(manager.getRecoveryRequired()?.reason).toBe('configuration-rollback-failed');
 		expect(vault.files.has(RECOVERY_JOURNAL_TEMP_PATH)).toBe(false);
 		expect(vault.files.has(RECOVERY_JOURNAL_PATH)).toBe(true);
+	});
+
+	it('retries sanitized migration staging in the same runtime when the legacy source is gone', async () => {
+		const vault = new InMemoryVault();
+		const secret = 'LEGACY_STAGING_RETRY_SECRET_6_11_2';
+		vault.addFile(RECOVERY_JOURNAL_PATH, JSON.stringify(legacyConfigurationJournal()).split('legacy-old').join(secret));
+		const adapter = vault.app.vault.adapter;
+		const originalWrite = adapter.write.bind(adapter);
+		const originalRename = adapter.rename.bind(adapter);
+		adapter.rename = (from, to) => from === RECOVERY_JOURNAL_MIGRATION_TEMP_PATH && to === RECOVERY_JOURNAL_PATH
+			? Promise.reject(new Error('injected promotion failure'))
+			: originalRename(from, to);
+		adapter.write = (path, data) => path === RECOVERY_JOURNAL_PATH
+			? Promise.reject(new Error('injected source restoration failure'))
+			: originalWrite(path, data);
+		const manager = new SyncManager(vault.app, config());
+
+		await manager.initializeRecovery();
+
+		expect(manager.getRecoveryRequired()?.reason).toBe('legacy-journal-migration-failed');
+		expect(vault.files.has(RECOVERY_JOURNAL_PATH)).toBe(false);
+		expect(vault.files.has(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH)).toBe(true);
+		const staging = vault.contents.get(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH) ?? '';
+		expect(validatePersistentRecoveryJournal(JSON.parse(staging)).valid).toBe(true);
+		expect(staging).not.toContain(secret);
+
+		adapter.rename = originalRename;
+		adapter.write = originalWrite;
+		expect(await manager.retryLegacyJournalMigration()).toMatchObject({ status: 'recovered', recovered: true });
+		expect(manager.getRecoveryRequired()?.reason).toBe('configuration-rollback-failed');
+		expect(vault.files.has(RECOVERY_JOURNAL_MIGRATION_TEMP_PATH)).toBe(false);
+		expect(vault.files.has(RECOVERY_JOURNAL_PATH)).toBe(true);
+		expect(vault.contents.get(RECOVERY_JOURNAL_PATH)).not.toContain(secret);
+	});
+
+	it('keeps migration recovery gated when source and staging are both absent', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile(RECOVERY_JOURNAL_PATH, JSON.stringify(legacyConfigurationJournal()));
+		const adapter = vault.app.vault.adapter;
+		const originalWrite = adapter.write.bind(adapter);
+		adapter.write = (path, data) => path === RECOVERY_JOURNAL_MIGRATION_TEMP_PATH
+			? Promise.reject(new Error('injected migration failure'))
+			: originalWrite(path, data);
+		const manager = new SyncManager(vault.app, config());
+		await manager.initializeRecovery();
+		adapter.write = originalWrite;
+		await adapter.remove(RECOVERY_JOURNAL_PATH);
+
+		const result = await manager.retryLegacyJournalMigration();
+
+		expect(result).toMatchObject({ status: 'failed', recovered: false });
+		expect(result.diagnostics[0]?.message).toBe('No legacy or migrated recovery journal candidate remains.');
+		expect(manager.getRecoveryRequired()?.reason).toBe('legacy-journal-migration-failed');
+		expect(manager.getManagerState()).toBe('recovery-required');
+		expect(() => manager.ensureCanStartSync()).toThrow(RecoveryRequiredError);
 	});
 });

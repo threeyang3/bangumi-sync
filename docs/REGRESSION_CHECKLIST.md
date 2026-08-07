@@ -11,19 +11,23 @@
 - [x] staging write、partial write、重读、结构校验、source remove、promotion 和 promotion 后校验故障均保留完整候选。
 - [x] source 恢复失败时保留有效安全 staging，下次启动可以继续加载。
 - [x] temp-only legacy migration 首次失败、Retry 成功后提升为 current 并进入 configuration recovery。
+- [x] configuration recovery journal 重启后保持 `configuration-rollback-failed`，Confirm 继续执行配置对齐。
+- [x] legacy source 丢失但安全 migration staging 存在时可在同运行期 Retry，无需 reload。
 - [x] current、previous、temp legacy journal 在 backup 前脱敏。
 - [x] `blockingIssue`、error details、warnings、attempt error 和 diagnostics message 中的已知 secret 被递归清理。
 - [x] 批量封面 `{0,0,1}` 选择 failed notice，不选择 no-items 或 complete。
 - [x] recovery active 时批量封面 notice 明确提示 Recovery Center。
 - [x] `{0,0,0}` 仍显示 no-items，成功结果仍显示 complete。
 - [x] Recovery Guide 动作矩阵与 `getRecoveryActionPolicy()` 一致。
-- [x] 最终 `npm ci`、lint、TypeScript、完整测试（36 files / 265 tests）、build 和 `git diff --check` 全部通过。
+- [x] 最终 `npm ci`、lint、TypeScript、完整测试（36 files / 272 tests）、build 和 `git diff --check` 全部通过。
 - [x] PR #15 最新 head 的 Ubuntu CI 通过。
 - [x] PR #15 最新 head 的 Windows CI 通过。
 
 ## 最终 Sandbox
 
 - [x] 使用最终 production `main.js`、`manifest.json`、`styles.css`。
+- [x] configuration recovery journal reload 后仍为 `configuration-rollback-failed`，Confirm 后配置一致且 manager idle。
+- [x] legacy source 丢失但 sanitized staging 存在时，同运行期 Retry 提升 current 并进入 configuration recovery。
 - [x] Commit cleanup failure 只显示 Retry cleanup；直接 rollback 被拒绝，cleanup 成功后 manager idle。
 - [x] legacy temp staging partial-write failure 不破坏最后完整候选，也不产生新的 canary 副本。
 - [x] temp-only migration 首次失败、reload、Retry 后进入 `configuration-rollback-failed`。
@@ -32,6 +36,8 @@
 - [x] 记录 Obsidian 版本、代码 commit、production SHA-256、按钮、journal/file/manager 状态、notice、console error 和 canary 搜索结果。
 
 Sandbox 证据：Obsidian `1.13.4`（installer `1.12.7`），commit `0ecc1ac5d497821c3deb88a3547c206b6d9db743`，production SHA-256 `F603B7A7E92CB7477C4332D44787D1478804DF7635723749A0AE0DCED8E1979A`。Commit cleanup failure 时 journal 为 `committed-cleanup-pending`，Recovery Center 仅显示 Retry cleanup、Rescan 和 Close，直接 rollback 返回 `blocked`；cleanup 后 manager 为 `idle` 且 recovery journal 文件为 0。Partial-write 后 legacy source 完整且非 source canary 副本为 0。Temp-only 首次 reload 为 `legacy-journal-migration-failed`，Retry 后为 `configuration-rollback-failed`，保留脱敏 current journal。Whole-journal canary 在 journal 内容和 Obsidian 全 Vault 搜索中均为 0。批量封面 notice 分别为“封面下载失败：下载 0，跳过 0，失败 1”和“封面下载需要恢复：下载 0，跳过 0，失败 1。请打开恢复中心。”；开启 debugger 后复跑全部场景，`dev:errors` 与 error-level console 均为 0，最终 manager 为 `idle`。
+
+最终两项 Sandbox：Obsidian `1.13.4`（installer `1.12.7`），production SHA-256 `24EB6971CC5560481577399ED228C16972AE8BF9D55395FAAB6E2443DAC0704A`。Configuration journal reload 后 Recovery Center 保持 `configuration-rollback-failed`；Confirm 后 previous Token、scan path 在正式 settings、磁盘与 manager config 中一致，journal 清零且 manager `idle`。Legacy promotion 与 source restoration 同时失败时 source 不存在、sanitized staging 存在且 canary 为 0；不 reload 插件，Recovery Center Retry migration 将 staging 提升为 current 并进入 `configuration-rollback-failed`，Confirm 后 journal 清零且 manager `idle`。`dev:errors` 与 error-level console 均为 0。
 
 ## 合并后检查
 

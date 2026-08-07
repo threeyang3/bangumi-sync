@@ -343,7 +343,10 @@ export class SyncManager {
 	async initializeRecovery(): Promise<void> {
 		const loaded = await this.recoveryJournalStore.load();
 		if (loaded.status === 'loaded') {
-			this.restorePersistentJournal(loaded.journal);
+			this.restorePersistentJournal(
+				loaded.journal,
+				loaded.journal.configurationFacts ? 'configuration-rollback-failed' : 'journal-recovered',
+			);
 			return;
 		}
 		if (loaded.status === 'corrupt' || loaded.status === 'unsupported') {
@@ -958,19 +961,18 @@ export class SyncManager {
 		try {
 			if (action === 'retry-migration') {
 				const sourcePath = recovery.legacyMigration?.sourcePath;
-				if (!sourcePath || !await this.app.vault.adapter.exists(sourcePath)) {
-					outcome = { action, status: 'failed', recovered: false, diagnostics: [{ code: 'blocking-local-file', path: sourcePath ?? '.bangumi-sync-recovery.json', message: 'The legacy recovery journal source is no longer available.' }], recovery: this.getRecoveryRequired() ?? undefined };
+				const loaded = await this.recoveryJournalStore.load();
+				if (loaded.status === 'migration-failed') {
+					this.enterLegacyMigrationRecovery(loaded.sourcePath, loaded.message);
+					outcome = { action, status: 'failed', recovered: false, diagnostics: [{ code: 'blocking-local-file', path: loaded.sourcePath, message: loaded.message }], recovery: this.getRecoveryRequired() ?? undefined };
+				} else if (loaded.status === 'loaded') {
+					this.restorePersistentJournal(loaded.journal, loaded.journal.configurationFacts ? 'configuration-rollback-failed' : 'journal-recovered');
+					outcome = { action, status: 'recovered', recovered: true, diagnostics: [], recovery: this.getRecoveryRequired() ?? undefined };
 				} else {
-					const loaded = await this.recoveryJournalStore.load();
-					if (loaded.status === 'migration-failed') {
-						this.enterLegacyMigrationRecovery(loaded.sourcePath, loaded.message);
-						outcome = { action, status: 'failed', recovered: false, diagnostics: [{ code: 'blocking-local-file', path: loaded.sourcePath, message: loaded.message }], recovery: this.getRecoveryRequired() ?? undefined };
-					} else if (loaded.status === 'loaded') {
-						this.restorePersistentJournal(loaded.journal, loaded.journal.configurationFacts ? 'configuration-rollback-failed' : 'journal-recovered');
-						outcome = { action, status: 'recovered', recovered: true, diagnostics: [], recovery: this.getRecoveryRequired() ?? undefined };
-					} else {
-						outcome = { action, status: 'failed', recovered: false, diagnostics: [{ code: 'blocking-local-file', path: sourcePath, message: 'Legacy recovery journal migration did not produce a usable journal.' }], recovery: this.getRecoveryRequired() ?? undefined };
-					}
+					const message = loaded.status === 'none'
+						? 'No legacy or migrated recovery journal candidate remains.'
+						: 'Legacy recovery journal migration did not produce a usable journal.';
+					outcome = { action, status: 'failed', recovered: false, diagnostics: [{ code: 'blocking-local-file', path: sourcePath ?? '.bangumi-sync-recovery.json', message }], recovery: this.getRecoveryRequired() ?? undefined };
 				}
 			} else if (action === 'retry-cleanup') {
 				const terminal = this.activeRecoveryJournal?.state === 'committed-cleanup-pending' ? 'committed'

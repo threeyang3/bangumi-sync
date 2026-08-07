@@ -11,6 +11,8 @@
 - `accessTokenChanged=true` 只接受 hash 匹配的 previous Token；无法确认时继续保持写门禁。
 - 关联链接改为主事务提交并清理 journal 后的 post-commit best-effort 操作；失败只产生 warning。
 - temp-only legacy journal 迁移重试成功后会提升为 current，并进入可继续操作的 configuration recovery。
+- 包含 configuration recovery facts 的非 terminal journal 在插件重启后仍恢复为 `configuration-rollback-failed`，不会降级为普通 journal recovery。
+- legacy source 丢失但 sanitized migration staging 仍有效时，可在同一运行期直接 Retry migration，无需重启插件。
 - terminal marker 写入失败进入 `journal-finalization-failed`；terminal marker 已写入后的 cleanup 失败进入 `journal-cleanup-failed`。
 - 批量封面只有完成 binary、Markdown 和 journal finalization 才计为 downloaded/skipped；`{ downloaded: 0, skipped: 0, failed: 1 }` 显示失败统计，存在 recovery 时明确提示打开 Recovery Center，不再显示“没有可下载项目”。
 - legacy current/previous/temp configuration journal 在任何 backup 前先安全脱敏；migration failure 保留原 source，Recovery Center 只允许 Retry migration。

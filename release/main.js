@@ -8984,7 +8984,10 @@ var SyncManager = class {
   async initializeRecovery() {
     const loaded = await this.recoveryJournalStore.load();
     if (loaded.status === "loaded") {
-      this.restorePersistentJournal(loaded.journal);
+      this.restorePersistentJournal(
+        loaded.journal,
+        loaded.journal.configurationFacts ? "configuration-rollback-failed" : "journal-recovered"
+      );
       return;
     }
     if (loaded.status === "corrupt" || loaded.status === "unsupported") {
@@ -9631,7 +9634,7 @@ var SyncManager = class {
     return promise;
   }
   async performRecoveryAction(action, startedAt, manualOptions) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
     const recovery = this.recoveryRequired;
     const pending = this.pendingTransaction;
     if (!recovery)
@@ -9640,26 +9643,23 @@ var SyncManager = class {
     try {
       if (action === "retry-migration") {
         const sourcePath = (_a = recovery.legacyMigration) == null ? void 0 : _a.sourcePath;
-        if (!sourcePath || !await this.app.vault.adapter.exists(sourcePath)) {
-          outcome = { action, status: "failed", recovered: false, diagnostics: [{ code: "blocking-local-file", path: sourcePath != null ? sourcePath : ".bangumi-sync-recovery.json", message: "The legacy recovery journal source is no longer available." }], recovery: (_b = this.getRecoveryRequired()) != null ? _b : void 0 };
+        const loaded = await this.recoveryJournalStore.load();
+        if (loaded.status === "migration-failed") {
+          this.enterLegacyMigrationRecovery(loaded.sourcePath, loaded.message);
+          outcome = { action, status: "failed", recovered: false, diagnostics: [{ code: "blocking-local-file", path: loaded.sourcePath, message: loaded.message }], recovery: (_b = this.getRecoveryRequired()) != null ? _b : void 0 };
+        } else if (loaded.status === "loaded") {
+          this.restorePersistentJournal(loaded.journal, loaded.journal.configurationFacts ? "configuration-rollback-failed" : "journal-recovered");
+          outcome = { action, status: "recovered", recovered: true, diagnostics: [], recovery: (_c = this.getRecoveryRequired()) != null ? _c : void 0 };
         } else {
-          const loaded = await this.recoveryJournalStore.load();
-          if (loaded.status === "migration-failed") {
-            this.enterLegacyMigrationRecovery(loaded.sourcePath, loaded.message);
-            outcome = { action, status: "failed", recovered: false, diagnostics: [{ code: "blocking-local-file", path: loaded.sourcePath, message: loaded.message }], recovery: (_c = this.getRecoveryRequired()) != null ? _c : void 0 };
-          } else if (loaded.status === "loaded") {
-            this.restorePersistentJournal(loaded.journal, loaded.journal.configurationFacts ? "configuration-rollback-failed" : "journal-recovered");
-            outcome = { action, status: "recovered", recovered: true, diagnostics: [], recovery: (_d = this.getRecoveryRequired()) != null ? _d : void 0 };
-          } else {
-            outcome = { action, status: "failed", recovered: false, diagnostics: [{ code: "blocking-local-file", path: sourcePath, message: "Legacy recovery journal migration did not produce a usable journal." }], recovery: (_e = this.getRecoveryRequired()) != null ? _e : void 0 };
-          }
+          const message = loaded.status === "none" ? "No legacy or migrated recovery journal candidate remains." : "Legacy recovery journal migration did not produce a usable journal.";
+          outcome = { action, status: "failed", recovered: false, diagnostics: [{ code: "blocking-local-file", path: sourcePath != null ? sourcePath : ".bangumi-sync-recovery.json", message }], recovery: (_d = this.getRecoveryRequired()) != null ? _d : void 0 };
         }
       } else if (action === "retry-cleanup") {
-        const terminal = ((_f = this.activeRecoveryJournal) == null ? void 0 : _f.state) === "committed-cleanup-pending" ? "committed" : ((_g = this.activeRecoveryJournal) == null ? void 0 : _g.state) === "rolled-back-cleanup-pending" ? "rolled-back" : null;
+        const terminal = ((_e = this.activeRecoveryJournal) == null ? void 0 : _e.state) === "committed-cleanup-pending" ? "committed" : ((_f = this.activeRecoveryJournal) == null ? void 0 : _f.state) === "rolled-back-cleanup-pending" ? "rolled-back" : null;
         if (!terminal) {
           outcome = { action, status: "blocked", recovered: false, diagnostics: [{ code: "blocking-local-file", path: ".bangumi-sync-recovery.json", message: "A terminal cleanup marker is unavailable." }] };
         } else if (!pending) {
-          outcome = { action, status: "blocked", recovered: false, diagnostics: [{ code: "blocking-local-file", path: ".bangumi-sync-recovery.json", message: "A transaction recovery context is unavailable." }], recovery: (_h = this.getRecoveryRequired()) != null ? _h : void 0 };
+          outcome = { action, status: "blocked", recovered: false, diagnostics: [{ code: "blocking-local-file", path: ".bangumi-sync-recovery.json", message: "A transaction recovery context is unavailable." }], recovery: (_g = this.getRecoveryRequired()) != null ? _g : void 0 };
         } else {
           const recovered = await this.finalizePersistedTerminalJournal(pending, terminal);
           outcome = {
@@ -9669,14 +9669,14 @@ var SyncManager = class {
             diagnostics: recovered ? [] : [{
               code: "blocking-local-file",
               path: ".bangumi-sync-recovery.json",
-              message: (_j = (_i = this.recoveryRequired) == null ? void 0 : _i.journalIssue) != null ? _j : "Recovery journal cleanup failed."
+              message: (_i = (_h = this.recoveryRequired) == null ? void 0 : _h.journalIssue) != null ? _i : "Recovery journal cleanup failed."
             }],
-            recovery: (_k = this.getRecoveryRequired()) != null ? _k : void 0
+            recovery: (_j = this.getRecoveryRequired()) != null ? _j : void 0
           };
         }
       } else if (action === "retry-rollback") {
         if (!pending)
-          return { action, status: "blocked", recovered: false, diagnostics: [{ code: "blocking-local-file", path: ".bangumi-sync-recovery.json", message: "A transaction recovery context is unavailable." }], recovery: (_l = this.getRecoveryRequired()) != null ? _l : void 0 };
+          return { action, status: "blocked", recovered: false, diagnostics: [{ code: "blocking-local-file", path: ".bangumi-sync-recovery.json", message: "A transaction recovery context is unavailable." }], recovery: (_k = this.getRecoveryRequired()) != null ? _k : void 0 };
         pending.state = "rolling-back";
         this.setBatchTransactionState("rolling-back");
         const decision = await this.rollbackPendingTransaction(pending);
@@ -9689,11 +9689,11 @@ var SyncManager = class {
           result: decision.result,
           rollback: decision.rollback,
           error: decision.error,
-          recovery: (_m = this.getRecoveryRequired()) != null ? _m : void 0
+          recovery: (_l = this.getRecoveryRequired()) != null ? _l : void 0
         };
       } else if (action === "confirm-manual") {
         if (!pending)
-          return { action, status: "blocked", recovered: false, diagnostics: [{ code: "blocking-local-file", path: ".bangumi-sync-recovery.json", message: "A transaction recovery context is unavailable." }], recovery: (_n = this.getRecoveryRequired()) != null ? _n : void 0 };
+          return { action, status: "blocked", recovered: false, diagnostics: [{ code: "blocking-local-file", path: ".bangumi-sync-recovery.json", message: "A transaction recovery context is unavailable." }], recovery: (_m = this.getRecoveryRequired()) != null ? _m : void 0 };
         outcome = await this.performManualRecovery(recovery, pending, manualOptions);
       } else {
         const diagnostics = await this.collectRecoveryDiagnostics(recovery);
@@ -9702,7 +9702,7 @@ var SyncManager = class {
           status: "blocked",
           recovered: false,
           diagnostics,
-          recovery: (_o = this.getRecoveryRequired()) != null ? _o : void 0
+          recovery: (_n = this.getRecoveryRequired()) != null ? _n : void 0
         };
       }
     } catch (error) {
@@ -9712,7 +9712,7 @@ var SyncManager = class {
         recovered: false,
         diagnostics: [],
         error: errorMessage(error),
-        recovery: (_p = this.getRecoveryRequired()) != null ? _p : void 0
+        recovery: (_o = this.getRecoveryRequired()) != null ? _o : void 0
       };
     }
     const attempt = {
@@ -9727,7 +9727,7 @@ var SyncManager = class {
     if (this.recoveryRequired && this.recoveryRequired.reason !== "journal-cleanup-failed" && this.recoveryRequired.reason !== "journal-finalization-failed") {
       this.recoveryRequired.attempts.push(attempt);
       this.recoveryRequired.latestAttempt = attempt;
-      outcome.recovery = (_q = this.getRecoveryRequired()) != null ? _q : void 0;
+      outcome.recovery = (_p = this.getRecoveryRequired()) != null ? _p : void 0;
       this.notifyRecoveryStateChanged();
       if (this.pendingTransaction && this.recoveryRequired.reason !== "legacy-journal-migration-failed") {
         await this.persistPendingJournal(this.pendingTransaction, "recovery-required");
