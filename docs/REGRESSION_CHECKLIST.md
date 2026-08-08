@@ -51,6 +51,6 @@ Sandbox 证据：Obsidian `1.13.4`（installer `1.12.7`），commit `0ecc1ac5d49
 - [x] Release target 为 release code commit `7cc2b2448ae8e2b16d2cd100959ef48a3f2316b8`。
 - [x] Release 包含同一次构建的 `main.js`、`manifest.json`、`styles.css`。
 - [x] Release assets SHA-256 与已验证 production build 一致。
-- [ ] `main` 已同步到 `adv`。
+- [x] `main` 已同步到 `adv`（merge commit `20d2ee79337e60f5dc55ff5ec741c4092de59984`）。
 
 Tag 指向实际 release code commit；其后 `main` 只有发布 checklist bookkeeping 文档提交。
