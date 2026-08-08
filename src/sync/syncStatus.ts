@@ -121,6 +121,20 @@ export function determineSyncCompletion(
 	return succeeded > 0 ? 'partial-success' : 'failed';
 }
 
+export type CoverDownloadNoticeKind = 'recovery' | 'failed' | 'empty' | 'complete';
+
+export function determineCoverDownloadNotice(
+	downloaded: number,
+	skipped: number,
+	failed: number,
+	recoveryActive: boolean,
+): CoverDownloadNoticeKind {
+	if (recoveryActive) return 'recovery';
+	if (failed > 0) return 'failed';
+	if (downloaded === 0 && skipped === 0) return 'empty';
+	return 'complete';
+}
+
 /**
  * 创建取消信号
  */

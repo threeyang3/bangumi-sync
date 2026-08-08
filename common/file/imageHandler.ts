@@ -25,6 +25,26 @@ export interface ImageDownloadResult {
 	status: 'created' | 'updated' | 'unchanged' | 'failed';
 }
 
+export class ImageMutationUncertainError extends Error {
+	constructor(
+		readonly operation: 'create' | 'update',
+		readonly path: string,
+		readonly recoveryFactsPersisted: boolean,
+		cause: unknown,
+	) {
+		super(`Image ${operation} could not confirm the final state for ${path}.`);
+		this.name = 'ImageMutationUncertainError';
+		Object.defineProperty(this, 'cause', { value: cause, configurable: true });
+	}
+}
+
+function binaryContentsEqual(left: ArrayBuffer, right: ArrayBuffer): boolean {
+	const leftBytes = new Uint8Array(left);
+	const rightBytes = new Uint8Array(right);
+	if (leftBytes.byteLength !== rightBytes.byteLength) return false;
+	return leftBytes.every((value, index) => value === rightBytes[index]);
+}
+
 export class ImageHandler {
 	private app: App;
 	private fileManager: FileManager;
@@ -117,43 +137,55 @@ export class ImageHandler {
 			return { path: imageUrl, status: 'failed' };
 		}
 
+		const normalizedPath = normalizePath(targetPath);
+		const existingFile = this.fileManager.getFile(normalizedPath);
+		if (existingFile && !this.imageSettings.updateExisting) {
+			return { path: normalizedPath, status: 'unchanged' };
+		}
+
+		let response: Awaited<ReturnType<typeof requestUrl>>;
 		try {
-			const normalizedPath = normalizePath(targetPath);
-			const existingFile = this.fileManager.getFile(normalizedPath);
-			if (existingFile && !this.imageSettings.updateExisting) {
-				return { path: normalizedPath, status: 'unchanged' };
-			}
-			// 下载图片
-			const response = await requestUrl({
+			response = await requestUrl({
 				url: imageUrl,
 				method: 'GET',
 			});
+		} catch {
+			console.error('Image download request failed.');
+			return { path: imageUrl, status: 'failed' };
+		}
+		if (response.status !== 200) {
+			console.error(`Failed to download image: ${response.status}`);
+			return { path: imageUrl, status: 'failed' };
+		}
 
-			if (response.status !== 200) {
-				console.error(`Failed to download image: ${response.status}`);
-				return { path: imageUrl, status: 'failed' };
-			}
-
-			// 获取 array buffer
-			const arrayBuffer = response.arrayBuffer;
-
-			// 确保目录存在
+		const arrayBuffer = response.arrayBuffer;
+		try {
 			await this.fileManager.ensureDirectory(targetPath);
+		} catch {
+			return { path: imageUrl, status: 'failed' };
+		}
 
-			// 保存图片
+		const operation = existingFile ? 'update' : 'create';
+		let recoveryFactsPersisted = false;
+		try {
 			if (existingFile) {
 				const originalContent = await this.app.vault.readBinary(existingFile);
 				await this.beforeUpdate?.(normalizedPath, originalContent);
+				recoveryFactsPersisted = this.beforeUpdate !== null;
 				await this.app.vault.modifyBinary(existingFile, arrayBuffer);
+				const written = await this.app.vault.readBinary(existingFile);
+				if (!binaryContentsEqual(written, arrayBuffer)) throw new Error('Updated binary verification failed.');
 				return { path: normalizedPath, status: 'updated' };
-			} else {
-				await this.beforeCreate?.(normalizedPath);
-				await this.app.vault.createBinary(normalizedPath, arrayBuffer);
-				return { path: normalizedPath, status: 'created' };
 			}
+
+			await this.beforeCreate?.(normalizedPath);
+			recoveryFactsPersisted = this.beforeCreate !== null;
+			const created = await this.app.vault.createBinary(normalizedPath, arrayBuffer);
+			const written = await this.app.vault.readBinary(created);
+			if (!binaryContentsEqual(written, arrayBuffer)) throw new Error('Created binary verification failed.');
+			return { path: normalizedPath, status: 'created' };
 		} catch (error) {
-			console.error('Error downloading image:', error);
-			return { path: imageUrl, status: 'failed' };
+			throw new ImageMutationUncertainError(operation, normalizedPath, recoveryFactsPersisted, error);
 		}
 	}
 

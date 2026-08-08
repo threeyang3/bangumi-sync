@@ -20,7 +20,7 @@ import { SyncPreviewModal, SyncPreviewResult } from './src/ui/syncPreviewModal';
 import { SearchModal } from './src/ui/searchModal';
 import { loadSubjectsForCollections, LocalPropertyModal, LocalPropertyModalResult } from './src/ui/localPropertyModal';
 import { ControlPanel } from './src/panel/controlPanel';
-import { SyncProgress, createCancellationSignal } from './src/sync/syncStatus';
+import { determineCoverDownloadNotice, SyncProgress, createCancellationSignal } from './src/sync/syncStatus';
 import { UserCollection } from './common/api/types';
 import { tn, tnFormat } from './src/i18n';
 import {
@@ -42,6 +42,7 @@ import { PathDiagnosticModal, PathMigrationPreviewModal } from './src/ui/pathToo
 import { RecoveryCenterModal } from './src/ui/recoveryCenterModal';
 import { assertWriteOperationAllowed, setWriteOperationGuard, WriteOperation } from './src/sync/writeOperationGate';
 import { cloneSyncManagerConfig, syncConfigFieldEqual } from './src/sync/syncConfig';
+import { selectPreviousAccessToken } from './src/sync/recoveryJournal';
 
 /**
  * 缓存数据结构
@@ -67,6 +68,7 @@ export default class BangumiPlugin extends Plugin {
 	private controlPanel: ControlPanel | null = null;
 	private appliedSyncConfig: SyncManagerConfig | null = null;
 	private lastSavedSettings: BangumiPluginSettings | null = null;
+	private runtimePreviousRecoveryToken: string | undefined;
 	private readonly settingsPersistence = new SettingsPersistenceCoordinator();
 
 	// 单集功能
@@ -227,7 +229,9 @@ export default class BangumiPlugin extends Plugin {
 		}
 		new RecoveryCenterModal(this.app, {
 			getRecovery: () => manager.getRecoveryRequired(),
-			retryRollback: () => manager.retryRecovery(),
+			retryRollback: () => manager.retryRollbackRecovery(),
+			retryCleanup: () => manager.retryJournalCleanup(),
+			retryMigration: () => manager.retryLegacyJournalMigration(),
 			confirmManual: acceptRisk => manager.confirmManualRecovery({ acceptUnverifiableJournalRisk: acceptRisk }),
 			rescan: () => manager.rescanRecovery(),
 			subscribe: listener => manager.subscribeRecoveryState(listener),
@@ -434,13 +438,16 @@ export default class BangumiPlugin extends Plugin {
 			applyDependentServices: settings => { if (this.syncManager) this.refreshDependentServices(this.syncManager, settings); },
 			restoreDependentServices: settings => { if (this.syncManager) this.refreshDependentServices(this.syncManager, settings); },
 			onRollbackFailure: async (error, facts) => {
+					this.runtimePreviousRecoveryToken = typeof facts.previousSettings.accessToken === 'string'
+						? facts.previousSettings.accessToken : undefined;
 				const diskSettings: unknown = await this.loadData();
 				await this.syncManager?.requireConfigurationRecovery(error, {
-					previousSettings: this.cloneSettings(facts.previousSettings),
-					candidateSettings: this.cloneSettings(facts.candidateSettings),
-					currentSettings: this.cloneSettings(this.settings),
-					diskSettings,
-					managerConfig: cloneSyncManagerConfig(this.appliedSyncConfig ?? facts.nextConfig),
+					previousSettings: { ...this.cloneSettings(facts.previousSettings) },
+					candidateSettings: { ...this.cloneSettings(facts.candidateSettings) },
+					currentSettings: { ...this.cloneSettings(this.settings) },
+					diskSettings: diskSettings && typeof diskSettings === 'object' && !Array.isArray(diskSettings)
+						? { ...(diskSettings as Record<string, unknown>) } : {},
+					managerConfig: { ...cloneSyncManagerConfig(this.appliedSyncConfig ?? facts.nextConfig) },
 				});
 			},
 		});
@@ -455,7 +462,19 @@ export default class BangumiPlugin extends Plugin {
 	}
 
 	private async reconcileConfigurationRecovery(facts: import('./src/sync/recoveryJournal').ConfigurationRecoveryFacts): Promise<SyncManagerConfig> {
-		const previous = this.cloneSettings(facts.previousSettings as BangumiPluginSettings);
+		const currentDisk: unknown = await this.loadData();
+		const diskToken = currentDisk && typeof currentDisk === 'object' && !Array.isArray(currentDisk)
+			? (currentDisk as Record<string, unknown>).accessToken : undefined;
+		const runtimeToken = this.settings.accessToken;
+		const accessToken = await selectPreviousAccessToken({
+			accessTokenChanged: facts.accessTokenChanged,
+			previousAccessTokenSha256: facts.previousAccessTokenSha256,
+			diskToken: typeof diskToken === 'string' ? diskToken : undefined,
+			runtimeToken: typeof runtimeToken === 'string' ? runtimeToken : undefined,
+			runtimePreviousToken: this.runtimePreviousRecoveryToken,
+		});
+		if (accessToken === undefined) throw new Error('A safe Access Token source could not be determined; configuration recovery remains blocked.');
+		const previous = this.cloneSettings({ ...facts.previousSettings, accessToken } as unknown as BangumiPluginSettings);
 		await this.saveData(previous);
 		const disk: unknown = await this.loadData();
 		if (JSON.stringify(disk) !== JSON.stringify(previous)) throw new Error('Persisted settings do not match the selected previous settings snapshot.');
@@ -466,6 +485,7 @@ export default class BangumiPlugin extends Plugin {
 		};
 		this.lastSavedSettings = this.cloneSettings(previous);
 		this.appliedSyncConfig = cloneSyncManagerConfig(config);
+		this.runtimePreviousRecoveryToken = undefined;
 		return config;
 	}
 
@@ -819,7 +839,25 @@ export default class BangumiPlugin extends Plugin {
 			this.syncManager.setCancellationSignal(null);
 			this.hideStatusBar();
 
-			if (result.downloaded === 0 && result.skipped === 0) {
+			const noticeKind = determineCoverDownloadNotice(
+				result.downloaded,
+				result.skipped,
+				result.failed,
+				this.syncManager.getRecoveryRequired() !== null,
+			);
+			if (noticeKind === 'recovery') {
+				new Notice(tnFormat('notices', 'coverDownloadRecoveryRequired', {
+					downloaded: result.downloaded,
+					skipped: result.skipped,
+					failed: result.failed,
+				}));
+			} else if (noticeKind === 'failed') {
+				new Notice(tnFormat('notices', 'coverDownloadFailed', {
+					downloaded: result.downloaded,
+					skipped: result.skipped,
+					failed: result.failed,
+				}));
+			} else if (noticeKind === 'empty') {
 				new Notice(tn('notices', 'coverDownloadNoItems'));
 			} else {
 				new Notice(tnFormat('notices', 'coverDownloadComplete', {

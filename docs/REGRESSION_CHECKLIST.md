@@ -1,79 +1,56 @@
-# 6.11.1 当前发布回归清单
+# 6.11.2 当前发布回归清单
 
-本文件只记录 6.11.1 的发布门槛。6.10.x 历史项目见 [history/REGRESSION_CHECKLIST-6.10.x.md](./history/REGRESSION_CHECKLIST-6.10.x.md)。
+本文件记录 6.11.2 的发布门槛。6.10.x 历史项目见 [history/REGRESSION_CHECKLIST-6.10.x.md](./history/REGRESSION_CHECKLIST-6.10.x.md)。
 
-## 自动化前置检查
+## 代码与自动测试
 
-```bash
-npm ci
-npm run lint
-npm run test
-npm run build
-git diff --check
-```
+- [x] terminal marker 写入失败使用 `journal-finalization-failed`，只允许 Retry rollback 和 Rescan。
+- [x] Commit/rollback marker 已写入但 cleanup 失败使用 `journal-cleanup-failed`，只允许 Retry cleanup 和 Rescan。
+- [x] 启动读取 `committed-cleanup-pending` 或 `rolled-back-cleanup-pending` 时不再开放 rollback。
+- [x] legacy temp 迁移使用独立 `.bangumi-sync-recovery.migration.tmp.json` staging，不覆盖唯一 source。
+- [x] staging write、partial write、重读、结构校验、source remove、promotion 和 promotion 后校验故障均保留完整候选。
+- [x] source 恢复失败时保留有效安全 staging，下次启动可以继续加载。
+- [x] temp-only legacy migration 首次失败、Retry 成功后提升为 current 并进入 configuration recovery。
+- [x] configuration recovery journal 重启后保持 `configuration-rollback-failed`，Confirm 继续执行配置对齐。
+- [x] legacy source 丢失但安全 migration staging 存在时可在同运行期 Retry，无需 reload。
+- [x] current、previous、temp legacy journal 在 backup 前脱敏。
+- [x] `blockingIssue`、error details、warnings、attempt error 和 diagnostics message 中的已知 secret 被递归清理。
+- [x] 批量封面 `{0,0,1}` 选择 failed notice，不选择 no-items 或 complete。
+- [x] recovery active 时批量封面 notice 明确提示 Recovery Center。
+- [x] `{0,0,0}` 仍显示 no-items，成功结果仍显示 complete。
+- [x] Recovery Guide 动作矩阵与 `getRecoveryActionPolicy()` 一致。
+- [x] 最终 `npm ci`、lint、TypeScript、完整测试（36 files / 272 tests）、build 和 `git diff --check` 全部通过。
+- [x] PR #15 最新 head 的 Ubuntu CI 通过。
+- [x] PR #15 最新 head 的 Windows CI 通过。
 
-## Journal 与启动
+## 最终 Sandbox
 
-- [ ] 无 journal 时正常启动。
-- [ ] `{ "schemaVersion": 1 }` 不抛出，原文件备份为 `.corrupt-structure-*`，Recovery Center 可打开且写门禁有效。
-- [ ] schema-1 数组成员类型错误得到相同的安全阻断。
-- [ ] corrupt JSON 备份为 `.corrupt-*`；unsupported schema 备份为 `.unsupported-*`。
-- [ ] orphan temp 保存并显示真实路径，插件不自动删除。
+- [x] 使用最终 production `main.js`、`manifest.json`、`styles.css`。
+- [x] configuration recovery journal reload 后仍为 `configuration-rollback-failed`，Confirm 后配置一致且 manager idle。
+- [x] legacy source 丢失但 sanitized staging 存在时，同运行期 Retry 提升 current 并进入 configuration recovery。
+- [x] Commit cleanup failure 只显示 Retry cleanup；直接 rollback 被拒绝，cleanup 成功后 manager idle。
+- [x] legacy temp staging partial-write failure 不破坏最后完整候选，也不产生新的 canary 副本。
+- [x] temp-only migration 首次失败、reload、Retry 后进入 `configuration-rollback-failed`。
+- [x] whole-journal canary 迁移后全 Vault 搜索为 0。
+- [x] 批量封面 `{0,0,1}` 显示失败数量；recovery active 时提示 Recovery Center。
+- [x] 记录 Obsidian 版本、代码 commit、production SHA-256、按钮、journal/file/manager 状态、notice、console error 和 canary 搜索结果。
 
-## Recovery action policy
+Sandbox 证据：Obsidian `1.13.4`（installer `1.12.7`），commit `0ecc1ac5d497821c3deb88a3547c206b6d9db743`，production SHA-256 `F603B7A7E92CB7477C4332D44787D1478804DF7635723749A0AE0DCED8E1979A`。Commit cleanup failure 时 journal 为 `committed-cleanup-pending`，Recovery Center 仅显示 Retry cleanup、Rescan 和 Close，直接 rollback 返回 `blocked`；cleanup 后 manager 为 `idle` 且 recovery journal 文件为 0。Partial-write 后 legacy source 完整且非 source canary 副本为 0。Temp-only 首次 reload 为 `legacy-journal-migration-failed`，Retry 后为 `configuration-rollback-failed`，保留脱敏 current journal。Whole-journal canary 在 journal 内容和 Obsidian 全 Vault 搜索中均为 0。批量封面 notice 分别为“封面下载失败：下载 0，跳过 0，失败 1”和“封面下载需要恢复：下载 0，跳过 0，失败 1。请打开恢复中心。”；开启 debugger 后复跑全部场景，`dev:errors` 与 error-level console 均为 0，最终 manager 为 `idle`。
 
-- [ ] rollback/rescan/state failure 显示 Retry、Rescan、Manual Confirm。
-- [ ] journal-recovered 只有存在实际回滚事实时显示 Retry。
-- [ ] orphan、corrupt、configuration rollback failure 不显示 Retry；直接调用服务也被拒绝且 gate 不消失。
-- [ ] corrupt Manual Confirm 明确要求备份与不可验证风险接受。
-- [ ] 所有恢复成功前重新扫描并执行完整诊断；仍有重复 ID、临时文件、内容/binary hash 不符时保留 journal。
+最终两项 Sandbox：Obsidian `1.13.4`（installer `1.12.7`），production SHA-256 `24EB6971CC5560481577399ED228C16972AE8BF9D55395FAAB6E2443DAC0704A`。Configuration journal reload 后 Recovery Center 保持 `configuration-rollback-failed`；Confirm 后 previous Token、scan path 在正式 settings、磁盘与 manager config 中一致，journal 清零且 manager `idle`。Legacy promotion 与 source restoration 同时失败时 source 不存在、sanitized staging 存在且 canary 为 0；不 reload 插件，Recovery Center Retry migration 将 staging 提升为 current 并进入 `configuration-rollback-failed`，Confirm 后 journal 清零且 manager `idle`。`dev:errors` 与 error-level console 均为 0。
 
-## Restart recovery
+## 合并后检查
 
-- [ ] final path 或 hidden temporary path 存在时，rename + content reload 一次 Retry 完成。
-- [ ] original/final 被其他 Subject ID 占用时保持 gate。
-- [ ] created Markdown、原内容、path states 和 binary 按固定顺序恢复。
-- [ ] Windows 大小写等价路径恢复到 journal 记录的规范路径。
-- [ ] binary restore 失败或复核 hash 不符时保留 journal。
+- [ ] PR #15 已完成最终审查并合并到 `main`。
+- [ ] `main` CI 通过。
+- [ ] 合并 commit 与最终审查版本一致。
 
-## Images
+## 发布后检查
 
-- [ ] small/medium/large 选择实际传给下载器。
-- [ ] `imageUpdateExisting=false`：已有 binary 不下载、不修改、不建 journal，结果为 skipped。
-- [ ] `imageUpdateExisting=true`：修改前 journal 已包含原 binary、长度和 SHA-256。
-- [ ] modifyBinary 后 Markdown 失败会自动恢复原 binary；重载后也可恢复。
-- [ ] 新建封面只进入 created-resource 删除路径；已有封面绝不进入该路径。
-- [ ] 超过 16 MiB 的已有 binary 拒绝覆盖。
-
-## Manager 与控制面板
-
-- [ ] commit 序列为 `idle → running → awaiting-decision → committing → idle`。
-- [ ] rollback 序列为 `idle → running → awaiting-decision → rolling-back → idle`。
-- [ ] rollback failure 终态为 `recovery-required`。
-- [ ] 多订阅者收到终态，已关闭订阅者不再接收，终态不重复或倒序。
-- [ ] 控制面板在 busy 状态禁用写动作，终态 idle 后重新启用；Refresh 始终可用于诊断。
-
-## Settings
-
-- [ ] 设置页打开后控制面板把 `panelFilters=A` 改为 B，再修改 Token，最终 filters 仍为 B。
-- [ ] `lastSyncTime`、`lastSyncCount`、`subjectPathStates` 的外部更新不被旧设置页覆盖。
-- [ ] `dataProtection`、`pathTemplateByType` 与模板配置使用明确的顶层对象替换 patch。
-- [ ] 两个控件快速连续保存按队列落盘，不丢字段。
-- [ ] 保存期间外部 path-state 持久化仍保留。
-- [ ] 保存失败后 UI 从当前正式 settings 重绘，不回到页面初次打开值。
-- [ ] configuration rollback failure 重新读取磁盘、持久化选择终态并应用 manager 后才解除。
-
-## Obsidian Sandbox
-
-- [ ] 使用最终 production `main.js`、`manifest.json`、`styles.css`。
-- [ ] 完成上述启动、Recovery Center、commit、rename reload、cover 和 settings 故障注入。
-- [ ] 保存步骤、截图、console error、最终文件 hash、journal 与写门禁状态。
-- [ ] Sandbox 验证后 production build hash 与 Release assets 一致。
-
-## 发布
-
-- [ ] PR 的 Ubuntu 与 Windows CI 全部通过。
-- [ ] 合并后 main CI 通过。
-- [ ] Tag `6.11.1` 指向最终 main commit。
+- [ ] Tag `6.11.2` 指向最终 `main` commit。
+- [ ] Release target 为正确发布分支。
 - [ ] Release 包含同一次构建的 `main.js`、`manifest.json`、`styles.css`。
-- [ ] main 已同步到 adv。
+- [ ] Release assets SHA-256 与已验证 production build 一致。
+- [ ] `main` 已同步到 `adv`。
+
+本轮稳定化提交阶段不得勾选合并后或发布后项目；PR #15 保持未合并，6.11.2 保持未发布。
