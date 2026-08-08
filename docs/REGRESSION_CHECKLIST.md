@@ -47,10 +47,10 @@ Sandbox 证据：Obsidian `1.13.4`（installer `1.12.7`），commit `0ecc1ac5d49
 
 ## 发布后检查
 
-- [ ] Tag `6.11.2` 指向最终 `main` commit。
-- [ ] Release target 为正确发布分支。
-- [ ] Release 包含同一次构建的 `main.js`、`manifest.json`、`styles.css`。
-- [ ] Release assets SHA-256 与已验证 production build 一致。
+- [x] Tag `6.11.2` 指向最终 release code commit `7cc2b2448ae8e2b16d2cd100959ef48a3f2316b8`。
+- [x] Release target 为 release code commit `7cc2b2448ae8e2b16d2cd100959ef48a3f2316b8`。
+- [x] Release 包含同一次构建的 `main.js`、`manifest.json`、`styles.css`。
+- [x] Release assets SHA-256 与已验证 production build 一致。
 - [ ] `main` 已同步到 `adv`。
 
-本轮稳定化提交阶段不得勾选合并后或发布后项目；PR #15 保持未合并，6.11.2 保持未发布。
+Tag 指向实际 release code commit；其后 `main` 只有发布 checklist bookkeeping 文档提交。

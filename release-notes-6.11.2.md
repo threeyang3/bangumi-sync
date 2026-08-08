@@ -28,4 +28,4 @@
 ## Scope
 
 - 本版本只处理 recovery journal、配置恢复和 binary mutation 的确定性安全缺陷。
-- 未修改 Issue #1，未发布 GitHub Release。
+- 未修改 Issue #1。
