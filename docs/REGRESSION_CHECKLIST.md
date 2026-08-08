@@ -41,9 +41,9 @@ Sandbox 证据：Obsidian `1.13.4`（installer `1.12.7`），commit `0ecc1ac5d49
 
 ## 合并后检查
 
-- [ ] PR #15 已完成最终审查并合并到 `main`。
-- [ ] `main` CI 通过。
-- [ ] 合并 commit 与最终审查版本一致。
+- [x] PR #15 已完成最终审查并合并到 `main`。
+- [x] `main` CI 通过（Ubuntu、Windows）。
+- [x] 合并 commit `7cc2b2448ae8e2b16d2cd100959ef48a3f2316b8` 包含最终审查版本 `b981a59b923c92a608dce8f2bc862a9ac6801c7a`。
 
 ## 发布后检查
 
