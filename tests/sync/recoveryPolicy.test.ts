@@ -38,7 +38,22 @@ describe('recovery action policy', () => {
 		});
 	});
 
+	it('exposes only retry migration for a legacy journal migration failure', () => {
+		const state = recovery('legacy-journal-migration-failed');
+		state.legacyMigration = { sourcePath: '.bangumi-sync-recovery.json' };
+		expect(getRecoveryActionPolicy(state)).toMatchObject({
+			allowRetryMigration: true,
+			allowRetryRollback: false,
+			allowRetryCleanup: false,
+			allowManualConfirmation: false,
+			allowRescan: false,
+		});
+		expect(getVisibleRecoveryActions(getRecoveryActionPolicy(state))).toEqual(['retry-migration']);
+	});
+
 	it.each([
+		['journal-finalization-failed', ['retry-rollback', 'rescan']],
+		['journal-cleanup-failed', ['retry-cleanup', 'rescan']],
 		['rollback-failed', ['retry-rollback', 'confirm-manual', 'rescan']],
 		['journal-corrupt', ['confirm-manual', 'rescan']],
 		['orphan-temporary', ['confirm-manual', 'rescan']],

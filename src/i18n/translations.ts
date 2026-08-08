@@ -56,6 +56,8 @@ export interface TranslationStrings {
 		templateReadFailed: string;
 		noteManagerNotInit: string;
 		coverDownloadComplete: string;
+		coverDownloadFailed: string;
+		coverDownloadRecoveryRequired: string;
 		coverDownloadDisabled: string;
 		coverDownloadNoItems: string;
 	};
@@ -672,7 +674,7 @@ export interface TranslationStrings {
 	recoveryCenter: {
 		title: string; noRecovery: string; cause: string; detectedAt: string; affectedSubjects: string;
 		expectations: string; expectedPresent: string; expectedAbsent: string; latestAttempt: string; attemptHistory: string;
-		retryRollback: string; confirmManual: string; rescan: string; close: string; working: string;
+		retryRollback: string; retryCleanup: string; retryMigration: string; legacyMigrationSource: string; confirmManual: string; rescan: string; close: string; working: string;
 		factsInsufficient: string; corruptRiskPrompt: string; orphanPaths: string;
 		recovered: string; currentFailures: string; blocked: string; actionFailed: string; diagnostics: string; openCenter: string;
 		writeBlocked: string; pendingDecision: string; decisionInProgress: string;
@@ -732,6 +734,8 @@ const en: TranslationStrings = {
 		templateReadFailed: 'Failed to read template file: {path}',
 		noteManagerNotInit: 'Subject note manager not initialized',
 		coverDownloadComplete: 'Cover download complete: {downloaded} downloaded, {skipped} skipped, {failed} failed',
+		coverDownloadFailed: 'Cover download failed: {downloaded} downloaded, {skipped} skipped, {failed} failed',
+		coverDownloadRecoveryRequired: 'Cover download requires recovery: {downloaded} downloaded, {skipped} skipped, {failed} failed. Open Recovery Center.',
 		coverDownloadDisabled: 'Please enable "Download cover images" in settings first',
 		coverDownloadNoItems: 'No items with network cover links found',
 	},
@@ -1324,7 +1328,7 @@ const en: TranslationStrings = {
 	recoveryCenter: {
 		title: 'Bangumi Sync Recovery Center', noRecovery: 'No local recovery is required.', cause: 'Cause', detectedAt: 'Detected', affectedSubjects: 'Affected subjects',
 		expectations: 'Pre-batch expectations', expectedPresent: 'must exist', expectedAbsent: 'must be absent', latestAttempt: 'Latest attempt', attemptHistory: 'Attempt history',
-		retryRollback: 'Retry automatic rollback', confirmManual: 'Confirm manual recovery', rescan: 'Rescan local state', close: 'Close', working: 'Checking local recovery…',
+		retryRollback: 'Retry automatic rollback', retryCleanup: 'Retry journal cleanup', retryMigration: 'Retry legacy journal migration', legacyMigrationSource: 'Legacy journal source', confirmManual: 'Confirm manual recovery', rescan: 'Rescan local state', close: 'Close', working: 'Checking local recovery…',
 		factsInsufficient: 'The original transaction facts are incomplete. Back up the vault and complete a full diagnostic scan before accepting the unverifiable risk.', corruptRiskPrompt: 'The recovery journal is corrupt. Confirm that you backed up the vault and accept that original content cannot be verified.', orphanPaths: 'Orphan temporary paths',
 		recovered: 'Local recovery completed. Write operations are available again.', currentFailures: 'Current failures', blocked: 'Recovery is still blocked. Resolve the diagnostics below and rescan.', actionFailed: 'Recovery action failed', diagnostics: 'Blocking diagnostics', openCenter: 'Open Recovery Center',
 		writeBlocked: 'Local recovery is required before this write operation can run.', pendingDecision: 'Resolve the previous partial sync before starting another write operation.', decisionInProgress: 'The previous sync decision or recovery action is still running.',
@@ -1384,6 +1388,8 @@ const zhCN: TranslationStrings = {
 		templateReadFailed: '模板文件读取失败: {path}',
 		noteManagerNotInit: '条目笔记管理器未初始化',
 		coverDownloadComplete: '封面下载完成：下载 {downloaded}，跳过 {skipped}，失败 {failed}',
+		coverDownloadFailed: '封面下载失败：下载 {downloaded}，跳过 {skipped}，失败 {failed}',
+		coverDownloadRecoveryRequired: '封面下载需要恢复：下载 {downloaded}，跳过 {skipped}，失败 {failed}。请打开恢复中心。',
 		coverDownloadDisabled: '请先在设置中启用"下载封面图片"',
 		coverDownloadNoItems: '没有找到含网络封面链接的条目',
 	},
@@ -1976,7 +1982,7 @@ const zhCN: TranslationStrings = {
 	recoveryCenter: {
 		title: 'Bangumi Sync 恢复中心', noRecovery: '当前不需要本地恢复。', cause: '原因', detectedAt: '发现时间', affectedSubjects: '受影响条目',
 		expectations: '批次前预期', expectedPresent: '应当存在', expectedAbsent: '应当不存在', latestAttempt: '最近一次尝试', attemptHistory: '尝试历史',
-		retryRollback: '重试自动回滚', confirmManual: '确认手动恢复', rescan: '重新扫描本地状态', close: '关闭', working: '正在检查本地恢复状态…',
+		retryRollback: '重试自动回滚', retryCleanup: '重试恢复日志清理', retryMigration: '重试旧恢复日志迁移', legacyMigrationSource: '旧恢复日志来源', confirmManual: '确认手动恢复', rescan: '重新扫描本地状态', close: '关闭', working: '正在检查本地恢复状态…',
 		factsInsufficient: '原事务事实不完整。请先备份 Vault，并完成全局诊断后再明确接受无法验证原内容的风险。', corruptRiskPrompt: '恢复日志已损坏。请确认已经备份 Vault，并接受原始内容无法验证的风险。', orphanPaths: '孤立临时路径',
 		recovered: '本地恢复已完成，写入操作已重新开放。', currentFailures: '当前失败', blocked: '恢复仍被阻塞。请处理下方诊断后重新扫描。', actionFailed: '恢复操作失败', diagnostics: '阻塞诊断', openCenter: '打开恢复中心',
 		writeBlocked: '完成本地恢复前无法执行此写入操作。', pendingDecision: '请先处理上一次部分同步，再开始新的写入操作。', decisionInProgress: '上一次同步决策或恢复操作仍在执行。',

@@ -14,6 +14,8 @@ import { getRecoveryActionPolicy, getVisibleRecoveryActions } from '../sync/reco
 export interface RecoveryCenterHandlers {
 	getRecovery: () => RecoveryRequiredState | null;
 	retryRollback: () => Promise<RecoveryActionResult>;
+	retryCleanup: () => Promise<RecoveryActionResult>;
+	retryMigration: () => Promise<RecoveryActionResult>;
 	confirmManual: (acceptUnverifiableJournalRisk?: boolean) => Promise<RecoveryActionResult>;
 	rescan: () => Promise<RecoveryActionResult>;
 	subscribe: (listener: RecoveryStateListener) => () => void;
@@ -60,6 +62,7 @@ export class RecoveryCenterModal extends Modal {
 		if (recovery.orphanTemporaryPaths.length > 0) {
 			this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'orphanPaths')}: ${recovery.orphanTemporaryPaths.join(', ')}` });
 		}
+		if (recovery.legacyMigration) this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'legacyMigrationSource')}: ${recovery.legacyMigration.sourcePath}` });
 		const policy = getRecoveryActionPolicy(recovery);
 		if (policy.requiresUnverifiableRiskAcceptance) {
 			this.contentEl.createEl('p', { text: tn('recoveryCenter', 'factsInsufficient'), cls: 'bangumi-sync-error' });
@@ -94,9 +97,11 @@ export class RecoveryCenterModal extends Modal {
 		const actions = this.contentEl.createDiv({ cls: 'bangumi-sync-actions' });
 		for (const action of getVisibleRecoveryActions(policy)) {
 			const label = action === 'retry-rollback' ? tn('recoveryCenter', 'retryRollback')
+				: action === 'retry-cleanup' ? tn('recoveryCenter', 'retryCleanup')
+					: action === 'retry-migration' ? tn('recoveryCenter', 'retryMigration')
 				: action === 'confirm-manual' ? tn('recoveryCenter', 'confirmManual')
 					: tn('recoveryCenter', 'rescan');
-			const cls = action === 'retry-rollback' ? 'mod-warning' : action === 'confirm-manual' ? 'mod-cta' : '';
+			const cls = action === 'retry-rollback' || action === 'retry-cleanup' ? 'mod-warning' : action === 'confirm-manual' ? 'mod-cta' : '';
 			this.addActionButton(actions, label, action, cls);
 		}
 		this.addCloseButton(actions);
@@ -135,6 +140,10 @@ export class RecoveryCenterModal extends Modal {
 			if (action === 'confirm-manual' && recovery?.reason === 'journal-corrupt' && !acceptsRisk) return;
 			this.lastResult = action === 'retry-rollback'
 				? await this.handlers.retryRollback()
+				: action === 'retry-cleanup'
+					? await this.handlers.retryCleanup()
+					: action === 'retry-migration'
+						? await this.handlers.retryMigration()
 				: action === 'confirm-manual'
 					? await this.handlers.confirmManual(acceptsRisk)
 					: await this.handlers.rescan();

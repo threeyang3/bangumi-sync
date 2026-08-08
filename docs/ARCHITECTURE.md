@@ -1,10 +1,10 @@
 # 项目架构与模块说明
 
-## 6.11.1 稳定事务与持久恢复
+## 6.11.2 稳定事务与持久恢复
 
 `BangumiPlugin` 持有稳定的 `SyncManager`。设置 UI 提交字段 patch，主入口在串行队列内把 patch 应用到最新正式 settings；manager 配置 lease 在任何 `await` 前取得。持久化、不可变配置快照应用与依赖刷新全部成功后才提交。失败时恢复磁盘、manager、正式设置、依赖服务和设置 UI；回滚持久化再次失败则记录 previous/candidate/current/disk/manager facts 并建立 recovery-required journal。
 
-`RecoveryJournalStore` 用 temp/current/previous 轮换原子保存事务事实，并在首次 Vault 修改、rename 阶段、创建、覆盖、awaiting、rollback 和 recovery attempt 前后刷新。启动时先执行完整运行时结构校验；损坏 JSON、结构错误 schema-1 和不支持版本分别备份再阻断。具体事务路径在 Vault 全局直接验证，adapter 递归扫描可发现 Obsidian 索引不可见的点前缀 temporary file。恢复 action policy 同时控制 UI 与服务 API，所有成功路径在清 journal 前重新扫描并完整诊断。统一 manager state setter 保证 SyncModal、Recovery Center 和控制面板收到 commit/rollback/recovery 终态。
+`RecoveryJournalStore` 用 temp/current/previous 轮换原子保存事务事实，并在首次 Vault 修改、rename 阶段、创建、覆盖、awaiting、rollback 和 recovery attempt 前后刷新。启动时先执行完整运行时结构校验；损坏 JSON、结构错误 schema-1 和不支持版本分别备份再阻断。已知 6.11.1 configuration journal 的 current、previous、temp 候选在任何 rename/backup 前先脱敏迁移；迁移失败只记录 source path，不创建空 journal 或 secret-bearing backup。Recovery action policy 同时控制 UI 与服务 API，legacy migration failure 只允许 retry-migration。具体事务路径在 Vault 全局直接验证，adapter 递归扫描可发现 Obsidian 索引不可见的点前缀 temporary file。统一 manager state setter 保证 SyncModal、Recovery Center 和控制面板收到 commit/rollback/recovery 终态。
 
 本文档描述 Bangumi Sync 当前代码结构、主要模块职责、核心运行链路，以及模块之间如何协作。
 
@@ -576,4 +576,6 @@ SearchModal
 
 Retry、Manual Confirm 与 Rescan 共用单个运行时互斥 Promise。人工确认依次执行本地扫描与矩阵校验、保存原始 `subjectPathStates`、比较配置和 `IncrementalSync` 状态、再次扫描与复核；任何一步失败都保留上下文。Recovery Center 是可重开的独立 Modal，SyncModal 的 rollback-failed 终态提供稳定入口。
 
-`writeOperationGate` 在 UI 与写服务两层阻止收藏/单条同步、迁移应用、封面、关联链接、状态同步、批量编辑、导入导出、集数、吐槽和共享笔记写入。恢复诊断不依赖网络。6.11.1 会先验证独立 journal 的完整结构，重启后按原因加载为 recovery-required；只有干净提交或完整诊断通过的回滚/人工恢复才清除。
+`writeOperationGate` 在 UI 与写服务两层阻止收藏/单条同步、迁移应用、封面、关联链接、状态同步、批量编辑、导入导出、集数、吐槽和共享笔记写入。恢复诊断不依赖网络。6.11.2 会先独立发现、解析和校验 current/previous/temp 候选，已知 legacy 候选先脱敏后再处理；提交和回滚先持久化 terminal marker，再按 previous、temp、current 顺序清理并复核不存在。只有 path states、terminal marker、transaction commit、incremental finish 和 journal cleanup 全部成功才释放 deferred relations；cleanup 未完成时 manager 保持 recovery-required，重启只重试 cleanup，不执行旧事务回滚。同步 progress 依据最终 completion，rolled-back、rollback-failed 和 finalization failure 均报告 error。
+
+配置 recovery facts 在持久化边界递归删除 Access Token、authorization、Bearer、API key 和其他 secret-bearing keys，仅保留非敏感设置与 `accessTokenChanged` 元数据。图片网络阶段可返回普通 failed；create/modify 或写后验证无法确认时抛出结构化 uncertain mutation，由上层 active journal 和二进制 SHA-256 rollback 处理。
