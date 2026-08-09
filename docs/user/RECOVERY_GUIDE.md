@@ -79,7 +79,7 @@ UI 和服务层使用同一策略，不能通过隐藏命令绕过。
 
 ### Corrupt journal
 
-原始事务事实可能缺失。先备份 Vault，检查 `.corrupt-*`、orphan temp、重复 ID 和最近创建或改名的文件。Rescan 只刷新诊断；Manual Confirm 不会假装执行了自动回滚。
+原始事务事实可能缺失。先备份 Vault，检查 `.corrupt-*`、orphan temp、重复 ID 和本次事务涉及的创建或改名文件。Rescan 只刷新诊断；Manual Confirm 不会假装执行了自动回滚。
 
 ### Configuration rollback failure
 
