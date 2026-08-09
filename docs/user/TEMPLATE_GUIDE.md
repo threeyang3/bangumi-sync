@@ -1,11 +1,11 @@
-# 模板设计参考
+# Template Guide
 
 相关文档：
 
-- 模块与数据流：见 [ARCHITECTURE.md](./ARCHITECTURE.md)
-- 字段分类和同步分支判断：见 [LOGIC_REFERENCE.md](./LOGIC_REFERENCE.md)
+- 模块与数据流：见[架构](../maintainer/ARCHITECTURE.md)
+- 字段分类和同步分支判断：见[业务逻辑参考](../maintainer/LOGIC_REFERENCE.md)
 
-本文档说明 Bangumi Sync 当前版本实际支持的模板能力、变量、默认值规则与设计建议。内容以当前代码行为为准，适用于：
+本文档是模板系统的 canonical user documentation，说明当前支持的模板来源、变量、默认值、自定义属性和字段类型。内容以当前代码行为为准，适用于：
 
 - 内置标准模板
 - 内置作者模板

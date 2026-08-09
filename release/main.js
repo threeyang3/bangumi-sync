@@ -2711,7 +2711,7 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
     const helpLinksDiv = containerEl.createDiv({ cls: "bangumi-help-links" });
     helpLinksDiv.createEl("button", { text: tn("settings", "templateGuide"), cls: "mod-cta" }, (btn) => {
       btn.addEventListener("click", () => {
-        this.openExternalLink("https://github.com/threeyang3/bangumi-sync/blob/main/docs/TEMPLATE_GUIDE.md");
+        this.openExternalLink("https://github.com/threeyang3/bangumi-sync/blob/main/docs/user/TEMPLATE_GUIDE.md");
       });
     });
     helpLinksDiv.createEl("button", { text: tn("settings", "githubRepo"), cls: "mod-cta" }, (btn) => {

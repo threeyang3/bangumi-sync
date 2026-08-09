@@ -1,127 +1,69 @@
-# 文档总览
+# Bangumi Sync 文档索引
 
-本文档用于说明 `docs/` 目录里每份文档的定位，以及推荐阅读顺序。
+本文档定义阅读路径和文档职责。一个事实只在一份 canonical 文档中完整维护，其他文档只做摘要并链接过去。
 
-## 阅读顺序
+## 普通用户
 
-### 使用者
+1. [项目首页与快速开始](../README.md)：安装、首次配置、常用功能和常见问题。
+2. [模板指南](user/TEMPLATE_GUIDE.md)：模板来源、变量、语法、默认值、自定义属性和字段类型。
+3. [迁移指南](user/MIGRATION_GUIDE.md)：升级、修改模板、路径迁移和 legacy recovery 处理。
+4. [恢复指南](user/RECOVERY_GUIDE.md)：看到 Recovery Center 时应该做什么。
 
-1. 仓库根目录 [README.md](../README.md)
-2. [TEMPLATE_GUIDE.md](./TEMPLATE_GUIDE.md)
-3. [PATH_AND_ID_MODEL.md](./PATH_AND_ID_MODEL.md)
-4. [RECOVERY_GUIDE.md](./RECOVERY_GUIDE.md)
-5. 升级或调整路径模板时看 [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)
-6. 需要排查同步异常时再看 [STATUS_SYNC_PITFALLS.md](./STATUS_SYNC_PITFALLS.md)
+## 高级用户
 
-### 维护者 / 二次开发者
+- [身份与路径模型](maintainer/PATH_AND_ID_MODEL.md)：Subject ID、用户改名保护、路径规范化和碰撞策略。
+- [业务逻辑参考](maintainer/LOGIC_REFERENCE.md)：模板选择、自定义属性、导入导出和同步判断规则。
 
-1. [ARCHITECTURE.md](./ARCHITECTURE.md)
-2. [LOGIC_REFERENCE.md](./LOGIC_REFERENCE.md)
-3. [PATH_AND_ID_MODEL.md](./PATH_AND_ID_MODEL.md)
-4. [RECOVERY_GUIDE.md](./RECOVERY_GUIDE.md)
-5. [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)
-6. [TEMPLATE_GUIDE.md](./TEMPLATE_GUIDE.md)
-7. [DEVELOPMENT.md](./DEVELOPMENT.md)
-8. [CODE_STANDARDS.md](./CODE_STANDARDS.md)
-9. [STATUS_SYNC_PITFALLS.md](./STATUS_SYNC_PITFALLS.md)
-10. [REGRESSION_CHECKLIST.md](./REGRESSION_CHECKLIST.md)
+## 维护者
 
-## 文档分工
+推荐阅读顺序：
 
-### [ARCHITECTURE.md](./ARCHITECTURE.md)
+1. [架构](maintainer/ARCHITECTURE.md)：分层、模块职责、生命周期和主数据流。
+2. [身份与路径模型](maintainer/PATH_AND_ID_MODEL.md)：身份与路径不变量。
+3. [恢复模型](maintainer/RECOVERY_MODEL.md)：journal、事务状态、重启恢复和 secret safety。
+4. [状态同步不变量](maintainer/STATUS_SYNC_INVARIANTS.md)：状态同步必须长期保持的业务约束。
+5. [业务逻辑参考](maintainer/LOGIC_REFERENCE.md)：当前判断规则。
+6. [开发指南](maintainer/DEVELOPMENT.md)：环境、测试、PR 和稳定版发布流程。
+7. [代码规范](maintainer/CODE_STANDARDS.md)：TypeScript、Obsidian API、i18n、日志和安全规则。
+8. [回归清单](maintainer/REGRESSION_CHECKLIST.md)：可复用的自动化、Sandbox 和发布验证模板。
 
-回答这些问题：
+## 历史资料
 
-- 项目分成哪些层
-- 每个目录和模块各自负责什么
-- 主同步链路怎么流转
-- 自定义属性、用户数据保护、状态同步分别落在哪些模块
+- [版本索引](VERSION_HISTORY.md)：版本重点和 GitHub Release 链接。
+- [`history/releases/`](history/releases/)：特定版本的测试、CI、Sandbox 和发布证据。
+- [`history/migrations/`](history/migrations/)：旧版本升级与迁移记录。
+- [`history/pitfalls/`](history/pitfalls/)：历史 bug、根因和排查经验。
+- [`history/design-plans/`](history/design-plans/)：已实施或被替代的设计计划。
 
-适合在你需要建立整体心智模型时阅读。
+> `docs/history/` 记录特定版本或开发阶段的事实，不是当前实现契约。当前行为请以 README、`docs/user/` 和 `docs/maintainer/` 中的文档为准。
 
-### [LOGIC_REFERENCE.md](./LOGIC_REFERENCE.md)
+## Canonical ownership
 
-回答这些问题：
+| 主题 | Canonical document |
+| --- | --- |
+| 产品介绍、安装、快速开始 | [`README.md`](../README.md) |
+| 模板系统 | [`user/TEMPLATE_GUIDE.md`](user/TEMPLATE_GUIDE.md) |
+| 当前升级行为 | [`user/MIGRATION_GUIDE.md`](user/MIGRATION_GUIDE.md) |
+| 用户恢复操作 | [`user/RECOVERY_GUIDE.md`](user/RECOVERY_GUIDE.md) |
+| 系统模块与数据流 | [`maintainer/ARCHITECTURE.md`](maintainer/ARCHITECTURE.md) |
+| 身份与路径 | [`maintainer/PATH_AND_ID_MODEL.md`](maintainer/PATH_AND_ID_MODEL.md) |
+| 当前业务判断 | [`maintainer/LOGIC_REFERENCE.md`](maintainer/LOGIC_REFERENCE.md) |
+| Recovery 内部模型 | [`maintainer/RECOVERY_MODEL.md`](maintainer/RECOVERY_MODEL.md) |
+| 状态同步不变量 | [`maintainer/STATUS_SYNC_INVARIANTS.md`](maintainer/STATUS_SYNC_INVARIANTS.md) |
+| 编码规则 | [`maintainer/CODE_STANDARDS.md`](maintainer/CODE_STANDARDS.md) |
+| 开发、测试、PR、Release | [`maintainer/DEVELOPMENT.md`](maintainer/DEVELOPMENT.md) |
+| 可复用验证模板 | [`maintainer/REGRESSION_CHECKLIST.md`](maintainer/REGRESSION_CHECKLIST.md) |
+| 已发布版本最终事实 | [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases) |
+| Release notes 源文件 | 根目录 `release-notes-{version}.md` |
+| 历史证据 | [`history/`](history/) |
 
-- 模板为什么会命中某一类
-- 条目为什么会被判定为已同步 / 未同步
-- 为什么某个字段会进入自定义属性弹窗
-- 强制同步、导入导出、状态同步各自怎么判断
+## 维护规则
 
-适合在你需要追“为什么代码这么判断”时阅读。
-
-### [PATH_AND_ID_MODEL.md](./PATH_AND_ID_MODEL.md)
-
-说明 ID 唯一身份、双向注册表、路径碰撞、用户重命名保护、事务写入与回滚不变量。
-
-### [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)
-
-说明升级后的保守初始化、诊断报告和显式路径迁移操作。
-
-### [RECOVERY_GUIDE.md](./RECOVERY_GUIDE.md)
-
-说明持久 journal、启动写门禁、Recovery Center 操作、损坏 journal 与 orphan temporary file 的安全处理方式。
-
-### [TEMPLATE_GUIDE.md](./TEMPLATE_GUIDE.md)
-
-回答这些问题：
-
-- 模板支持哪些变量
-- frontmatter 默认值怎么写
-- 自定义属性如何通过模板驱动
-- 列表、布尔、旧模板变量兼容如何工作
-
-适合模板作者和自定义属性机制维护者阅读。
-
-### [DEVELOPMENT.md](./DEVELOPMENT.md)
-
-回答这些问题：
-
-- 本地怎么开发和调试
-- 发布流程是什么
-- 提交前要跑哪些检查
-- 自定义属性改动时需要同步检查哪些文件
-
-适合仓库维护者阅读。
-
-### [REGRESSION_CHECKLIST.md](./REGRESSION_CHECKLIST.md)
-
-回答这些问题：
-
-- 发布前除了 `lint / build / test` 还要手工确认什么
-- Sandbox 里最重要的状态同步、短评、导入回归项有哪些
-
-适合在发布前和修改高风险模块后快速对照执行。
-
-### [CODE_STANDARDS.md](./CODE_STANDARDS.md)
-
-回答这些问题：
-
-- 当前项目遵守哪些 Obsidian 插件代码规范
-- lint / 构建 / 审核最容易卡在哪些点
-- 提交前的最小自查清单是什么
-
-适合准备提交代码前快速自查。
-
-### [STATUS_SYNC_PITFALLS.md](./STATUS_SYNC_PITFALLS.md)
-
-回答这些问题：
-
-- 状态同步和单集功能历史上踩过哪些坑
-- 为什么某些实现不能随便简化
-- 哪些字段或 DOM 状态必须同时维护
-
-适合修改状态同步或单集功能时回看。
-
-### [VERSION_HISTORY.md](./VERSION_HISTORY.md)
-
-记录对外版本历史。
-
-## 文档维护约束
-
-- 模块职责变更时，优先更新 `ARCHITECTURE.md`
-- 判断逻辑变更时，优先更新 `LOGIC_REFERENCE.md`
-- 模板变量、模板默认值、自定义属性写法变更时，优先更新 `TEMPLATE_GUIDE.md`
-- 发布流程和维护流程变更时，更新 `DEVELOPMENT.md`
-- 新增审核约束或常见 lint 失败原因时，更新 `CODE_STANDARDS.md`
-- 调整人工回归重点或 Sandbox 验证方式时，更新 `REGRESSION_CHECKLIST.md`
+- 用户可见行为变化：更新 README 或对应 user guide。
+- 模板能力变化：首先更新 Template Guide。
+- 模块边界变化：更新 Architecture。
+- 判断规则变化：更新 Logic Reference。
+- 身份或路径变化：更新 Path and ID Model。
+- Recovery 内部行为变化：首先更新 Recovery Model；用户动作变化时同时更新 Recovery Guide。
+- 开发或发布流程变化：更新 Development。
+- 特定版本的验证和排错过程：写入 history，不追加到 evergreen 文档。

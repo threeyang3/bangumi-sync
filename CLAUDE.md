@@ -7,11 +7,15 @@
 ## 开发命令
 
 ```bash
-npm install      # 安装依赖
+npm ci           # 按 package-lock.json 安装依赖
 npm run dev      # 开发模式（监听文件变化）
-npm run build    # 生产构建
 npm run lint     # 本地复现 Obsidian 社区扫描
+npm run test     # 完整自动化测试
+npm run build    # 生产构建
+git diff --check
 ```
+
+npm 是 CI、Release 和 canonical instructions 使用的 package manager。
 
 ## 项目结构
 
@@ -40,13 +44,11 @@ bangumi/
 │   ├── i18n/              # 国际化
 │   └── utils/             # 移动端工具
 └── docs/                   # 文档
-    ├── README.md          # 文档总览
-    ├── ARCHITECTURE.md    # 项目架构与模块说明
-    ├── DEVELOPMENT.md     # 开发指南
-    ├── LOGIC_REFERENCE.md # 逻辑判断参考
-    ├── TEMPLATE_GUIDE.md  # 模板设计指南
-    ├── VERSION_HISTORY.md # 版本历史
-    └── STATUS_SYNC_PITFALLS.md # 状态同步踩坑记录
+    ├── README.md          # 文档索引与 canonical ownership
+    ├── user/              # 用户操作：模板、迁移、恢复
+    ├── maintainer/        # 架构、逻辑、路径、恢复、开发、规范
+    ├── history/           # 版本证据、旧迁移、坑点、设计计划
+    └── VERSION_HISTORY.md # 简洁版本索引
 ```
 
 ## 编码规范
@@ -83,8 +85,9 @@ bangumi/
 
 ## 提交前检查
 
-- 提交前至少运行 `npm run lint` 和 `npm run build`
+- 提交前至少运行 `npm run lint`、`npm run test`、`npm run build` 和 `git diff --check`
 - 本地 ESLint 配置用于尽量复现 Obsidian 社区扫描，不要随意删改 `eslint.config.mjs`
+- 高风险修改还需要 targeted tests 和 production Obsidian Sandbox
 
 ## GitHub 操作约定
 
@@ -103,33 +106,26 @@ bangumi/
 
 ## 测试分支发布注意事项
 
-- `adv` 分支用于新功能测试，不要直接合并到 `main` 影响正在等待 Obsidian 官方审查的版本
-- BRAT 测试版 release 的 tag 必须与 `manifest.json` 里的 `version` 完全一致
-- 如果为了测试创建了旧 prerelease，删除时使用 `gh release delete {版本号} --yes --cleanup-tag` 同时清理 tag，避免 BRAT 看到多个入口
-- Release notes 要用真正的多行 Markdown，不能把 `\n` 当作字面量写进 `--notes`
+- `adv` 用于持续开发与测试；稳定版不能从 `adv` 直接绕过 `main` 发布。
+- BRAT 测试版 tag 必须与 `manifest.json` 版本完全一致，并使用未被稳定版占用的版本号。
+- 只有明确 prerelease 才使用 `--target adv --prerelease`。
+- 删除旧 prerelease 时使用 `gh release delete {版本号} --yes --cleanup-tag` 同时清理 tag。
+- Release notes 使用真正的多行 Markdown，不能把 `\n` 当作字面量写入。
 
 ### Release 分支指向（targetCommitish）
 
-**关键**：从 `adv` 分支发布时，必须显式指定 `--target adv`，否则 GitHub 默认指向 `main`。
+稳定版 target 应是冻结的 `main` release code commit。只有显式测试版从 `adv` 发布时才使用 `--target adv`。
 
 ```bash
-# 正确：从 adv 分支发布
+# 仅限明确的 adv prerelease
 gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css \
-  --title "v{版本号}" --notes "更新内容" --target adv
+  --title "{版本号}" --notes-file release-notes-{版本号}.md \
+  --target adv --prerelease
 
-# 错误：省略 --target 会导致 GitHub 指向 main 分支
-# 即使文件是最新的，源码浏览会显示 main 分支的旧代码
+# 稳定版见 docs/maintainer/DEVELOPMENT.md，target 为冻结 commit
 ```
 
-**后果**：
-- Release 页面的"Browse files"会显示错误分支的代码
-- GitHub 按 targetCommitish 排序时，版本顺序会混乱
-- 用户通过 BRAT 安装时可能获取到错误的源码
-
-**修复已发布 release**：
-```bash
-gh release edit {版本号} --target adv
-```
+创建 Release 后必须核对 `targetCommitish`、Tag target 和下载 assets hash；发现错误时停止并报告，不移动已有 Tag。
 
 ## 移动端控制面板注意事项
 
@@ -164,7 +160,7 @@ gh release edit {版本号} --target adv
 - 导出 / 导入 / 强制同步继承都要按同一套用户数据分层思考：辨识属性、用户属性、自定义属性、正文内容
 - 本地 `短评` 的真实来源是正文 `> [!abstract]+ **短评**` callout；状态同步、导入对比、导出提取都必须读取同一处
 
-详细坑点见 [docs/STATUS_SYNC_PITFALLS.md](docs/STATUS_SYNC_PITFALLS.md)
+当前不变量见 [docs/maintainer/STATUS_SYNC_INVARIANTS.md](docs/maintainer/STATUS_SYNC_INVARIANTS.md)，历史根因见 [docs/history/pitfalls/status-sync-2026-04.md](docs/history/pitfalls/status-sync-2026-04.md)。
 
 ## 共享笔记注意事项
 
@@ -175,42 +171,11 @@ gh release edit {版本号} --target adv
 
 ## 模板变量
 
-详见 [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md)
-
-### 常用路径变量
-
-| 变量 | 说明 |
-|------|------|
-| `{{type}}` | 条目类型大类（小写，如 book/anime/music/game/real） |
-| `{{typeId}}` | 条目类型编号（1/2/3/4/6） |
-| `{{category}}` | 细分类别（如小说/漫画/画集/绘本/公式书/写真/TV/电影） |
-| `{{platform}}` | Bangumi API 平台字段（如"公式书"、"TV"、"电影"） |
-| `{{name_cn_with_type}}` | 中文名带类别后缀，如 `进击的巨人(漫画)` |
-| `{{id}}` | 条目 ID |
-
-### 常用内容变量
-
-| 变量 | 说明 |
-|------|------|
-| `{{type}}` | 条目类型大类（小写，如 book/anime/music/game/real） |
-| `{{typeLabel}}` | 条目类型细分标签（首字母大写，如 Novel/Comic/Album） |
-| `{{typeId}}` | 条目类型编号 |
-| `{{category}}` | 条目细分类别 |
-| `{{my_rate}}` | 我的评分 |
-| `{{my_comment}}` | 我的短评 |
-| `{{my_tags}}` | 我的标签 |
-| `{{related}}` | 相关条目链接 |
-
-### 模板语法
-
-```markdown
-{{#if my_rate}}评分: {{my_rate}}{{/if}}
-rating: {{rating|未评分}}
-```
+完整模板来源、变量、语法、默认值和自定义属性只在 [docs/user/TEMPLATE_GUIDE.md](docs/user/TEMPLATE_GUIDE.md) 维护。改变字段分类时同时检查 `src/template/templateProperties.ts` 和 [docs/maintainer/LOGIC_REFERENCE.md](docs/maintainer/LOGIC_REFERENCE.md)。
 
 ## 发布流程
 
-详见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
+详见 [docs/maintainer/DEVELOPMENT.md](docs/maintainer/DEVELOPMENT.md)。稳定版流程固定为 PR → `main` → main CI → Tag → GitHub Release → assets verification → `main` merge 到 `adv` → adv CI。
 
 - GitHub Release notes 默认使用中文
 - Release notes 按 `新功能`、`改进`、`修复` 三部分组织
@@ -218,27 +183,24 @@ rating: {{rating|未评分}}
 - Release notes 必须使用真正的多行 Markdown 列表，不要把 `\n` 当作字面量写入单段文本
 - GitHub 相关步骤默认先尝试 `gh`
 
-```bash
-# 1. 更新版本号（manifest.json, package.json）
-# 2. 构建
-npm run build
-
-# 3. 构建并同步 release 三件套
-npm run build
-
-# 4. 提交并推送
-git add -A && git commit -m "release: v{版本号}"
-git push
-
-# 5. 使用 gh 创建 GitHub Release（tag 不带 v 前缀）
-gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css --title "v{版本号}" --notes "更新内容" --target adv
-```
-
-**重要**：Release tag 必须与 manifest.json 版本号一致，不带 `v` 前缀。
+Release tag 必须与 manifest version 一致且不带 `v`。稳定版 target 使用已验证的 release code commit，不使用 `--target adv`。
 
 ## 相关文档
 
-- [模板设计指南](docs/TEMPLATE_GUIDE.md)
+- [文档索引](docs/README.md)
+- [模板指南](docs/user/TEMPLATE_GUIDE.md)
 - [版本历史](docs/VERSION_HISTORY.md)
-- [开发指南](docs/DEVELOPMENT.md)
-- [状态同步踩坑记录](docs/STATUS_SYNC_PITFALLS.md)
+- [开发指南](docs/maintainer/DEVELOPMENT.md)
+- [架构](docs/maintainer/ARCHITECTURE.md)
+- [恢复模型](docs/maintainer/RECOVERY_MODEL.md)
+
+## 文档维护规则
+
+- 用户可见行为 → README 或 `docs/user/`
+- 模板 → Template Guide
+- 模块边界 → Architecture
+- 判断规则 → Logic Reference
+- 身份 / 路径 → Path and ID Model
+- Recovery 内部模型 → Recovery Model；用户动作变化时同步 Recovery Guide
+- 开发 / Release → Development
+- 特定版本验证和历史调试 → `docs/history/`，不要追加到 evergreen docs
