@@ -9,6 +9,7 @@
 		"lint": "eslint .",
 		"test": "vitest run",
 		"test:watch": "vitest",
+		"docs:check": "node scripts/check-doc-links.mjs",
 		"export:legacy-user-data": "node scripts/export-legacy-user-data.mjs",
 		"version": "node version-bump.mjs && git add manifest.json package.json versions.json"
 	},
