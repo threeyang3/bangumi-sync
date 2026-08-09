@@ -4,6 +4,8 @@ description: Bangumi Sync 插件移动端全面适配方案，包括响应式布
 type: project
 ---
 
+> 历史文档：本文记录特定开发阶段的设计与决策。当前行为请以 README、`docs/user/` 和 `docs/maintainer/` 中的现行文档为准。
+
 # 移动端优化设计
 
 ## 当前实现状态（2026-05-06）
