@@ -1,62 +1,52 @@
 # Agent Instructions - Bangumi Sync
 
-## 发布流程关键检查项
+## Branch and release safety
 
-### 1. 分支检查
+- 日常开发从 `adv` 创建独立 feature、fix 或 docs 分支。
+- 稳定版发布采用 main-first：PR → `main` → main CI → Tag → GitHub Release → assets verification → `main` 正常 merge 到 `adv` → adv CI。
+- Tag 使用纯版本号，不带 `v`，且不得移动已发布 Tag。
+- Release 必须上传 `release/main.js`、`release/manifest.json`、`release/styles.css` 并验证下载 hash。
+- 只有明确 prerelease / BRAT 测试才从 `adv` target 发布；此时必须显式 `--target adv --prerelease`。
+- 禁止用 force push 同步 `main` 与 `adv`。
 
-发布前确认当前所在分支：
-```bash
-git branch --show-current
-```
+完整流程见 [`docs/maintainer/DEVELOPMENT.md`](docs/maintainer/DEVELOPMENT.md)。
 
-### 2. Release 创建规范
-
-从 `adv` 分支发布时，**必须**使用 `--target adv` 参数：
-
-```bash
-gh release create {版本号} \
-  ./release/main.js \
-  ./release/manifest.json \
-  ./release/styles.css \
-  --title "v{版本号}" \
-  --notes "$(cat <<'EOF'
-## 新功能
-- xxx
-
-## 改进
-- xxx
-
-## 修复
-- xxx
-EOF
-)" \
-  --target adv
-```
-
-### 3. 常见错误
-
-| 错误做法 | 后果 |
-|---------|------|
-| 省略 `--target` 参数 | GitHub 默认指向 `main` 分支 |
-| Release notes 使用 `\n` 字面量 | Markdown 不会渲染为换行 |
-| Tag 带 `v` 前缀 | BRAT 无法正确识别版本 |
-
-### 4. 发布后验证
+## Local gate
 
 ```bash
-# 验证 release 的 target 分支
-gh release view {版本号} --json targetCommitish --jq '.targetCommitish'
-
-# 应该输出 adv（如果从 adv 分支发布）
+npm ci
+npm run lint
+npm run test
+npm run build
+git diff --check
 ```
 
-### 5. 修复错误的 release
+高风险事务、recovery、路径、binary、设置或 UI 修改还需要 targeted tests 和 production Obsidian Sandbox。
 
-如果发现 release 指向了错误的分支：
-```bash
-gh release edit {版本号} --target adv
-```
+## Documentation ownership
 
-## 同步注意事项
+修改代码或流程时更新唯一 canonical source：
 
-详见 [CLAUDE.md](CLAUDE.md) 中的"同步注意事项"部分。
+- 用户可见功能 → `README.md` 或 `docs/user/`
+- 模板能力 → `docs/user/TEMPLATE_GUIDE.md`
+- 当前升级行为 → `docs/user/MIGRATION_GUIDE.md`
+- 用户恢复动作 → `docs/user/RECOVERY_GUIDE.md`
+- 模块边界 → `docs/maintainer/ARCHITECTURE.md`
+- 判断规则 → `docs/maintainer/LOGIC_REFERENCE.md`
+- 身份 / 路径 → `docs/maintainer/PATH_AND_ID_MODEL.md`
+- recovery 内部模型 → `docs/maintainer/RECOVERY_MODEL.md`
+- 状态同步不变量 → `docs/maintainer/STATUS_SYNC_INVARIANTS.md`
+- 代码规则 → `docs/maintainer/CODE_STANDARDS.md`
+- 开发 / release → `docs/maintainer/DEVELOPMENT.md`
+- 版本验证、调试过程和旧设计 → `docs/history/`
+
+不要把具体版本 SHA、Sandbox 证据或旧 bug 过程追加到 evergreen 文档。历史文档不得当作当前实现契约。
+
+## Runtime safety
+
+- Subject ID 是身份，路径和标题不是身份。
+- 新 Vault 写入口必须经过 identity-safe document service 与统一 write gate。
+- Recovery journal 必须先于首次 mutation；不能静默清理未验证 journal。
+- 不记录或公开 Token、authorization、完整 recovery journal 或用户私密正文。
+
+项目文档导航见 [`docs/README.md`](docs/README.md)。
