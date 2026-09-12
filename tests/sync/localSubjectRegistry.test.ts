@@ -57,4 +57,27 @@ describe('local subject registry', () => {
 			namingState: 'user-renamed',
 		});
 	});
+
+	it('round-trips stable collision planning metadata', () => {
+		const registry = new LocalSubjectRegistry(app);
+		registry.register(record(1, 'ACGN/乱马（1989）.md'));
+		registry.reconcilePathStates({
+			'1': {
+				subjectId: 1,
+				currentPath: 'ACGN/乱马（1989）.md',
+				lastManagedPath: 'ACGN/乱马（1989）.md',
+				namingState: 'managed',
+				basePreferredPath: 'ACGN/乱马.md',
+				collisionGroupKey: 'stale-key',
+			},
+		});
+		expect(registry.getById(1)).toMatchObject({
+			basePreferredPath: 'ACGN/乱马.md',
+			collisionGroupKey: '4:acgn|5:乱马.md',
+		});
+		expect(registry.exportPathStates()['1']).toMatchObject({
+			basePreferredPath: 'ACGN/乱马.md',
+			collisionGroupKey: '4:acgn|5:乱马.md',
+		});
+	});
 });

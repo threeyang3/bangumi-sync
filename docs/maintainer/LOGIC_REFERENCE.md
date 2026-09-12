@@ -1,6 +1,6 @@
-# 逻辑判断参考
+# Business Logic Reference
 
-本文档集中说明 Bangumi Sync 当前各机制里的“判断逻辑”与“分支规则”。如果你想知道某条数据为什么会被跳过、弹窗为什么会出现、某个字段为什么会被当作自定义属性，这里是主参考。
+本文档是当前业务判断和分支规则的 canonical reference。完整模板变量与语法见[模板指南](../user/TEMPLATE_GUIDE.md)，recovery 状态不在此重复，见[恢复模型](RECOVERY_MODEL.md)。
 
 ## 1. 模板选择逻辑
 
@@ -404,7 +404,7 @@
 
 这里专门避免把 `404` 记成错误日志，是为了不让搜索结果列表刷满控制台噪音。
 
-## 20. 单集状态的优先级
+## 21. 单集状态的优先级
 
 单集状态的真实来源优先级是：
 
@@ -419,4 +419,4 @@
 
 否则会出现“当前界面显示变了，但重新打开文件后又回去”的假持久化问题。
 
-更详细的历史问题见 [STATUS_SYNC_PITFALLS.md](./STATUS_SYNC_PITFALLS.md)。
+当前必须保持的规则见[状态同步不变量](STATUS_SYNC_INVARIANTS.md)，历史 bug 根因见[状态同步历史坑点](../history/pitfalls/status-sync-2026-04.md)。

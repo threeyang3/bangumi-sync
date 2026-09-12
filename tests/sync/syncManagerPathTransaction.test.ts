@@ -52,12 +52,13 @@ function createManager(vault: InMemoryVault, subjects: Subject[], options: {
 	failures?: Set<number>;
 	onStates?: (states: Record<string, SubjectPathState>) => void;
 	pathStateHandler?: (states: Record<string, SubjectPathState>) => Promise<void>;
+	initialPathStates?: Record<string, SubjectPathState>;
 	relationsById?: Map<number, Array<{ id: number; type: SubjectType; name: string; name_cn: string; relation: string }>>;
 } = {}): SyncManager {
 	const config: SyncManagerConfig = {
 		accessToken: 'test-token', pathTemplate: 'ACGN/music/{{name_cn}}.md',
 		imagePathTemplate: 'assets/{{id}}', downloadImages: false, imageQuality: 'large', imageUpdateExisting: false, scanFolderPath: 'ACGN',
-		enableRelatedLinks: false, subjectPathStates: {},
+		enableRelatedLinks: false, subjectPathStates: options.initialPathStates ?? {},
 		customTemplates: { musicTemplateConfig: '---\nid: {{id}}\n中文名: "{{name_cn}}"\n---\n{{summary}}' },
 		onPathStatesChanged: options.pathStateHandler ?? (options.onStates
 			? states => { options.onStates?.(states); return Promise.resolve(); }
@@ -542,6 +543,53 @@ describe('SyncManager path transaction integration', () => {
 		expect(result.success).toBe(true);
 		expect(result.filePath).toBe('ACGN/music/乱马（2024）.md');
 		expect((await manager.rollbackBatch()).status).toBe('no-pending');
+	});
+
+	it('replans a persisted collision group when a third same-year subject arrives later', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(1, '1989-04-15');
+		const second = makeSubject(2, '2024-10-06');
+		const third = makeSubject(3, '2024-01-01');
+		let persisted: Record<string, SubjectPathState> = {};
+		const initial = createManager(vault, [first, second], {
+			onStates: states => { persisted = states; },
+		});
+		await initial.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 1 });
+		expect(persisted['1']).toMatchObject({
+			basePreferredPath: 'ACGN/music/乱马.md',
+			collisionGroupKey: '4:acgn|5:music|5:乱马.md',
+		});
+
+		const next = createManager(vault, [first, second, third], {
+			initialPathStates: persisted,
+			onStates: states => { persisted = states; },
+		});
+		const result = await next.syncByCollections([makeCollection(third)], { concurrency: 1 });
+
+		expect(result.completion).toBe('success');
+		expect(vault.files.has('ACGN/music/乱马（1989）[bgm-1].md')).toBe(true);
+		expect(vault.files.has('ACGN/music/乱马（2024）[bgm-2].md')).toBe(true);
+		expect(vault.files.has('ACGN/music/乱马（2024）[bgm-3].md')).toBe(true);
+		expect(vault.files.has('ACGN/music/乱马（1989）.md')).toBe(false);
+		expect(vault.files.has('ACGN/music/乱马（2024）.md')).toBe(false);
+	});
+
+	it('does not duplicate the year suffix when always-year paths still collide', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(1, '2024-04-15');
+		const second = makeSubject(2, '2024-10-06');
+		const manager = createManager(vault, [first, second]);
+		manager.updateConfig({ pathNamingStrategy: 'always-year' }, ['pathNamingStrategy']);
+
+		const result = await manager.syncByCollections(
+			[makeCollection(first), makeCollection(second)],
+			{ concurrency: 1 },
+		);
+
+		expect(result.completion).toBe('success');
+		expect(vault.files.has('ACGN/music/乱马（2024）[bgm-1].md')).toBe(true);
+		expect(vault.files.has('ACGN/music/乱马（2024）[bgm-2].md')).toBe(true);
+		expect(Array.from(vault.files.keys()).some(path => path.includes('（2024）（2024）'))).toBe(false);
 	});
 
 	it('shares one decision promise so commit wins a simultaneous rollback click', async () => {

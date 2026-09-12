@@ -1,5 +1,7 @@
 # 移动端优化实现计划
 
+> 历史文档：本文记录特定开发阶段的实现计划。当前行为请以 README、`docs/user/` 和 `docs/maintainer/` 中的现行文档为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 为 Bangumi Sync 插件添加全面的移动端支持，包括响应式布局、触摸增强和界面简化。

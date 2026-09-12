@@ -1,530 +1,190 @@
 # Bangumi Sync
 
-## 数据安全恢复闭环（6.11.2+）
-
-插件只保留一个稳定的 `SyncManager`。设置页提交字段 patch，并在保存时合并到最新正式设置；控制面板刚保存的筛选、同步统计和路径状态不会被长期打开的设置页旧副本覆盖。配置 lease、串行持久化、manager 应用和依赖刷新全部成功后才替换正式设置；失败会恢复磁盘、内存、运行时配置和设置 UI。
-
-事务在首次 Vault 修改前写入独立的 `.bangumi-sync-recovery.json`，记录原始内容、Subject ID、路径状态、创建路径、封面资源以及 rename 的 original/temporary/final 路径。已有封面更新前会保存原 binary、长度和 SHA-256；超过 16 MiB 时拒绝不可逆覆盖。内容使用原始 UTF-8 字节的标准 SHA-256；CRLF 与 LF 不等价。插件重载后会恢复门禁和 Recovery Center 上下文，journal 经过完整运行时结构校验，并且只在明确提交或完整诊断通过后删除。
-
-损坏、不完整或不支持的 journal 会保留时间戳备份并阻止写入；有效 `previous` 会在 `current` 损坏时独立校验并作为回退候选。已知 6.11.1 configuration journal（包括 current、previous 和 temp）会在任何备份或处理前安全迁移并移除明文 Token；迁移失败不复制原文件，Recovery Center 只允许 Retry migration。配置恢复只保存脱敏事实和 Token hash，空字符串 Token 也会计算 SHA-256；Token 改变时无法确认 previous Token 就保持门禁。Vault 任意目录中的孤立 `.bangumi-sync-*.tmp.md` 也会进入恢复状态，不会自动删除。terminal journal 写入或 cleanup 失败统一保持写门禁并进入 finalization recovery；binary 写入后无法确认终态时整批回滚，而不是普通下载失败，rolled-back/rollback-failed 不会显示同步完成。关联链接只在主事务明确提交并清理 journal 后 best-effort 执行。详细操作见 [恢复指南](docs/RECOVERY_GUIDE.md)。升级到 6.11.2 不需要迁移 Markdown。
-
-一个用于 Obsidian 的插件，可以将你在 Bangumi（番组计划）上的收藏同步到 Obsidian 笔记中。
+把 Bangumi 收藏、观看进度和个人数据同步到 Obsidian，并保留可自定义的 Markdown 与 frontmatter。
 
 ![GitHub release](https://img.shields.io/github/v/release/threeyang3/bangumi-sync)
 ![GitHub downloads](https://img.shields.io/github/downloads/threeyang3/bangumi-sync/total)
 
-## 目录
+[安装](#安装) · [快速开始](#快速开始) · [模板指南](docs/user/TEMPLATE_GUIDE.md) · [版本与更新](#版本与更新) · [问题反馈](https://github.com/threeyang3/bangumi-sync/issues)
 
-- [核心功能](#核心功能)
-- [使用前准备](#使用前准备)
-- [快速开始](#快速开始)
-- [安装](#安装)
-- [配置](#配置)
-- [使用方法](#使用方法)
-- [技术文档](#技术文档)
-- [模板变量](#模板变量)
-- [常见问题](#常见问题)
-- [支持开发](#支持开发)
+## 为什么使用 Bangumi Sync
 
-## 核心功能
+- 将动画、游戏、书籍、音乐和三次元收藏保存为本地 Markdown。
+- 同步评分、短评、标签、收藏状态和单集进度。
+- 使用模板控制路径、frontmatter、正文和本地自定义属性。
+- 支持增量同步、强制同步、状态同步、搜索添加和批量编辑。
+- 导入、导出个人数据，保留本地记录和自定义字段。
+- 通过事务回滚和 Recovery Center 保护同步期间的本地文件。
 
-### 🔄 同步 Bangumi 用户个人数据
+## 效果预览
 
-同步你在 Bangumi 上的所有个人数据到本地笔记：
-
-- **收藏信息**：评分、短评、标签、收藏状态
-- **观看进度**：动画集数、小说卷数、漫画话数
-- **本地自定义属性**：评分明细、资源属性、版本、渠道、标语等，都可由模板动态定义
-- **多类型支持**：动画、游戏、小说、漫画、画集、音乐、三次元
-
-#### 同步模式
-
-| 模式 | 说明 |
-|------|------|
-| 手动同步 | 预览条目列表，勾选要导入的条目；同步前会按模板弹出本地自定义属性填写窗口 |
-| 自动同步 | 直接导入所有待同步条目，无需确认；自定义属性按模板默认值写入或保持为空 |
-| 增量同步 | 自动检测已同步条目，避免重复导入 |
-| 智能数量限制 | 未同步数量不足时自动同步全部 |
-
-#### 同步控制
-
-- **暂停/恢复**：同步过程中可随时暂停，稍后恢复继续
-- **取消回滚**：取消同步后，可将本次新建文件移到回收站，并恢复已更新内容和重命名前路径
-- **后台运行**：关闭弹窗后同步继续在后台运行，状态栏实时显示进度
-- **错误详情**：同步完成后可折叠查看每个失败条目的具体错误信息
-
-#### 同步选项
-
-- **条目类型选择**：动画、游戏、书籍、音乐、三次元
-- **收藏状态选择**：想看、在看、看过、搁置、抛弃
-- **同步数量限制**：设置每次同步的最大条目数
-- **同步并发数**：控制同时处理的条目数量（1-5），可在设置中调整
-- **强制同步**：覆盖已存在的本地文件
-
-### 📝 自定义模板
-
-为每种条目类型配置不同的笔记模板：
-
-#### 模板来源
-
-| 来源 | 说明 |
-|------|------|
-| 标准模板 | 只含 Bangumi 数据，适合普通用户 |
-| 作者自用模板 | 含自定义变量，适合资源管理 |
-| 从文件选择 | 从 Obsidian 库中选择 `.md` 文件作为模板 |
-| 自定义内容 | 在弹窗中直接编辑模板内容 |
-
-#### 模板语法
-
-- **变量替换**：`{{name}}`、`{{rating}}`、`{{my_rate}}` 等
-- **条件渲染**：`{{#if my_rate}}评分: {{my_rate}}{{/if}}`
-- **默认值**：`{{director|未知}}`
-
-#### 模板管理
-
-- **复制当前模板**：将当前模板复制到自定义内容，便于修改
-- **导出全部模板**：一键将当前所有模板保存到指定文件夹
-- **动态本地属性**：插件会先读取模板 frontmatter 中的全部属性，再过滤掉可由 Bangumi 自动提供的字段，其余属性都会视为本地自定义属性
-
-#### 本地自定义属性规则
-
-- 支持在“同步收藏”和“搜索并添加”时动态填写
-- 支持文本、布尔开关、列表三种类型
-- 列表型属性可在模板中写成 `资源属性: []`
-- 列表输入使用英文逗号分隔，例如 `BDRip, 1080p, 外挂字幕`
-- 快速同步 / 自动同步不会弹窗，只会使用模板默认值或保留空值
-
-![模板设置](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/模板设置.png)
-
-📖 详细模板设计文档：[docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md)
-
-### 🖼️ 正文表格展示
-
-生成的笔记包含美观的信息表格，配合 Dataview 插件实现动态显示：
+同步后的条目以 Markdown 和 frontmatter 保存在 Vault 中；默认模板可配合 Dataview 展示封面、条目信息与观看进度。
 
 ![本地条目完整示意](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/本地条目完整示意.png)
 
-#### 封面图片
+## 安装
 
-- 可选下载到本地
-- 支持多种质量（小/中/大）
-- 封面链接类型：网络链接或本地链接
+### GitHub Release
 
-#### 角色信息
+1. 打开 [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases)。
+2. 下载同一版本的 `main.js`、`manifest.json` 和 `styles.css`。
+3. 将三个文件放入 `你的Vault/.obsidian/plugins/bangumi-sync/`。
+4. 在 Obsidian 的“社区插件”设置中启用 Bangumi Sync。
 
-- 最多 9 个角色
-- 包含角色名、声优、头像
+也可以使用 BRAT 安装仓库 `threeyang3/bangumi-sync`。
 
-#### 集数追踪
+### 从源码构建
 
-- 紧凑数字框显示
-- 悬浮显示标题和日期
-- 已看集数高亮显示
-- 支持动画集数、小说卷数、漫画话数
+```bash
+git clone https://github.com/threeyang3/bangumi-sync.git
+cd bangumi-sync
+npm ci
+npm run build
+```
 
-### ↔️ 双向同步
-
-本地修改可以同步回 Bangumi 云端：
-
-#### 状态同步
-
-统一同步评分、短评、标签、收藏状态、单集进度：
-
-- 对比本地与云端差异
-- 用户数据与平台数据分开处理：评分 / 短评 / 标签 / 收藏状态 / 单集状态走“同步用户数据”，平台集数/话数/卷数走“同步平台数据”
-- 选择保留本地版本或云端版本
-- 支持智能合并（标签）
-- 批量处理多个条目
-- 单集观看状态同步
-- 平台数据改为“快速首屏 + 后台补全”，先打开差异弹窗，再增量加载单集状态和平台字段
-- 本地短评 / section / frontmatter / 平台字段读写已统一收束到文档服务层，减少不同功能各自维护一套正文解析逻辑
-
-#### 冲突检测
-
-- 自动检测数据冲突
-- 提供解决选项：保留本地 / 保留云端 / 跳过
-
-### 💬 单集评论管理
-
-在正文集数框上右键可快速操作：
-
-- **添加吐槽**：为当前集数添加评论，自动插入 callout 块
-- **标记观看**：快速标记当前集数为已看/未看
-- **评论管理**：查看和编辑已有的单集评论
-
-集数框支持悬浮显示标题和日期，已看集数高亮显示。
-
-### 📚 共享条目笔记
-
-条目笔记改为按需创建，不再在同步时默认写入 `笔记` 属性：
-
-- 通过命令面板或控制面板按钮创建/追加条目笔记
-- 一个共享笔记文件可容纳多个相关条目
-- 共享笔记使用 `笔记ID` 多行列表属性记录条目 ID
-- 当前条目的 `笔记` 属性会写回到共享笔记内对应一级标题
-- 创建共享笔记时会沿本地 `相关` 属性链接图汇聚关联条目 ID
-
-适合把同一作品的多季动画、漫画、小说等记录收拢到同一份笔记中，减少重复文件
-
-### 🎯 控制面板
-
-![路径设置](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/路径设置.png)
-
-#### 收藏管理
-
-- 查看所有收藏条目（不加载封面，加载速度快）
-- 按类型筛选：动画、游戏、书籍、音乐、三次元
-- 按收藏状态筛选：想看、在看、看过、搁置、抛弃
-- 按同步状态筛选：已同步、未同步
-- 关键词搜索
-- 分页浏览（每页 50 条）
-
-#### 信息显示
-
-- 同步状态标记：显示每个条目是否已同步
-- 用户标签：显示用户标签（最多 3 个）
-- 短评预览：显示云端短评（最多 20 字，悬停显示完整内容）
-- 打开控制面板时会后台预热已同步条目的本地用户数据，供“状态同步”直接复用
-
-#### 批量操作
-
-| 操作 | 说明 |
-|------|------|
-| 同步选中 | 同步选中的未同步条目，保留用户数据 |
-| 强制同步 | 覆盖已存在的本地文件 |
-| 删除选中 | 删除选中的本地文件（移动到回收站） |
-| 批量编辑 | 修改已同步条目的 frontmatter 属性 |
-
-#### 批量编辑
-
-- **统一操作模式**：对所有选中条目统一新增、修改或删除同一个 frontmatter 属性
-- **逐项编辑模式**：先勾选要批量修改的属性，再按“条目 x 属性”表格逐格编辑
-- **新属性加入表格**：除现有属性外，也可以手动把新属性加入逐项编辑表格
-- **按文件精确写回**：逐项编辑只会写回真正改动过的单元格
-- **撤销操作**：支持撤销上一批量编辑操作（最多 10 步）
-
-#### 其他功能
-
-- 打开本地文件：直接打开已同步的本地文件
-- 键盘导航：支持方向键、PageUp/PageDown、Enter、Escape
-- 移动端优化：手机端使用卡片式列表，标题、元数据、短评、标签分行显示，分页与操作栏更紧凑，并支持顶部下拉关闭面板
-
-### 🔍 搜索条目
-
-通过命令或控制面板搜索 Bangumi 条目：
-
-- 关键词搜索
-- 类型筛选
-- 排序选项
-- 显示同步状态和收藏状态
-- 添加新条目到收藏并同步到本地
-- 编辑已收藏条目的评分、状态、标签等信息
-- 创建本地文件前可填写模板定义的所有本地自定义属性
-
-### 🛡️ 用户数据保护
-
-强制同步时保留用户自定义数据：
-
-#### 保护的数据
-
-- 所有本地自定义 frontmatter 属性
-- 正文中的记录和感想部分
-
-#### 数据导入导出
-
-- **导出用户数据**：将本地用户数据导出为单个 JSON 备份文件，文件内部按 `{{category}}` 分组，支持分别选择导出用户属性、自定义属性、正文内容
-- **导入用户数据**：支持属性管理、别名映射、缺失字段处理、按条目或按属性审查，并兼容旧多文件备份格式
-- **短评回导**：本地短评以正文 callout 为准，导入比较和写回都会对照 `> [!abstract]+ **短评**`
-
-### 🔗 相关条目关联
-
-同步时自动获取相关条目并建立双向链接：
-
-- 自动获取相关条目（前传、续集、衍生、改编等）
-- 已同步的相关条目自动添加双向链接
-- 同批次同步时实时关联
-
-## 技术文档
-
-如果你是使用者，只看 README 和模板文档通常就够了。  
-如果你是维护者或准备二次开发，建议按下面顺序阅读：
-
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)：项目分层、模块职责、主数据流
-- [docs/PATH_AND_ID_MODEL.md](docs/PATH_AND_ID_MODEL.md)：Bangumi ID 唯一身份、路径冲突、用户改名和事务回滚
-- [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)：诊断、路径迁移预览与升级兼容说明
-- [docs/LOGIC_REFERENCE.md](docs/LOGIC_REFERENCE.md)：各种判断逻辑、自定义属性筛选、同步分支、继承/导入导出规则
-- [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md)：模板能力、变量、默认值、自定义属性写法
-- [docs/README.md](docs/README.md)：`docs/` 目录文档导航与推荐阅读顺序
-- [docs/STATUS_SYNC_PITFALLS.md](docs/STATUS_SYNC_PITFALLS.md)：状态同步和单集功能的历史坑点
-- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)：开发环境、提交流程、发布流程
-- [docs/CODE_STANDARDS.md](docs/CODE_STANDARDS.md)：Obsidian 插件代码规范与审核要求
-
-## 使用前准备
-
-### 1. 安装 Dataview 插件（必需）
-
-本插件的模板使用了 Dataview 的内联查询语法 `= this.属性`，需要先安装 Dataview 插件。
-
-**安装方法**：
-1. 在 Obsidian 设置中进入"社区插件"
-2. 搜索 "Dataview" 并安装
-3. 启用 Dataview 插件
-
-**作用**：
-- 模板表格中的 `= this.评分` 会显示当前笔记的"评分"属性
-- `= this.观看状态` 会显示"观看状态"属性
-
-> ⚠️ 如果不安装 Dataview，表格中会显示原始的 `= this.属性` 文本，而非属性值。
-
-### 2. 获取 Bangumi Access Token
-
-1. 访问 [Bangumi Access Token 生成页面](https://next.bgm.tv/demo/access-token)
-2. 点击生成 Token
-3. 复制生成的 Token，稍后在插件设置中粘贴
+构建产物位于 `release/`。开发环境和贡献流程见[开发指南](docs/maintainer/DEVELOPMENT.md)。
 
 ## 快速开始
 
-### 第一步：安装插件
+### 1. 准备 Dataview
 
-选择以下任一方式安装：
+默认模板使用 Dataview 内联查询。请先安装并启用 Obsidian Dataview；否则表格可能显示原始查询文本。
 
-**方式一：从 GitHub Release 安装（推荐）**
+### 2. 获取 Access Token
 
-1. 访问 [Releases](https://github.com/threeyang3/bangumi-sync/releases) 页面
-2. 下载最新版本的 `main.js`、`manifest.json` 和 `styles.css`
-3. 复制到 `你的Vault/.obsidian/plugins/bangumi-sync/` 目录
+打开 [Bangumi Access Token 页面](https://next.bgm.tv/demo/access-token)，生成并复制 Token。不要把 Token 写入模板、截图、Issue 或日志。
 
-**方式二：手动构建**
+### 3. 配置插件
 
-```bash
-git clone https://github.com/threeyang3/bangumi-sync.git
-cd bangumi-sync
-npm install
-npm run build
-```
+在 Obsidian 设置中打开 Bangumi Sync：
 
-### 第二步：配置插件
-
-1. 在 Obsidian 设置中找到 "Bangumi Sync"
-2. 粘贴之前获取的 Access Token
-3. 设置文件保存路径（如 `ACGN/{{type}}/{{name_cn_with_type}}.md`）
-
-### 第三步：同步收藏
-
-1. 点击左侧 Ribbon 的数据库图标，或使用命令面板执行"同步 Bangumi 收藏"
-2. 选择要同步的条目类型和收藏状态
-3. 在同步前填写模板定义的本地自定义属性，在预览弹窗中勾选条目
-4. 点击"只导入选中的"开始同步
-
-## 安装
-
-### 从社区插件市场安装
-
-如果插件已经进入社区插件市场，可直接：
-
-1. 在 Obsidian 设置中进入"社区插件"
-2. 搜索 "Bangumi Sync" 并安装
-
-### 从 GitHub Release 安装
-
-1. 访问 [Releases](https://github.com/threeyang3/bangumi-sync/releases) 页面
-2. 下载最新版本的 `main.js`、`manifest.json` 和 `styles.css`
-3. 复制到 `你的Vault/.obsidian/plugins/bangumi-sync/` 目录
-
-### 手动构建
-
-```bash
-git clone https://github.com/threeyang3/bangumi-sync.git
-cd bangumi-sync
-npm install
-npm run build
-```
-
-## 配置
+1. 粘贴 Access Token。
+2. 设置条目扫描目录和路径模板，例如 `ACGN/{{type}}/{{name_cn_with_type}}.md`。
+3. 为需要的条目类型选择模板。
+4. 按需配置封面下载和用户数据保护。
 
 ![路径设置](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/路径设置.png)
 
-配置时最关键的是四类设置：
+### 4. 同步第一批条目
 
-- `Access Token`：Bangumi API 访问令牌
-- `文件路径模板`：本地条目文件写入位置
-- `图片路径模板` 与 `封面链接类型`：控制封面落盘和引用方式
-- 各类型模板来源：决定每类条目的 frontmatter、正文结构和本地自定义属性
+1. 点击左侧 Ribbon 的数据库图标，或运行“同步 Bangumi 收藏”。
+2. 选择条目类型、收藏状态和数量。
+3. 在预览中勾选条目；模板定义了本地属性时可在此填写。
+4. 点击“只导入选中的”。
 
-其他设置主要分为：
+## 常用功能
 
-- 同步参数：默认条目类型、默认收藏状态、同步数量限制、自动同步
-- 图片参数：是否下载封面、图片质量、是否更新已有图片
-- 数据保护参数：强制同步时是否保留本地自定义属性、记录、感想
+| 功能 | 用途 |
+| --- | --- |
+| 同步 Bangumi 收藏 | 预览并选择要导入的收藏 |
+| 快速同步 | 使用默认条件增量同步 |
+| 控制面板 | 筛选收藏、打开文件、同步和批量编辑 |
+| 搜索条目 | 搜索、收藏并创建本地条目 |
+| 检查并同步状态 | 对比本地与云端评分、短评、标签、状态和进度 |
+| 批量下载封面 | 下载封面并更新 Markdown 引用 |
+| 导入 / 导出用户数据 | 备份和恢复本地字段及正文内容 |
+| 创建或追加条目笔记 | 将相关条目的笔记汇聚到共享文件 |
 
-更细的维护说明请看：
+普通同步会按 Bangumi Subject ID 识别条目。只要文件仍在扫描目录中并保留有效 `id`，你可以手工重命名文件，插件不会仅凭标题重新创建副本。
 
-- [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md)
-- [docs/LOGIC_REFERENCE.md](docs/LOGIC_REFERENCE.md)
+## 模板与自定义属性
 
-## 使用方法
+模板决定文件路径、frontmatter 和正文。常用变量包括：
 
-### 手动同步
+| 变量 | 含义 |
+| --- | --- |
+| `{{id}}` | Bangumi Subject ID |
+| `{{type}}` / `{{category}}` | 条目类型与细分类别 |
+| `{{name}}` / `{{name_cn}}` | 原名与中文名 |
+| `{{name_cn_with_type}}` | 带类型消歧的中文名 |
+| `{{my_rate}}` / `{{my_status}}` | 个人评分与收藏状态 |
+| `{{my_comment}}` / `{{my_tags}}` | 短评与个人标签 |
+| `{{cover}}` / `{{related}}` | 封面与相关条目 |
 
-![同步选项设置](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/同步选项设置.png)
+普通 frontmatter 字段可作为本地自定义属性：
 
-1. 使用命令 "同步 Bangumi 收藏"
-2. 选择条目类型、收藏状态、同步数量
-3. 同步前填写模板定义的本地自定义属性，预览弹窗中勾选条目
-4. 选择导入方式：全部导入 / 只导入选中的 / 只导入未选中的
-
-### 控制面板
-
-1. 点击左侧 Ribbon 图标（数据库图标）
-2. 查看所有收藏条目，按类型/状态筛选
-3. 同步选中的未同步条目，或批量编辑已同步条目
-
-**键盘导航**：
-- `↑/↓` - 上下移动选中行
-- `PageUp/PageDown` - 翻页
-- `Enter/Space` - 打开选中的已同步文件
-- `Escape` - 关闭面板
-
-### 命令
-
-插件提供以下命令，可在命令面板中调用，也可在 Obsidian 设置中自定义快捷键：
-
-| 命令 | 说明 |
-|------|------|
-| 同步 Bangumi 收藏 | 打开同步选项弹窗 |
-| 快速同步（使用默认设置） | 使用默认设置直接同步 |
-| 打开控制面板 | 打开收藏管理控制面板 |
-| 检查并同步状态 | 打开控制面板并自动触发状态同步 |
-| 创建或追加条目笔记 | 为当前已同步条目创建或追加共享笔记 |
-| 导出用户数据 | 导出本地用户属性 / 自定义属性 / 正文备份 |
-| 导入用户数据 | 从备份文件导入用户数据，支持属性管理与差异审查 |
-| 搜索条目 | 搜索 Bangumi 条目 |
-| 批量下载封面图片 | 将所有本地条目的网络封面下载到本地并替换链接 |
-
-## 模板变量
-
-README 里只保留最常用的一小部分。完整变量表和模板规则请看 [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md)。
-
-### 常用路径变量
-
-| 变量 | 说明 |
-|------|------|
-| `{{type}}` | 条目类型 |
-| `{{category}}` | 细分类别 |
-| `{{platform}}` | Bangumi API 平台字段（如"公式书"、"TV"、"电影"） |
-| `{{name_cn_with_type}}` | 中文名带类型后缀 |
-| `{{id}}` | 条目 ID |
-
-### 常用内容变量
-
-| 变量 | 说明 |
-|------|------|
-| `{{name}}` / `{{name_cn}}` | 原名 / 中文名 |
-| `{{rating}}` / `{{rank}}` | Bangumi 评分 / 排名 |
-| `{{my_rate}}` / `{{my_status}}` | 我的评分 / 收藏状态 |
-| `{{my_comment}}` | 我的短评 |
-| `{{tags}}` / `{{my_tags}}` | 标签 |
-| `{{cover}}` | 封面链接 |
-| `{{related}}` | 相关条目链接 |
-| `{{episodes}}` / `{{volumes_display}}` | 章节或卷数展示 |
-
-### 本地自定义属性推荐写法
-
-推荐把需要用户补充的本地属性直接写成普通 frontmatter 字段，例如：
-
-```markdown
+```yaml
 剧情评分:
 资源属性: []
 已购: false
 ```
 
-补充说明：
+完整变量表、条件语法、默认值、字段类型和模板来源以[模板指南](docs/user/TEMPLATE_GUIDE.md)为准。
 
-- `[]` 会被当成列表型属性，输入时使用英文逗号分隔
-- `true` / `false` 会被当成布尔属性
-- 旧模板中的 `{{rating_story}}`、`{{rating_music}}` 等写法仍兼容，但新模板更推荐普通属性写法
-- 所有未被 Bangumi 自动填充的 frontmatter 字段，都会按统一逻辑参与同步、搜索添加、导入导出和强制同步继承
+## 数据安全
 
-### 模板语法
+Bangumi Sync 使用持久恢复日志保护本地文件事务。异常中断或回滚不完整时，插件会暂停新的写入，并通过 Recovery Center 引导恢复。
 
-- 变量替换：`{{name_cn}}`
-- 条件渲染：`{{#if my_rate}}评分: {{my_rate}}{{/if}}`
-- 默认值：`{{director|未知}}`
+遇到恢复提示时：
+
+- 先停止新的同步和批量编辑。
+- 不要直接删除未知的 `.bangumi-sync-recovery*` 或 `.bangumi-sync-*.tmp.md` 文件。
+- 按 Recovery Center 显示的按钮操作，必要时先备份 Vault。
+
+操作步骤见[恢复指南](docs/user/RECOVERY_GUIDE.md)。内部状态和安全不变量见[恢复模型](docs/maintainer/RECOVERY_MODEL.md)。
 
 ## 常见问题
 
-### Q: 为什么扫描不到已同步的条目？
+### 为什么扫描不到条目？
 
-确保模板中包含 `id: {{id}}` 字段。插件通过 frontmatter 中的 `id` 字段识别已同步条目。
+确认 Markdown frontmatter 中存在有效的 `id`，且文件位于配置的扫描目录内。路径与身份规则见[身份与路径模型](docs/maintainer/PATH_AND_ID_MODEL.md)。
 
-### Q: 如何自定义模板？
+### 强制同步会覆盖本地数据吗？
 
-在设置面板中为每种条目类型选择：标准模板 / 作者自用模板 / 从文件选择 / 自定义内容。
+插件会按设置保留本地自定义属性以及正文中的记录和感想。执行大范围强制同步前仍建议导出用户数据。
 
-### Q: 图片下载失败怎么办？
+### 同名作品如何保存？
 
-检查图片路径模板是否正确，确保目标目录存在。
+无冲突时使用简洁名称；发生规范化路径冲突时依次使用年份和 Bangumi ID 消歧。后续加入第三个同名条目时，插件会按已保存的碰撞组信息统一重规划 managed 路径；手工重命名的文件不会被移动。Subject ID 始终是身份，文件名不是身份。
 
-### Q: 如何导出我的模板？
+### 修改路径模板会自动移动旧文件吗？
 
-在模板设置区域底部，点击"导出全部模板"按钮，选择保存文件夹即可。
+不会。先运行本地诊断，再使用路径迁移预览显式确认。升级与迁移步骤见[迁移指南](docs/user/MIGRATION_GUIDE.md)。
 
-### Q: 强制同步会丢失我的数据吗？
+### 图片下载失败怎么办？
 
-不会。插件会自动保护你的本地自定义属性，以及正文中的记录、感想，可在设置中配置保护选项。
+检查图片路径模板、目录权限和网络。若 Recovery Center 同时出现，先完成恢复，不要反复重试写入操作。
 
-### Q: 快速同步 / 自动同步时自定义属性怎么处理？
+## 文档导航
 
-不会弹出填写窗口。插件会直接使用模板里写好的默认值；如果模板字段本身为空，就保留为空。
+- [文档索引](docs/README.md)：按普通用户、高级用户、维护者和历史资料导航。
+- [模板指南](docs/user/TEMPLATE_GUIDE.md)：模板系统的完整用户参考。
+- [迁移指南](docs/user/MIGRATION_GUIDE.md)：升级、改模板、改路径和 legacy recovery 处理。
+- [恢复指南](docs/user/RECOVERY_GUIDE.md)：Recovery Center 操作手册。
+- [架构](docs/maintainer/ARCHITECTURE.md)：模块职责和数据流。
+- [开发指南](docs/maintainer/DEVELOPMENT.md)：环境、测试、PR 和发布流程。
 
-### Q: 可以手动修改同步文件名吗？
+## 版本与更新
 
-可以。Bangumi ID 是唯一身份，文件名只是展示名称。保留有效 `id` 并让文件位于扫描目录内，普通同步、强制同步和状态同步都会继续更新重命名后的文件。
+- [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases)：下载稳定版并查看每个版本的完整发布说明。
+- [版本历史](docs/VERSION_HISTORY.md)：浏览各版本重点和历史索引。
 
-### Q: 同名作品如何保存？
+版本信息与项目介绍分开维护；已发布内容以 GitHub Releases 为准。
 
-默认无冲突时使用简洁名称；发生实际规范化路径冲突时使用年份消歧，年份相同或缺失时追加 Bangumi ID。非法字符会优先转为全角，例如 `乱马1/2` 保存为 `乱马1／2`。碰撞比较按原始 ASCII `/` 切分路径，再逐段规范化，因此文件名中的全角 `／` 不会被误认为目录分隔符。
+## 开发与贡献
 
-从 6.10.1 起，普通同步、控制面板同步、预览执行和搜索添加共用同一套路径规划与事务提交。内容生成失败不会提前移动旧文件；重命名后的写入失败会自动恢复路径和内容，并明确报告 `rolled-back` 或 `rollback-failed`。
+Canonical package manager 是 npm。提交前至少运行：
 
-### Q: 修改路径模板会移动已有文件吗？
+```bash
+npm ci
+npm run lint
+npm run test
+npm run build
+git diff --check
+```
 
-不会。请先运行“检查本地 Bangumi 条目”，再使用“预览并应用当前路径模板”显式迁移。用户手动命名默认受到保护。
-
-## 更新记录
-
-详细版本历史请看 [docs/VERSION_HISTORY.md](docs/VERSION_HISTORY.md) 或 [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases)。
+请从独立 feature、fix 或 docs 分支提交 Pull Request，不要直接把未审查修改发布为稳定版。
 
 ## 相关链接
 
-- [Bangumi API 文档](https://bangumi.github.io/api/)
+- [Bangumi API](https://bangumi.github.io/api/)
 - [获取 Access Token](https://next.bgm.tv/demo/access-token)
 - [GitHub 仓库](https://github.com/threeyang3/bangumi-sync)
 
 ## 支持开发
-
-如果这个插件对你有帮助，欢迎赞助支持开发者：
 
 <img src="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/赞助二维码.jpg" width="200" alt="赞助二维码">
 
 ## 许可证
 
 MIT License
-
-## 部分成功批次与恢复（6.10.3+）
-
-当批次只有部分条目成功时，插件会保留可回滚事务，并要求选择“保留成功结果”或“回滚本批次”。在作出选择前不能开始下一批同步，关闭结果窗口也会再次提示，避免把未确认的修改静默提交。
-
-路径状态设置与 Markdown 文件属于同一个逻辑事务：设置保存失败会自动恢复新建文件、旧内容、重命名路径和旧路径状态。若恢复本身失败，结果窗口会显示严重诊断信息；请检查错误详情、Vault 回收站及残留的 `.bangumi-sync-*.tmp.md` 文件。
-
-“保留”与“回滚”使用同一个原子决策：快速重复点击或两个按钮竞争时，只会执行先到达的选择。结果窗口会按最终磁盘状态重新统计；已撤销的创建、更新和重命名显示为 rolled back，不再计入成功数量。
-
-恢复失败后，普通同步、预览同步、搜索同步、自动同步和路径迁移都会暂停。请先重试恢复；如果已手工处理文件，可执行恢复确认，本地扫描会检查临时文件、重复 ID、阻塞诊断与路径状态一致性，全部通过后才会解除阻断。
-
-## 恢复中心与写入门禁（6.10.4+）
-
-命令面板运行“打开 Bangumi Sync 恢复中心”可随时重新查看恢复上下文。关闭窗口不会清除上下文；可以重试自动回滚、重新扫描，或在手工修复后确认恢复。人工确认会逐项验证批次前“应存在/应不存在”预期，区分意外残留、文件缺失、路径不符和期望路径身份不符，并重新保存、核对批次前 `subjectPathStates` 后再次扫描。整个恢复流程只访问本地 Vault 与插件设置，不请求 Bangumi 网络 API。
-
-存在 `recovery-required` 时，收藏/单条同步、路径迁移应用、封面下载、关联链接写回、状态同步、批量编辑与撤销、用户数据导入/导出、集数状态、吐槽和共享笔记写入均被统一阻止；本地诊断、恢复扫描和只读预览仍可使用。恢复重试与人工确认共用同一个互斥动作，不能并发改动磁盘。
-
-6.11.2 在上述基础上独立选择并校验 current/previous 候选；提交或回滚先写入 `committed-cleanup-pending` / `rolled-back-cleanup-pending` terminal marker，再删除 journal。删除失败会在重启后只继续 cleanup，不会把已提交文件按旧 rollback facts 回滚。完整说明见 [docs/RECOVERY_GUIDE.md](docs/RECOVERY_GUIDE.md)。

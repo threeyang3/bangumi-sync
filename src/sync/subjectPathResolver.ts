@@ -7,6 +7,7 @@ export interface SubjectPathCandidate {
 	year?: string;
 	currentPath?: string;
 	namingState: SubjectNamingState;
+	collisionSuffixMode?: 'year-then-id' | 'id';
 }
 
 export interface SubjectPathAllocation {
@@ -31,6 +32,9 @@ function appendSuffix(path: string, suffix: string): string {
 
 function collisionSuffix(candidate: SubjectPathCandidate, useYearOnly: boolean): string {
 	const year = candidate.year?.match(/^\d{4}$/)?.[0];
+	if (candidate.collisionSuffixMode === 'id') {
+		return `[bgm-${candidate.subjectId}]`;
+	}
 	if (year && useYearOnly) {
 		return `（${year}）`;
 	}
@@ -80,10 +84,9 @@ export class SubjectPathResolver {
 		for (const group of collisionGroups.values()) {
 			if (group.length < 2) continue;
 
-			const movable = group.filter(candidate => !candidate.currentPath || (
-				(candidate.namingState === 'managed' || candidate.namingState === 'inferred-managed')
-				&& normalizePathCollisionKey(candidate.currentPath) === normalizePathCollisionKey(candidate.preferredPath)
-			));
+			const movable = group.filter(candidate => !candidate.currentPath
+				|| candidate.namingState === 'managed'
+				|| candidate.namingState === 'inferred-managed');
 			for (const candidate of movable) {
 				if (candidate.currentPath) {
 					reservations.delete(normalizePathCollisionKey(candidate.currentPath));

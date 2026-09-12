@@ -2711,7 +2711,7 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
     const helpLinksDiv = containerEl.createDiv({ cls: "bangumi-help-links" });
     helpLinksDiv.createEl("button", { text: tn("settings", "templateGuide"), cls: "mod-cta" }, (btn) => {
       btn.addEventListener("click", () => {
-        this.openExternalLink("https://github.com/threeyang3/bangumi-sync/blob/main/docs/TEMPLATE_GUIDE.md");
+        this.openExternalLink("https://github.com/threeyang3/bangumi-sync/blob/main/docs/user/TEMPLATE_GUIDE.md");
       });
     });
     helpLinksDiv.createEl("button", { text: tn("settings", "githubRepo"), cls: "mod-cta" }, (btn) => {
@@ -5637,6 +5637,17 @@ var LocalSubjectRegistry = class {
     this.idToRecord.set(subjectId, { ...record, namingState: "inferred-managed" });
     return true;
   }
+  setPathPlanningMetadata(subjectId, basePreferredPath) {
+    const record = this.getById(subjectId);
+    if (!record)
+      return;
+    const normalizedPath = (0, import_obsidian7.normalizePath)(basePreferredPath);
+    this.idToRecord.set(subjectId, {
+      ...record,
+      basePreferredPath: normalizedPath,
+      collisionGroupKey: normalizePathCollisionKey(normalizedPath)
+    });
+  }
   upsert(record) {
     const previous = this.idToRecord.get(record.subjectId);
     if (previous) {
@@ -5662,7 +5673,12 @@ var LocalSubjectRegistry = class {
       const savedCurrentKey = normalizePathCollisionKey(state.currentPath);
       const lastManagedKey = state.lastManagedPath ? normalizePathCollisionKey(state.lastManagedPath) : void 0;
       const namingState = currentKey !== savedCurrentKey ? "user-renamed" : lastManagedKey === currentKey ? "managed" : state.namingState;
-      this.idToRecord.set(subjectId, { ...record, namingState });
+      this.idToRecord.set(subjectId, {
+        ...record,
+        namingState,
+        basePreferredPath: state.basePreferredPath ? (0, import_obsidian7.normalizePath)(state.basePreferredPath) : void 0,
+        collisionGroupKey: state.basePreferredPath ? normalizePathCollisionKey(state.basePreferredPath) : state.collisionGroupKey
+      });
     }
   }
   exportPathStates() {
@@ -5673,7 +5689,9 @@ var LocalSubjectRegistry = class {
         subjectId,
         currentPath: record.path,
         lastManagedPath: managed ? record.path : this.lastManagedPaths.get(subjectId),
-        namingState: managed ? "managed" : "user-renamed"
+        namingState: managed ? "managed" : "user-renamed",
+        ...record.basePreferredPath ? { basePreferredPath: record.basePreferredPath } : {},
+        ...record.collisionGroupKey ? { collisionGroupKey: record.collisionGroupKey } : {}
       };
     }
     return result;
@@ -5803,7 +5821,7 @@ var IncrementalSync = class {
    * @param name_cn 中文名
    * @param wasNewlyCreated 是否为新创建的文件（用于回滚判断）
    */
-  addBatchSyncedItem(subjectId, path, name_cn, wasNewlyCreated = false) {
+  addBatchSyncedItem(subjectId, path, name_cn, wasNewlyCreated = false, basePreferredPath) {
     var _a, _b;
     this.batchSyncedItems.set(subjectId, { id: subjectId, path, name_cn, wasNewlyCreated });
     this.localSubjects.set(subjectId, { id: subjectId, path, name_cn });
@@ -5812,7 +5830,11 @@ var IncrementalSync = class {
       path,
       nameCn: name_cn,
       identitySource: "id",
-      namingState: wasNewlyCreated ? "managed" : (_b = (_a = this.registry.getById(subjectId)) == null ? void 0 : _a.namingState) != null ? _b : "unknown"
+      namingState: wasNewlyCreated ? "managed" : (_b = (_a = this.registry.getById(subjectId)) == null ? void 0 : _a.namingState) != null ? _b : "unknown",
+      ...basePreferredPath ? {
+        basePreferredPath: (0, import_obsidian8.normalizePath)(basePreferredPath),
+        collisionGroupKey: normalizePathCollisionKey(basePreferredPath)
+      } : {}
     });
     console.debug(`[Bangumi Sync] \u672C\u6279\u6B21\u5DF2\u540C\u6B65: ${name_cn} (ID: ${subjectId}) -> ${path}`);
   }
@@ -7475,6 +7497,9 @@ function appendSuffix(path, suffix) {
 function collisionSuffix(candidate, useYearOnly) {
   var _a, _b;
   const year = (_b = (_a = candidate.year) == null ? void 0 : _a.match(/^\d{4}$/)) == null ? void 0 : _b[0];
+  if (candidate.collisionSuffixMode === "id") {
+    return `[bgm-${candidate.subjectId}]`;
+  }
   if (year && useYearOnly) {
     return `\uFF08${year}\uFF09`;
   }
@@ -7518,7 +7543,7 @@ var SubjectPathResolver = class {
     for (const group of collisionGroups.values()) {
       if (group.length < 2)
         continue;
-      const movable = group.filter((candidate) => !candidate.currentPath || (candidate.namingState === "managed" || candidate.namingState === "inferred-managed") && normalizePathCollisionKey(candidate.currentPath) === normalizePathCollisionKey(candidate.preferredPath));
+      const movable = group.filter((candidate) => !candidate.currentPath || candidate.namingState === "managed" || candidate.namingState === "inferred-managed");
       for (const candidate of movable) {
         if (candidate.currentPath) {
           reservations.delete(normalizePathCollisionKey(candidate.currentPath));
@@ -8029,7 +8054,7 @@ function collectSubjectExpectationDiagnostics(expectations, registry) {
   return diagnostics;
 }
 function subjectPathStateEqual(left, right) {
-  return left.subjectId === right.subjectId && normalizePathCollisionKey(left.currentPath) === normalizePathCollisionKey(right.currentPath) && (left.lastManagedPath ? normalizePathCollisionKey(left.lastManagedPath) : void 0) === (right.lastManagedPath ? normalizePathCollisionKey(right.lastManagedPath) : void 0) && left.namingState === right.namingState;
+  return left.subjectId === right.subjectId && normalizePathCollisionKey(left.currentPath) === normalizePathCollisionKey(right.currentPath) && (left.lastManagedPath ? normalizePathCollisionKey(left.lastManagedPath) : void 0) === (right.lastManagedPath ? normalizePathCollisionKey(right.lastManagedPath) : void 0) && left.namingState === right.namingState && (left.basePreferredPath ? normalizePathCollisionKey(left.basePreferredPath) : void 0) === (right.basePreferredPath ? normalizePathCollisionKey(right.basePreferredPath) : void 0) && left.collisionGroupKey === right.collisionGroupKey;
 }
 function pathStatesEqual(left, right) {
   const leftKeys = Object.keys(left).sort();
@@ -8246,6 +8271,10 @@ function validatePathState(value, path, errors) {
   validateString(value.currentPath, `${path}.currentPath`, errors);
   if (value.lastManagedPath !== void 0)
     validateString(value.lastManagedPath, `${path}.lastManagedPath`, errors);
+  if (value.basePreferredPath !== void 0)
+    validateString(value.basePreferredPath, `${path}.basePreferredPath`, errors);
+  if (value.collisionGroupKey !== void 0)
+    validateString(value.collisionGroupKey, `${path}.collisionGroupKey`, errors, true);
   if (!["managed", "user-renamed"].includes(String(value.namingState)))
     errors.push(`${path}.namingState is invalid.`);
 }
@@ -10411,7 +10440,8 @@ var SyncManager = class {
         subjectId: record.subjectId,
         preferredPath: this.generatePreferredPath(subject),
         year: extractPathVars(subject).year,
-        namingState: "managed"
+        namingState: "managed",
+        collisionSuffixMode: this.collisionSuffixMode()
       }];
     });
     const plan = this.pathResolver.plan(candidates, occupied);
@@ -10787,7 +10817,13 @@ var SyncManager = class {
       }
       for (const { item, writeStatus } of written) {
         const { subject, filePath, fileExisted } = item;
-        this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name, !fileExisted);
+        this.incrementalSync.addBatchSyncedItem(
+          subject.id,
+          filePath,
+          subject.name_cn || subject.name,
+          !fileExisted,
+          item.prepared.allocation.preferredPath
+        );
         affectedSubjectIds.add(subject.id);
         relations.push({ subjectId: subject.id, filePath, relations: item.relations });
         this.recordWriteOutcome(result, item.prepared, writeStatus);
@@ -11029,10 +11065,30 @@ var SyncManager = class {
         preferredPath,
         year: extractPathVars(fullInfo.subject, collection).year,
         currentPath: reconciled == null ? void 0 : reconciled.path,
-        namingState: (_a = reconciled == null ? void 0 : reconciled.namingState) != null ? _a : "managed"
+        namingState: (_a = reconciled == null ? void 0 : reconciled.namingState) != null ? _a : "managed",
+        collisionSuffixMode: this.collisionSuffixMode()
       }];
     });
     const contextIds = /* @__PURE__ */ new Set();
+    const requestedGroupKeys = new Set(candidates.map((candidate) => normalizePathCollisionKey(candidate.preferredPath)));
+    for (const candidate of candidates) {
+      registry.setPathPlanningMetadata(candidate.subjectId, candidate.preferredPath);
+    }
+    const backfilledSubjects = /* @__PURE__ */ new Map();
+    const missingMetadata = Array.from(registry.idToRecord.values()).filter((record) => record.namingState === "managed" && !record.collisionGroupKey && !details.has(record.subjectId));
+    await this.processConcurrently(missingMetadata, concurrency, async (record) => {
+      try {
+        const subject = await this.client.getSubject(record.subjectId);
+        backfilledSubjects.set(record.subjectId, subject);
+        registry.setPathPlanningMetadata(record.subjectId, this.generatePreferredPath(subject));
+      } catch (e) {
+      }
+    });
+    for (const record of registry.idToRecord.values()) {
+      if (record.namingState === "managed" && record.collisionGroupKey && requestedGroupKeys.has(record.collisionGroupKey) && !details.has(record.subjectId)) {
+        contextIds.add(record.subjectId);
+      }
+    }
     for (const candidate of candidates) {
       const owner = registry.getPathOwner(candidate.preferredPath);
       if (owner !== void 0 && !details.has(owner))
@@ -11042,25 +11098,49 @@ var SyncManager = class {
       const record = registry.getById(subjectId);
       return record ? [record] : [];
     });
+    const blockedGroupKeys = /* @__PURE__ */ new Set();
     await this.processConcurrently(contextRecords, concurrency, async (record) => {
-      var _a;
+      var _a, _b;
       try {
-        const subject = await this.client.getSubject(record.subjectId);
+        const subject = (_a = backfilledSubjects.get(record.subjectId)) != null ? _a : await this.client.getSubject(record.subjectId);
         const preferredPath = this.generatePreferredPath(subject);
         if (record.namingState === "unknown") {
           registry.markInferredManaged(record.subjectId, preferredPath);
         }
-        const reconciled = (_a = registry.getById(record.subjectId)) != null ? _a : record;
+        registry.setPathPlanningMetadata(record.subjectId, preferredPath);
+        const reconciled = (_b = registry.getById(record.subjectId)) != null ? _b : record;
         candidates.push({
           subjectId: record.subjectId,
           preferredPath,
           year: extractPathVars(subject).year,
           currentPath: reconciled.path,
-          namingState: reconciled.namingState
+          namingState: reconciled.namingState,
+          collisionSuffixMode: this.collisionSuffixMode()
         });
       } catch (e) {
+        if (record.collisionGroupKey)
+          blockedGroupKeys.add(record.collisionGroupKey);
       }
     });
+    if (blockedGroupKeys.size > 0) {
+      for (const collection of collections) {
+        const fullInfo = details.get(collection.subject_id);
+        if (!fullInfo)
+          continue;
+        const groupKey = normalizePathCollisionKey(this.generatePreferredPath(fullInfo.subject, collection));
+        if (blockedGroupKeys.has(groupKey)) {
+          failures.push({
+            collection,
+            error: "A persisted collision-group member could not be loaded; the group was left unchanged."
+          });
+        }
+      }
+      for (let index = candidates.length - 1; index >= 0; index--) {
+        if (blockedGroupKeys.has(normalizePathCollisionKey(candidates[index].preferredPath))) {
+          candidates.splice(index, 1);
+        }
+      }
+    }
     const pathPlan = this.pathResolver.plan(candidates, registry.pathToId);
     const prepared = [];
     for (const collection of collections) {
@@ -11177,6 +11257,10 @@ var SyncManager = class {
       return this.appendPathSuffix(basePath, year ? `\uFF08${year}\uFF09` : `[bgm-${subject.id}]`);
     }
     return basePath;
+  }
+  collisionSuffixMode() {
+    var _a;
+    return ((_a = this.config.pathNamingStrategy) != null ? _a : "simple-until-collision") === "simple-until-collision" ? "year-then-id" : "id";
   }
   appendPathSuffix(path, suffix) {
     return path.toLocaleLowerCase("en-US").endsWith(".md") ? `${path.slice(0, -3)}${suffix}.md` : `${path}${suffix}.md`;

@@ -10,6 +10,7 @@ import { isCompletedSerialState, isPlatformDataCandidate } from './statusSyncLog
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 import { LocalPlatformSyncContext, PlatformMetadataUpdate } from '../document/types';
 import { LocalSubjectRegistry, SubjectPathState } from './localSubjectRegistry';
+import { normalizePathCollisionKey } from '../../common/file/pathUtils';
 
 /**
  * 本地条目信息
@@ -186,7 +187,13 @@ export class IncrementalSync {
 	 * @param name_cn 中文名
 	 * @param wasNewlyCreated 是否为新创建的文件（用于回滚判断）
 	 */
-	addBatchSyncedItem(subjectId: number, path: string, name_cn: string, wasNewlyCreated = false): void {
+	addBatchSyncedItem(
+		subjectId: number,
+		path: string,
+		name_cn: string,
+		wasNewlyCreated = false,
+		basePreferredPath?: string,
+	): void {
 		this.batchSyncedItems.set(subjectId, { id: subjectId, path, name_cn, wasNewlyCreated });
 		// 同时添加到 localSubjects，以便后续条目能找到
 		this.localSubjects.set(subjectId, { id: subjectId, path, name_cn });
@@ -196,6 +203,10 @@ export class IncrementalSync {
 			nameCn: name_cn,
 			identitySource: 'id',
 			namingState: wasNewlyCreated ? 'managed' : (this.registry.getById(subjectId)?.namingState ?? 'unknown'),
+			...(basePreferredPath ? {
+				basePreferredPath: normalizePath(basePreferredPath),
+				collisionGroupKey: normalizePathCollisionKey(basePreferredPath),
+			} : {}),
 		});
 		console.debug(`[Bangumi Sync] 本批次已同步: ${name_cn} (ID: ${subjectId}) -> ${path}`);
 	}
