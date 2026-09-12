@@ -2,6 +2,12 @@
 
 [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases) 是已发布版本的最终对外事实；根目录 `release-notes-{version}.md` 是 Release notes 源文件。本文只提供简洁索引，不复制完整变更日志。
 
+## 6.12.0
+
+重点：跨批次碰撞组元数据、完整 managed 组重规划、统一 ID fallback，以及项目文档结构重整。
+
+[GitHub Release](https://github.com/threeyang3/bangumi-sync/releases/tag/6.12.0) · [Release notes source](../release-notes-6.12.0.md)
+
 ## 6.11.2
 
 重点：recovery journal secret safety、binary uncertain rollback、terminal cleanup direction、configuration restart recovery 和 legacy migration staging。

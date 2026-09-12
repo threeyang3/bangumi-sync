@@ -574,6 +574,24 @@ describe('SyncManager path transaction integration', () => {
 		expect(vault.files.has('ACGN/music/乱马（2024）.md')).toBe(false);
 	});
 
+	it('does not duplicate the year suffix when always-year paths still collide', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(1, '2024-04-15');
+		const second = makeSubject(2, '2024-10-06');
+		const manager = createManager(vault, [first, second]);
+		manager.updateConfig({ pathNamingStrategy: 'always-year' }, ['pathNamingStrategy']);
+
+		const result = await manager.syncByCollections(
+			[makeCollection(first), makeCollection(second)],
+			{ concurrency: 1 },
+		);
+
+		expect(result.completion).toBe('success');
+		expect(vault.files.has('ACGN/music/乱马（2024）[bgm-1].md')).toBe(true);
+		expect(vault.files.has('ACGN/music/乱马（2024）[bgm-2].md')).toBe(true);
+		expect(Array.from(vault.files.keys()).some(path => path.includes('（2024）（2024）'))).toBe(false);
+	});
+
 	it('shares one decision promise so commit wins a simultaneous rollback click', async () => {
 		const vault = new InMemoryVault();
 		const first = makeSubject(10, '2020-01-01', '成功');

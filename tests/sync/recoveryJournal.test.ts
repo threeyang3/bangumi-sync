@@ -114,6 +114,7 @@ describe('persistent recovery journal', () => {
 		['null subject expectations', { ...journal(), subjectExpectations: null }],
 		['missing original content', { ...journal(), contentExpectations: [{ subjectId: 1, path: 'A.md', expectedContentHash: 'a'.repeat(64), originalContentLength: 1 }] }],
 		['invalid content hash', { ...journal(), contentExpectations: [{ subjectId: 1, path: 'A.md', expectedContentHash: 'abc', originalContentLength: 1, originalContent: 'a' }] }],
+		['invalid collision metadata', { ...journal(), originalPathStates: { '1': { subjectId: 1, currentPath: 'A.md', namingState: 'managed', basePreferredPath: 42, collisionGroupKey: '' } } }],
 		['incomplete rename', { ...journal(), renameExpectations: [{ subjectId: 1, originalPath: 'A.md' }] }],
 		['invalid attempt member', { ...journal(), attempts: [{ action: 'erase', status: 'ok', diagnostics: null }] }],
 		['missing result snapshot', { ...journal(), resultSnapshot: undefined }],
