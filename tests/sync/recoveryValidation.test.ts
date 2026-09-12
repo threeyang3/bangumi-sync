@@ -69,4 +69,12 @@ describe('pathStatesEqual', () => {
 			{ '1': { ...state(1, 'ACGN/One.md'), namingState: 'user-renamed' } },
 		)).toBe(false);
 	});
+
+	it('detects collision planning metadata changes even when the current path is unchanged', () => {
+		const original = state(1, 'ACGN/One.md');
+		expect(pathStatesEqual(
+			{ '1': { ...original, basePreferredPath: 'ACGN/One.md', collisionGroupKey: 'group-one' } },
+			{ '1': { ...original, basePreferredPath: 'ACGN/Two.md', collisionGroupKey: 'group-two' } },
+		)).toBe(false);
+	});
 });

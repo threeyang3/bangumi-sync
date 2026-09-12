@@ -245,6 +245,8 @@ function validatePathState(value: unknown, path: string, errors: string[]): void
 	if (!positiveSubjectId(value.subjectId)) errors.push(`${path}.subjectId must be a positive integer.`);
 	validateString(value.currentPath, `${path}.currentPath`, errors);
 	if (value.lastManagedPath !== undefined) validateString(value.lastManagedPath, `${path}.lastManagedPath`, errors);
+	if (value.basePreferredPath !== undefined) validateString(value.basePreferredPath, `${path}.basePreferredPath`, errors);
+	if (value.collisionGroupKey !== undefined) validateString(value.collisionGroupKey, `${path}.collisionGroupKey`, errors, true);
 	if (!['managed', 'user-renamed'].includes(String(value.namingState))) errors.push(`${path}.namingState is invalid.`);
 }
 

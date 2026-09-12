@@ -87,7 +87,10 @@ export function subjectPathStateEqual(left: SubjectPathState, right: SubjectPath
 		&& normalizePathCollisionKey(left.currentPath) === normalizePathCollisionKey(right.currentPath)
 		&& (left.lastManagedPath ? normalizePathCollisionKey(left.lastManagedPath) : undefined)
 			=== (right.lastManagedPath ? normalizePathCollisionKey(right.lastManagedPath) : undefined)
-		&& left.namingState === right.namingState;
+		&& left.namingState === right.namingState
+		&& (left.basePreferredPath ? normalizePathCollisionKey(left.basePreferredPath) : undefined)
+			=== (right.basePreferredPath ? normalizePathCollisionKey(right.basePreferredPath) : undefined)
+		&& left.collisionGroupKey === right.collisionGroupKey;
 }
 
 export function pathStatesEqual(

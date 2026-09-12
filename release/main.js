@@ -8054,7 +8054,7 @@ function collectSubjectExpectationDiagnostics(expectations, registry) {
   return diagnostics;
 }
 function subjectPathStateEqual(left, right) {
-  return left.subjectId === right.subjectId && normalizePathCollisionKey(left.currentPath) === normalizePathCollisionKey(right.currentPath) && (left.lastManagedPath ? normalizePathCollisionKey(left.lastManagedPath) : void 0) === (right.lastManagedPath ? normalizePathCollisionKey(right.lastManagedPath) : void 0) && left.namingState === right.namingState;
+  return left.subjectId === right.subjectId && normalizePathCollisionKey(left.currentPath) === normalizePathCollisionKey(right.currentPath) && (left.lastManagedPath ? normalizePathCollisionKey(left.lastManagedPath) : void 0) === (right.lastManagedPath ? normalizePathCollisionKey(right.lastManagedPath) : void 0) && left.namingState === right.namingState && (left.basePreferredPath ? normalizePathCollisionKey(left.basePreferredPath) : void 0) === (right.basePreferredPath ? normalizePathCollisionKey(right.basePreferredPath) : void 0) && left.collisionGroupKey === right.collisionGroupKey;
 }
 function pathStatesEqual(left, right) {
   const leftKeys = Object.keys(left).sort();
@@ -8271,6 +8271,10 @@ function validatePathState(value, path, errors) {
   validateString(value.currentPath, `${path}.currentPath`, errors);
   if (value.lastManagedPath !== void 0)
     validateString(value.lastManagedPath, `${path}.lastManagedPath`, errors);
+  if (value.basePreferredPath !== void 0)
+    validateString(value.basePreferredPath, `${path}.basePreferredPath`, errors);
+  if (value.collisionGroupKey !== void 0)
+    validateString(value.collisionGroupKey, `${path}.collisionGroupKey`, errors, true);
   if (!["managed", "user-renamed"].includes(String(value.namingState)))
     errors.push(`${path}.namingState is invalid.`);
 }
