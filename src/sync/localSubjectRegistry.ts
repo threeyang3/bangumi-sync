@@ -12,6 +12,8 @@ export interface LocalSubjectRecord {
 	nameCn: string;
 	identitySource: Exclude<SubjectIdentitySource, 'missing'>;
 	namingState: SubjectNamingState;
+	basePreferredPath?: string;
+	collisionGroupKey?: string;
 }
 
 export interface SubjectPathState {
@@ -19,6 +21,8 @@ export interface SubjectPathState {
 	currentPath: string;
 	lastManagedPath?: string;
 	namingState: Exclude<SubjectNamingState, 'unknown' | 'inferred-managed'>;
+	basePreferredPath?: string;
+	collisionGroupKey?: string;
 }
 
 export interface LocalFileProblem {
@@ -166,6 +170,17 @@ export class LocalSubjectRegistry {
 		return true;
 	}
 
+	setPathPlanningMetadata(subjectId: number, basePreferredPath: string): void {
+		const record = this.getById(subjectId);
+		if (!record) return;
+		const normalizedPath = normalizePath(basePreferredPath);
+		this.idToRecord.set(subjectId, {
+			...record,
+			basePreferredPath: normalizedPath,
+			collisionGroupKey: normalizePathCollisionKey(normalizedPath),
+		});
+	}
+
 	upsert(record: LocalSubjectRecord): void {
 		const previous = this.idToRecord.get(record.subjectId);
 		if (previous) {
@@ -198,7 +213,16 @@ export class LocalSubjectRegistry {
 				: lastManagedKey === currentKey
 					? 'managed'
 					: state.namingState;
-			this.idToRecord.set(subjectId, { ...record, namingState });
+			this.idToRecord.set(subjectId, {
+				...record,
+				namingState,
+				basePreferredPath: state.basePreferredPath
+					? normalizePath(state.basePreferredPath)
+					: undefined,
+				collisionGroupKey: state.basePreferredPath
+					? normalizePathCollisionKey(state.basePreferredPath)
+					: state.collisionGroupKey,
+			});
 		}
 	}
 
@@ -211,6 +235,8 @@ export class LocalSubjectRegistry {
 				currentPath: record.path,
 				lastManagedPath: managed ? record.path : this.lastManagedPaths.get(subjectId),
 				namingState: managed ? 'managed' : 'user-renamed',
+				...(record.basePreferredPath ? { basePreferredPath: record.basePreferredPath } : {}),
+				...(record.collisionGroupKey ? { collisionGroupKey: record.collisionGroupKey } : {}),
 			};
 		}
 		return result;

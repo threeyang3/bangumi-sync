@@ -56,7 +56,11 @@ Bangumi Subject ID 是本地条目的唯一身份；Markdown 路径只是当前�
 - 同年：`作品（2024）[bgm-123].md`
 - 缺少年份：`作品[bgm-123].md`
 
-插件管理的简单路径在新冲突出现时可以对称重命名。碰撞上下文只查询相关候选，不因无关自定义路径发起 API 请求。
+插件为 managed 条目持久化 `basePreferredPath` 和规范化 `collisionGroupKey`。新成员加入已有碰撞组，或年份唯一性发生变化时，planner 会加载完整组并在同一个事务中重新分配所有 managed 路径。用户重命名的成员始终受保护。
+
+`simple-until-collision` 优先使用唯一年份，同年或缺少年份时追加 Bangumi ID。`always-year`、`always-id` 和 `custom-template` 的模板结果若仍发生碰撞，只追加一次 `[bgm-ID]`，不会重复年份或重复策略后缀。
+
+旧路径状态缺少上述元数据时，首次相关同步会按本地 managed 条目精确回填；回填失败的条目保持原路径，不进行不完整的碰撞组移动。
 
 ## User rename protection
 
@@ -83,7 +87,7 @@ Bangumi Subject ID 是本地条目的唯一身份；Markdown 路径只是当前�
 4. 持久化 recovery facts；
 5. 执行 temporary/final rename；
 6. 写入内容和 binary；
-7. 提交 `subjectPathStates`；
+7. 提交包含首选路径和碰撞组键的 `subjectPathStates`；
 8. 清理 journal。
 
 内容准备完成前不 rename。任一写入失败会恢复路径和内容。仅为对称碰撞而移动的上下文条目也必须返回 `previousPath`、`actualPath`、`pathAction: renamed` 和 `writeAction: skipped`。

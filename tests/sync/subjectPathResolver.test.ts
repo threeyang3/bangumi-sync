@@ -81,4 +81,35 @@ describe('subject path resolver', () => {
 			expect(reverse.get(input.subjectId)?.finalPath).toBe(forward.get(input.subjectId)?.finalPath);
 		}
 	});
+
+	it('replans every managed member when a third subject changes year uniqueness', () => {
+		const plan = resolver.plan([
+			candidate({ subjectId: 1, currentPath: 'ACGN/anime/乱马（1989）.md', year: '1989' }),
+			candidate({ subjectId: 2, currentPath: 'ACGN/anime/乱马（2024）.md', year: '2024' }),
+			candidate({ subjectId: 3, year: '2024' }),
+		]);
+		expect(plan.allocations.get(1)?.finalPath).toBe('ACGN/anime/乱马（1989）[bgm-1].md');
+		expect(plan.allocations.get(2)?.finalPath).toBe('ACGN/anime/乱马（2024）[bgm-2].md');
+		expect(plan.allocations.get(3)?.finalPath).toBe('ACGN/anime/乱马（2024）[bgm-3].md');
+		expect(plan.renamed).toHaveLength(2);
+	});
+
+	it('uses one ID fallback for pre-suffixed naming strategies', () => {
+		const plan = resolver.plan([
+			candidate({
+				subjectId: 1,
+				preferredPath: 'ACGN/anime/乱马（2024）.md',
+				year: '2024',
+				collisionSuffixMode: 'id',
+			}),
+			candidate({
+				subjectId: 2,
+				preferredPath: 'ACGN/anime/乱马（2024）.md',
+				year: '2024',
+				collisionSuffixMode: 'id',
+			}),
+		]);
+		expect(plan.allocations.get(1)?.finalPath).toBe('ACGN/anime/乱马（2024）[bgm-1].md');
+		expect(plan.allocations.get(2)?.finalPath).toBe('ACGN/anime/乱马（2024）[bgm-2].md');
+	});
 });

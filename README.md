@@ -5,7 +5,7 @@
 ![GitHub release](https://img.shields.io/github/v/release/threeyang3/bangumi-sync)
 ![GitHub downloads](https://img.shields.io/github/downloads/threeyang3/bangumi-sync/total)
 
-![本地条目完整示意](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/本地条目完整示意.png)
+[安装](#安装) · [快速开始](#快速开始) · [模板指南](docs/user/TEMPLATE_GUIDE.md) · [版本与更新](#版本与更新) · [问题反馈](https://github.com/threeyang3/bangumi-sync/issues)
 
 ## 为什么使用 Bangumi Sync
 
@@ -15,6 +15,12 @@
 - 支持增量同步、强制同步、状态同步、搜索添加和批量编辑。
 - 导入、导出个人数据，保留本地记录和自定义字段。
 - 通过事务回滚和 Recovery Center 保护同步期间的本地文件。
+
+## 效果预览
+
+同步后的条目以 Markdown 和 frontmatter 保存在 Vault 中；默认模板可配合 Dataview 展示封面、条目信息与观看进度。
+
+![本地条目完整示意](https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/本地条目完整示意.png)
 
 ## 安装
 
@@ -129,7 +135,7 @@ Bangumi Sync 使用持久恢复日志保护本地文件事务。异常中断或�
 
 ### 同名作品如何保存？
 
-无冲突时使用简洁名称；发生规范化路径冲突时依次使用年份和 Bangumi ID 消歧。Subject ID 始终是身份，文件名不是身份。
+无冲突时使用简洁名称；发生规范化路径冲突时依次使用年份和 Bangumi ID 消歧。后续加入第三个同名条目时，插件会按已保存的碰撞组信息统一重规划 managed 路径；手工重命名的文件不会被移动。Subject ID 始终是身份，文件名不是身份。
 
 ### 修改路径模板会自动移动旧文件吗？
 
@@ -139,7 +145,7 @@ Bangumi Sync 使用持久恢复日志保护本地文件事务。异常中断或�
 
 检查图片路径模板、目录权限和网络。若 Recovery Center 同时出现，先完成恢复，不要反复重试写入操作。
 
-## 文档
+## 文档导航
 
 - [文档索引](docs/README.md)：按普通用户、高级用户、维护者和历史资料导航。
 - [模板指南](docs/user/TEMPLATE_GUIDE.md)：模板系统的完整用户参考。
@@ -147,7 +153,13 @@ Bangumi Sync 使用持久恢复日志保护本地文件事务。异常中断或�
 - [恢复指南](docs/user/RECOVERY_GUIDE.md)：Recovery Center 操作手册。
 - [架构](docs/maintainer/ARCHITECTURE.md)：模块职责和数据流。
 - [开发指南](docs/maintainer/DEVELOPMENT.md)：环境、测试、PR 和发布流程。
-- [版本历史](docs/VERSION_HISTORY.md)：简洁版本索引；最终发布事实以 [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases) 为准。
+
+## 版本与更新
+
+- [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases)：下载稳定版并查看每个版本的完整发布说明。
+- [版本历史](docs/VERSION_HISTORY.md)：浏览各版本重点和历史索引。
+
+版本信息与项目介绍分开维护；已发布内容以 GitHub Releases 为准。
 
 ## 开发与贡献
 
@@ -173,6 +185,6 @@ git diff --check
 
 <img src="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/赞助二维码.jpg" width="200" alt="赞助二维码">
 
-## License
+## 许可证
 
 MIT License

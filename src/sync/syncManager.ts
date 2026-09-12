@@ -1675,6 +1675,7 @@ export class SyncManager {
 				preferredPath: this.generatePreferredPath(subject),
 				year: extractPathVars(subject).year,
 				namingState: 'managed' as const,
+				collisionSuffixMode: this.collisionSuffixMode(),
 			}];
 		});
 		const plan = this.pathResolver.plan(candidates, occupied);
@@ -2036,7 +2037,13 @@ export class SyncManager {
 			}
 			for (const { item, writeStatus } of written) {
 				const { subject, filePath, fileExisted } = item;
-				this.incrementalSync.addBatchSyncedItem(subject.id, filePath, subject.name_cn || subject.name, !fileExisted);
+				this.incrementalSync.addBatchSyncedItem(
+					subject.id,
+					filePath,
+					subject.name_cn || subject.name,
+					!fileExisted,
+					item.prepared.allocation.preferredPath,
+				);
 				affectedSubjectIds.add(subject.id);
 				relations.push({ subjectId: subject.id, filePath, relations: item.relations });
 				this.recordWriteOutcome(result, item.prepared, writeStatus);
@@ -2281,9 +2288,36 @@ export class SyncManager {
 				year: extractPathVars(fullInfo.subject, collection).year,
 				currentPath: reconciled?.path,
 				namingState: reconciled?.namingState ?? 'managed' as const,
+				collisionSuffixMode: this.collisionSuffixMode(),
 			}];
 		});
 		const contextIds = new Set<number>();
+		const requestedGroupKeys = new Set(candidates.map(candidate => normalizePathCollisionKey(candidate.preferredPath)));
+		for (const candidate of candidates) {
+			registry.setPathPlanningMetadata(candidate.subjectId, candidate.preferredPath);
+		}
+		const backfilledSubjects = new Map<number, Subject>();
+		const missingMetadata = Array.from(registry.idToRecord.values()).filter(record =>
+			record.namingState === 'managed'
+			&& !record.collisionGroupKey
+			&& !details.has(record.subjectId));
+		await this.processConcurrently(missingMetadata, concurrency, async record => {
+			try {
+				const subject = await this.client.getSubject(record.subjectId);
+				backfilledSubjects.set(record.subjectId, subject);
+				registry.setPathPlanningMetadata(record.subjectId, this.generatePreferredPath(subject));
+			} catch {
+				// Legacy metadata is best-effort until this subject is synced successfully.
+			}
+		});
+		for (const record of registry.idToRecord.values()) {
+			if (record.namingState === 'managed'
+				&& record.collisionGroupKey
+				&& requestedGroupKeys.has(record.collisionGroupKey)
+				&& !details.has(record.subjectId)) {
+				contextIds.add(record.subjectId);
+			}
+		}
 		for (const candidate of candidates) {
 			const owner = registry.getPathOwner(candidate.preferredPath);
 			if (owner !== undefined && !details.has(owner)) contextIds.add(owner);
@@ -2292,13 +2326,16 @@ export class SyncManager {
 			const record = registry.getById(subjectId);
 			return record ? [record] : [];
 		});
+		const blockedGroupKeys = new Set<string>();
 		await this.processConcurrently(contextRecords, concurrency, async record => {
 			try {
-				const subject = await this.client.getSubject(record.subjectId);
+				const subject = backfilledSubjects.get(record.subjectId)
+					?? await this.client.getSubject(record.subjectId);
 				const preferredPath = this.generatePreferredPath(subject);
 				if (record.namingState === 'unknown') {
 					registry.markInferredManaged(record.subjectId, preferredPath);
 				}
+				registry.setPathPlanningMetadata(record.subjectId, preferredPath);
 				const reconciled = registry.getById(record.subjectId) ?? record;
 				candidates.push({
 					subjectId: record.subjectId,
@@ -2306,11 +2343,30 @@ export class SyncManager {
 					year: extractPathVars(subject).year,
 					currentPath: reconciled.path,
 					namingState: reconciled.namingState,
+					collisionSuffixMode: this.collisionSuffixMode(),
 				});
 			} catch {
-				// The existing subject remains protected by its current path if context lookup fails.
+				if (record.collisionGroupKey) blockedGroupKeys.add(record.collisionGroupKey);
 			}
 		});
+		if (blockedGroupKeys.size > 0) {
+			for (const collection of collections) {
+				const fullInfo = details.get(collection.subject_id);
+				if (!fullInfo) continue;
+				const groupKey = normalizePathCollisionKey(this.generatePreferredPath(fullInfo.subject, collection));
+				if (blockedGroupKeys.has(groupKey)) {
+					failures.push({
+						collection,
+						error: 'A persisted collision-group member could not be loaded; the group was left unchanged.',
+					});
+				}
+			}
+			for (let index = candidates.length - 1; index >= 0; index--) {
+				if (blockedGroupKeys.has(normalizePathCollisionKey(candidates[index].preferredPath))) {
+					candidates.splice(index, 1);
+				}
+			}
+		}
 		const pathPlan = this.pathResolver.plan(candidates, registry.pathToId);
 
 		const prepared: PreparedCollection[] = [];
@@ -2461,6 +2517,12 @@ export class SyncManager {
 			return this.appendPathSuffix(basePath, year ? `（${year}）` : `[bgm-${subject.id}]`);
 		}
 		return basePath;
+	}
+
+	private collisionSuffixMode(): 'year-then-id' | 'id' {
+		return (this.config.pathNamingStrategy ?? 'simple-until-collision') === 'simple-until-collision'
+			? 'year-then-id'
+			: 'id';
 	}
 
 	private appendPathSuffix(path: string, suffix: string): string {
