@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, BangumiPluginSettings } from '../../src/settings/settings';
+import { DEFAULT_SETTINGS, BangumiPluginSettings, normalizeSyncConcurrency } from '../../src/settings/settings';
 import { applySettingsPatch, createSettingsPatch, reconcileSettingsDraft } from '../../src/settings/settingsPatch';
 import { SettingsPersistenceCoordinator } from '../../src/settings/settingsLifecycle';
 
@@ -8,6 +8,17 @@ function settings(): BangumiPluginSettings {
 }
 
 describe('settings field patches', () => {
+	it.each([
+		[0, 1],
+		[-2, 1],
+		[2.8, 2],
+		[99, 5],
+		[Number.NaN, 3],
+		['3', 3],
+	] as const)('normalizes persisted sync concurrency %s to %s', (input, expected) => {
+		expect(normalizeSyncConcurrency(input)).toBe(expected);
+	});
+
 	it('rerenders a failed save from the latest official settings instead of the page-open snapshot', () => {
 		const official = settings();
 		official.panelFilters = { ...official.panelFilters, keyword: 'external-B' };

@@ -125,6 +125,7 @@ Migration staging 必须完整写入、重读、结构校验和 secret scan 后�
 ## Atomicity guarantees
 
 - 路径 rename、Markdown、binary 和 `subjectPathStates` 属于同一主事务。
+- 独立路径迁移同样必须先写 journal，再执行 rename，并在 rename 或 rollback 无法完成时保留 recovery gate。
 - 内容准备完成前不移动旧文件。
 - 关联链接仅在主事务 Commit 且 journal cleanup 后 best-effort 执行；失败只记录 warning。
 - Retry、Manual Confirm 和 Rescan 共用互斥动作。
@@ -136,6 +137,7 @@ Migration staging 必须完整写入、重读、结构校验和 secret scan 后�
 - Empty rollback 不能解除 orphan 或 corrupt gate。
 - 修改残留文件 ID 不能绕过 concrete created-path expectation。
 - Manual Confirm 使用批次前 expectation 验证 expected absent/present、path 和 identity。
+- 同一 manager 同时只允许一个 Vault 操作；操作锁覆盖远端准备、主事务与 post-commit 写入，插件卸载会取消旧 manager 且禁止其继续写入。
 - Gate 覆盖收藏/单条同步、路径迁移、封面、关联链接、状态同步、批量编辑与撤销、用户数据导入导出、集数状态、吐槽和共享笔记。
 - 诊断、Rescan 和 Confirm 只读取本地数据，不请求 Bangumi API。
 

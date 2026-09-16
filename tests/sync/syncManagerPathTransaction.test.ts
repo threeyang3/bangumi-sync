@@ -2,7 +2,7 @@ import { Vault } from 'obsidian';
 import { describe, expect, it, vi } from 'vitest';
 import { BangumiClient } from '../../src/api/client';
 import { CollectionType, Subject, SubjectType, UserCollection } from '../../common/api/types';
-import { ConfigurationChangeBlockedError, ConfigurationUpdateInProgressError, ManagerReinitializationBlockedError, PendingSyncTransactionError, RecoveryRequiredError, SyncManager, SyncManagerConfig } from '../../src/sync/syncManager';
+import { ConfigurationChangeBlockedError, ConfigurationUpdateInProgressError, ManagerReinitializationBlockedError, ManagerShuttingDownError, PendingSyncTransactionError, RecoveryRequiredError, SyncManager, SyncManagerConfig, VaultOperationInProgressError } from '../../src/sync/syncManager';
 import { SubjectPathState } from '../../src/sync/localSubjectRegistry';
 import { InMemoryVault } from '../mocks/inMemoryVault';
 import { RECOVERY_JOURNAL_PATH } from '../../src/sync/recoveryJournal';
@@ -56,6 +56,7 @@ function createManager(vault: InMemoryVault, subjects: Subject[], options: {
 	relationsById?: Map<number, Array<{ id: number; type: SubjectType; name: string; name_cn: string; relation: string }>>;
 } = {}): SyncManager {
 	const config: SyncManagerConfig = {
+		pluginVersion: 'test-version',
 		accessToken: 'test-token', pathTemplate: 'ACGN/music/{{name_cn}}.md',
 		imagePathTemplate: 'assets/{{id}}', downloadImages: false, imageQuality: 'large', imageUpdateExisting: false, scanFolderPath: 'ACGN',
 		enableRelatedLinks: false, subjectPathStates: options.initialPathStates ?? {},
@@ -77,6 +78,156 @@ interface CoverHandlerProbe {
 }
 
 describe('SyncManager path transaction integration', () => {
+	it('defensively processes work when an API caller passes zero concurrency', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(19, '2024-01-01', '并发校验');
+		const manager = createManager(vault, [subject]);
+
+		const result = await manager.syncByCollections([makeCollection(subject)], { concurrency: 0 });
+
+		expect(result.completion).toBe('success');
+		expect(vault.files.has('ACGN/music/并发校验.md')).toBe(true);
+	});
+
+	it('rejects a second Vault operation while collection preparation is still running', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2024-01-01', '运行锁');
+		const manager = createManager(vault, [subject]);
+		const originalGetFullSubjectInfo = manager.client.getFullSubjectInfo.bind(manager.client);
+		let release!: () => void;
+		const held = new Promise<void>(resolve => { release = resolve; });
+		manager.client.getFullSubjectInfo = async id => {
+			await held;
+			return originalGetFullSubjectInfo(id);
+		};
+
+		const first = manager.syncByCollections([makeCollection(subject)], { concurrency: 1 });
+		await vi.waitFor(() => expect(manager.getManagerState()).toBe('running'));
+		await expect(manager.syncByCollections([makeCollection(subject)], { concurrency: 1 }))
+			.rejects.toBeInstanceOf(VaultOperationInProgressError);
+		release();
+		await first;
+	});
+
+	it('keeps the Vault operation lease through post-commit related-link work', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(21, '2024-01-01', '提交后处理');
+		const manager = createManager(vault, [subject], {
+			relationsById: new Map([[21, [{ id: 99, type: SubjectType.Music, name: '关联', name_cn: '关联', relation: '关联' }]]]),
+		});
+		manager.updateConfig({ enableRelatedLinks: true });
+		let release!: () => void;
+		const held = new Promise<void>(resolve => { release = resolve; });
+		const postProcess = vi.fn(async () => { await held; return []; });
+		(manager as unknown as { postProcessBatchRelations: typeof postProcess }).postProcessBatchRelations = postProcess;
+
+		const first = manager.syncByCollections([makeCollection(subject)], { concurrency: 1 });
+		await vi.waitFor(() => expect(postProcess).toHaveBeenCalledOnce());
+		expect(manager.getManagerState()).toBe('running');
+		await expect(manager.syncByCollections([makeCollection(subject)], { concurrency: 1 }))
+			.rejects.toBeInstanceOf(VaultOperationInProgressError);
+		release();
+		await first;
+		expect(manager.getManagerState()).toBe('idle');
+	});
+
+	it('cancels pending Vault work when the manager shuts down', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2024-01-01', '卸载取消');
+		const manager = createManager(vault, [subject]);
+		const originalGetFullSubjectInfo = manager.client.getFullSubjectInfo.bind(manager.client);
+		let release!: () => void;
+		const held = new Promise<void>(resolve => { release = resolve; });
+		manager.client.getFullSubjectInfo = async id => {
+			await held;
+			return originalGetFullSubjectInfo(id);
+		};
+
+		const running = manager.syncByCollections([makeCollection(subject)], { concurrency: 1 });
+		await vi.waitFor(() => expect(manager.getManagerState()).toBe('running'));
+		manager.shutdown();
+		release();
+		const result = await running;
+
+		expect(result.completion).toBe('cancelled');
+		expect(Array.from(vault.files.keys()).filter(path => path.endsWith('.md'))).toEqual([]);
+		expect(() => manager.ensureCanStartSync()).toThrow(ManagerShuttingDownError);
+	});
+
+	it('persists path-migration recovery facts before rename and clears them after commit', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2024-01-01', '迁移日志');
+		vault.addFile('ACGN/music/迁移日志.md', '---\nid: 20\n中文名: "迁移日志"\n---');
+		const manager = createManager(vault, [subject], { initialPathStates: {
+			'20': { subjectId: 20, currentPath: 'ACGN/music/迁移日志.md', lastManagedPath: 'ACGN/music/迁移日志.md', namingState: 'managed' },
+		} });
+		manager.updateConfig({ pathTemplate: 'Archive/{{name_cn}}.md' }, ['pathTemplate']);
+		const preview = await manager.previewPathMigration();
+		const originalRename = vault.app.fileManager.renameFile.bind(vault.app.fileManager);
+		let journalBeforeRename: string | null = null;
+		vault.app.fileManager.renameFile = async (file, path) => {
+			if (journalBeforeRename === null) journalBeforeRename = await vault.app.vault.adapter.read(RECOVERY_JOURNAL_PATH);
+			return originalRename(file, path);
+		};
+
+		const result = await manager.applyPathMigration(preview);
+
+		expect(result).toEqual({ renamed: 1, failed: 0 });
+		expect(JSON.parse(journalBeforeRename ?? '{}')).toMatchObject({
+			pluginVersion: 'test-version',
+			renameExpectations: [expect.objectContaining({ subjectId: 20, originalPath: 'ACGN/music/迁移日志.md' })],
+		});
+		expect(vault.files.has('Archive/迁移日志.md')).toBe(true);
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+	});
+
+	it('releases the Vault operation lease when the path-migration journal cannot be created', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2024-01-01', '日志失败');
+		vault.addFile('ACGN/music/日志失败.md', '---\nid: 20\n中文名: "日志失败"\n---');
+		const manager = createManager(vault, [subject], { initialPathStates: {
+			'20': { subjectId: 20, currentPath: 'ACGN/music/日志失败.md', lastManagedPath: 'ACGN/music/日志失败.md', namingState: 'managed' },
+		} });
+		manager.updateConfig({ pathTemplate: 'Archive/{{name_cn}}.md' }, ['pathTemplate']);
+		const preview = await manager.previewPathMigration();
+		const adapter = vault.app.vault.adapter;
+		const originalWrite = adapter.write.bind(adapter);
+		adapter.write = () => Promise.reject(new Error('Injected journal write failure'));
+
+		const result = await manager.applyPathMigration(preview);
+		adapter.write = originalWrite;
+
+		expect(result).toEqual({ renamed: 0, failed: 1 });
+		expect(manager.getManagerState()).toBe('idle');
+		expect(() => manager.ensureCanStartSync()).not.toThrow();
+		expect(vault.files.has('ACGN/music/日志失败.md')).toBe(true);
+		expect(vault.files.has('Archive/日志失败.md')).toBe(false);
+	});
+
+	it('enters recovery when path-migration rollback cannot restore a staged rename', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(20, '2024-01-01', '迁移失败');
+		vault.addFile('ACGN/music/迁移失败.md', '---\nid: 20\n中文名: "迁移失败"\n---');
+		const manager = createManager(vault, [subject], { initialPathStates: {
+			'20': { subjectId: 20, currentPath: 'ACGN/music/迁移失败.md', lastManagedPath: 'ACGN/music/迁移失败.md', namingState: 'managed' },
+		} });
+		manager.updateConfig({ pathTemplate: 'Archive/{{name_cn}}.md' }, ['pathTemplate']);
+		const preview = await manager.previewPathMigration();
+		const originalRename = vault.app.fileManager.renameFile.bind(vault.app.fileManager);
+		let renameCalls = 0;
+		vault.app.fileManager.renameFile = (file, path) => {
+			renameCalls++;
+			if (renameCalls >= 2) return Promise.reject(new Error('Injected migration rename failure'));
+			return originalRename(file, path);
+		};
+
+		const result = await manager.applyPathMigration(preview);
+
+		expect(result).toEqual({ renamed: 0, failed: 1 });
+		expect(manager.getRecoveryRequired()).toMatchObject({ reason: 'rollback-failed' });
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(true);
+	});
+
 	it('journals and removes an unreferenced cover when the Markdown update fails', async () => {
 		const vault = new InMemoryVault();
 		const subject = makeSubject(20, '2024-01-01', '封面回滚');

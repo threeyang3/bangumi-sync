@@ -37,8 +37,9 @@
 ## Promise and concurrency safety
 
 - 对用户可重复触发的 Commit、rollback、Retry、Rescan 使用共享 Promise 或互斥动作。
+- 同一 manager 的 Vault 操作必须互斥；公开入口在异步准备前获取操作权，并在全部写入结束后释放。
 - 串行设置 persistence，不让旧 UI snapshot 覆盖新正式设置。
-- Cancellation 必须等待正在执行的 mutation 达到可恢复边界。
+- Cancellation 必须等待正在执行的 mutation 达到可恢复边界；插件卸载后旧 manager 不得再开始或继续 Vault 写入。
 - Post-commit best-effort 工作不得反向改变主事务终态。
 
 ## UI and accessibility

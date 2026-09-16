@@ -9,7 +9,7 @@
  */
 
 import { Plugin, Notice, TFile } from 'obsidian';
-import { BangumiPluginSettings, DEFAULT_SETTINGS, PanelFilters } from './src/settings/settings';
+import { BangumiPluginSettings, DEFAULT_SETTINGS, normalizeSyncConcurrency, PanelFilters } from './src/settings/settings';
 import { BangumiSettingTab } from './src/settings/settingsTab';
 import { persistStableManagerSettings, SettingsPersistenceCoordinator } from './src/settings/settingsLifecycle';
 import { applySettingsPatch, SettingsPatch } from './src/settings/settingsPatch';
@@ -257,6 +257,8 @@ export default class BangumiPlugin extends Plugin {
 	}
 
 	onunload() {
+		this.cancellationSignal?.cancel();
+		this.syncManager?.shutdown();
 		setWriteOperationGuard(null);
 		// 清除自动同步定时器
 		if (this.autoSyncIntervalId !== null) {
@@ -318,6 +320,7 @@ export default class BangumiPlugin extends Plugin {
 			delete loadedData.defaultPropertyValues;
 		}
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData ?? {});
+		this.settings.syncConcurrency = normalizeSyncConcurrency(this.settings.syncConcurrency);
 
 		// 迁移：如果路径模板使用 {{name_cn}} 而不是 {{name_cn_with_type}}，自动更新
 		if (this.settings.syncPathTemplate &&
@@ -372,6 +375,7 @@ export default class BangumiPlugin extends Plugin {
 	private async buildSyncManagerConfig(settings: BangumiPluginSettings = this.settings): Promise<SyncManagerConfig> {
 		const templates = await this.getTemplates(settings);
 		return cloneSyncManagerConfig({
+			pluginVersion: this.manifest.version,
 			accessToken: settings.accessToken,
 			pathTemplate: settings.syncPathTemplate,
 			pathTemplateByType: settings.pathTemplateByType,
