@@ -9,6 +9,13 @@
 3. 若已出现 Recovery Center，先完成恢复，不要用新版本覆盖未知的 recovery/temp 文件。
 4. 从同一个 GitHub Release 下载 `main.js`、`manifest.json` 和 `styles.css`。
 
+## 从 6.12.0 升级
+
+- 不需要迁移 Markdown、frontmatter、路径状态或 recovery journal。
+- 重载插件后，旧实例会取消未完成任务；请等待新实例加载完成再重新发起同步或路径迁移。
+- 若升级前已经显示 Recovery Center，仍应先按恢复指南完成现有恢复，不要手工删除 journal。
+- 旧设置中的异常并发数会自动限制到 `1–5`，无需编辑 `data.json`。
+
 ## 从 6.11.x 升级
 
 - 不需要迁移现有 Markdown。

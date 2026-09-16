@@ -121,7 +121,7 @@ Subject ID 是唯一身份，路径是状态。Registry 维护当前路径，pla
 
 ## Recovery boundary
 
-Recovery journal 必须先于首次 Vault mutation 持久化。主事务包括路径、Markdown、binary 和 path states。所有写服务经过统一 gate；只读诊断和 Recovery Center 在 gate 下仍可使用。
+Recovery journal 必须先于首次 Vault mutation 持久化，独立路径迁移也不例外。主事务包括路径、Markdown、binary 和 path states。所有写服务经过统一 gate；同一 manager 的 Vault 操作从准备到 post-commit 写入保持互斥，只读诊断和 Recovery Center 在 gate 下仍可使用。
 
 Journal candidates、terminal markers、configuration recovery、secret safety 和 restart mapping 见[恢复模型](RECOVERY_MODEL.md)。
 

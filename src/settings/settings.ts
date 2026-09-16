@@ -46,6 +46,11 @@ export interface PanelFilters {
 export type CoverLinkType = 'network' | 'local';
 export type PathNamingStrategy = 'simple-until-collision' | 'always-year' | 'always-id' | 'custom-template';
 
+export function normalizeSyncConcurrency(value: unknown): number {
+	if (typeof value !== 'number' || !Number.isFinite(value)) return 3;
+	return Math.min(5, Math.max(1, Math.trunc(value)));
+}
+
 /**
  * 插件设置
  */

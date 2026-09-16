@@ -107,6 +107,7 @@ interface ExecutedTransactionGroup {
  * 同步管理器配置
  */
 export interface SyncManagerConfig {
+	pluginVersion?: string;
 	accessToken: string;
 	pathTemplate: string;
 	imagePathTemplate: string;
@@ -253,6 +254,20 @@ export class PendingDecisionInProgressError extends Error {
 	}
 }
 
+export class VaultOperationInProgressError extends Error {
+	constructor() {
+		super('Another Bangumi Sync Vault operation is already running.');
+		this.name = 'VaultOperationInProgressError';
+	}
+}
+
+export class ManagerShuttingDownError extends Error {
+	constructor() {
+		super('Bangumi Sync is shutting down and cannot start or continue Vault work.');
+		this.name = 'ManagerShuttingDownError';
+	}
+}
+
 export class RecoveryRequiredError extends Error {
 	constructor(readonly recovery: RecoveryRequiredState) {
 		super('Bangumi Sync requires local recovery before another sync can start.');
@@ -320,6 +335,8 @@ export class SyncManager {
 	private readonly managerStateListeners = new Set<ManagerStateListener>();
 	private lastEmittedManagerState: ManagerState | null = null;
 	private configurationUpdateState: 'idle' | 'persisting' | 'applying' | 'rolling-back' = 'idle';
+	private vaultOperationActive = false;
+	private shuttingDown = false;
 
 	constructor(app: App, config: SyncManagerConfig) {
 		this.app = app;
@@ -407,7 +424,7 @@ export class SyncManager {
 	private createEmptyRecoveryJournal(state: PersistentRecoveryJournal['state'], blockingIssue?: string): PersistentRecoveryJournal {
 		const now = Date.now();
 		return {
-			schemaVersion: 1, journalId: `recovery-${now}`, pluginVersion: '6.11.2', state,
+			schemaVersion: 1, journalId: `recovery-${now}`, pluginVersion: this.config.pluginVersion ?? 'unknown', state,
 			createdAt: now, updatedAt: now, scanRoot: normalizePath(this.config.scanFolderPath || 'ACGN'),
 			affectedSubjectIds: [], originalPathStates: this.clonePathStates(this.config.subjectPathStates ?? {}),
 			subjectExpectations: [], contentExpectations: [], createdPathExpectations: [], renameExpectations: [], createdResourcePaths: [],
@@ -466,6 +483,12 @@ export class SyncManager {
 		this.cancellationSignal = signal;
 	}
 
+	shutdown(): void {
+		this.shuttingDown = true;
+		this.cancellationSignal?.cancel();
+		this.onProgress = undefined;
+	}
+
 	/**
 	 * 回滚本次批次新建的文件
 	 */
@@ -482,8 +505,10 @@ export class SyncManager {
 	}
 
 	ensureCanStartSync(): void {
+		if (this.shuttingDown) throw new ManagerShuttingDownError();
 		if (this.configurationUpdateState !== 'idle') throw new ConfigurationUpdateInProgressError();
 		if (this.recoveryRequired) throw new RecoveryRequiredError(this.recoveryRequired);
+		if (this.vaultOperationActive) throw new VaultOperationInProgressError();
 		if (this.pendingDecisionPromise || this.recoveryActionPromise || this.pendingTransaction?.state === 'committing' || this.pendingTransaction?.state === 'rolling-back') {
 			throw new PendingDecisionInProgressError();
 		}
@@ -491,7 +516,8 @@ export class SyncManager {
 	}
 
 	hasActiveTransactionState(): boolean {
-		return this.batchTransactionState === 'active'
+		return this.vaultOperationActive
+			|| this.batchTransactionState === 'active'
 			|| this.pendingTransaction !== null
 			|| this.pendingDecisionPromise !== null
 			|| this.recoveryRequired !== null
@@ -555,6 +581,8 @@ export class SyncManager {
 	getManagerState(): ManagerState {
 		if (this.configurationUpdateState !== 'idle') return 'configuration-updating';
 		if (this.recoveryRequired) return 'recovery-required';
+		if (this.vaultOperationActive && this.batchTransactionState !== 'awaiting-user-decision'
+			&& this.batchTransactionState !== 'committing' && this.batchTransactionState !== 'rolling-back') return 'running';
 		switch (this.batchTransactionState) {
 			case 'active': return 'running';
 			case 'awaiting-user-decision': return 'awaiting-decision';
@@ -749,6 +777,7 @@ export class SyncManager {
 	}
 
 	private async persistBeforeVaultMutation(facts: TransactionRecoveryExpectations): Promise<void> {
+		if (this.shuttingDown) throw new ManagerShuttingDownError();
 		if (!this.activeRecoveryJournal) throw new Error('Recovery journal is not active before a Vault mutation.');
 		this.mergeActiveJournalFacts(facts);
 		await this.recoveryJournalStore.write(this.activeRecoveryJournal);
@@ -785,7 +814,7 @@ export class SyncManager {
 		const journal: PersistentRecoveryJournal = {
 			schemaVersion: 1,
 			journalId: `cover-${subjectId}-${now}`,
-			pluginVersion: '6.11.2',
+			pluginVersion: this.config.pluginVersion ?? 'unknown',
 			state: 'active',
 			createdAt: now,
 			updatedAt: now,
@@ -1648,6 +1677,9 @@ export class SyncManager {
 	}
 
 	async previewPathMigration(options: { includeUnknown?: boolean; includeUserRenamed?: boolean } = {}): Promise<PathMigrationPreview> {
+		this.ensureCanStartSync();
+		this.beginVaultOperation();
+		try {
 		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
 		const registry = this.incrementalSync.getRegistry();
 		const selected = Array.from(registry.idToRecord.values()).filter(record =>
@@ -1707,6 +1739,23 @@ export class SyncManager {
 			};
 		});
 		return { generatedAt: new Date().toISOString(), entries };
+		} finally {
+			this.endVaultOperation();
+		}
+	}
+
+	private beginVaultOperation(): void {
+		this.vaultOperationActive = true;
+		this.setBatchTransactionState('active');
+	}
+
+	private endVaultOperation(): void {
+		this.vaultOperationActive = false;
+		if (!this.recoveryRequired && this.batchTransactionState === 'active') {
+			this.setBatchTransactionState('none');
+		} else {
+			this.notifyManagerStateChanged();
+		}
 	}
 
 	async applyPathMigration(preview: PathMigrationPreview): Promise<{ renamed: number; failed: number }> {
@@ -1714,17 +1763,93 @@ export class SyncManager {
 		const renames = preview.entries
 			.filter(entry => entry.status === 'rename')
 			.map(entry => ({ subjectId: entry.subjectId, from: entry.from, to: entry.to }));
-		const transaction = new SyncTransaction(this.app, this.fileManager);
+		if (renames.length === 0) return { renamed: 0, failed: 0 };
+
+		this.beginVaultOperation();
+		const scanRootAtBatchStart = normalizePath(this.config.scanFolderPath || 'ACGN');
+		const previousPathStates = this.clonePathStates(this.config.subjectPathStates ?? {});
+		const registry = this.incrementalSync.getRegistry();
+		const originalRecords = new Map(Array.from(registry.idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
+		const affectedSubjectIds = renames.map(rename => rename.subjectId);
+		const result = this.createSyncResult(renames.length);
+		result.outcomes = renames.map(rename => ({
+			subjectId: rename.subjectId,
+			previousPath: rename.from,
+			actualPath: rename.to,
+			pathAction: 'renamed',
+			writeAction: 'skipped',
+		}));
+		const now = Date.now();
+		const journal: PersistentRecoveryJournal = {
+			...this.createEmptyRecoveryJournal('active'),
+			journalId: `path-migration-${now}`,
+			createdAt: now,
+			updatedAt: now,
+			scanRoot: scanRootAtBatchStart,
+			affectedSubjectIds,
+			originalPathStates: previousPathStates,
+			subjectExpectations: this.recoveryExpectationsFor(affectedSubjectIds, originalRecords),
+			resultSnapshot: this.captureResultSnapshot(result, false),
+		};
+		this.activeRecoveryJournal = journal;
+		try {
+			await this.recoveryJournalStore.write(journal);
+		} catch {
+			this.activeRecoveryJournal = null;
+			this.endVaultOperation();
+			return { renamed: 0, failed: renames.length };
+		}
+
+		const transaction = new SyncTransaction(this.app, this.fileManager, facts => this.persistBeforeVaultMutation(facts));
 		try {
 			await transaction.executeRenames(renames);
+			if (await this.checkCancellation()) throw new ManagerShuttingDownError();
 			for (const rename of renames) this.incrementalSync.renameLocalSubject(rename.subjectId, rename.to);
 			await this.persistPathStates();
+			const recoveryFacts = await this.captureTransactionRecoveryFacts([transaction]);
+			const pending: PendingSyncTransaction = {
+				transactions: [transaction],
+				groups: [{ transaction, outcomeIndexes: renames.map((_rename, index) => index) }],
+				previousPathStates,
+				affectedSubjectIds,
+				subjectExpectations: this.recoveryExpectationsFor(affectedSubjectIds, originalRecords),
+				scanRootAtBatchStart,
+				...recoveryFacts,
+				deferredRelations: [],
+				resultSnapshot: this.captureResultSnapshot(result, false),
+				createdAt: now,
+				state: 'committing',
+			};
+			this.pendingTransaction = pending;
+			await this.persistPendingJournal(pending, 'committed-cleanup-pending');
 			transaction.commit();
-			return { renamed: renames.length, failed: 0 };
-		} catch {
-			await transaction.rollback();
-			await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
+			return await this.finalizePersistedTerminalJournal(pending, 'committed')
+				? { renamed: renames.length, failed: 0 }
+				: { renamed: renames.length, failed: renames.length };
+		} catch (error) {
+			const recoveryFacts = await this.captureTransactionRecoveryFacts([transaction]);
+			const pending: PendingSyncTransaction = {
+				transactions: [transaction],
+				groups: [{ transaction, outcomeIndexes: renames.map((_rename, index) => index) }],
+				previousPathStates,
+				affectedSubjectIds,
+				subjectExpectations: this.recoveryExpectationsFor(affectedSubjectIds, originalRecords),
+				scanRootAtBatchStart,
+				...recoveryFacts,
+				deferredRelations: [],
+				resultSnapshot: this.captureResultSnapshot(result, false),
+				createdAt: now,
+				state: 'rolling-back',
+			};
+			this.pendingTransaction = pending;
+			try {
+				await this.rollbackPendingTransaction(pending, error);
+			} catch (rollbackError) {
+				this.enterJournalFinalizationRecovery(pending, rollbackError, 'terminal-write');
+			}
 			return { renamed: 0, failed: renames.length };
+		} finally {
+			this.endVaultOperation();
 		}
 	}
 
@@ -1733,13 +1858,13 @@ export class SyncManager {
 	 * @returns true 如果已取消
 	 */
 	private async checkCancellation(): Promise<boolean> {
-		if (this.cancellationSignal?.cancelled) {
+		if (this.shuttingDown || this.cancellationSignal?.cancelled) {
 			return true;
 		}
 		while (this.cancellationSignal?.paused) {
 			await new Promise(resolve => activeWindow.setTimeout(resolve, 200));
 		}
-		return this.cancellationSignal?.cancelled ?? false;
+		return this.shuttingDown || (this.cancellationSignal?.cancelled ?? false);
 	}
 
 	/**
@@ -1895,8 +2020,9 @@ export class SyncManager {
 		onProgress?: (prepared: PreparedCollection, index: number) => void,
 	): Promise<{ wasCancelled: boolean; relations: Array<{ subjectId: number; filePath: string; relations: RelatedSubject[] }> }> {
 		this.lastAutomaticRollback = undefined;
-		this.assertNoPendingTransaction();
-		this.setBatchTransactionState('active');
+		if (this.batchTransactionState !== 'active') {
+			throw new Error('Prepared collection execution requires an active Vault operation lease.');
+		}
 		const scanRootAtBatchStart = normalizePath(this.config.scanFolderPath || 'ACGN');
 		const previousPathStates = this.clonePathStates(this.config.subjectPathStates ?? {});
 		const originalRecords = new Map(Array.from(this.incrementalSync.getRegistry().idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
@@ -1906,7 +2032,7 @@ export class SyncManager {
 		]);
 		const now = Date.now();
 		const journal: PersistentRecoveryJournal = {
-			schemaVersion: 1, journalId: `sync-${now}`, pluginVersion: '6.11.2', state: 'active', createdAt: now, updatedAt: now,
+			schemaVersion: 1, journalId: `sync-${now}`, pluginVersion: this.config.pluginVersion ?? 'unknown', state: 'active', createdAt: now, updatedAt: now,
 			scanRoot: scanRootAtBatchStart, affectedSubjectIds: Array.from(plannedSubjectIds), originalPathStates: previousPathStates,
 			subjectExpectations: this.recoveryExpectationsFor(plannedSubjectIds, originalRecords), contentExpectations: [],
 			createdPathExpectations: [], renameExpectations: [], createdResourcePaths: [], updatedResourceExpectations: [],
@@ -1940,6 +2066,7 @@ export class SyncManager {
 				this.recordProcessingFailure(result, prepared, error);
 			}
 		});
+		if (await this.checkCancellation()) wasCancelled = true;
 
 		if (batchHasUncertainBinaryMutation) {
 			this.finalizeSyncResult(result, false);
@@ -2172,13 +2299,14 @@ export class SyncManager {
 		const result = this.createSyncResult();
 
 		try {
+			this.assertNoPendingTransaction();
+			this.beginVaultOperation();
 			const { diff } = await this.prepareSyncData(options);
 
 			result.total = diff.toAdd.length;
 			result.skipped = diff.toSkip.length;
 
 			// 开始批次同步
-			this.assertNoPendingTransaction();
 			this.incrementalSync.startBatch();
 			const batch = await this.prepareCollectionBatch(diff.toAdd, concurrency);
 			const execution = await this.executePreparedCollectionBatch(
@@ -2202,6 +2330,8 @@ export class SyncManager {
 			console.error('[Bangumi Sync] 同步失败:', error);
 			this.reportProgress({ status: 'error', message: error instanceof Error ? error.message : String(error) });
 			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
+		} finally {
+			this.endVaultOperation();
 		}
 
 		result.duration = Date.now() - startTime;
@@ -2222,8 +2352,12 @@ export class SyncManager {
 		const queue = [...items.map((item, index) => ({ item, index }))];
 		const workers: Promise<void>[] = [];
 
+		const safeConcurrency = Number.isFinite(concurrency)
+			? Math.max(1, Math.trunc(concurrency))
+			: 1;
+
 		// 创建工作线程
-		for (let i = 0; i < Math.min(concurrency, items.length); i++) {
+		for (let i = 0; i < Math.min(safeConcurrency, items.length); i++) {
 			workers.push(this.processQueue(queue, processor));
 		}
 
@@ -2691,6 +2825,7 @@ export class SyncManager {
 
 			// 开始批次同步
 			this.assertNoPendingTransaction();
+			this.beginVaultOperation();
 			this.incrementalSync.startBatch();
 			const batch = await this.prepareCollectionBatch(collections, concurrency);
 			const execution = await this.executePreparedCollectionBatch(
@@ -2722,6 +2857,8 @@ export class SyncManager {
 			if (error instanceof PendingSyncTransactionError) throw error;
 			console.error('[Bangumi Sync] 按收藏列表同步失败:', error);
 			this.reportProgress({ status: 'error', message: String(error) });
+		} finally {
+			this.endVaultOperation();
 		}
 
 		result.duration = Date.now() - startTime;
@@ -2746,6 +2883,7 @@ export class SyncManager {
 		error?: string;
 	}> {
 		this.ensureCanStartSync();
+		this.beginVaultOperation();
 		try {
 			const { diff } = await this.prepareSyncData(options);
 
@@ -2776,6 +2914,8 @@ export class SyncManager {
 				skipped: 0,
 				error: String(error),
 			};
+		} finally {
+			this.endVaultOperation();
 		}
 	}
 
@@ -2810,6 +2950,7 @@ export class SyncManager {
 
 			// 开始批次同步
 			this.assertNoPendingTransaction();
+			this.beginVaultOperation();
 			this.incrementalSync.startBatch();
 			const batch = await this.prepareCollectionBatch(
 				itemsToSync.map(item => item.collection),
@@ -2846,6 +2987,8 @@ export class SyncManager {
 			console.error('[Bangumi Sync] 执行同步失败:', error);
 			this.reportProgress({ status: 'error', message: error instanceof Error ? error.message : String(error) });
 			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
+		} finally {
+			this.endVaultOperation();
 		}
 
 		result.duration = Date.now() - startTime;
@@ -2985,6 +3128,7 @@ export class SyncManager {
 
 		// 批量更新每个目标文件
 		for (const [path, update] of updatesByFile) {
+			if (await this.checkCancellation()) break;
 			try {
 				await this.updateRelatedFile(path, update.subjectId, update.links);
 			} catch (error) {
@@ -3010,6 +3154,7 @@ export class SyncManager {
 		const warnings: SyncWarning[] = [];
 		if (this.config.enableRelatedLinks === false) return warnings;
 		for (const item of batchItems) {
+			if (await this.checkCancellation()) return warnings;
 			warnings.push(...await this.updateRelatedItemsBidirectional(
 				item.subjectId,
 				item.filePath,
@@ -3051,6 +3196,7 @@ export class SyncManager {
 		console.debug(`[Bangumi Sync] 后处理同批次相关链接: ${updatesByFile.size} 个文件需要更新`);
 
 		for (const [path, update] of updatesByFile) {
+			if (await this.checkCancellation()) break;
 			try {
 				await this.updateRelatedFile(path, update.subjectId, update.links);
 			} catch (error) {
@@ -3172,7 +3318,7 @@ export class SyncManager {
 	 */
 	async batchDownloadCovers(): Promise<{ downloaded: number; skipped: number; failed: number }> {
 		this.ensureCanStartSync();
-		this.setBatchTransactionState('active');
+		this.beginVaultOperation();
 		const scanPath = this.config.scanFolderPath || 'ACGN';
 		try {
 			await this.incrementalSync.scanLocalFolder(scanPath);
@@ -3183,6 +3329,7 @@ export class SyncManager {
 			let stoppedForRecovery = false;
 
 			for (const [subjectId, info] of Array.from(localSubjects)) {
+				if (await this.checkCancellation()) break;
 			processed++;
 			this.reportProgress({
 				status: 'processing',
@@ -3289,9 +3436,7 @@ export class SyncManager {
 
 			return result;
 		} finally {
-			if (!this.recoveryRequired && this.batchTransactionState === 'active') {
-				this.setBatchTransactionState('none');
-			}
+			this.endVaultOperation();
 		}
 	}
 
@@ -3301,6 +3446,8 @@ export class SyncManager {
 	 */
 	async scanAndLinkRelated(): Promise<{ checked: number; linked: number; skipped: number; failed: number; details: { name: string; addedLinks: string[] }[] }> {
 		this.ensureCanStartSync();
+		this.beginVaultOperation();
+		try {
 		const scanPath = this.config.scanFolderPath || 'ACGN';
 		console.debug(`[Bangumi Sync] 扫描关联条目，scanFolderPath: "${this.config.scanFolderPath}"，实际扫描路径: "${scanPath}"，pathTemplate: "${this.config.pathTemplate}"`);
 		await this.incrementalSync.scanLocalFolder(scanPath);
@@ -3344,6 +3491,7 @@ export class SyncManager {
 		const localRelationMap = new Map<number, number[]>();
 
 		for (const [subjectId, info] of localSubjects) {
+			if (await this.checkCancellation()) break;
 			processed++;
 			this.reportProgress({
 				status: 'scanning',
@@ -3438,6 +3586,7 @@ export class SyncManager {
 		// === 第四阶段：批量更新文件 ===
 
 		for (const [path, update] of updatesByFile) {
+			if (await this.checkCancellation()) break;
 			try {
 				const { subjectId, links } = update;
 				const file = this.app.vault.getAbstractFileByPath(path);
@@ -3476,6 +3625,9 @@ export class SyncManager {
 		});
 
 		return result;
+		} finally {
+			this.endVaultOperation();
+		}
 	}
 
 	/**
