@@ -57,3 +57,27 @@ Node.js 22.23.3 下 lint、37 个测试文件/306 项测试、TypeScript/product
 最终构建在另一组 1303 条合成条目上真实创建 1303 个 Markdown、failed 0，完整流程约 24.114 秒；收尾构建约 9.3 ms，事实合并累计约 16.8 ms。不同运行环境与 I/O 缓存影响耗时，不以此声称完整流程进一步加速。再次通过部分成功、pre-mutation journal write failure 和插件重载回滚验证。
 
 约 68 Ki 字符、含 Unicode 和 CRLF 正文的原文快照，50 次并发事实导出只计算一次 digest，约 0.3 ms；同 renderer 重复计算 50 次 digest 约 8.5 ms，hash 一致。插件重载后完整回滚，复读原文一致；最终 error-level console 和 runtime exception 为 0。Sandbox fixture 用 LF frontmatter delimiter，正文保留 CRLF；整份 CRLF JSON 内容 round-trip 则由自动化测试覆盖。
+
+## Local production comparison
+
+2026-10-12，应用户要求继续在本机实际运行原版与改进版。Windows、Intel Core i7-13700F、Obsidian 1.14.4 runtime，独立 profile/vault；CLI 无法定位隔离 profile，使用本地 CDP 调用 production 插件。API 返回合成 music 条目，不访问账户；真实 Vault、journal 持久化和文件事件均保留。每轮 1303 条、并发 5、每条正文 2048 字符，无图片与关联链接。新建后更新正文，逐条通过 Obsidian Vault 复读校验。
+
+原版使用 Tag `6.12.1` 的三项 release assets，main.js SHA-256：`4C7539A1897832F9906E85A17CF7F756C10D951A17D691F587902BC5CC771C6B`。改进版使用提交 `5291b47` 的 assets，hash 与上一节一致。切换前验证 idle、无 journal，再禁用、替换 assets、启用插件。
+
+首轮原版新建约 186.3 秒、更新约 315.4 秒；改进版新建约 225.0 秒、更新约 37.3 秒。发现共用 vault 时改进版新建携带前轮路径状态，影响恢复日志大小，故该组不用于量化优化收益。清空测试 manager 的路径状态、使用新的扫描目录后补测；更新接续各自新建结果。补测顺序为改进版、原版，每个场景仅一次：
+
+| 指标 | 原版 6.12.1 | 改进版 |
+| --- | ---: | ---: |
+| 新建 1303 条完整流程 | 38.508 s | 25.656 s |
+| 新建收尾 journalFromPending 单次 | 4757.9 ms | 8.6 ms |
+| 新建事实合并累计（1303 次） | 2594.8 ms | 14.9 ms |
+| 新建 journal 序列化累计 | 583.4 ms | 347.7 ms |
+| 更新 1303 条完整流程 | 167.120 s | 38.881 s |
+| 更新事实合并累计（1303 次） | 5286.5 ms | 30.8 ms |
+| 更新 journal 序列化累计 | 10414.9 ms | 6807.7 ms |
+
+新建补测中，原版 50 ms 定时器的最大延迟约 4722.3 ms，与收尾同步计算耗时吻合；改进版约 17.2 ms。PerformanceObserver 虽报告支持 longtask，但各轮未收到条目，不能将零条目作为无卡顿证据。其他轮次观察到约 60 秒定时器延迟，存在后台调度影响；原版更新补测也出现此现象。完整流程数据仅记录这次运行，不将其差值全部归因于代码优化，不承诺相同倍数的用户环境加速。运行顺序、路径长度、磁盘缓存和 Vault 前轮文件均不是严格受控变量；关键计算函数的单次/累计耗时与正确性验证更能直接支持本次修复。
+
+所有场景均 success、failed 0，created/updated 与预期 1303 一致，完整正文复读通过，终态 idle、无 journal。再次验证：一项创建、一项准备失败时 journal 只含该批次的一项；重载后写门禁生效，Retry recovery 回滚该项；注入 mutation 前临时 journal 写入失败时未创建目标笔记。隔离 renderer 缓存的 console error 和 runtime exception 均为 0。恢复改进版后 idle；关闭隔离实例，再从磁盘复核四组共 5212 个文件的 subject ID 与更新正文，全部通过，无遗留 journal。
+
+结论：本机 production 测试支持 Issue #22 指出的收尾二次匹配和累计合并开销明显下降，并且本轮恢复行为正确。没有用户的原始数据、网络流程与 Performance trace，仍不能断言完全消除其全部同步卡顿。
