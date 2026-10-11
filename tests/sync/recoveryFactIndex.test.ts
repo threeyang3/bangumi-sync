@@ -24,6 +24,50 @@ const facts = (createdFiles: TransactionRecoveryExpectations['createdFiles']): T
 afterEach(() => vi.restoreAllMocks());
 
 describe('recovery fact indexing', () => {
+	it('detects changes to every persisted content and rename field', () => {
+		const content = { subjectId: 1, path: 'ACGN/A.md', expectedContentHash: 'hash', originalContentLength: 3, originalContent: 'old' };
+		for (const [field, value] of Object.entries({ subjectId: 2, path: 'acgn/a.md', expectedContentHash: 'new-hash', originalContentLength: 4, originalContent: 'new' })) {
+			const target = journal();
+			const index = new RecoveryFactIndex(target);
+			index.mergeInto(target, { createdFiles: [], updatedContents: [content], renames: [] });
+			const previous = target.contentExpectations;
+			const changed = { ...content, [field]: value };
+			index.mergeInto(target, { createdFiles: [], updatedContents: [changed], renames: [] });
+			expect(target.contentExpectations).not.toBe(previous);
+			expect(target.contentExpectations).toEqual([changed]);
+			expect(previous).toEqual([content]);
+		}
+		const rename = { subjectId: 1, originalPath: 'ACGN/A.md', finalPath: 'ACGN/B.md', expectedTerminalPath: 'ACGN/A.md', temporaryPath: 'ACGN/temp.md' };
+		for (const [field, value] of Object.entries({ subjectId: 2, originalPath: 'acgn/a.md', finalPath: 'ACGN/C.md', expectedTerminalPath: 'ACGN/old.md', temporaryPath: undefined })) {
+			const target = journal();
+			const index = new RecoveryFactIndex(target);
+			index.mergeInto(target, { createdFiles: [], updatedContents: [], renames: [rename] });
+			const previous = target.renameExpectations;
+			const changed = { ...rename, [field]: value };
+			index.mergeInto(target, { createdFiles: [], updatedContents: [], renames: [changed] });
+			expect(target.renameExpectations).not.toBe(previous);
+			expect(target.renameExpectations[target.renameExpectations.length - 1]).toEqual(changed);
+			expect(previous).toEqual([rename]);
+		}
+	});
+
+	it('reuses unchanged snapshots and copies only changed fact categories', () => {
+		const target = journal();
+		const index = new RecoveryFactIndex(target);
+		index.mergeInto(target, facts([created('ACGN/A.md')]));
+		const previous = { ...target };
+		index.mergeInto(target, facts([created('ACGN/A.md')]));
+		expect(target.createdPathExpectations).toBe(previous.createdPathExpectations);
+		expect(target.contentExpectations).toBe(previous.contentExpectations);
+		expect(target.renameExpectations).toBe(previous.renameExpectations);
+		index.mergeInto(target, facts([created('ACGN/A.md', 2)]));
+		expect(target.createdPathExpectations).not.toBe(previous.createdPathExpectations);
+		expect(target.createdPathExpectations[0].subjectId).toBe(2);
+		expect(previous.createdPathExpectations[0].subjectId).toBe(1);
+		expect(target.contentExpectations).toBe(previous.contentExpectations);
+		expect(target.renameExpectations).toBe(previous.renameExpectations);
+	});
+
 	it('preserves first match, requested order, duplicate requests, and missing-path fallback', () => {
 		const first = created('ACGN/Ａ.md');
 		const second = created('acgn/a.md', 2);

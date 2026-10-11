@@ -7745,6 +7745,7 @@ var SyncTransaction = class {
     this.beforeVaultMutation = beforeVaultMutation;
     this.createdFiles = [];
     this.updatedContents = /* @__PURE__ */ new Map();
+    this.originalContentHashes = /* @__PURE__ */ new WeakMap();
     this.renames = [];
     this.plannedCreatedFiles = [];
     this.state = "active";
@@ -7774,13 +7775,17 @@ var SyncTransaction = class {
       createdPath: item.createdPath,
       expectedToExistAfterRollback: false
     })), ...this.plannedCreatedFiles.map((item) => ({ ...item }))];
+    const firstRenameByFile = /* @__PURE__ */ new Map();
+    for (const rename of this.renames) {
+      if (!firstRenameByFile.has(rename.file)) firstRenameByFile.set(rename.file, rename);
+    }
     const updatedContents = await Promise.all(Array.from(this.updatedContents, async ([file, original]) => {
       var _a;
-      const rename = this.renames.find((item) => item.file === file);
+      const rename = firstRenameByFile.get(file);
       return {
         subjectId: original.subjectId,
         path: (_a = rename == null ? void 0 : rename.from) != null ? _a : original.path,
-        expectedContentHash: await hashRecoveryContent(original.content),
+        expectedContentHash: await this.getOriginalContentHash(original),
         originalContentLength: original.content.length,
         originalContent: original.content
       };
@@ -7793,6 +7798,19 @@ var SyncTransaction = class {
       expectedTerminalPath: rename.from
     }));
     return { createdFiles, updatedContents, renames };
+  }
+  async getOriginalContentHash(original) {
+    let hash = this.originalContentHashes.get(original);
+    if (!hash) {
+      hash = hashRecoveryContent(original.content);
+      this.originalContentHashes.set(original, hash);
+    }
+    try {
+      return await hash;
+    } catch (error) {
+      if (this.originalContentHashes.get(original) === hash) this.originalContentHashes.delete(original);
+      throw error;
+    }
   }
   async executeRenames(renames) {
     var _a;
@@ -8408,7 +8426,7 @@ var RecoveryJournalStore = class {
   }
   async writeNow(journal) {
     const adapter = this.app.vault.adapter;
-    const serialized = JSON.stringify({ ...journal, updatedAt: Date.now() }, null, 2);
+    const serialized = JSON.stringify({ ...journal, updatedAt: Date.now() });
     await adapter.write(RECOVERY_JOURNAL_TEMP_PATH, serialized);
     const currentExists = await adapter.exists(RECOVERY_JOURNAL_PATH);
     const previousExists = await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH);
@@ -8753,17 +8771,20 @@ function matchCreatedPathExpectations(expectations, paths) {
   });
 }
 var IndexedFacts = class {
-  constructor(initial, keyOf) {
+  constructor(initial, keyOf, same) {
     this.keyOf = keyOf;
+    this.same = same;
     this.positions = /* @__PURE__ */ new Map();
     this.values = [];
     this.merge(initial);
   }
   merge(incoming) {
-    const next = this.values.slice();
+    let next = this.values;
     for (const item of incoming) {
       const key = this.keyOf(item);
       const position = this.positions.get(key);
+      if (position !== void 0 && this.same(next[position], item)) continue;
+      if (next === this.values) next = this.values.slice();
       if (position === void 0) {
         this.positions.set(key, next.length);
         next.push({ ...item });
@@ -8778,9 +8799,9 @@ var IndexedFacts = class {
 var RecoveryFactIndex = class {
   constructor(journal) {
     this.pathKeys = /* @__PURE__ */ new Map();
-    this.created = new IndexedFacts(journal.createdPathExpectations, (item) => this.pathKey(item.createdPath));
-    this.contents = new IndexedFacts(journal.contentExpectations, (item) => this.pathKey(item.path));
-    this.renames = new IndexedFacts(journal.renameExpectations, (item) => item.subjectId);
+    this.created = new IndexedFacts(journal.createdPathExpectations, (item) => this.pathKey(item.createdPath), (left, right) => left.subjectId === right.subjectId && left.createdPath === right.createdPath && left.expectedToExistAfterRollback === right.expectedToExistAfterRollback);
+    this.contents = new IndexedFacts(journal.contentExpectations, (item) => this.pathKey(item.path), (left, right) => left.subjectId === right.subjectId && left.path === right.path && left.expectedContentHash === right.expectedContentHash && left.originalContentLength === right.originalContentLength && left.originalContent === right.originalContent);
+    this.renames = new IndexedFacts(journal.renameExpectations, (item) => item.subjectId, (left, right) => left.subjectId === right.subjectId && left.originalPath === right.originalPath && left.finalPath === right.finalPath && left.temporaryPath === right.temporaryPath && left.expectedTerminalPath === right.expectedTerminalPath);
   }
   pathKey(path) {
     let key = this.pathKeys.get(path);

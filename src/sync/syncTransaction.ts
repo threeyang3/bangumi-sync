@@ -68,6 +68,7 @@ export type SyncTransactionState = 'active' | 'committed' | 'rolled-back' | 'rol
 export class SyncTransaction {
 	private readonly createdFiles: Array<{ file: TFile; subjectId: number; createdPath: string }> = [];
 	private readonly updatedContents = new Map<TFile, { content: string; subjectId: number; path: string }>();
+	private readonly originalContentHashes = new WeakMap<{ content: string }, Promise<string>>();
 	private readonly renames: StagedRename[] = [];
 	private readonly plannedCreatedFiles: RecoveryCreatedFileExpectation[] = [];
 	private state: SyncTransactionState = 'active';
@@ -114,12 +115,16 @@ export class SyncTransaction {
 			createdPath: item.createdPath,
 			expectedToExistAfterRollback: false as const,
 		})), ...this.plannedCreatedFiles.map(item => ({ ...item }))];
+		const firstRenameByFile = new Map<TFile, StagedRename>();
+		for (const rename of this.renames) {
+			if (!firstRenameByFile.has(rename.file)) firstRenameByFile.set(rename.file, rename);
+		}
 		const updatedContents = await Promise.all(Array.from(this.updatedContents, async ([file, original]) => {
-			const rename = this.renames.find(item => item.file === file);
+			const rename = firstRenameByFile.get(file);
 			return {
 				subjectId: original.subjectId,
 				path: rename?.from ?? original.path,
-				expectedContentHash: await hashRecoveryContent(original.content),
+				expectedContentHash: await this.getOriginalContentHash(original),
 				originalContentLength: original.content.length,
 				originalContent: original.content,
 			};
@@ -132,6 +137,21 @@ export class SyncTransaction {
 			expectedTerminalPath: rename.from,
 		}));
 		return { createdFiles, updatedContents, renames };
+	}
+
+	private async getOriginalContentHash(original: { content: string }): Promise<string> {
+		let hash = this.originalContentHashes.get(original);
+		if (!hash) {
+			hash = hashRecoveryContent(original.content);
+			this.originalContentHashes.set(original, hash);
+		}
+		try {
+			return await hash;
+		} catch (error) {
+			// A failed digest must not poison later recovery attempts for this snapshot.
+			if (this.originalContentHashes.get(original) === hash) this.originalContentHashes.delete(original);
+			throw error;
+		}
 	}
 
 	async executeRenames(renames: TransactionRename[]): Promise<void> {

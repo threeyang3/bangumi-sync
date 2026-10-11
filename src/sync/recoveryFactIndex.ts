@@ -21,16 +21,18 @@ class IndexedFacts<T, K> {
 	private readonly positions = new Map<K, number>();
 	private values: T[] = [];
 
-	constructor(initial: readonly T[], private readonly keyOf: (item: T) => K) {
+	constructor(initial: readonly T[], private readonly keyOf: (item: T) => K, private readonly same: (left: T, right: T) => boolean) {
 		this.merge(initial);
 	}
 
 	merge(incoming: readonly T[]): T[] {
 		// Published arrays and their entries remain snapshots for queued journal writes.
-		const next = this.values.slice();
+		let next = this.values;
 		for (const item of incoming) {
 			const key = this.keyOf(item);
 			const position = this.positions.get(key);
+			if (position !== undefined && this.same(next[position], item)) continue;
+			if (next === this.values) next = this.values.slice();
 			if (position === undefined) {
 				this.positions.set(key, next.length);
 				next.push({ ...item });
@@ -51,9 +53,15 @@ export class RecoveryFactIndex {
 	private readonly renames;
 
 	constructor(journal: PersistentRecoveryJournal) {
-		this.created = new IndexedFacts(journal.createdPathExpectations, item => this.pathKey(item.createdPath));
-		this.contents = new IndexedFacts(journal.contentExpectations, item => this.pathKey(item.path));
-		this.renames = new IndexedFacts(journal.renameExpectations, item => item.subjectId);
+		this.created = new IndexedFacts(journal.createdPathExpectations, item => this.pathKey(item.createdPath), (left, right) =>
+			left.subjectId === right.subjectId && left.createdPath === right.createdPath
+			&& left.expectedToExistAfterRollback === right.expectedToExistAfterRollback);
+		this.contents = new IndexedFacts(journal.contentExpectations, item => this.pathKey(item.path), (left, right) =>
+			left.subjectId === right.subjectId && left.path === right.path && left.expectedContentHash === right.expectedContentHash
+			&& left.originalContentLength === right.originalContentLength && left.originalContent === right.originalContent);
+		this.renames = new IndexedFacts(journal.renameExpectations, item => item.subjectId, (left, right) =>
+			left.subjectId === right.subjectId && left.originalPath === right.originalPath && left.finalPath === right.finalPath
+			&& left.temporaryPath === right.temporaryPath && left.expectedTerminalPath === right.expectedTerminalPath);
 	}
 
 	private pathKey(path: string): string {
