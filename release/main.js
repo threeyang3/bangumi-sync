@@ -8740,6 +8740,63 @@ function getRecoveryActionPolicy(recovery) {
   }
 }
 
+// src/sync/recoveryFactIndex.ts
+function matchCreatedPathExpectations(expectations, paths) {
+  const firstByPath = /* @__PURE__ */ new Map();
+  for (const item of expectations) {
+    const key = normalizePathCollisionKey(item.createdPath);
+    if (!firstByPath.has(key)) firstByPath.set(key, item);
+  }
+  return paths.map((path) => {
+    var _a;
+    return (_a = firstByPath.get(normalizePathCollisionKey(path))) != null ? _a : { subjectId: -1, createdPath: path, expectedToExistAfterRollback: false };
+  });
+}
+var IndexedFacts = class {
+  constructor(initial, keyOf) {
+    this.keyOf = keyOf;
+    this.positions = /* @__PURE__ */ new Map();
+    this.values = [];
+    this.merge(initial);
+  }
+  merge(incoming) {
+    const next = this.values.slice();
+    for (const item of incoming) {
+      const key = this.keyOf(item);
+      const position = this.positions.get(key);
+      if (position === void 0) {
+        this.positions.set(key, next.length);
+        next.push({ ...item });
+      } else {
+        next[position] = { ...item };
+      }
+    }
+    this.values = next;
+    return next;
+  }
+};
+var RecoveryFactIndex = class {
+  constructor(journal) {
+    this.pathKeys = /* @__PURE__ */ new Map();
+    this.created = new IndexedFacts(journal.createdPathExpectations, (item) => this.pathKey(item.createdPath));
+    this.contents = new IndexedFacts(journal.contentExpectations, (item) => this.pathKey(item.path));
+    this.renames = new IndexedFacts(journal.renameExpectations, (item) => item.subjectId);
+  }
+  pathKey(path) {
+    let key = this.pathKeys.get(path);
+    if (key === void 0) {
+      key = normalizePathCollisionKey(path);
+      this.pathKeys.set(path, key);
+    }
+    return key;
+  }
+  mergeInto(journal, facts) {
+    journal.createdPathExpectations = this.created.merge(facts.createdFiles);
+    journal.contentExpectations = this.contents.merge(facts.updatedContents);
+    journal.renameExpectations = this.renames.merge(facts.renames);
+  }
+};
+
 // src/sync/syncManager.ts
 var MAX_BINARY_RECOVERY_BYTES = 16 * 1024 * 1024;
 function errorMessage(error) {
@@ -8813,6 +8870,7 @@ var ManagerReinitializationBlockedError = class extends Error {
 var SyncManager = class {
   constructor(app, config) {
     this.activeRecoveryJournal = null;
+    this.recoveryFactIndexes = /* @__PURE__ */ new WeakMap();
     this.cancellationSignal = null;
     this.pathResolver = new SubjectPathResolver();
     this.pendingTransaction = null;
@@ -9231,15 +9289,12 @@ var SyncManager = class {
   }
   mergeActiveJournalFacts(facts) {
     if (!this.activeRecoveryJournal) return;
-    const byCreatedPath = new Map(this.activeRecoveryJournal.createdPathExpectations.map((item) => [normalizePathCollisionKey(item.createdPath), item]));
-    for (const item of facts.createdFiles) byCreatedPath.set(normalizePathCollisionKey(item.createdPath), { ...item });
-    this.activeRecoveryJournal.createdPathExpectations = Array.from(byCreatedPath.values());
-    const byContentPath = new Map(this.activeRecoveryJournal.contentExpectations.map((item) => [normalizePathCollisionKey(item.path), item]));
-    for (const item of facts.updatedContents) byContentPath.set(normalizePathCollisionKey(item.path), { ...item });
-    this.activeRecoveryJournal.contentExpectations = Array.from(byContentPath.values());
-    const byRename = new Map(this.activeRecoveryJournal.renameExpectations.map((item) => [item.subjectId, item]));
-    for (const item of facts.renames) byRename.set(item.subjectId, { ...item });
-    this.activeRecoveryJournal.renameExpectations = Array.from(byRename.values());
+    let index = this.recoveryFactIndexes.get(this.activeRecoveryJournal);
+    if (!index) {
+      index = new RecoveryFactIndex(this.activeRecoveryJournal);
+      this.recoveryFactIndexes.set(this.activeRecoveryJournal, index);
+    }
+    index.mergeInto(this.activeRecoveryJournal, facts);
   }
   async persistBeforeVaultMutation(facts) {
     if (this.shuttingDown) throw new ManagerShuttingDownError();
@@ -9315,10 +9370,7 @@ var SyncManager = class {
       originalPathStates: this.clonePathStates(pending.previousPathStates),
       subjectExpectations: pending.subjectExpectations.map((item) => ({ ...item })),
       contentExpectations: pending.contentExpectations.map((item) => ({ ...item })),
-      createdPathExpectations: pending.forbiddenPathsAfterRollback.map((path) => {
-        var _a2;
-        return (_a2 = current.createdPathExpectations.find((item) => normalizePathCollisionKey(item.createdPath) === normalizePathCollisionKey(path))) != null ? _a2 : { subjectId: -1, createdPath: path, expectedToExistAfterRollback: false };
-      }),
+      createdPathExpectations: matchCreatedPathExpectations(current.createdPathExpectations, pending.forbiddenPathsAfterRollback),
       createdResourcePaths: [...pending.resourcePathsAfterRollback],
       updatedResourceExpectations: pending.updatedResourceExpectations.map((item) => ({ ...item })),
       orphanTemporaryPaths: [...pending.orphanTemporaryPaths],

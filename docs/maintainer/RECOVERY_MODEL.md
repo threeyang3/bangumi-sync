@@ -25,6 +25,10 @@
 
 内容 hash 基于原始 UTF-8 字节，CRLF 与 LF 不等价。Concrete facts 按 Vault 全局路径验证，不受固定 scan root 限制。
 
+运行中的 journal 使用对象级内存事实索引。Created/content 按统一 collision key 合并，rename 按 Subject ID 合并；同 key 后来的事实覆盖值，顺序沿用首次插入位置。路径规范化结果仅缓存于该 journal 的索引，不持久化；替换 journal 或重载时从当前事实重新建立索引。发布的事实数组和条目保持快照，后续合并不得修改旧快照。
+
+从 pending transaction 构建 journal 时，created path 使用一次建立的路径索引匹配，并保留原数组的首个匹配事实、pending 路径顺序和未匹配 fallback。索引只优化计算，不改变每次 Vault mutation 前的完整 journal 持久化与失败阻断。
+
 ## Journal candidates
 
 候选包括：
