@@ -6,6 +6,7 @@ import { ConfigurationChangeBlockedError, ConfigurationUpdateInProgressError, Ma
 import { SubjectPathState } from '../../src/sync/localSubjectRegistry';
 import { InMemoryVault } from '../mocks/inMemoryVault';
 import { RECOVERY_JOURNAL_PATH } from '../../src/sync/recoveryJournal';
+import type { PersistentRecoveryJournal } from '../../src/sync/recoveryJournal';
 import { setRequestUrlHandler } from '../mocks/obsidian';
 
 function makeSubject(id: number, date: string, name = '乱马'): Subject {
@@ -78,6 +79,42 @@ interface CoverHandlerProbe {
 }
 
 describe('SyncManager path transaction integration', () => {
+	it('isolates indexed facts across consecutive batches and persists all facts before each create', async () => {
+		const vault = new InMemoryVault();
+		const subjects = [makeSubject(901, '', 'Index A'), makeSubject(902, '', 'Index B'), makeSubject(903, '', 'Index C')];
+		const manager = createManager(vault, subjects);
+		const originalCreate = vault.app.vault.create.bind(vault.app.vault);
+		const captured: PersistentRecoveryJournal[] = [];
+		vault.app.vault.create = async (path, content) => {
+			captured.push(JSON.parse(await vault.app.vault.adapter.read(RECOVERY_JOURNAL_PATH)) as PersistentRecoveryJournal);
+			return originalCreate(path, content);
+		};
+		expect((await manager.syncByCollections(subjects.slice(0, 2).map(makeCollection), { concurrency: 2 })).completion).toBe('success');
+		expect(captured[1].createdPathExpectations.map(item => item.subjectId)).toEqual([901, 902]);
+		expect((await manager.syncByCollections([makeCollection(subjects[2])], { concurrency: 1 })).completion).toBe('success');
+		expect(captured[2].createdPathExpectations.map(item => item.subjectId)).toEqual([903]);
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+	});
+
+	it('never creates Markdown when persisting indexed pre-mutation facts fails', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(904, '', 'Index failure');
+		const manager = createManager(vault, [subject]);
+		const originalWrite = vault.app.vault.adapter.write.bind(vault.app.vault.adapter);
+		let injected = false;
+		vault.app.vault.adapter.write = async (path, data, options) => {
+			if (!injected && data.includes('Index failure.md')) {
+				injected = true;
+				throw new Error('Injected indexed-fact persistence failure');
+			}
+			await originalWrite(path, data, options);
+		};
+		const result = await manager.syncByCollections([makeCollection(subject)], { concurrency: 1 });
+		expect(injected).toBe(true);
+		expect(result.completion).not.toBe('success');
+		expect(vault.files.has('ACGN/music/Index failure.md')).toBe(false);
+	});
+
 	it('defensively processes work when an API caller passes zero concurrency', async () => {
 		const vault = new InMemoryVault();
 		const subject = makeSubject(19, '2024-01-01', '并发校验');
