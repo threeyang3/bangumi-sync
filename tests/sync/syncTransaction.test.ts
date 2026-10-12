@@ -1,9 +1,55 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as recoveryContent from '../../src/sync/recoveryContent';
 import { FileManager } from '../../common/file/fileManager';
 import { SyncTransaction } from '../../src/sync/syncTransaction';
 import { InMemoryVault } from '../mocks/inMemoryVault';
 
+afterEach(() => vi.restoreAllMocks());
+
 describe('SyncTransaction staged rename log', () => {
+	it('shares the original-content digest across concurrent exports and repeated writes', async () => {
+		const vault = new InMemoryVault();
+		const original = '---\nid: 1\n---\r\n原文';
+		vault.addFile('A/one.md', original);
+		const expectedHash = await recoveryContent.hashRecoveryContent(original);
+		const hash = vi.spyOn(recoveryContent, 'hashRecoveryContent');
+		const transaction = new SyncTransaction(vault.app, new FileManager(vault.app));
+		await transaction.createOrUpdateFile('A/one.md', '---\nid: 1\n---\nchanged', { overwrite: true, subjectId: 1 });
+		const exports = await Promise.all(Array.from({ length: 5 }, () => transaction.getRecoveryExpectations()));
+		for (const facts of exports) expect(facts.updatedContents[0]).toMatchObject({ originalContent: original, expectedContentHash: expectedHash });
+		await transaction.createOrUpdateFile('A/one.md', '---\nid: 1\n---\nchanged again', { overwrite: true, subjectId: 1 });
+		expect((await transaction.getRecoveryExpectations()).updatedContents[0].expectedContentHash).toBe(expectedHash);
+		expect(hash).toHaveBeenCalledTimes(1);
+		expect(await transaction.rollback()).toMatchObject({ restoredContents: 1, failed: 0 });
+		expect(vault.contents.get('A/one.md')).toBe(original);
+		expect((await transaction.getRecoveryExpectations()).updatedContents).toEqual([]);
+	});
+
+	it('blocks mutation on digest failure and retries without a poisoned cache', async () => {
+		const vault = new InMemoryVault();
+		const original = '---\nid: 1\n---\noriginal';
+		vault.addFile('A/one.md', original);
+		const hash = vi.spyOn(recoveryContent, 'hashRecoveryContent').mockRejectedValueOnce(new Error('digest failed'));
+		const transaction = new SyncTransaction(vault.app, new FileManager(vault.app), () => Promise.resolve());
+		await expect(transaction.createOrUpdateFile('A/one.md', '---\nid: 1\n---\nchanged', { overwrite: true, subjectId: 1 })).rejects.toThrow('digest failed');
+		expect(vault.contents.get('A/one.md')).toBe(original);
+		await transaction.createOrUpdateFile('A/one.md', '---\nid: 1\n---\nchanged', { overwrite: true, subjectId: 1 });
+		expect((await transaction.getRecoveryExpectations()).updatedContents[0].originalContent).toBe(original);
+		expect(hash).toHaveBeenCalledTimes(2);
+		transaction.commit();
+		expect((await transaction.getRecoveryExpectations()).updatedContents).toEqual([]);
+	});
+
+	it('resolves the pre-rename path when exporting a cached original digest', async () => {
+		const vault = new InMemoryVault();
+		vault.addFile('A/one.md', '---\nid: 1\n---\noriginal');
+		const transaction = new SyncTransaction(vault.app, new FileManager(vault.app), () => Promise.resolve());
+		await transaction.createOrUpdateFile('A/one.md', '---\nid: 1\n---\nchanged', { overwrite: true, subjectId: 1 });
+		const before = (await transaction.getRecoveryExpectations()).updatedContents[0];
+		await transaction.executeRenames([{ subjectId: 1, from: 'A/one.md', to: 'B/one.md' }]);
+		expect((await transaction.getRecoveryExpectations()).updatedContents[0]).toEqual(before);
+	});
+
 	it('captures strict original-content hashes and concrete created paths', async () => {
 		const vault = new InMemoryVault();
 		const original = '---\nid: 1\n---\r\noriginal';

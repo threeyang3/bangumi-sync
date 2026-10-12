@@ -440,7 +440,7 @@ export class RecoveryJournalStore {
 
 	private async writeNow(journal: PersistentRecoveryJournal): Promise<void> {
 		const adapter = this.app.vault.adapter;
-		const serialized = JSON.stringify({ ...journal, updatedAt: Date.now() }, null, 2);
+		const serialized = JSON.stringify({ ...journal, updatedAt: Date.now() });
 		await adapter.write(RECOVERY_JOURNAL_TEMP_PATH, serialized);
 		const currentExists = await adapter.exists(RECOVERY_JOURNAL_PATH);
 		const previousExists = await adapter.exists(RECOVERY_JOURNAL_PREVIOUS_PATH);

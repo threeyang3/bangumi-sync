@@ -58,6 +58,7 @@ import {
 } from './recoveryValidation';
 import { decodeRecoveryBase64, encodeRecoveryBase64, hashRecoveryBytes, hashRecoveryContent } from './recoveryContent';
 import { getRecoveryActionPolicy, RecoveryActionPolicy } from './recoveryPolicy';
+import { matchCreatedPathExpectations, RecoveryFactIndex } from './recoveryFactIndex';
 export type { RecoveryDiagnostic, RecoverySubjectExpectation } from './recoveryValidation';
 
 const MAX_BINARY_RECOVERY_BYTES = 16 * 1024 * 1024;
@@ -320,6 +321,7 @@ export class SyncManager {
 	private readonly documentService: SubjectDocumentService;
 	private readonly recoveryJournalStore: RecoveryJournalStore;
 	private activeRecoveryJournal: PersistentRecoveryJournal | null = null;
+	private readonly recoveryFactIndexes = new WeakMap<PersistentRecoveryJournal, RecoveryFactIndex>();
 	private config: SyncManagerConfig;
 	private onProgress?: (progress: SyncProgress) => void;
 	private cancellationSignal: SyncCancellationSignal | null = null;
@@ -765,15 +767,12 @@ export class SyncManager {
 
 	private mergeActiveJournalFacts(facts: TransactionRecoveryExpectations): void {
 		if (!this.activeRecoveryJournal) return;
-		const byCreatedPath = new Map(this.activeRecoveryJournal.createdPathExpectations.map(item => [normalizePathCollisionKey(item.createdPath), item]));
-		for (const item of facts.createdFiles) byCreatedPath.set(normalizePathCollisionKey(item.createdPath), { ...item });
-		this.activeRecoveryJournal.createdPathExpectations = Array.from(byCreatedPath.values());
-		const byContentPath = new Map(this.activeRecoveryJournal.contentExpectations.map(item => [normalizePathCollisionKey(item.path), item]));
-		for (const item of facts.updatedContents) byContentPath.set(normalizePathCollisionKey(item.path), { ...item });
-		this.activeRecoveryJournal.contentExpectations = Array.from(byContentPath.values());
-		const byRename = new Map(this.activeRecoveryJournal.renameExpectations.map(item => [item.subjectId, item]));
-		for (const item of facts.renames) byRename.set(item.subjectId, { ...item });
-		this.activeRecoveryJournal.renameExpectations = Array.from(byRename.values());
+		let index = this.recoveryFactIndexes.get(this.activeRecoveryJournal);
+		if (!index) {
+			index = new RecoveryFactIndex(this.activeRecoveryJournal);
+			this.recoveryFactIndexes.set(this.activeRecoveryJournal, index);
+		}
+		index.mergeInto(this.activeRecoveryJournal, facts);
 	}
 
 	private async persistBeforeVaultMutation(facts: TransactionRecoveryExpectations): Promise<void> {
@@ -848,9 +847,7 @@ export class SyncManager {
 			affectedSubjectIds: [...pending.affectedSubjectIds], originalPathStates: this.clonePathStates(pending.previousPathStates),
 			subjectExpectations: pending.subjectExpectations.map(item => ({ ...item })),
 			contentExpectations: pending.contentExpectations.map(item => ({ ...item })),
-			createdPathExpectations: pending.forbiddenPathsAfterRollback.map(path => current.createdPathExpectations
-				.find(item => normalizePathCollisionKey(item.createdPath) === normalizePathCollisionKey(path))
-				?? { subjectId: -1, createdPath: path, expectedToExistAfterRollback: false }),
+			createdPathExpectations: matchCreatedPathExpectations(current.createdPathExpectations, pending.forbiddenPathsAfterRollback),
 			createdResourcePaths: [...pending.resourcePathsAfterRollback],
 			updatedResourceExpectations: pending.updatedResourceExpectations.map(item => ({ ...item })),
 			orphanTemporaryPaths: [...pending.orphanTemporaryPaths],

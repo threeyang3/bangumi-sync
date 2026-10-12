@@ -61,6 +61,20 @@ function recoveryFiles(vault: InMemoryVault): string[] {
 }
 
 describe('persistent recovery journal', () => {
+	it('round-trips exact recovery content in compact JSON and continues loading indented journals', async () => {
+		const vault = new InMemoryVault();
+		const store = new RecoveryJournalStore(vault.app);
+		const originalContent = '---\r\nid: 1\r\n---\r\n原文 "quoted" \\ 😀';
+		const value = journal();
+		value.contentExpectations = [{ subjectId: 1, path: 'ACGN/A.md', originalContent, originalContentLength: originalContent.length, expectedContentHash: await hashRecoveryContent(originalContent) }];
+		vault.addFile(RECOVERY_JOURNAL_PATH, JSON.stringify(value, null, 2));
+		expect(await store.load()).toMatchObject({ status: 'loaded', journal: { contentExpectations: value.contentExpectations } });
+		await store.write(value);
+		const serialized = await vault.app.vault.adapter.read(RECOVERY_JOURNAL_PATH);
+		expect(serialized).not.toContain('\n');
+		expect(await store.load()).toMatchObject({ status: 'loaded', journal: { contentExpectations: value.contentExpectations } });
+	});
+
 	it('atomically writes, loads, and clears a complete journal', async () => {
 		const vault = new InMemoryVault();
 		const store = new RecoveryJournalStore(vault.app);

@@ -40,6 +40,8 @@ path transaction + recovery journal
 
 模板注册、自定义属性分类、路径规范化、状态同步 diff、短评解析、导入合并等应尽量保持为纯函数，以便 Vitest 覆盖并避免 UI 分支漂移。
 
+`src/sync/recoveryFactIndex.ts` 负责 journal 事实的内存合并索引和 pending created-path 匹配，复用统一路径规范化；由 manager 管理索引生命周期，不执行 Vault I/O 或决定 recovery actions。
+
 ### Infrastructure
 
 - `src/api/`：Bangumi API 和重试边界。
