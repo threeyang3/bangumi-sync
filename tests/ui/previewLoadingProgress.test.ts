@@ -44,4 +44,29 @@ describe('preview detail progress', () => {
 		expect(progress.mock.calls).toEqual([[0, 0]]);
 		expect(request).not.toHaveBeenCalled();
 	});
+
+	it('loads concurrently within the configured bound and preserves preview order', async () => {
+		vi.stubGlobal('activeWindow', { setTimeout, clearTimeout });
+		const client = new BangumiClient();
+		let active = 0, maximum = 0;
+		const gates = new Map<number, () => void>();
+		vi.spyOn(client, 'getSubject').mockImplementation(async id => {
+			maximum = Math.max(maximum, ++active);
+			await new Promise<void>(resolve => gates.set(id, resolve));
+			active--;
+			return { id } as Awaited<ReturnType<BangumiClient['getSubject']>>;
+		});
+		const progress = vi.fn();
+		const run = loadSubjectsForCollections([1, 2, 3, 4].map(collection), client, undefined, progress, { concurrency: 2 });
+		await vi.waitFor(() => expect(gates.size).toBe(2));
+		gates.get(2)!();
+		await vi.waitFor(() => expect(gates.size).toBe(3));
+		expect(progress.mock.calls).toEqual([[0, 4], [1, 4]]);
+		gates.get(3)!();
+		await vi.waitFor(() => expect(gates.size).toBe(4));
+		gates.get(4)!(); gates.get(1)!();
+		expect([...(await run).keys()]).toEqual([1, 2, 3, 4]);
+		expect(maximum).toBe(2);
+		expect(progress.mock.calls.map(call => Number(call[0]))).toEqual([0, 1, 2, 3, 4]);
+	});
 });

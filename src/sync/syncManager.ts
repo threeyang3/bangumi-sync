@@ -1,4 +1,5 @@
 import { debugLog, reportSyncSummary } from '../../common/logging';
+import type { SubjectDetailSession } from '../api/subjectDetailSession';
 /**
  * 同步管理器
  * 核心同步逻辑
@@ -2395,6 +2396,7 @@ export class SyncManager {
 	private async prepareCollectionBatch(
 		collections: UserCollection[],
 		concurrency: number,
+		subjectDetails?: SubjectDetailSession,
 	): Promise<PreparedCollectionBatch> {
 		this.reportPhase('planning');
 		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
@@ -2414,7 +2416,8 @@ export class SyncManager {
 				return;
 			}
 			try {
-				details.set(collection.subject_id, await this.client.getFullSubjectInfo(collection.subject_id));
+				details.set(collection.subject_id, await this.client.getFullSubjectInfo(collection.subject_id,
+					subjectDetails?.getSubject(collection.subject_id)));
 			} catch (error) {
 				failures.push({
 					collection,
@@ -2949,7 +2952,8 @@ export class SyncManager {
 		previewItems: SyncPreviewItem[],
 		action: 'all' | 'selected' | 'unselected',
 		localPropertyResult?: LocalPropertyModalResult,
-		concurrency: number = 3
+		concurrency: number = 3,
+		subjectDetails?: SubjectDetailSession,
 	): Promise<SyncResultWithRollback> {
 		this.ensureCanStartSync();
 		const startTime = Date.now();
@@ -2977,6 +2981,7 @@ export class SyncManager {
 			const batch = await this.prepareCollectionBatch(
 				itemsToSync.map(item => item.collection),
 				concurrency,
+				subjectDetails,
 			);
 			const execution = await this.executePreparedCollectionBatch(
 				batch,

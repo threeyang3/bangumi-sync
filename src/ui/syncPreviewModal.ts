@@ -36,6 +36,7 @@ export interface SyncPreviewResult {
 export class SyncPreviewModal extends Modal {
 	private items: SyncPreviewItem[];
 	private onConfirm: (result: SyncPreviewResult) => void;
+	private confirmed = false;
 	private itemElements: Map<number, { checkbox: HTMLInputElement }> = new Map();
 
 	constructor(
@@ -150,6 +151,8 @@ export class SyncPreviewModal extends Modal {
 	 * 确认
 	 */
 	private confirm(action: 'all' | 'selected' | 'unselected' | 'cancel'): void {
+		if (this.confirmed) return;
+		this.confirmed = true;
 		if (action === 'cancel') {
 			this.onConfirm({ items: this.items, action: 'cancel' });
 			this.close();
@@ -169,6 +172,10 @@ export class SyncPreviewModal extends Modal {
 	}
 
 	onClose(): void {
+		if (!this.confirmed) {
+			this.confirmed = true;
+			this.onConfirm({ items: this.items, action: 'cancel' });
+		}
 		const { contentEl } = this;
 		contentEl.empty();
 		this.itemElements.clear();

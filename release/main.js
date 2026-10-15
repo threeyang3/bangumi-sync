@@ -52,6 +52,89 @@ function reportSyncSummary(result) {
   });
 }
 
+// src/api/subjectDetailSession.ts
+var SubjectDetailSession = class {
+  constructor(client, concurrency = 3, cancelled = () => false, timeoutMs = 15e3) {
+    this.client = client;
+    this.cancelled = cancelled;
+    this.timeoutMs = timeoutMs;
+    this.successes = /* @__PURE__ */ new Map();
+    this.pending = /* @__PURE__ */ new Map();
+    this.queue = [];
+    this.cancelWaiters = /* @__PURE__ */ new Set();
+    this.active = 0;
+    this.disposed = false;
+    this.revision = client.subjectDetailRevision;
+    this.limit = Number.isFinite(concurrency) ? Math.max(1, Math.min(5, Math.floor(concurrency))) : 3;
+  }
+  get isValid() {
+    return !this.disposed && !this.cancelled() && this.client.subjectDetailRevision === this.revision;
+  }
+  dispose() {
+    this.disposed = true;
+    this.successes.clear();
+    this.queue.length = 0;
+    for (const cancel of this.cancelWaiters) cancel();
+  }
+  getSubject(subjectId) {
+    if (!this.isValid) return Promise.reject(new Error("Subject detail session cancelled or invalidated"));
+    const cached = this.successes.get(subjectId);
+    if (cached) return Promise.resolve(cached);
+    const pending = this.pending.get(subjectId);
+    if (pending) return pending;
+    let expired = false;
+    const request = new Promise((resolve, reject) => {
+      const timerWindow = activeWindow;
+      let timer;
+      const finish = (subject, error) => {
+        if (expired) return;
+        expired = true;
+        timerWindow.clearTimeout(timer);
+        this.cancelWaiters.delete(cancel);
+        if (error) reject(error);
+        else if (subject && this.isValid) {
+          this.successes.set(subjectId, subject);
+          resolve(subject);
+        } else reject(new Error("Subject detail session cancelled or invalidated"));
+      };
+      const cancel = () => finish(void 0, new Error("Subject detail session cancelled"));
+      this.cancelWaiters.add(cancel);
+      const deadline = Date.now() + this.timeoutMs;
+      const check = () => {
+        if (!this.isValid) cancel();
+        else if (Date.now() >= deadline) finish(void 0, new Error(`Subject ${subjectId} detail timed out`));
+        else timer = timerWindow.setTimeout(check, Math.min(100, Math.max(1, deadline - Date.now())));
+      };
+      timer = timerWindow.setTimeout(check, Math.min(100, this.timeoutMs));
+      this.queue.push(() => {
+        if (expired || !this.isValid) {
+          cancel();
+          return;
+        }
+        this.active++;
+        void Promise.resolve().then(() => {
+          if (!this.isValid) throw new Error("Subject detail session cancelled or invalidated");
+          return this.client.getSubject(subjectId);
+        }).then(
+          (subject) => subject.id === subjectId ? finish(subject) : finish(void 0, new Error("Subject detail identity mismatch")),
+          (error) => finish(void 0, error instanceof Error ? error : new Error(String(error)))
+        ).finally(() => {
+          this.active--;
+          this.drain();
+        });
+      });
+      this.drain();
+    });
+    this.pending.set(subjectId, request);
+    void request.then(() => this.pending.delete(subjectId), () => this.pending.delete(subjectId));
+    return request;
+  }
+  drain() {
+    var _a;
+    while (this.isValid && this.active < this.limit && this.queue.length > 0) (_a = this.queue.shift()) == null ? void 0 : _a();
+  }
+};
+
 // src/i18n/translations.ts
 var import_obsidian = require("obsidian");
 var en = {
@@ -3737,13 +3820,18 @@ var DEFAULT_HEADERS = {
 var BangumiClient = class {
   constructor(accessToken = "", baseUrl = API_BASE_URL) {
     this.authenticatedUsername = null;
+    this.credentialRevision = 0;
     this.accessToken = accessToken;
     this.baseUrl = baseUrl;
+  }
+  get subjectDetailRevision() {
+    return this.credentialRevision;
   }
   /**
    * 设置 Access Token
    */
   setAccessToken(token) {
+    if (this.accessToken !== token) this.credentialRevision++;
     this.accessToken = token;
     this.authenticatedUsername = null;
   }
@@ -4011,9 +4099,9 @@ var BangumiClient = class {
   /**
    * 获取完整的条目信息（包括角色、人物和关联条目）
    */
-  async getFullSubjectInfo(subjectId) {
+  async getFullSubjectInfo(subjectId, subjectDetail) {
     const [subject, characters, persons, relations] = await Promise.all([
-      this.getSubject(subjectId),
+      subjectDetail != null ? subjectDetail : this.getSubject(subjectId),
       this.getSubjectCharacters(subjectId),
       this.getSubjectPersons(subjectId),
       this.getSubjectRelations(subjectId)
@@ -11038,7 +11126,7 @@ var SyncManager = class {
       await processor(task.item, task.index);
     }
   }
-  async prepareCollectionBatch(collections, concurrency) {
+  async prepareCollectionBatch(collections, concurrency, subjectDetails) {
     this.reportPhase("planning");
     await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
     const registry = this.incrementalSync.getRegistry();
@@ -11056,7 +11144,10 @@ var SyncManager = class {
         return;
       }
       try {
-        details.set(collection.subject_id, await this.client.getFullSubjectInfo(collection.subject_id));
+        details.set(collection.subject_id, await this.client.getFullSubjectInfo(
+          collection.subject_id,
+          subjectDetails == null ? void 0 : subjectDetails.getSubject(collection.subject_id)
+        ));
       } catch (error) {
         failures.push({
           collection,
@@ -11484,7 +11575,7 @@ var SyncManager = class {
    * 执行同步：根据预览数据执行实际导入
    * 用于手动同步模式，在用户确认后调用
    */
-  async executeSync(previewItems, action, localPropertyResult, concurrency = 3) {
+  async executeSync(previewItems, action, localPropertyResult, concurrency = 3, subjectDetails) {
     this.ensureCanStartSync();
     const startTime = Date.now();
     let wasCancelled = false;
@@ -11505,7 +11596,8 @@ var SyncManager = class {
       this.incrementalSync.startBatch();
       const batch = await this.prepareCollectionBatch(
         itemsToSync.map((item) => item.collection),
-        concurrency
+        concurrency,
+        subjectDetails
       );
       const execution = await this.executePreparedCollectionBatch(
         batch,
@@ -12642,6 +12734,7 @@ var import_obsidian14 = require("obsidian");
 var SyncPreviewModal = class extends import_obsidian14.Modal {
   constructor(app, items, onConfirm) {
     super(app);
+    this.confirmed = false;
     this.itemElements = /* @__PURE__ */ new Map();
     this.items = items;
     this.onConfirm = onConfirm;
@@ -12722,6 +12815,8 @@ var SyncPreviewModal = class extends import_obsidian14.Modal {
    * 确认
    */
   confirm(action) {
+    if (this.confirmed) return;
+    this.confirmed = true;
     if (action === "cancel") {
       this.onConfirm({ items: this.items, action: "cancel" });
       this.close();
@@ -12737,6 +12832,10 @@ var SyncPreviewModal = class extends import_obsidian14.Modal {
     this.close();
   }
   onClose() {
+    if (!this.confirmed) {
+      this.confirmed = true;
+      this.onConfirm({ items: this.items, action: "cancel" });
+    }
     const { contentEl } = this;
     contentEl.empty();
     this.itemElements.clear();
@@ -13427,17 +13526,21 @@ function parseListInput2(value) {
   const items = value.split(",").map((item) => item.trim()).filter(Boolean);
   return items.length > 0 ? items : void 0;
 }
-var SUBJECT_FETCH_TIMEOUT_MS = 15e3;
-async function loadSubjectsForCollections(collections, client, onWarning, onProgress) {
+async function loadSubjectsForCollections(collections, client, onWarning, onProgress, options = {}) {
+  var _a;
   const subjectsById = /* @__PURE__ */ new Map();
   let warned = false;
   let completed = 0;
   onProgress == null ? void 0 : onProgress(0, collections.length);
-  for (const collection of collections) {
+  const concurrency = Number.isFinite(options.concurrency) ? Math.max(1, Math.min(5, Math.floor(options.concurrency))) : 3;
+  const session = (_a = options.session) != null ? _a : new SubjectDetailSession(client, concurrency, options.cancelled);
+  let next = 0;
+  const load = async (collection) => {
     try {
-      const subject = await fetchSubjectWithTimeout(client, collection.subject_id, SUBJECT_FETCH_TIMEOUT_MS);
+      const subject = await session.getSubject(collection.subject_id);
       subjectsById.set(collection.subject_id, subject);
     } catch (error) {
+      if (!session.isValid) return;
       console.warn(`[Bangumi Sync] \u83B7\u53D6\u6761\u76EE\u8BE6\u60C5\u5931\u8D25\uFF0C\u4F7F\u7528\u6536\u85CF\u4E2D\u7684\u7B80\u7248\u4FE1\u606F\u56DE\u9000: ${collection.subject_id}`, error);
       if (!warned) {
         warned = true;
@@ -13448,22 +13551,15 @@ async function loadSubjectsForCollections(collections, client, onWarning, onProg
     } finally {
       onProgress == null ? void 0 : onProgress(++completed, collections.length);
     }
+  };
+  try {
+    await Promise.all(Array.from({ length: Math.min(concurrency, collections.length) }, async () => {
+      while (next < collections.length && session.isValid) await load(collections[next++]);
+    }));
+  } finally {
+    if (!options.session) session.dispose();
   }
-  return subjectsById;
-}
-function fetchSubjectWithTimeout(client, subjectId, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const timer = activeWindow.setTimeout(() => {
-      reject(new Error(`\u83B7\u53D6\u6761\u76EE ${subjectId} \u8D85\u65F6`));
-    }, timeoutMs);
-    client.getSubject(subjectId).then((subject) => {
-      activeWindow.clearTimeout(timer);
-      resolve(subject);
-    }).catch((error) => {
-      activeWindow.clearTimeout(timer);
-      reject(error instanceof Error ? error : new Error(String(error)));
-    });
-  });
+  return new Map(collections.filter((item) => subjectsById.has(item.subject_id)).map((item) => [item.subject_id, subjectsById.get(item.subject_id)]));
 }
 function createFallbackSubject(collection) {
   return {
@@ -20371,6 +20467,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     this.syncStatusBarEl = null;
     this.statusProgressThrottle = new SyncProgressThrottle();
     this.cancellationSignal = null;
+    this.previewDetails = null;
     this.controlPanel = null;
     this.appliedSyncConfig = null;
     this.lastSavedSettings = null;
@@ -20535,9 +20632,11 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     }
   }
   onunload() {
-    var _a, _b;
-    (_a = this.cancellationSignal) == null ? void 0 : _a.cancel();
-    (_b = this.syncManager) == null ? void 0 : _b.shutdown();
+    var _a, _b, _c;
+    (_a = this.previewDetails) == null ? void 0 : _a.dispose();
+    this.previewDetails = null;
+    (_b = this.cancellationSignal) == null ? void 0 : _b.cancel();
+    (_c = this.syncManager) == null ? void 0 : _c.shutdown();
     setWriteOperationGuard(null);
     if (this.autoSyncIntervalId !== null) {
       activeWindow.clearInterval(this.autoSyncIntervalId);
@@ -21146,7 +21245,10 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
    * 使用指定选项执行同步
    */
   async syncCollectionsWithOptions(options, showPreview = true) {
+    var _a;
     if (!this.ensureSyncCanStart()) return;
+    (_a = this.previewDetails) == null ? void 0 : _a.dispose();
+    this.previewDetails = null;
     if (!this.settings.accessToken) {
       new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
       return;
@@ -21179,6 +21281,19 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       this.updateStatusBar(progress);
     });
     if (showPreview) {
+      let previewSignal = this.cancellationSignal;
+      const previewManager = this.syncManager;
+      const previewConfig = JSON.stringify(this.appliedSyncConfig);
+      const details = new SubjectDetailSession(
+        previewManager.client,
+        this.settings.syncConcurrency,
+        () => previewSignal.cancelled
+      );
+      this.previewDetails = details;
+      const disposeDetails = () => {
+        details.dispose();
+        if (this.previewDetails === details) this.previewDetails = null;
+      };
       try {
         const prepareResult = await this.syncManager.prepareSync({
           subjectTypes: options.subjectTypes,
@@ -21186,6 +21301,10 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
           limit: options.limit,
           force: options.force
         });
+        if (this.previewDetails !== details) {
+          disposeDetails();
+          return;
+        }
         if (!prepareResult.success) {
           new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
           this.cleanupSyncState(0);
@@ -21200,12 +21319,17 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
           this.syncModal.updateProgress({ current: 0, total: 0, status: "preparing", message: "Preparing preview..." });
         }
         debugLog(() => {
-          var _a, _b;
-          return `[Bangumi Sync] Preview items: ${(_b = (_a = prepareResult.previewItems) == null ? void 0 : _a.length) != null ? _b : 0}, collecting custom properties`;
+          var _a2, _b;
+          return `[Bangumi Sync] Preview items: ${(_b = (_a2 = prepareResult.previewItems) == null ? void 0 : _a2.length) != null ? _b : 0}, collecting custom properties`;
         });
         const localPropertyResult = await this.collectLocalPropertyValuesForCollections(
-          prepareResult.previewItems.map((item) => item.collection)
+          prepareResult.previewItems.map((item) => item.collection),
+          details
         );
+        if (this.previewDetails !== details) {
+          disposeDetails();
+          return;
+        }
         if (localPropertyResult === null) {
           debugLog(() => "[Bangumi Sync] User cancelled custom properties");
           new import_obsidian32.Notice(tn("notices", "syncCancelled"));
@@ -21220,41 +21344,58 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
           prepareResult.previewItems,
           (result) => {
             void (async () => {
-              if (result.action === "cancel") {
-                new import_obsidian32.Notice(tn("notices", "syncCancelled"));
-                return;
-              }
-              if (!this.ensureSyncCanStart()) return;
-              this.cancellationSignal = createCancellationSignal();
-              this.syncManager.setCancellationSignal(this.cancellationSignal);
-              this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-              const modalManager2 = this.syncManager;
-              this.syncModal.setRollbackHandler(() => modalManager2.rollbackBatch());
-              this.syncModal.setCommitHandler(() => modalManager2.commitPendingBatch());
-              this.syncModal.setRecoveryStateSubscriber((listener) => modalManager2.subscribeRecoveryState(listener));
-              this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
-              this.syncModal.open();
-              this.syncManager.setProgressCallback((progress) => {
-                if (this.syncModal) {
-                  this.syncModal.updateProgress(progress);
+              try {
+                if (this.previewDetails !== details) return;
+                if (result.action === "cancel") {
+                  new import_obsidian32.Notice(tn("notices", "syncCancelled"));
+                  this.cleanupSyncState(0);
+                  return;
                 }
-                this.updateStatusBar(progress);
-              });
-              const syncResult = await this.syncManager.executeSync(
-                result.items,
-                result.action,
-                localPropertyResult,
-                this.settings.syncConcurrency
-              );
-              this.settings.lastSyncTime = (/* @__PURE__ */ new Date()).toISOString();
-              this.settings.lastSyncCount = syncResult.added + syncResult.skipped;
-              await this.saveSettings();
-              if (this.syncModal) {
-                this.syncModal.showCompleted(syncResult);
+                if (!details.isValid || this.syncManager !== previewManager || JSON.stringify(this.appliedSyncConfig) !== previewConfig) {
+                  new import_obsidian32.Notice(tn("notices", "syncCancelled"));
+                  this.cleanupSyncState(0);
+                  return;
+                }
+                if (!this.ensureSyncCanStart()) return;
+                this.cancellationSignal = createCancellationSignal();
+                previewSignal = this.cancellationSignal;
+                previewManager.setCancellationSignal(this.cancellationSignal);
+                this.syncModal = new SyncModal(this.app, this.cancellationSignal);
+                const modalManager2 = previewManager;
+                this.syncModal.setRollbackHandler(() => modalManager2.rollbackBatch());
+                this.syncModal.setCommitHandler(() => modalManager2.commitPendingBatch());
+                this.syncModal.setRecoveryStateSubscriber((listener) => modalManager2.subscribeRecoveryState(listener));
+                this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
+                this.syncModal.open();
+                previewManager.setProgressCallback((progress) => {
+                  if (this.syncModal) {
+                    this.syncModal.updateProgress(progress);
+                  }
+                  this.updateStatusBar(progress);
+                });
+                const syncResult = await previewManager.executeSync(
+                  result.items,
+                  result.action,
+                  localPropertyResult,
+                  this.settings.syncConcurrency,
+                  details
+                );
+                this.settings.lastSyncTime = (/* @__PURE__ */ new Date()).toISOString();
+                this.settings.lastSyncCount = syncResult.added + syncResult.skipped;
+                await this.saveSettings();
+                if (this.syncModal) {
+                  this.syncModal.showCompleted(syncResult);
+                }
+                this.cancellationSignal = null;
+                previewManager.setCancellationSignal(null);
+                this.hideStatusBar();
+              } catch (error) {
+                console.error("[Bangumi Sync] Preview execution failed:", error);
+                new import_obsidian32.Notice(tn("notices", "syncFailed"));
+                this.cleanupSyncState(0);
+              } finally {
+                disposeDetails();
               }
-              this.cancellationSignal = null;
-              this.syncManager.setCancellationSignal(null);
-              this.hideStatusBar();
             })();
           }
         );
@@ -21262,7 +21403,8 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       } catch (error) {
         console.error("[Bangumi Sync] Preview flow error:", error);
         new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
-        this.cleanupSyncState(0);
+        if (this.previewDetails === details) this.cleanupSyncState(0);
+        disposeDetails();
       }
     } else {
       const result = await this.syncManager.sync({
@@ -21323,6 +21465,9 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     }
   }
   cleanupSyncState(statusBarDelay = 0) {
+    var _a;
+    (_a = this.previewDetails) == null ? void 0 : _a.dispose();
+    this.previewDetails = null;
     if (this.syncModal) {
       this.syncModal.close();
       this.syncModal = null;
@@ -21333,7 +21478,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     }
     this.hideStatusBar(statusBarDelay);
   }
-  async collectLocalPropertyValuesForCollections(collections) {
+  async collectLocalPropertyValuesForCollections(collections, details) {
     const syncManager = this.syncManager;
     if (!syncManager) {
       return {
@@ -21352,11 +21497,14 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       },
       (current, total) => {
         var _a;
+        if (details && this.previewDetails !== details) return;
         const progress = { status: "fetching", phase: "details", current, total };
         (_a = this.syncModal) == null ? void 0 : _a.updateProgress(progress);
         this.updateStatusBar(progress);
-      }
+      },
+      { concurrency: this.settings.syncConcurrency, session: details }
     );
+    if (details && !details.isValid) return null;
     debugLog(() => `[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
     return new Promise((resolve) => {
       const modal = new LocalPropertyModal(

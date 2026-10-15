@@ -1,6 +1,7 @@
 import { Vault } from 'obsidian';
 import { describe, expect, it, vi } from 'vitest';
 import { BangumiClient } from '../../src/api/client';
+import { SubjectDetailSession } from '../../src/api/subjectDetailSession';
 import { CollectionType, Subject, SubjectType, UserCollection } from '../../common/api/types';
 import { ConfigurationChangeBlockedError, ConfigurationUpdateInProgressError, ManagerReinitializationBlockedError, ManagerShuttingDownError, PendingSyncTransactionError, RecoveryRequiredError, SyncManager, SyncManagerConfig, VaultOperationInProgressError } from '../../src/sync/syncManager';
 import { SubjectPathState } from '../../src/sync/localSubjectRegistry';
@@ -86,6 +87,37 @@ interface CoverHandlerProbe {
 }
 
 describe('SyncManager path transaction integration', () => {
+	it('reuses preview successes and retries failed details through the real full-info method before writing', async () => {
+		vi.stubGlobal('activeWindow', { setTimeout, clearTimeout });
+		const vault = new InMemoryVault();
+		const subjects = [makeSubject(920, '', 'Cached full'), makeSubject(921, '', 'Retried full')];
+		const manager = createManager(vault, subjects);
+		const preview = await manager.prepareSync({ subjectTypes: [SubjectType.Music], collectionTypes: [CollectionType.Done], limit: 2, force: false });
+		const client = new BangumiClient();
+		const requests: number[] = [];
+		let failOnce = true;
+		vi.spyOn(client, 'getSubject').mockImplementation(id => {
+			requests.push(id);
+			if (id === 921 && failOnce) { failOnce = false; return Promise.reject(new Error('Preview detail unavailable')); }
+			return Promise.resolve(subjects.find(subject => subject.id === id)!);
+		});
+		vi.spyOn(client, 'getSubjectCharacters').mockResolvedValue([]);
+		vi.spyOn(client, 'getSubjectPersons').mockResolvedValue([]);
+		vi.spyOn(client, 'getSubjectRelations').mockResolvedValue([]);
+		manager.client = client;
+		const details = new SubjectDetailSession(client, 2);
+		try {
+			await details.getSubject(920);
+			await expect(details.getSubject(921)).rejects.toThrow('unavailable');
+			const result = await manager.executeSync(preview.previewItems ?? [], 'all', undefined, 2, details);
+			expect(result).toMatchObject({ completion: 'success', added: 2, failed: 0 });
+			expect(requests).toEqual([920, 921, 921]);
+			expect(vault.contents.get('ACGN/music/Cached full.md')).toContain('Cached full summary');
+			expect(vault.contents.get('ACGN/music/Retried full.md')).toContain('Retried full summary');
+			expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+		} finally { details.dispose(); vi.unstubAllGlobals(); }
+	});
+
 	it('detaches scoped progress on shutdown even when an in-flight detail request settles later', async () => {
 		const vault = new InMemoryVault();
 		const subject = makeSubject(922, '', 'First');

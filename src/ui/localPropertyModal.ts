@@ -4,6 +4,7 @@ import { Subject, UserCollection } from '../../common/api/types';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { tn } from '../i18n';
 import { BangumiClient } from '../api/client';
+import { SubjectDetailSession } from '../api/subjectDetailSession';
 import {
 	CustomTemplates,
 } from '../template/contentTemplate';
@@ -208,24 +209,27 @@ function parseListInput(value: string): string[] | undefined {
 	return items.length > 0 ? items : undefined;
 }
 
-const SUBJECT_FETCH_TIMEOUT_MS = 15000;
-
 export async function loadSubjectsForCollections(
 	collections: UserCollection[],
 	client: BangumiClient,
 	onWarning?: (message: string) => void,
 	onProgress?: (current: number, total: number) => void,
+	options: { concurrency?: number; session?: SubjectDetailSession; cancelled?: () => boolean } = {},
 ): Promise<Map<number, Subject>> {
 	const subjectsById = new Map<number, Subject>();
 	let warned = false;
 	let completed = 0;
 	onProgress?.(0, collections.length);
 
-	for (const collection of collections) {
+	const concurrency = Number.isFinite(options.concurrency) ? Math.max(1, Math.min(5, Math.floor(options.concurrency!))) : 3;
+	const session = options.session ?? new SubjectDetailSession(client, concurrency, options.cancelled);
+	let next = 0;
+	const load = async (collection: UserCollection) => {
 		try {
-			const subject = await fetchSubjectWithTimeout(client, collection.subject_id, SUBJECT_FETCH_TIMEOUT_MS);
+			const subject = await session.getSubject(collection.subject_id);
 			subjectsById.set(collection.subject_id, subject);
 		} catch (error) {
+			if (!session.isValid) return;
 			console.warn(`[Bangumi Sync] 获取条目详情失败，使用收藏中的简版信息回退: ${collection.subject_id}`, error);
 			if (!warned) {
 				warned = true;
@@ -236,27 +240,17 @@ export async function loadSubjectsForCollections(
 		} finally {
 			onProgress?.(++completed, collections.length);
 		}
+	};
+	try {
+		await Promise.all(Array.from({ length: Math.min(concurrency, collections.length) }, async () => {
+			while (next < collections.length && session.isValid) await load(collections[next++]);
+		}));
+	} finally {
+		if (!options.session) session.dispose();
 	}
-
-	return subjectsById;
-}
-
-function fetchSubjectWithTimeout(client: BangumiClient, subjectId: number, timeoutMs: number): Promise<Subject> {
-	return new Promise((resolve, reject) => {
-		const timer = activeWindow.setTimeout(() => {
-			reject(new Error(`获取条目 ${subjectId} 超时`));
-		}, timeoutMs);
-
-		client.getSubject(subjectId)
-			.then(subject => {
-				activeWindow.clearTimeout(timer);
-				resolve(subject);
-			})
-			.catch((error: unknown) => {
-				activeWindow.clearTimeout(timer);
-				reject(error instanceof Error ? error : new Error(String(error)));
-			});
-	});
+	// Preserve preview order even when responses arrive out of order.
+	return new Map(collections.filter(item => subjectsById.has(item.subject_id))
+		.map(item => [item.subject_id, subjectsById.get(item.subject_id)!]));
 }
 
 function createFallbackSubject(collection: UserCollection): Subject {

@@ -23,6 +23,9 @@ export class BangumiClient {
 	private accessToken: string;
 	private baseUrl: string;
 	private authenticatedUsername: string | null = null;
+	private credentialRevision = 0;
+
+	get subjectDetailRevision(): number { return this.credentialRevision; }
 
 	constructor(accessToken: string = '', baseUrl: string = API_BASE_URL) {
 		this.accessToken = accessToken;
@@ -33,6 +36,7 @@ export class BangumiClient {
 	 * 设置 Access Token
 	 */
 	setAccessToken(token: string): void {
+		if (this.accessToken !== token) this.credentialRevision++;
 		this.accessToken = token;
 		this.authenticatedUsername = null;
 	}
@@ -363,14 +367,14 @@ export class BangumiClient {
 	/**
 	 * 获取完整的条目信息（包括角色、人物和关联条目）
 	 */
-	async getFullSubjectInfo(subjectId: number): Promise<{
+	async getFullSubjectInfo(subjectId: number, subjectDetail?: Promise<Subject>): Promise<{
 		subject: Subject;
 		characters: RelatedCharacter[];
 		persons: RelatedPerson[];
 		relations: RelatedSubject[];
 	}> {
 		const [subject, characters, persons, relations] = await Promise.all([
-			this.getSubject(subjectId),
+			subjectDetail ?? this.getSubject(subjectId),
 			this.getSubjectCharacters(subjectId),
 			this.getSubjectPersons(subjectId),
 			this.getSubjectRelations(subjectId),
