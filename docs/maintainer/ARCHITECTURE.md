@@ -28,6 +28,8 @@ path transaction + recovery journal
 
 `src/panel/`、`src/ui/`、设置页和各类 modal 负责收集用户选择、展示进度与错误、调用 service。UI 不直接决定 recovery actions，也不自行解析 Subject ID。
 
+`SyncProgress.phase` 为可选展示信息；存在时 current/total 仅指当前阶段完成的处理次数。Manager 在实际异步处理结束后推进计数，未知总量的阶段使用 total=0。`syncProgressPresentation.ts` 统一 modal 与状态栏的阶段文案和计数边界，仅在 UI 层节流 DOM 刷新，不丢弃 manager 进度事件。进度不进入 recovery journal；`SyncResult.duration` 保持本次执行调用的计时范围，不累计预览前加载或用户确认等待。
+
 ### Application services
 
 - `src/sync/syncManager.ts`：主同步、事务、恢复和全局 manager 状态。

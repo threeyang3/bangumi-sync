@@ -1,4 +1,5 @@
 import { debugLog } from '../../common/logging';
+import { getSyncProgressPresentation, SyncProgressThrottle } from '../sync/syncProgressPresentation';
 /**
  * 控制面板
  * 展示所有收藏条目，标记同步状态，支持批量操作
@@ -1130,6 +1131,7 @@ export class ControlPanel extends Modal {
 		// 显示同步进度
 		this.state.loading = true;
 		this.renderStatus(`${tn('controlPanel', 'syncingItems')} ${selectedCollections.length}...`);
+		const progressThrottle = new SyncProgressThrottle();
 
 		try {
 			const result = await this.syncManager.syncByCollections(
@@ -1138,10 +1140,10 @@ export class ControlPanel extends Modal {
 					overwrite,
 					localPropertyValuesBySubjectId: localPropertyResult.propertyValuesBySubjectId,
 					concurrency: this.settings.syncConcurrency,
+					onPhaseProgress: progress => {
+						if (progressThrottle.shouldUpdate(progress)) this.renderStatus(getSyncProgressPresentation(progress).text);
+					},
 				},
-				(current, total, message) => {
-					this.renderStatus(message);
-				}
 			);
 
 			this.state.loading = false;

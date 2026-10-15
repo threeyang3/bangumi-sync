@@ -30,7 +30,7 @@ export interface SyncResult {
 	renamed: number;
 	collisionResolved: number;
 	failed: number;
-	duration: number;
+	duration: number;       // 本次 sync/executeSync 调用耗时；不含调用前的预览加载或人工等待
 	errorDetails: string[]; // 失败条目的详细错误信息
 	outcomes: SubjectSyncOutcome[];
 	warnings: SyncWarning[];
@@ -59,10 +59,14 @@ export interface SubjectSyncOutcome {
 /**
  * 同步进度
  */
+export type SyncPhase = 'details' | 'planning' | 'rendering' | 'writing' | 'finalizing' | 'linking' | 'recovering' | 'awaiting-decision';
+
 export interface SyncProgress {
 	current: number;
 	total: number;
 	status: 'preparing' | 'fetching' | 'scanning' | 'processing' | 'completed' | 'error';
+	/** When present, current/total describe this phase only, not the whole command. */
+	phase?: SyncPhase;
 	message?: string;
 	currentItem?: string;
 }

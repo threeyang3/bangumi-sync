@@ -17,7 +17,7 @@ import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType, R
 import { FileManager, FileWriteStatus } from '../../common/file/fileManager';
 import { ImageHandler, ImageMutationUncertainError, ImageQuality } from '../../common/file/imageHandler';
 import { IncrementalSync } from './incrementalSync';
-import { determineSyncCompletion, SyncOptions, SyncResult, SyncProgress, SyncCancellationSignal, SyncResultWithRollback, SyncWarning } from './syncStatus';
+import { determineSyncCompletion, SyncOptions, SyncResult, SyncProgress, SyncPhase, SyncCancellationSignal, SyncResultWithRollback, SyncWarning } from './syncStatus';
 import { parseCharacters } from '../../common/parser/characterParser';
 import { generateFilePath, extractPathVars } from '../../common/template/pathTemplate';
 import { applyNamedPropertyValuesToContent, CustomTemplates, generateContentByType } from '../template/contentTemplate';
@@ -325,6 +325,7 @@ export class SyncManager {
 	private readonly recoveryFactIndexes = new WeakMap<PersistentRecoveryJournal, RecoveryFactIndex>();
 	private config: SyncManagerConfig;
 	private onProgress?: (progress: SyncProgress) => void;
+	private operationProgress?: (progress: SyncProgress) => void;
 	private cancellationSignal: SyncCancellationSignal | null = null;
 	private pathResolver = new SubjectPathResolver();
 	private pendingTransaction: PendingSyncTransaction | null = null;
@@ -490,6 +491,7 @@ export class SyncManager {
 		this.shuttingDown = true;
 		this.cancellationSignal?.cancel();
 		this.onProgress = undefined;
+		this.operationProgress = undefined;
 	}
 
 	/**
@@ -860,6 +862,7 @@ export class SyncManager {
 	}
 
 	private async persistPendingJournal(pending: PendingSyncTransaction, state: PersistentRecoveryJournal['state']): Promise<void> {
+		this.reportPhase('finalizing');
 		this.activeRecoveryJournal = this.journalFromPending(pending, state);
 		try {
 			await this.recoveryJournalStore.write(this.activeRecoveryJournal);
@@ -1245,6 +1248,7 @@ export class SyncManager {
 	private async rollbackPendingTransaction(pending: PendingSyncTransaction, cause?: unknown): Promise<PendingDecisionResult> {
 		const result = this.emptyRollbackResult();
 		await this.persistPendingJournal(pending, 'rolling-back');
+		this.reportPhase('recovering');
 		for (const transaction of [...pending.transactions].reverse()) {
 			try {
 				this.mergeRollbackResult(result, await transaction.rollback());
@@ -2001,7 +2005,9 @@ export class SyncManager {
 	}
 
 	private reportFinalSyncProgress(result: SyncResult, wasCancelled: boolean): void {
-		if (wasCancelled || result.completion === 'cancelled') {
+		if (this.pendingTransaction?.state === 'awaiting') {
+			this.reportPhase('awaiting-decision');
+		} else if (wasCancelled || result.completion === 'cancelled') {
 			this.reportProgress({ status: 'error', message: tn('notices', 'syncCancelled') });
 		} else if (result.completion === 'success' || result.completion === 'partial-success') {
 			this.reportProgress({ status: 'completed', message: tn('notices', 'syncComplete') });
@@ -2045,14 +2051,15 @@ export class SyncManager {
 		let batchHasUncertainBinaryMutation = false;
 		const renderedByGroup = new Map<string, RenderedCollection[]>();
 		const failedGroups = new Set<string>();
-		await this.processConcurrently(batch.prepared, concurrency, async (prepared, index) => {
+		let renderedCount = 0;
+		this.reportPhase('rendering', 0, batch.prepared.length);
+		await this.processConcurrently(batch.prepared, concurrency, async prepared => {
 			if (batchHasUncertainBinaryMutation) return;
 			const groupKey = batch.groupKeyBySubjectId.get(prepared.collection.subject_id) ?? `subject:${prepared.collection.subject_id}`;
 			if (await this.checkCancellation()) {
 				wasCancelled = true;
 				return;
 			}
-			onProgress?.(prepared, index);
 			try {
 				const rendered = await this.renderCollection(prepared.collection, optionsFor(prepared), prepared);
 				const items = renderedByGroup.get(groupKey) ?? [];
@@ -2062,6 +2069,10 @@ export class SyncManager {
 				failedGroups.add(groupKey);
 				if (error instanceof ImageMutationUncertainError) batchHasUncertainBinaryMutation = true;
 				this.recordProcessingFailure(result, prepared, error);
+			} finally {
+				renderedCount++;
+				onProgress?.(prepared, renderedCount - 1);
+				this.reportPhase('rendering', renderedCount, batch.prepared.length, prepared.collection.subject.name_cn || prepared.collection.subject.name);
 			}
 		});
 		if (await this.checkCancellation()) wasCancelled = true;
@@ -2105,6 +2116,9 @@ export class SyncManager {
 			...batch.renamed.map(rename => batch.groupKeyBySubjectId.get(rename.subjectId) ?? `subject:${rename.subjectId}`),
 		]);
 
+		const writeTotal = [...renderedByGroup].reduce((total, [key, items]) => total + (failedGroups.has(key) ? 0 : items.length), 0);
+		let writtenCount = 0;
+		this.reportPhase('writing', 0, writeTotal);
 		for (const groupKey of groupKeys) {
 			const items = renderedByGroup.get(groupKey) ?? [];
 			if (failedGroups.has(groupKey)) {
@@ -2117,6 +2131,7 @@ export class SyncManager {
 			const groupOutcomeStart = result.outcomes.length;
 			const written: Array<{ item: RenderedCollection; writeStatus: FileWriteStatus }> = [];
 			const writeFailures = new Set<number>();
+			this.reportPhase('writing', writtenCount, writeTotal);
 			try {
 				await transaction.executeRenames(renames);
 				await this.processConcurrently(items, Math.min(concurrency, Math.max(1, items.length)), async item => {
@@ -2126,6 +2141,8 @@ export class SyncManager {
 					} catch (error) {
 						writeFailures.add(item.prepared.collection.subject_id);
 						this.recordProcessingFailure(result, item.prepared, error);
+					} finally {
+						this.reportPhase('writing', ++writtenCount, writeTotal, item.subject.name_cn || item.subject.name);
 					}
 				});
 				if (writeFailures.size > 0) throw new Error('An item write failed inside the atomic transaction group.');
@@ -2133,6 +2150,7 @@ export class SyncManager {
 				for (const item of items) {
 					if (!writeFailures.has(item.prepared.collection.subject_id)) this.recordProcessingFailure(result, item.prepared, error);
 				}
+				this.reportPhase('recovering');
 				const rollback = await transaction.rollback();
 				hadAutomaticRollback = hadAutomaticRollback || rollback.attempted;
 				this.mergeRollbackResult(automaticRollback, rollback);
@@ -2312,11 +2330,6 @@ export class SyncManager {
 				concurrency,
 				result,
 				() => ({ overwrite: false, preserveUserDataOnOverwrite: false }),
-				(prepared, index) => this.reportProgress({
-					status: 'processing', current: index + 1, total: diff.toAdd.length,
-					currentItem: prepared.collection.subject.name_cn || prepared.collection.subject.name,
-					message: `处理条目... (${index + 1}/${diff.toAdd.length})`,
-				}),
 			);
 			wasCancelled = execution.wasCancelled;
 
@@ -2383,10 +2396,13 @@ export class SyncManager {
 		collections: UserCollection[],
 		concurrency: number,
 	): Promise<PreparedCollectionBatch> {
+		this.reportPhase('planning');
 		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
 		const registry = this.incrementalSync.getRegistry();
 		const details = new Map<number, FullSubjectInfo>();
 		const failures: PreparationFailure[] = [];
+		let loadedCount = 0;
+		this.reportPhase('details', 0, collections.length);
 
 		await this.processConcurrently(collections, concurrency, async collection => {
 			if (registry.duplicateIds.has(collection.subject_id)) {
@@ -2394,6 +2410,7 @@ export class SyncManager {
 					collection,
 					error: `Subject ${collection.subject_id} appears in multiple local files.`,
 				});
+				this.reportPhase('details', ++loadedCount, collections.length);
 				return;
 			}
 			try {
@@ -2403,9 +2420,12 @@ export class SyncManager {
 					collection,
 					error: error instanceof Error ? error.message : String(error),
 				});
+			} finally {
+				this.reportPhase('details', ++loadedCount, collections.length);
 			}
 		});
 
+		this.reportPhase('planning');
 		const candidates = collections.flatMap(collection => {
 			const fullInfo = details.get(collection.subject_id);
 			if (!fullInfo) return [];
@@ -2787,14 +2807,13 @@ export class SyncManager {
 	 * 报告进度
 	 */
 	private reportProgress(progress: Partial<SyncProgress>): void {
-		if (this.onProgress) {
-			this.onProgress({
-				current: 0,
-				total: 0,
-				status: 'preparing',
-				...progress,
-			});
-		}
+		const event: SyncProgress = { current: 0, total: 0, status: 'preparing', ...progress };
+		this.onProgress?.(event);
+		this.operationProgress?.(event);
+	}
+
+	private reportPhase(phase: SyncPhase, current = 0, total = 0, currentItem?: string): void {
+		this.reportProgress({ status: 'processing', phase, current, total, currentItem });
 	}
 
 	/**
@@ -2807,6 +2826,7 @@ export class SyncManager {
 			overwrite?: boolean;
 			localPropertyValuesBySubjectId?: Map<number, LocalPropertyValueMap>;
 			concurrency?: number;
+			onPhaseProgress?: (progress: SyncProgress) => void;
 		},
 		onProgress?: (current: number, total: number, message: string) => void
 	): Promise<SyncResultWithRollback> {
@@ -2818,6 +2838,8 @@ export class SyncManager {
 		const overwrite = options?.overwrite ?? false;
 		const localPropertyValuesBySubjectId = options?.localPropertyValuesBySubjectId;
 		const concurrency = options?.concurrency ?? 3;
+		const previousProgress = this.operationProgress;
+		this.operationProgress = options?.onPhaseProgress;
 
 		try {
 			debugLog(() => `[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}，并发数: ${concurrency}`);
@@ -2838,7 +2860,6 @@ export class SyncManager {
 				}),
 				(_prepared, index) => {
 					onProgress?.(index + 1, collections.length, `正在同步条目 ${index + 1}/${collections.length}`);
-					this.reportProgress({ status: 'processing', current: index + 1, total: collections.length, message: `同步条目... (${index + 1}/${collections.length})` });
 				},
 			);
 			wasCancelled = execution.wasCancelled;
@@ -2857,6 +2878,7 @@ export class SyncManager {
 			console.error('[Bangumi Sync] 按收藏列表同步失败:', error);
 			this.reportProgress({ status: 'error', message: String(error) });
 		} finally {
+			this.operationProgress = previousProgress;
 			this.endVaultOperation();
 		}
 
@@ -2964,11 +2986,6 @@ export class SyncManager {
 					overwrite: false,
 					preserveUserDataOnOverwrite: false,
 					localPropertyValues: localPropertyResult?.propertyValuesBySubjectId?.get(prepared.collection.subject_id),
-				}),
-				(prepared, index) => this.reportProgress({
-					status: 'processing', current: index + 1, total: itemsToSync.length,
-					currentItem: prepared.collection.subject.name_cn || prepared.collection.subject.name,
-					message: `处理条目... (${index + 1}/${itemsToSync.length})`,
 				}),
 			);
 			wasCancelled = execution.wasCancelled;
@@ -3154,6 +3171,7 @@ export class SyncManager {
 	): Promise<SyncWarning[]> {
 		const warnings: SyncWarning[] = [];
 		if (this.config.enableRelatedLinks === false) return warnings;
+		this.reportPhase('linking');
 		for (const item of batchItems) {
 			if (await this.checkCancellation()) return warnings;
 			warnings.push(...await this.updateRelatedItemsBidirectional(

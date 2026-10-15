@@ -1,4 +1,5 @@
 import { debugLog, registerDiagnosticLogging } from './common/logging';
+import { getSyncProgressPresentation, SyncProgressThrottle } from './src/sync/syncProgressPresentation';
 /**
  * Bangumi Sync 插件入口
  *
@@ -65,6 +66,7 @@ export default class BangumiPlugin extends Plugin {
 	private autoSyncIntervalId: number | null = null;
 	private syncModal: SyncModal | null = null;
 	private syncStatusBarEl: HTMLElement | null = null;
+	private readonly statusProgressThrottle = new SyncProgressThrottle();
 	private cancellationSignal: ReturnType<typeof createCancellationSignal> | null = null;
 	private controlPanel: ControlPanel | null = null;
 	private appliedSyncConfig: SyncManagerConfig | null = null;
@@ -288,16 +290,15 @@ export default class BangumiPlugin extends Plugin {
 	 */
 	private updateStatusBar(progress: SyncProgress): void {
 		if (!this.syncStatusBarEl) return;
+		if (!this.statusProgressThrottle.shouldUpdate(progress)) return;
 		this.syncStatusBarEl.removeClass('bangumi-hidden');
-		if (progress.total > 0) {
-			const percent = Math.floor((progress.current / progress.total) * 100);
-			const prefix = this.cancellationSignal?.paused
-				? tn('syncModal', 'paused')
-				: tn('syncModal', 'syncing');
-			this.syncStatusBarEl.setText(`Bangumi: ${prefix} ${progress.current}/${progress.total} (${percent}%)`);
-		} else {
-			this.syncStatusBarEl.setText(`Bangumi: ${tn('syncModal', 'preparing')}`);
-		}
+		const presentation = getSyncProgressPresentation(progress);
+		const cancelling = this.cancellationSignal?.cancelled && progress.status !== 'error'
+			&& progress.status !== 'completed' && progress.phase !== 'awaiting-decision';
+		const paused = cancelling ? `${tn('syncModal', 'cancelling')} · `
+			: this.cancellationSignal?.paused ? `${tn('syncModal', 'paused')} · ` : '';
+		const count = !progress.phase && presentation.percent !== null ? ` ${progress.current}/${progress.total} (${presentation.percent}%)` : '';
+		this.syncStatusBarEl.setText(`Bangumi: ${paused}${presentation.text}${count}`);
 	}
 
 	/**
@@ -1161,7 +1162,12 @@ export default class BangumiPlugin extends Plugin {
 					warned = true;
 					new Notice(message);
 				}
-			}
+			},
+			(current, total) => {
+				const progress: SyncProgress = { status: 'fetching', phase: 'details', current, total };
+				this.syncModal?.updateProgress(progress);
+				this.updateStatusBar(progress);
+			},
 		);
 
 		debugLog(() => `[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);

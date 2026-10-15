@@ -52,296 +52,6 @@ function reportSyncSummary(result) {
   });
 }
 
-// main.ts
-var import_obsidian32 = require("obsidian");
-
-// common/api/types.ts
-var SubjectType = /* @__PURE__ */ ((SubjectType3) => {
-  SubjectType3[SubjectType3["Book"] = 1] = "Book";
-  SubjectType3[SubjectType3["Anime"] = 2] = "Anime";
-  SubjectType3[SubjectType3["Music"] = 3] = "Music";
-  SubjectType3[SubjectType3["Game"] = 4] = "Game";
-  SubjectType3[SubjectType3["Real"] = 6] = "Real";
-  return SubjectType3;
-})(SubjectType || {});
-var CollectionType = /* @__PURE__ */ ((CollectionType2) => {
-  CollectionType2[CollectionType2["Wish"] = 1] = "Wish";
-  CollectionType2[CollectionType2["Done"] = 2] = "Done";
-  CollectionType2[CollectionType2["Doing"] = 3] = "Doing";
-  CollectionType2[CollectionType2["OnHold"] = 4] = "OnHold";
-  CollectionType2[CollectionType2["Dropped"] = 5] = "Dropped";
-  return CollectionType2;
-})(CollectionType || {});
-function getSubjectTypeName(type) {
-  switch (type) {
-    case 1 /* Book */:
-      return "\u4E66\u7C4D";
-    case 2 /* Anime */:
-      return "\u52A8\u753B";
-    case 3 /* Music */:
-      return "\u97F3\u4E50";
-    case 4 /* Game */:
-      return "\u6E38\u620F";
-    case 6 /* Real */:
-      return "\u4E09\u6B21\u5143";
-    default:
-      return "\u672A\u77E5";
-  }
-}
-function getSubjectTypeLabel(type) {
-  switch (type) {
-    case 1 /* Book */:
-      return "book";
-    case 2 /* Anime */:
-      return "anime";
-    case 3 /* Music */:
-      return "music";
-    case 4 /* Game */:
-      return "game";
-    case 6 /* Real */:
-      return "real";
-    default:
-      return "unknown";
-  }
-}
-function getCollectionTypeName(type) {
-  switch (type) {
-    case 1 /* Wish */:
-      return "\u60F3\u770B";
-    case 2 /* Done */:
-      return "\u770B\u8FC7";
-    case 3 /* Doing */:
-      return "\u5728\u770B";
-    case 4 /* OnHold */:
-      return "\u6401\u7F6E";
-    case 5 /* Dropped */:
-      return "\u629B\u5F03";
-    default:
-      return "\u672A\u77E5";
-  }
-}
-var COLLECTION_STATUS_ICON_MAP = {
-  [1 /* Wish */]: "\u{1F552}",
-  [2 /* Done */]: "\u2705",
-  [3 /* Doing */]: "\u25B6\uFE0F",
-  [4 /* OnHold */]: "\u23F8\uFE0F",
-  [5 /* Dropped */]: "\u274C"
-};
-function getCollectionStatusVerb(type, subjectType) {
-  switch (type) {
-    case 1 /* Wish */:
-      switch (subjectType) {
-        case 1 /* Book */:
-          return "\u60F3\u8BFB";
-        case 4 /* Game */:
-          return "\u60F3\u73A9";
-        case 3 /* Music */:
-          return "\u60F3\u542C";
-        default:
-          return "\u60F3\u770B";
-      }
-    case 2 /* Done */:
-      switch (subjectType) {
-        case 1 /* Book */:
-          return "\u8BFB\u8FC7";
-        case 4 /* Game */:
-          return "\u73A9\u8FC7";
-        case 3 /* Music */:
-          return "\u542C\u8FC7";
-        default:
-          return "\u770B\u8FC7";
-      }
-    case 3 /* Doing */:
-      switch (subjectType) {
-        case 1 /* Book */:
-          return "\u5728\u8BFB";
-        case 4 /* Game */:
-          return "\u5728\u73A9";
-        case 3 /* Music */:
-          return "\u5728\u542C";
-        default:
-          return "\u5728\u770B";
-      }
-    case 4 /* OnHold */:
-      return "\u6401\u7F6E";
-    case 5 /* Dropped */:
-      return "\u629B\u5F03";
-    default:
-      return "\u672A\u77E5";
-  }
-}
-function getCollectionStatusLabel(type, subjectType, withIcon = true) {
-  var _a;
-  const label = getCollectionStatusVerb(type, subjectType);
-  if (!withIcon) {
-    return label;
-  }
-  return `${label}${(_a = COLLECTION_STATUS_ICON_MAP[type]) != null ? _a : ""}`;
-}
-
-// src/userData/types.ts
-var IDENTIFIER_FIELDS = /* @__PURE__ */ new Set([
-  "id",
-  "ID",
-  "\u4E2D\u6587\u540D",
-  "name_cn",
-  "\u4F5C\u54C1\u5927\u7C7B",
-  "type"
-]);
-var USER_PROPERTY_FIELDS = /* @__PURE__ */ new Set([
-  "\u89C2\u770B\u72B6\u6001",
-  "\u9605\u8BFB\u72B6\u6001",
-  "\u6E38\u73A9\u72B6\u6001",
-  "\u6536\u85CF\u72B6\u6001",
-  "\u8BC4\u5206",
-  "\u77ED\u8BC4",
-  "tags",
-  "Tags",
-  "\u8FDB\u5EA6"
-]);
-var BANGUMI_FIELDS = /* @__PURE__ */ new Set([
-  "id",
-  "ID",
-  "\u4E2D\u6587\u540D",
-  "\u539F\u540D",
-  "\u522B\u540D",
-  "\u4F5C\u54C1\u5927\u7C7B",
-  "\u5177\u4F53\u7C7B\u578B",
-  "Bangumi\u8BC4\u5206",
-  "Bangumi\u94FE\u63A5",
-  "\u5C01\u9762",
-  "\u89C2\u770B\u72B6\u6001",
-  "\u9605\u8BFB\u72B6\u6001",
-  "\u6E38\u73A9\u72B6\u6001",
-  "\u6536\u85CF\u72B6\u6001",
-  "\u8BC4\u5206",
-  "\u77ED\u8BC4",
-  "tags",
-  "Tags",
-  "\u5F00\u64AD\u65F6\u95F4",
-  "\u96C6\u6570",
-  "\u52A8\u753B\u516C\u53F8",
-  "\u5BFC\u6F14",
-  "\u97F3\u4E50",
-  "\u5B98\u65B9\u7F51\u7AD9",
-  "\u4F5C\u8005",
-  "\u63D2\u753B",
-  "\u4E66\u7CFB",
-  "\u518C\u6570",
-  "\u53D1\u884C\u65E5\u671F",
-  "\u51FA\u7248\u793E",
-  "\u5B98\u7F51",
-  "\u8BDD\u6570",
-  "\u6742\u5FD7",
-  "\u4F5C\u753B",
-  "\u5F00\u53D1",
-  "\u53D1\u884C",
-  "\u6E38\u73A9\u4EBA\u6570",
-  "\u9875\u6570",
-  "ISBN",
-  "\u4E0A\u6620\u65E5\u671F",
-  "\u8FDB\u5EA6",
-  "\u76F8\u5173",
-  "\u5E73\u53F0",
-  "\u5F00\u59CB",
-  "\u56FD\u5BB6",
-  "\u8BED\u8A00",
-  "\u6BCF\u96C6\u957F",
-  "\u7535\u89C6\u53F0",
-  "\u4E3B\u6F14",
-  "\u7F16\u5267"
-]);
-function hasUserDataType(dataTypes, target) {
-  return dataTypes.includes("all" /* ALL */) || dataTypes.includes(target);
-}
-function isUserPropertyField(fieldName) {
-  return USER_PROPERTY_FIELDS.has(fieldName);
-}
-function isCustomPropertyField(fieldName) {
-  return !IDENTIFIER_FIELDS.has(fieldName) && !BANGUMI_FIELDS.has(fieldName) && !USER_PROPERTY_FIELDS.has(fieldName);
-}
-var DEFAULT_DATA_PROTECTION_SETTINGS = {
-  preserveRatingDetails: true,
-  preserveCustomProperties: true,
-  preserveRecord: true,
-  preserveThoughts: true
-};
-var SUBJECT_TYPE_LABELS = {
-  [2 /* Anime */]: "anime",
-  [1 /* Book */]: "novel",
-  [3 /* Music */]: "music",
-  [4 /* Game */]: "game",
-  [6 /* Real */]: "real"
-};
-
-// src/settings/settings.ts
-function normalizeSyncConcurrency(value) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return 3;
-  return Math.min(5, Math.max(1, Math.trunc(value)));
-}
-var DEFAULT_TEMPLATE_CONFIG = {
-  source: "standard"
-};
-var DEFAULT_PANEL_FILTERS = {
-  subjectType: "all",
-  collectionType: "all",
-  syncStatus: "all",
-  keyword: "",
-  sortBy: "default",
-  sortDirection: "desc"
-};
-var DEFAULT_SETTINGS = {
-  accessToken: "",
-  syncPathTemplate: "ACGN/{{type}}/{{name_cn_with_type}}.md",
-  downloadImages: true,
-  imagePathTemplate: "ACGN/assets/{{id}}_cover.jpg",
-  notePathTemplate: "\u6536\u96C6\u7BB1/\u7B14\u8BB0/ACGN/{{name_cn}}.md",
-  noteTemplateContent: `---
-\u7B14\u8BB0ID:
-{{id_yaml}}
----
-
-# {{entry_heading}}
-
-## \u8BB0\u5F55
-
-## \u611F\u60F3
-`,
-  // 图片设置
-  imageQuality: "large",
-  imageUpdateExisting: false,
-  coverLinkType: "network",
-  scanFolderPath: "ACGN",
-  // 模板配置
-  animeTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
-  novelTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
-  comicTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
-  gameTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
-  albumTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
-  musicTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
-  realTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
-  defaultSubjectTypes: [1 /* Book */, 2 /* Anime */, 3 /* Music */, 4 /* Game */, 6 /* Real */],
-  defaultCollectionTypes: [1 /* Wish */, 2 /* Done */, 3 /* Doing */, 4 /* OnHold */, 5 /* Dropped */],
-  syncLimit: 50,
-  syncConcurrency: 3,
-  diagnosticLogging: false,
-  autoSync: false,
-  autoSyncInterval: 60,
-  lastSyncTime: null,
-  lastSyncCount: 0,
-  // 控制面板筛选条件
-  panelFilters: { ...DEFAULT_PANEL_FILTERS },
-  // 相关条目链接
-  enableRelatedLinks: true,
-  // 数据保护设置
-  dataProtection: { ...DEFAULT_DATA_PROTECTION_SETTINGS },
-  pathNamingStrategy: "simple-until-collision",
-  subjectPathStates: {}
-};
-
-// src/settings/settingsTab.ts
-var import_obsidian2 = require("obsidian");
-
 // src/i18n/translations.ts
 var import_obsidian = require("obsidian");
 var en = {
@@ -552,6 +262,17 @@ var en = {
     scanningLocal: "Scanning local folder...",
     computingDiff: "Computing sync diff...",
     processing: "Processing...",
+    phaseDetails: "Loading details",
+    phasePlanning: "Planning paths",
+    phaseRendering: "Generating content",
+    phaseWriting: "Processing file writes",
+    phaseFinalizing: "Finalizing recovery journal",
+    phaseLinking: "Completing related links",
+    phaseRecovering: "Rolling back changes",
+    executionDuration: "Execution time: {seconds} s",
+    executionDurationScope: "Time spent in this execution, including its data preparation, writes, journal finalization, and related links. Excludes loading before the preview, waiting for confirmation, and subsequent keep/rollback work.",
+    decisionDuration: "Keep/rollback processing time: {seconds} s",
+    cancelling: "Cancelling after the current operation",
     completed: "Completed",
     error: "Error",
     pause: "Pause",
@@ -1216,6 +937,17 @@ var zhCN = {
     scanningLocal: "\u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939...",
     computingDiff: "\u8BA1\u7B97\u540C\u6B65\u5DEE\u5F02...",
     processing: "\u5904\u7406\u4E2D...",
+    phaseDetails: "\u52A0\u8F7D\u6761\u76EE\u8D44\u6599",
+    phasePlanning: "\u89C4\u5212\u6587\u4EF6\u8DEF\u5F84",
+    phaseRendering: "\u751F\u6210\u7B14\u8BB0\u5185\u5BB9",
+    phaseWriting: "\u5904\u7406\u6587\u4EF6\u5199\u5165",
+    phaseFinalizing: "\u5B8C\u6210\u6062\u590D\u65E5\u5FD7\u6536\u5C3E",
+    phaseLinking: "\u8865\u5168\u5173\u8054\u94FE\u63A5",
+    phaseRecovering: "\u56DE\u6EDA\u672C\u6B21\u4FEE\u6539",
+    executionDuration: "\u6B63\u5F0F\u6267\u884C\u8017\u65F6\uFF1A{seconds} \u79D2",
+    executionDurationScope: "\u7EDF\u8BA1\u672C\u6B21\u6267\u884C\u4E2D\u7684\u8D44\u6599\u51C6\u5907\u3001\u5199\u5165\u3001\u65E5\u5FD7\u6536\u5C3E\u548C\u8865\u94FE\uFF0C\u4E0D\u542B\u9884\u89C8\u524D\u52A0\u8F7D\u3001\u7B49\u5F85\u786E\u8BA4\u53CA\u540E\u7EED\u4FDD\u7559/\u56DE\u6EDA\u5904\u7406\u3002",
+    decisionDuration: "\u4FDD\u7559/\u56DE\u6EDA\u5904\u7406\u8017\u65F6\uFF1A{seconds} \u79D2",
+    cancelling: "\u6B63\u5728\u53D6\u6D88\uFF0C\u7B49\u5F85\u5F53\u524D\u64CD\u4F5C\u7ED3\u675F",
     completed: "\u5B8C\u6210",
     error: "\u9519\u8BEF",
     pause: "\u6682\u505C",
@@ -1700,6 +1432,330 @@ function tnFormat(category, subkey, params) {
   }
   return text;
 }
+
+// src/sync/syncProgressPresentation.ts
+var phaseKeys = {
+  details: "phaseDetails",
+  planning: "phasePlanning",
+  rendering: "phaseRendering",
+  writing: "phaseWriting",
+  finalizing: "phaseFinalizing",
+  linking: "phaseLinking",
+  "awaiting-decision": "pendingDecision",
+  recovering: "phaseRecovering"
+};
+function getSyncProgressPresentation(progress) {
+  var _a;
+  const total = Number.isFinite(progress.total) ? Math.max(0, Math.trunc(progress.total)) : 0;
+  const current = Number.isFinite(progress.current) ? Math.min(total, Math.max(0, Math.trunc(progress.current))) : 0;
+  const percent = progress.status === "completed" ? 100 : total > 0 ? Math.floor(current / total * 100) : null;
+  const label = progress.phase ? tn("syncModal", phaseKeys[progress.phase]) : (_a = progress.message) != null ? _a : tn("syncModal", progress.status === "completed" ? "completed" : "preparing");
+  return { text: progress.phase && total > 0 ? `${label} ${current}/${total} (${percent}%)` : label, percent };
+}
+var SyncProgressThrottle = class {
+  constructor() {
+    this.lastKey = "";
+    this.lastAt = -Infinity;
+  }
+  shouldUpdate(progress, now = performance.now()) {
+    var _a, _b;
+    const key = `${progress.status}:${(_b = (_a = progress.phase) != null ? _a : progress.message) != null ? _b : ""}`;
+    if (key === this.lastKey && !(progress.total > 0 && progress.current >= progress.total) && now - this.lastAt < 100) return false;
+    this.lastKey = key;
+    this.lastAt = now;
+    return true;
+  }
+};
+
+// main.ts
+var import_obsidian32 = require("obsidian");
+
+// common/api/types.ts
+var SubjectType = /* @__PURE__ */ ((SubjectType3) => {
+  SubjectType3[SubjectType3["Book"] = 1] = "Book";
+  SubjectType3[SubjectType3["Anime"] = 2] = "Anime";
+  SubjectType3[SubjectType3["Music"] = 3] = "Music";
+  SubjectType3[SubjectType3["Game"] = 4] = "Game";
+  SubjectType3[SubjectType3["Real"] = 6] = "Real";
+  return SubjectType3;
+})(SubjectType || {});
+var CollectionType = /* @__PURE__ */ ((CollectionType2) => {
+  CollectionType2[CollectionType2["Wish"] = 1] = "Wish";
+  CollectionType2[CollectionType2["Done"] = 2] = "Done";
+  CollectionType2[CollectionType2["Doing"] = 3] = "Doing";
+  CollectionType2[CollectionType2["OnHold"] = 4] = "OnHold";
+  CollectionType2[CollectionType2["Dropped"] = 5] = "Dropped";
+  return CollectionType2;
+})(CollectionType || {});
+function getSubjectTypeName(type) {
+  switch (type) {
+    case 1 /* Book */:
+      return "\u4E66\u7C4D";
+    case 2 /* Anime */:
+      return "\u52A8\u753B";
+    case 3 /* Music */:
+      return "\u97F3\u4E50";
+    case 4 /* Game */:
+      return "\u6E38\u620F";
+    case 6 /* Real */:
+      return "\u4E09\u6B21\u5143";
+    default:
+      return "\u672A\u77E5";
+  }
+}
+function getSubjectTypeLabel(type) {
+  switch (type) {
+    case 1 /* Book */:
+      return "book";
+    case 2 /* Anime */:
+      return "anime";
+    case 3 /* Music */:
+      return "music";
+    case 4 /* Game */:
+      return "game";
+    case 6 /* Real */:
+      return "real";
+    default:
+      return "unknown";
+  }
+}
+function getCollectionTypeName(type) {
+  switch (type) {
+    case 1 /* Wish */:
+      return "\u60F3\u770B";
+    case 2 /* Done */:
+      return "\u770B\u8FC7";
+    case 3 /* Doing */:
+      return "\u5728\u770B";
+    case 4 /* OnHold */:
+      return "\u6401\u7F6E";
+    case 5 /* Dropped */:
+      return "\u629B\u5F03";
+    default:
+      return "\u672A\u77E5";
+  }
+}
+var COLLECTION_STATUS_ICON_MAP = {
+  [1 /* Wish */]: "\u{1F552}",
+  [2 /* Done */]: "\u2705",
+  [3 /* Doing */]: "\u25B6\uFE0F",
+  [4 /* OnHold */]: "\u23F8\uFE0F",
+  [5 /* Dropped */]: "\u274C"
+};
+function getCollectionStatusVerb(type, subjectType) {
+  switch (type) {
+    case 1 /* Wish */:
+      switch (subjectType) {
+        case 1 /* Book */:
+          return "\u60F3\u8BFB";
+        case 4 /* Game */:
+          return "\u60F3\u73A9";
+        case 3 /* Music */:
+          return "\u60F3\u542C";
+        default:
+          return "\u60F3\u770B";
+      }
+    case 2 /* Done */:
+      switch (subjectType) {
+        case 1 /* Book */:
+          return "\u8BFB\u8FC7";
+        case 4 /* Game */:
+          return "\u73A9\u8FC7";
+        case 3 /* Music */:
+          return "\u542C\u8FC7";
+        default:
+          return "\u770B\u8FC7";
+      }
+    case 3 /* Doing */:
+      switch (subjectType) {
+        case 1 /* Book */:
+          return "\u5728\u8BFB";
+        case 4 /* Game */:
+          return "\u5728\u73A9";
+        case 3 /* Music */:
+          return "\u5728\u542C";
+        default:
+          return "\u5728\u770B";
+      }
+    case 4 /* OnHold */:
+      return "\u6401\u7F6E";
+    case 5 /* Dropped */:
+      return "\u629B\u5F03";
+    default:
+      return "\u672A\u77E5";
+  }
+}
+function getCollectionStatusLabel(type, subjectType, withIcon = true) {
+  var _a;
+  const label = getCollectionStatusVerb(type, subjectType);
+  if (!withIcon) {
+    return label;
+  }
+  return `${label}${(_a = COLLECTION_STATUS_ICON_MAP[type]) != null ? _a : ""}`;
+}
+
+// src/userData/types.ts
+var IDENTIFIER_FIELDS = /* @__PURE__ */ new Set([
+  "id",
+  "ID",
+  "\u4E2D\u6587\u540D",
+  "name_cn",
+  "\u4F5C\u54C1\u5927\u7C7B",
+  "type"
+]);
+var USER_PROPERTY_FIELDS = /* @__PURE__ */ new Set([
+  "\u89C2\u770B\u72B6\u6001",
+  "\u9605\u8BFB\u72B6\u6001",
+  "\u6E38\u73A9\u72B6\u6001",
+  "\u6536\u85CF\u72B6\u6001",
+  "\u8BC4\u5206",
+  "\u77ED\u8BC4",
+  "tags",
+  "Tags",
+  "\u8FDB\u5EA6"
+]);
+var BANGUMI_FIELDS = /* @__PURE__ */ new Set([
+  "id",
+  "ID",
+  "\u4E2D\u6587\u540D",
+  "\u539F\u540D",
+  "\u522B\u540D",
+  "\u4F5C\u54C1\u5927\u7C7B",
+  "\u5177\u4F53\u7C7B\u578B",
+  "Bangumi\u8BC4\u5206",
+  "Bangumi\u94FE\u63A5",
+  "\u5C01\u9762",
+  "\u89C2\u770B\u72B6\u6001",
+  "\u9605\u8BFB\u72B6\u6001",
+  "\u6E38\u73A9\u72B6\u6001",
+  "\u6536\u85CF\u72B6\u6001",
+  "\u8BC4\u5206",
+  "\u77ED\u8BC4",
+  "tags",
+  "Tags",
+  "\u5F00\u64AD\u65F6\u95F4",
+  "\u96C6\u6570",
+  "\u52A8\u753B\u516C\u53F8",
+  "\u5BFC\u6F14",
+  "\u97F3\u4E50",
+  "\u5B98\u65B9\u7F51\u7AD9",
+  "\u4F5C\u8005",
+  "\u63D2\u753B",
+  "\u4E66\u7CFB",
+  "\u518C\u6570",
+  "\u53D1\u884C\u65E5\u671F",
+  "\u51FA\u7248\u793E",
+  "\u5B98\u7F51",
+  "\u8BDD\u6570",
+  "\u6742\u5FD7",
+  "\u4F5C\u753B",
+  "\u5F00\u53D1",
+  "\u53D1\u884C",
+  "\u6E38\u73A9\u4EBA\u6570",
+  "\u9875\u6570",
+  "ISBN",
+  "\u4E0A\u6620\u65E5\u671F",
+  "\u8FDB\u5EA6",
+  "\u76F8\u5173",
+  "\u5E73\u53F0",
+  "\u5F00\u59CB",
+  "\u56FD\u5BB6",
+  "\u8BED\u8A00",
+  "\u6BCF\u96C6\u957F",
+  "\u7535\u89C6\u53F0",
+  "\u4E3B\u6F14",
+  "\u7F16\u5267"
+]);
+function hasUserDataType(dataTypes, target) {
+  return dataTypes.includes("all" /* ALL */) || dataTypes.includes(target);
+}
+function isUserPropertyField(fieldName) {
+  return USER_PROPERTY_FIELDS.has(fieldName);
+}
+function isCustomPropertyField(fieldName) {
+  return !IDENTIFIER_FIELDS.has(fieldName) && !BANGUMI_FIELDS.has(fieldName) && !USER_PROPERTY_FIELDS.has(fieldName);
+}
+var DEFAULT_DATA_PROTECTION_SETTINGS = {
+  preserveRatingDetails: true,
+  preserveCustomProperties: true,
+  preserveRecord: true,
+  preserveThoughts: true
+};
+var SUBJECT_TYPE_LABELS = {
+  [2 /* Anime */]: "anime",
+  [1 /* Book */]: "novel",
+  [3 /* Music */]: "music",
+  [4 /* Game */]: "game",
+  [6 /* Real */]: "real"
+};
+
+// src/settings/settings.ts
+function normalizeSyncConcurrency(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 3;
+  return Math.min(5, Math.max(1, Math.trunc(value)));
+}
+var DEFAULT_TEMPLATE_CONFIG = {
+  source: "standard"
+};
+var DEFAULT_PANEL_FILTERS = {
+  subjectType: "all",
+  collectionType: "all",
+  syncStatus: "all",
+  keyword: "",
+  sortBy: "default",
+  sortDirection: "desc"
+};
+var DEFAULT_SETTINGS = {
+  accessToken: "",
+  syncPathTemplate: "ACGN/{{type}}/{{name_cn_with_type}}.md",
+  downloadImages: true,
+  imagePathTemplate: "ACGN/assets/{{id}}_cover.jpg",
+  notePathTemplate: "\u6536\u96C6\u7BB1/\u7B14\u8BB0/ACGN/{{name_cn}}.md",
+  noteTemplateContent: `---
+\u7B14\u8BB0ID:
+{{id_yaml}}
+---
+
+# {{entry_heading}}
+
+## \u8BB0\u5F55
+
+## \u611F\u60F3
+`,
+  // 图片设置
+  imageQuality: "large",
+  imageUpdateExisting: false,
+  coverLinkType: "network",
+  scanFolderPath: "ACGN",
+  // 模板配置
+  animeTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
+  novelTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
+  comicTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
+  gameTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
+  albumTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
+  musicTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
+  realTemplateConfig: { ...DEFAULT_TEMPLATE_CONFIG },
+  defaultSubjectTypes: [1 /* Book */, 2 /* Anime */, 3 /* Music */, 4 /* Game */, 6 /* Real */],
+  defaultCollectionTypes: [1 /* Wish */, 2 /* Done */, 3 /* Doing */, 4 /* OnHold */, 5 /* Dropped */],
+  syncLimit: 50,
+  syncConcurrency: 3,
+  diagnosticLogging: false,
+  autoSync: false,
+  autoSyncInterval: 60,
+  lastSyncTime: null,
+  lastSyncCount: 0,
+  // 控制面板筛选条件
+  panelFilters: { ...DEFAULT_PANEL_FILTERS },
+  // 相关条目链接
+  enableRelatedLinks: true,
+  // 数据保护设置
+  dataProtection: { ...DEFAULT_DATA_PROTECTION_SETTINGS },
+  pathNamingStrategy: "simple-until-collision",
+  subjectPathStates: {}
+};
+
+// src/settings/settingsTab.ts
+var import_obsidian2 = require("obsidian");
 
 // common/template/templateRegistry.ts
 var TEMPLATE_CATEGORY_OPTIONS = [
@@ -9101,6 +9157,7 @@ var SyncManager = class {
     this.shuttingDown = true;
     (_a = this.cancellationSignal) == null ? void 0 : _a.cancel();
     this.onProgress = void 0;
+    this.operationProgress = void 0;
   }
   /**
    * 回滚本次批次新建的文件
@@ -9435,6 +9492,7 @@ var SyncManager = class {
     };
   }
   async persistPendingJournal(pending, state) {
+    this.reportPhase("finalizing");
     this.activeRecoveryJournal = this.journalFromPending(pending, state);
     try {
       await this.recoveryJournalStore.write(this.activeRecoveryJournal);
@@ -9835,6 +9893,7 @@ var SyncManager = class {
     var _a, _b, _c, _d, _e;
     const result = this.emptyRollbackResult();
     await this.persistPendingJournal(pending, "rolling-back");
+    this.reportPhase("recovering");
     for (const transaction of [...pending.transactions].reverse()) {
       try {
         this.mergeRollbackResult(result, await transaction.rollback());
@@ -10578,7 +10637,10 @@ var SyncManager = class {
     result.success = result.completion === "success";
   }
   reportFinalSyncProgress(result, wasCancelled) {
-    if (wasCancelled || result.completion === "cancelled") {
+    var _a;
+    if (((_a = this.pendingTransaction) == null ? void 0 : _a.state) === "awaiting") {
+      this.reportPhase("awaiting-decision");
+    } else if (wasCancelled || result.completion === "cancelled") {
       this.reportProgress({ status: "error", message: tn("notices", "syncCancelled") });
     } else if (result.completion === "success" || result.completion === "partial-success") {
       this.reportProgress({ status: "completed", message: tn("notices", "syncComplete") });
@@ -10628,7 +10690,9 @@ var SyncManager = class {
     let batchHasUncertainBinaryMutation = false;
     const renderedByGroup = /* @__PURE__ */ new Map();
     const failedGroups = /* @__PURE__ */ new Set();
-    await this.processConcurrently(batch.prepared, concurrency, async (prepared, index) => {
+    let renderedCount = 0;
+    this.reportPhase("rendering", 0, batch.prepared.length);
+    await this.processConcurrently(batch.prepared, concurrency, async (prepared) => {
       var _a2, _b2;
       if (batchHasUncertainBinaryMutation) return;
       const groupKey = (_a2 = batch.groupKeyBySubjectId.get(prepared.collection.subject_id)) != null ? _a2 : `subject:${prepared.collection.subject_id}`;
@@ -10636,7 +10700,6 @@ var SyncManager = class {
         wasCancelled = true;
         return;
       }
-      onProgress == null ? void 0 : onProgress(prepared, index);
       try {
         const rendered = await this.renderCollection(prepared.collection, optionsFor(prepared), prepared);
         const items = (_b2 = renderedByGroup.get(groupKey)) != null ? _b2 : [];
@@ -10646,6 +10709,10 @@ var SyncManager = class {
         failedGroups.add(groupKey);
         if (error instanceof ImageMutationUncertainError) batchHasUncertainBinaryMutation = true;
         this.recordProcessingFailure(result, prepared, error);
+      } finally {
+        renderedCount++;
+        onProgress == null ? void 0 : onProgress(prepared, renderedCount - 1);
+        this.reportPhase("rendering", renderedCount, batch.prepared.length, prepared.collection.subject.name_cn || prepared.collection.subject.name);
       }
     });
     if (await this.checkCancellation()) wasCancelled = true;
@@ -10698,6 +10765,9 @@ var SyncManager = class {
         return (_a2 = batch.groupKeyBySubjectId.get(rename.subjectId)) != null ? _a2 : `subject:${rename.subjectId}`;
       })
     ]);
+    const writeTotal = [...renderedByGroup].reduce((total, [key, items]) => total + (failedGroups.has(key) ? 0 : items.length), 0);
+    let writtenCount = 0;
+    this.reportPhase("writing", 0, writeTotal);
     for (const groupKey of groupKeys) {
       const items = (_g = renderedByGroup.get(groupKey)) != null ? _g : [];
       if (failedGroups.has(groupKey)) {
@@ -10713,6 +10783,7 @@ var SyncManager = class {
       const groupOutcomeStart = result.outcomes.length;
       const written = [];
       const writeFailures = /* @__PURE__ */ new Set();
+      this.reportPhase("writing", writtenCount, writeTotal);
       try {
         await transaction.executeRenames(renames);
         await this.processConcurrently(items, Math.min(concurrency, Math.max(1, items.length)), async (item) => {
@@ -10722,6 +10793,8 @@ var SyncManager = class {
           } catch (error) {
             writeFailures.add(item.prepared.collection.subject_id);
             this.recordProcessingFailure(result, item.prepared, error);
+          } finally {
+            this.reportPhase("writing", ++writtenCount, writeTotal, item.subject.name_cn || item.subject.name);
           }
         });
         if (writeFailures.size > 0) throw new Error("An item write failed inside the atomic transaction group.");
@@ -10729,6 +10802,7 @@ var SyncManager = class {
         for (const item of items) {
           if (!writeFailures.has(item.prepared.collection.subject_id)) this.recordProcessingFailure(result, item.prepared, error);
         }
+        this.reportPhase("recovering");
         const rollback = await transaction.rollback();
         hadAutomaticRollback = hadAutomaticRollback || rollback.attempted;
         this.mergeRollbackResult(automaticRollback, rollback);
@@ -10922,14 +10996,7 @@ var SyncManager = class {
         batch,
         concurrency,
         result,
-        () => ({ overwrite: false, preserveUserDataOnOverwrite: false }),
-        (prepared, index) => this.reportProgress({
-          status: "processing",
-          current: index + 1,
-          total: diff.toAdd.length,
-          currentItem: prepared.collection.subject.name_cn || prepared.collection.subject.name,
-          message: `\u5904\u7406\u6761\u76EE... (${index + 1}/${diff.toAdd.length})`
-        })
+        () => ({ overwrite: false, preserveUserDataOnOverwrite: false })
       );
       wasCancelled = execution.wasCancelled;
       this.finalizeSyncResult(result, wasCancelled);
@@ -10972,16 +11039,20 @@ var SyncManager = class {
     }
   }
   async prepareCollectionBatch(collections, concurrency) {
+    this.reportPhase("planning");
     await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
     const registry = this.incrementalSync.getRegistry();
     const details = /* @__PURE__ */ new Map();
     const failures = [];
+    let loadedCount = 0;
+    this.reportPhase("details", 0, collections.length);
     await this.processConcurrently(collections, concurrency, async (collection) => {
       if (registry.duplicateIds.has(collection.subject_id)) {
         failures.push({
           collection,
           error: `Subject ${collection.subject_id} appears in multiple local files.`
         });
+        this.reportPhase("details", ++loadedCount, collections.length);
         return;
       }
       try {
@@ -10991,8 +11062,11 @@ var SyncManager = class {
           collection,
           error: error instanceof Error ? error.message : String(error)
         });
+      } finally {
+        this.reportPhase("details", ++loadedCount, collections.length);
       }
     });
+    this.reportPhase("planning");
     const candidates = collections.flatMap((collection) => {
       var _a;
       const fullInfo = details.get(collection.subject_id);
@@ -11302,14 +11376,13 @@ var SyncManager = class {
    * 报告进度
    */
   reportProgress(progress) {
-    if (this.onProgress) {
-      this.onProgress({
-        current: 0,
-        total: 0,
-        status: "preparing",
-        ...progress
-      });
-    }
+    var _a, _b;
+    const event = { current: 0, total: 0, status: "preparing", ...progress };
+    (_a = this.onProgress) == null ? void 0 : _a.call(this, event);
+    (_b = this.operationProgress) == null ? void 0 : _b.call(this, event);
+  }
+  reportPhase(phase, current = 0, total = 0, currentItem) {
+    this.reportProgress({ status: "processing", phase, current, total, currentItem });
   }
   /**
    * 按 UserCollection 列表同步条目
@@ -11324,6 +11397,8 @@ var SyncManager = class {
     const overwrite = (_a = options == null ? void 0 : options.overwrite) != null ? _a : false;
     const localPropertyValuesBySubjectId = options == null ? void 0 : options.localPropertyValuesBySubjectId;
     const concurrency = (_b = options == null ? void 0 : options.concurrency) != null ? _b : 3;
+    const previousProgress = this.operationProgress;
+    this.operationProgress = options == null ? void 0 : options.onPhaseProgress;
     try {
       debugLog(() => `[Bangumi Sync] \u5F00\u59CB\u6309\u6536\u85CF\u5217\u8868\u540C\u6B65 ${collections.length} \u4E2A\u6761\u76EE\uFF0C\u8986\u76D6\u6A21\u5F0F: ${overwrite}\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
       this.assertNoPendingTransaction();
@@ -11341,7 +11416,6 @@ var SyncManager = class {
         }),
         (_prepared, index) => {
           onProgress == null ? void 0 : onProgress(index + 1, collections.length, `\u6B63\u5728\u540C\u6B65\u6761\u76EE ${index + 1}/${collections.length}`);
-          this.reportProgress({ status: "processing", current: index + 1, total: collections.length, message: `\u540C\u6B65\u6761\u76EE... (${index + 1}/${collections.length})` });
         }
       );
       wasCancelled = execution.wasCancelled;
@@ -11356,6 +11430,7 @@ var SyncManager = class {
       console.error("[Bangumi Sync] \u6309\u6536\u85CF\u5217\u8868\u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: String(error) });
     } finally {
+      this.operationProgress = previousProgress;
       this.endVaultOperation();
     }
     result.duration = Date.now() - startTime;
@@ -11443,14 +11518,7 @@ var SyncManager = class {
             preserveUserDataOnOverwrite: false,
             localPropertyValues: (_a = localPropertyResult == null ? void 0 : localPropertyResult.propertyValuesBySubjectId) == null ? void 0 : _a.get(prepared.collection.subject_id)
           };
-        },
-        (prepared, index) => this.reportProgress({
-          status: "processing",
-          current: index + 1,
-          total: itemsToSync.length,
-          currentItem: prepared.collection.subject.name_cn || prepared.collection.subject.name,
-          message: `\u5904\u7406\u6761\u76EE... (${index + 1}/${itemsToSync.length})`
-        })
+        }
       );
       wasCancelled = execution.wasCancelled;
       const batchRelations = execution.relations;
@@ -11578,6 +11646,7 @@ var SyncManager = class {
     var _a, _b;
     const warnings = [];
     if (this.config.enableRelatedLinks === false) return warnings;
+    this.reportPhase("linking");
     for (const item of batchItems) {
       if (await this.checkCancellation()) return warnings;
       warnings.push(...await this.updateRelatedItemsBidirectional(
@@ -12049,6 +12118,9 @@ var SyncModal = class extends import_obsidian12.Modal {
     this.pendingClosePrompt = null;
     this.recoverySubscriber = null;
     this.recoveryUnsubscribe = null;
+    this.executionDurationMs = null;
+    this.decisionDurationMs = null;
+    this.progressThrottle = new SyncProgressThrottle();
     this.cancellationSignal = cancellationSignal;
     this.progress = {
       current: 0,
@@ -12060,6 +12132,10 @@ var SyncModal = class extends import_obsidian12.Modal {
     const { contentEl } = this;
     new import_obsidian12.Setting(contentEl).setName(tn("syncModal", "title")).setHeading();
     this.progressBar = contentEl.createDiv({ cls: "bangumi-progress-bar" });
+    this.progressBar.setAttribute("role", "progressbar");
+    this.progressBar.setAttribute("aria-label", tn("syncModal", "preparing"));
+    this.progressBar.setAttribute("aria-valuemin", "0");
+    this.progressBar.setAttribute("aria-valuemax", "100");
     this.progressBar.createEl("div", { cls: "bangumi-progress-fill" });
     this.statusText = contentEl.createDiv({ cls: "bangumi-sync-status" });
     this.updateStatus(tn("syncModal", "preparing"));
@@ -12103,7 +12179,7 @@ var SyncModal = class extends import_obsidian12.Modal {
         this.pauseBtn.setText(tn("syncModal", "pause"));
       }
       (_a = this.progressBar) == null ? void 0 : _a.removeClass("bangumi-sync-paused");
-      this.updateStatus(tn("syncModal", "processing"));
+      this.updateStatus(getSyncProgressPresentation(this.progress).text);
     } else {
       this.cancellationSignal.pause();
       if (this.pauseBtn) {
@@ -12125,7 +12201,7 @@ var SyncModal = class extends import_obsidian12.Modal {
       this.cancelBtn.disabled = true;
       this.cancelBtn.setText(tn("syncModal", "cancel") + "...");
     }
-    this.updateStatus(tn("notices", "syncCancelled"));
+    this.updateStatus(tn("syncModal", "cancelling"));
   }
   /**
    * 设置回滚回调
@@ -12157,27 +12233,37 @@ var SyncModal = class extends import_obsidian12.Modal {
    * 更新进度
    */
   updateProgress(progress) {
-    if (this.isCompleted) return;
+    var _a;
+    if (this.isCompleted && !this.decisionInProgress) return;
     this.progress = progress;
-    if (this.progressBar && progress.total > 0) {
-      const percent = Math.floor(progress.current / progress.total * 100);
+    if (!this.progressThrottle.shouldUpdate(progress)) return;
+    const presentation = getSyncProgressPresentation(progress);
+    if (this.progressBar) {
+      this.progressBar.removeClass("bangumi-progress-complete");
       const fill = this.progressBar.querySelector(".bangumi-progress-fill");
       if (fill) {
-        fill.setCssProps({ "--bangumi-progress-width": `${percent}%` });
+        fill.setCssProps({ "--bangumi-progress-width": `${(_a = presentation.percent) != null ? _a : 0}%` });
       }
+      this.progressBar.setAttribute("aria-label", presentation.text);
+      if (presentation.percent === null) this.progressBar.removeAttribute("aria-valuenow");
+      else this.progressBar.setAttribute("aria-valuenow", String(presentation.percent));
     }
-    if (!this.cancellationSignal.paused && progress.message) {
-      this.updateStatus(progress.message);
+    if (!this.cancellationSignal.paused) {
+      const cancelling = this.cancellationSignal.cancelled && !this.decisionInProgress && progress.status !== "error" && progress.status !== "completed" && progress.phase !== "awaiting-decision" ? `${tn("syncModal", "cancelling")} \xB7 ` : "";
+      this.updateStatus(`${cancelling}${presentation.text}`);
     }
   }
   /**
    * 显示同步完成状态
    */
   showCompleted(result) {
-    var _a;
+    var _a, _b;
+    (_a = this.executionDurationMs) != null ? _a : this.executionDurationMs = result.duration;
     this.isCompleted = true;
     this.decisionButtons = [];
     const presentation = getSyncCompletionPresentation(result);
+    const statusKey = presentation.statusKey;
+    const statusLabel = statusKey === "syncFailed" || statusKey === "syncCancelled" ? tn("notices", statusKey) : tn("syncModal", statusKey);
     this.pendingDecision = !presentation.allowClose;
     if (this.actionsEl) {
       this.actionsEl.addClass("bangumi-hidden");
@@ -12195,6 +12281,15 @@ var SyncModal = class extends import_obsidian12.Modal {
         failed: result.failed
       });
       this.completedEl.createEl("p", { text: statsText, cls: "bangumi-sync-stats" });
+      this.completedEl.createEl("p", {
+        text: tnFormat("syncModal", "executionDuration", { seconds: (this.executionDurationMs / 1e3).toFixed(1) }),
+        cls: "bangumi-sync-stats"
+      });
+      this.completedEl.createEl("p", { text: tn("syncModal", "executionDurationScope"), cls: "bangumi-setting-desc" });
+      if (this.decisionDurationMs !== null) this.completedEl.createEl("p", {
+        text: tnFormat("syncModal", "decisionDuration", { seconds: (this.decisionDurationMs / 1e3).toFixed(1) }),
+        cls: "bangumi-sync-stats"
+      });
       if (result.rollback) {
         this.completedEl.createEl("p", {
           text: result.rollback.failed > 0 ? `${tn("syncModal", "rollbackFailed")}: ${result.rollback.failed}` : tnFormat("syncModal", "rollbackComplete", {
@@ -12205,7 +12300,7 @@ var SyncModal = class extends import_obsidian12.Modal {
           }),
           cls: result.rollback.failed > 0 ? "bangumi-sync-error" : "bangumi-sync-stats"
         });
-        if ((_a = result.rollback.failures) == null ? void 0 : _a.length) {
+        if ((_b = result.rollback.failures) == null ? void 0 : _b.length) {
           const rollbackDetails = this.completedEl.createEl("details", { cls: "bangumi-sync-error-details" });
           rollbackDetails.createEl("summary", { text: `${tn("syncModal", "rollbackFailed")} (${result.rollback.failures.length})` });
           const list = rollbackDetails.createEl("ul", { cls: "bangumi-sync-error-list" });
@@ -12269,22 +12364,21 @@ var SyncModal = class extends import_obsidian12.Modal {
       closeBtn.addEventListener("click", () => this.close());
     }
     if (this.progressBar) {
-      this.progressBar.addClass("bangumi-progress-complete");
+      const fill = this.progressBar.querySelector(".bangumi-progress-fill");
+      if (this.pendingDecision || !result.success) {
+        this.progressBar.removeClass("bangumi-progress-complete");
+        this.progressBar.removeAttribute("aria-valuenow");
+        this.progressBar.setAttribute("aria-label", this.pendingDecision ? tn("syncModal", "pendingDecision") : statusLabel);
+        fill == null ? void 0 : fill.setCssProps({ "--bangumi-progress-width": "0%" });
+      } else {
+        this.progressBar.addClass("bangumi-progress-complete");
+        this.progressBar.setAttribute("aria-valuenow", "100");
+        this.progressBar.setAttribute("aria-label", statusLabel);
+        fill == null ? void 0 : fill.setCssProps({ "--bangumi-progress-width": "100%" });
+      }
     }
     if (this.statusText) {
-      if (result.wasCancelled) {
-        this.updateStatus(tn("notices", "syncCancelled"));
-      } else if (result.completion === "partial-success") {
-        this.updateStatus(tn("syncModal", "partialSuccess"));
-      } else if (result.completion === "rolled-back") {
-        this.updateStatus(tn("syncModal", "rolledBack"));
-      } else if (result.completion === "rollback-failed") {
-        this.updateStatus(tn("syncModal", "rollbackFailed"));
-      } else if (result.completion === "failed") {
-        this.updateStatus(tn("notices", "syncFailed"));
-      } else {
-        this.updateStatus(tn("syncModal", "completed"));
-      }
+      this.updateStatus(statusLabel);
     }
   }
   async resolvePendingDecision(decision) {
@@ -12292,9 +12386,11 @@ var SyncModal = class extends import_obsidian12.Modal {
     const handler = decision === "keep" ? this.onCommitted : this.onCancelled;
     if (!handler) return void 0;
     this.decisionInProgress = true;
+    const startedAt = performance.now();
     for (const button of this.decisionButtons) button.disabled = true;
     try {
       const resolved = await handler();
+      this.decisionDurationMs = performance.now() - startedAt;
       this.pendingDecision = !pendingDecisionAllowsClose(resolved);
       if (resolved.result) this.showCompleted(resolved.result);
       return resolved;
@@ -13332,9 +13428,11 @@ function parseListInput2(value) {
   return items.length > 0 ? items : void 0;
 }
 var SUBJECT_FETCH_TIMEOUT_MS = 15e3;
-async function loadSubjectsForCollections(collections, client, onWarning) {
+async function loadSubjectsForCollections(collections, client, onWarning, onProgress) {
   const subjectsById = /* @__PURE__ */ new Map();
   let warned = false;
+  let completed = 0;
+  onProgress == null ? void 0 : onProgress(0, collections.length);
   for (const collection of collections) {
     try {
       const subject = await fetchSubjectWithTimeout(client, collection.subject_id, SUBJECT_FETCH_TIMEOUT_MS);
@@ -13347,6 +13445,8 @@ async function loadSubjectsForCollections(collections, client, onWarning) {
         onWarning == null ? void 0 : onWarning(`\u90E8\u5206\u6761\u76EE\u8BE6\u60C5\u83B7\u53D6\u5931\u8D25\uFF0C\u5DF2\u4F7F\u7528\u7B80\u7248\u4FE1\u606F\u7EE7\u7EED\uFF1A${name}`);
       }
       subjectsById.set(collection.subject_id, createFallbackSubject(collection));
+    } finally {
+      onProgress == null ? void 0 : onProgress(++completed, collections.length);
     }
   }
   return subjectsById;
@@ -16541,16 +16641,17 @@ var ControlPanel = class extends import_obsidian24.Modal {
     }
     this.state.loading = true;
     this.renderStatus(`${tn("controlPanel", "syncingItems")} ${selectedCollections.length}...`);
+    const progressThrottle = new SyncProgressThrottle();
     try {
       const result = await this.syncManager.syncByCollections(
         selectedCollections,
         {
           overwrite,
           localPropertyValuesBySubjectId: localPropertyResult.propertyValuesBySubjectId,
-          concurrency: this.settings.syncConcurrency
-        },
-        (current, total, message) => {
-          this.renderStatus(message);
+          concurrency: this.settings.syncConcurrency,
+          onPhaseProgress: (progress) => {
+            if (progressThrottle.shouldUpdate(progress)) this.renderStatus(getSyncProgressPresentation(progress).text);
+          }
         }
       );
       this.state.loading = false;
@@ -20268,6 +20369,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     this.autoSyncIntervalId = null;
     this.syncModal = null;
     this.syncStatusBarEl = null;
+    this.statusProgressThrottle = new SyncProgressThrottle();
     this.cancellationSignal = null;
     this.controlPanel = null;
     this.appliedSyncConfig = null;
@@ -20455,16 +20557,15 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
    * 更新状态栏同步进度
    */
   updateStatusBar(progress) {
-    var _a;
+    var _a, _b;
     if (!this.syncStatusBarEl) return;
+    if (!this.statusProgressThrottle.shouldUpdate(progress)) return;
     this.syncStatusBarEl.removeClass("bangumi-hidden");
-    if (progress.total > 0) {
-      const percent = Math.floor(progress.current / progress.total * 100);
-      const prefix = ((_a = this.cancellationSignal) == null ? void 0 : _a.paused) ? tn("syncModal", "paused") : tn("syncModal", "syncing");
-      this.syncStatusBarEl.setText(`Bangumi: ${prefix} ${progress.current}/${progress.total} (${percent}%)`);
-    } else {
-      this.syncStatusBarEl.setText(`Bangumi: ${tn("syncModal", "preparing")}`);
-    }
+    const presentation = getSyncProgressPresentation(progress);
+    const cancelling = ((_a = this.cancellationSignal) == null ? void 0 : _a.cancelled) && progress.status !== "error" && progress.status !== "completed" && progress.phase !== "awaiting-decision";
+    const paused = cancelling ? `${tn("syncModal", "cancelling")} \xB7 ` : ((_b = this.cancellationSignal) == null ? void 0 : _b.paused) ? `${tn("syncModal", "paused")} \xB7 ` : "";
+    const count = !progress.phase && presentation.percent !== null ? ` ${progress.current}/${progress.total} (${presentation.percent}%)` : "";
+    this.syncStatusBarEl.setText(`Bangumi: ${paused}${presentation.text}${count}`);
   }
   /**
    * 隐藏状态栏（延迟）
@@ -21248,6 +21349,12 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
           warned = true;
           new import_obsidian32.Notice(message);
         }
+      },
+      (current, total) => {
+        var _a;
+        const progress = { status: "fetching", phase: "details", current, total };
+        (_a = this.syncModal) == null ? void 0 : _a.updateProgress(progress);
+        this.updateStatusBar(progress);
       }
     );
     debugLog(() => `[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);

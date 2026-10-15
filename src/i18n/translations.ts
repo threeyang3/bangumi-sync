@@ -234,6 +234,17 @@ export interface TranslationStrings {
 		scanningLocal: string;
 		computingDiff: string;
 		processing: string;
+		phaseDetails: string;
+		phasePlanning: string;
+		phaseRendering: string;
+		phaseWriting: string;
+		phaseFinalizing: string;
+		phaseLinking: string;
+		phaseRecovering: string;
+		executionDuration: string;
+		executionDurationScope: string;
+		decisionDuration: string;
+		cancelling: string;
 		completed: string;
 		error: string;
 		pause: string;
@@ -907,6 +918,17 @@ const en: TranslationStrings = {
 		scanningLocal: 'Scanning local folder...',
 		computingDiff: 'Computing sync diff...',
 		processing: 'Processing...',
+		phaseDetails: 'Loading details',
+		phasePlanning: 'Planning paths',
+		phaseRendering: 'Generating content',
+		phaseWriting: 'Processing file writes',
+		phaseFinalizing: 'Finalizing recovery journal',
+		phaseLinking: 'Completing related links',
+		phaseRecovering: 'Rolling back changes',
+		executionDuration: 'Execution time: {seconds} s',
+		executionDurationScope: 'Time spent in this execution, including its data preparation, writes, journal finalization, and related links. Excludes loading before the preview, waiting for confirmation, and subsequent keep/rollback work.',
+		decisionDuration: 'Keep/rollback processing time: {seconds} s',
+		cancelling: 'Cancelling after the current operation',
 		completed: 'Completed',
 		error: 'Error',
 		pause: 'Pause',
@@ -1563,6 +1585,17 @@ const zhCN: TranslationStrings = {
 		scanningLocal: '扫描本地文件夹...',
 		computingDiff: '计算同步差异...',
 		processing: '处理中...',
+		phaseDetails: '加载条目资料',
+		phasePlanning: '规划文件路径',
+		phaseRendering: '生成笔记内容',
+		phaseWriting: '处理文件写入',
+		phaseFinalizing: '完成恢复日志收尾',
+		phaseLinking: '补全关联链接',
+		phaseRecovering: '回滚本次修改',
+		executionDuration: '正式执行耗时：{seconds} 秒',
+		executionDurationScope: '统计本次执行中的资料准备、写入、日志收尾和补链，不含预览前加载、等待确认及后续保留/回滚处理。',
+		decisionDuration: '保留/回滚处理耗时：{seconds} 秒',
+		cancelling: '正在取消，等待当前操作结束',
 		completed: '完成',
 		error: '错误',
 		pause: '暂停',

@@ -213,10 +213,13 @@ const SUBJECT_FETCH_TIMEOUT_MS = 15000;
 export async function loadSubjectsForCollections(
 	collections: UserCollection[],
 	client: BangumiClient,
-	onWarning?: (message: string) => void
+	onWarning?: (message: string) => void,
+	onProgress?: (current: number, total: number) => void,
 ): Promise<Map<number, Subject>> {
 	const subjectsById = new Map<number, Subject>();
 	let warned = false;
+	let completed = 0;
+	onProgress?.(0, collections.length);
 
 	for (const collection of collections) {
 		try {
@@ -230,6 +233,8 @@ export async function loadSubjectsForCollections(
 				onWarning?.(`部分条目详情获取失败，已使用简版信息继续：${name}`);
 			}
 			subjectsById.set(collection.subject_id, createFallbackSubject(collection));
+		} finally {
+			onProgress?.(++completed, collections.length);
 		}
 	}
 

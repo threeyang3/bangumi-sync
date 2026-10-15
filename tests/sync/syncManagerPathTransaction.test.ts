@@ -8,6 +8,13 @@ import { InMemoryVault } from '../mocks/inMemoryVault';
 import { RECOVERY_JOURNAL_PATH } from '../../src/sync/recoveryJournal';
 import type { PersistentRecoveryJournal } from '../../src/sync/recoveryJournal';
 import { setRequestUrlHandler } from '../mocks/obsidian';
+import type { SyncProgress } from '../../src/sync/syncStatus';
+
+function progressGate(): { promise: Promise<void>; release: () => void } {
+	let release = () => undefined as void;
+	const promise = new Promise<void>(resolve => { release = resolve; });
+	return { promise, release };
+}
 
 function makeSubject(id: number, date: string, name = '乱马'): Subject {
 	return {
@@ -79,6 +86,154 @@ interface CoverHandlerProbe {
 }
 
 describe('SyncManager path transaction integration', () => {
+	it('detaches scoped progress on shutdown even when an in-flight detail request settles later', async () => {
+		const vault = new InMemoryVault();
+		const subject = makeSubject(922, '', 'First');
+		const manager = createManager(vault, [subject]);
+		const started = progressGate(), gate = progressGate();
+		const request = manager.client.getFullSubjectInfo.bind(manager.client);
+		const spy = vi.spyOn(manager.client, 'getFullSubjectInfo').mockImplementation(async id => {
+			started.release(); await gate.promise; return request(id);
+		});
+		const callback = vi.fn();
+		const run = manager.syncByCollections([makeCollection(subject)], { onPhaseProgress: callback });
+		await started.promise;
+		manager.shutdown(); callback.mockClear(); gate.release();
+		try {
+			await run;
+			expect(callback).not.toHaveBeenCalled();
+			expect(vault.files.has('ACGN/music/First.md')).toBe(false);
+		} finally { spy.mockRestore(); }
+	});
+
+	it('scopes panel phase callbacks to one operation and clears them after a partial result', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(919, '', 'First'), failed = makeSubject(920, '', 'Failed'), next = makeSubject(921, '', 'Next');
+		const manager = createManager(vault, [first, failed, next], { failures: new Set([failed.id]) });
+		const callback = vi.fn();
+		await manager.syncByCollections([makeCollection(first), makeCollection(failed)], { onPhaseProgress: callback });
+		expect(callback.mock.calls.at(-1)?.[0]).toMatchObject({ phase: 'awaiting-decision' });
+		callback.mockClear();
+		await manager.commitPendingBatch();
+		await manager.syncByCollections([makeCollection(next)]);
+		expect(callback).not.toHaveBeenCalled();
+	});
+
+	it.each(['preview', 'automatic'])('reports finished render counts in %s execution without an external callback', async mode => {
+		const vault = new InMemoryVault();
+		const subjects = [makeSubject(917, '', 'First'), makeSubject(918, '', 'Second')];
+		const manager = createManager(vault, subjects);
+		const events: SyncProgress[] = [];
+		manager.setProgressCallback(value => events.push(value));
+		const options = { subjectTypes: [SubjectType.Music], collectionTypes: [CollectionType.Done], limit: 2, force: false };
+		if (mode === 'preview') {
+			const preview = await manager.prepareSync(options);
+			if (!preview.previewItems) throw new Error('Missing test preview');
+			events.length = 0;
+			expect((await manager.executeSync(preview.previewItems, 'all', undefined, 2)).completion).toBe('success');
+		} else expect((await manager.sync(options, 2)).completion).toBe('success');
+		expect(events.filter(value => value.phase === 'rendering').map(value => value.current)).toEqual([0, 1, 2]);
+	});
+
+	it('counts finished renders in completion order when concurrent items finish out of order', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(910, '', 'First');
+		const second = makeSubject(911, '', 'Second');
+		const manager = createManager(vault, [first, second]);
+		const probe = manager as unknown as { renderCollection: (...args: unknown[]) => Promise<unknown> };
+		const render = probe.renderCollection.bind(manager);
+		const gate = progressGate();
+		const oneFinished = progressGate();
+		const events: SyncProgress[] = [];
+		manager.setProgressCallback(value => {
+			events.push(value);
+			if (value.phase === 'rendering' && value.current === 1) oneFinished.release();
+		});
+		const spy = vi.spyOn(probe, 'renderCollection').mockImplementation(async (...args) => {
+			if ((args[0] as UserCollection).subject_id === first.id) await gate.promise;
+			return render(...args);
+		});
+		const run = manager.syncByCollections([makeCollection(first), makeCollection(second)], { concurrency: 2 });
+		try {
+			await oneFinished.promise;
+			expect(events.filter(value => value.phase === 'rendering').map(value => value.current)).toEqual([0, 1]);
+			expect(events.some(value => value.phase === 'writing' || value.status === 'completed')).toBe(false);
+		} finally { gate.release(); }
+		try {
+			expect((await run).completion).toBe('success');
+			expect(events.filter(value => value.phase === 'rendering').map(value => value.current)).toEqual([0, 1, 2]);
+			const writes = events.filter(value => value.phase === 'writing').map(value => value.current);
+			expect([...new Set(writes)]).toEqual([0, 1, 2]);
+			expect(writes.every((value, index) => index === 0 || value >= writes[index - 1])).toBe(true);
+		} finally { spy.mockRestore(); }
+	});
+
+	it('does not report completion until actual writes and post-commit links finish, and includes both in duration', async () => {
+		const vault = new InMemoryVault();
+		const incoming = makeSubject(912, '', 'First');
+		const related = makeSubject(913, '', 'Existing');
+		const existingPath = 'ACGN/music/Existing.md';
+		vault.addFile(existingPath, '---\nid: 913\n---\nExisting body');
+		const manager = createManager(vault, [incoming, related], { relationsById: new Map([[912, [{ id: 913, type: SubjectType.Music, name: 'Existing', name_cn: 'Existing', relation: '关联' }]]]) });
+		manager.updateConfig({ enableRelatedLinks: true });
+		const writing = progressGate(), releaseWrite = progressGate(), linking = progressGate(), releaseLink = progressGate();
+		const create = vault.app.vault.create.bind(vault.app.vault);
+		vault.app.vault.create = async (path, content) => { writing.release(); await releaseWrite.promise; return create(path, content); };
+		const process = vault.app.vault.process.bind(vault.app.vault);
+		vault.app.vault.process = async (file, updater) => {
+			if (file.path === existingPath) { linking.release(); await releaseLink.promise; }
+			return process(file, updater);
+		};
+		const events: SyncProgress[] = [];
+		manager.setProgressCallback(value => events.push(value));
+		let now = 10000;
+		const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+		const run = manager.syncByCollections([makeCollection(incoming)], { concurrency: 1 });
+		try {
+			await writing.promise;
+			expect(events.at(-1)).toMatchObject({ phase: 'writing', current: 0, total: 1 });
+			expect(events.some(value => value.status === 'completed')).toBe(false);
+			now = 20000; releaseWrite.release();
+			await linking.promise;
+			expect(events.at(-1)).toMatchObject({ phase: 'linking', current: 0, total: 0 });
+			expect(events.some(value => value.phase === 'finalizing')).toBe(true);
+			expect(events.some(value => value.status === 'completed')).toBe(false);
+			now = 30000; releaseLink.release();
+			const result = await run;
+			expect(result).toMatchObject({ completion: 'success', duration: 20000 });
+			expect(events.at(-1)?.status).toBe('completed');
+			expect(vault.contents.get(existingPath)).toContain('Existing body');
+		} finally { releaseWrite.release(); releaseLink.release(); clock.mockRestore(); }
+	});
+
+	it('announces pending decisions instead of completion and starts a fresh phase counter for the next batch', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(914, '', 'First'), failed = makeSubject(915, '', 'Failed'), next = makeSubject(916, '', 'Next');
+		const manager = createManager(vault, [first, failed, next], { failures: new Set([failed.id]) });
+		const events: SyncProgress[] = [];
+		manager.setProgressCallback(value => events.push(value));
+		const result = await manager.syncByCollections([makeCollection(first), makeCollection(failed)]);
+		expect(result).toMatchObject({ completion: 'partial-success', canRollback: true });
+		expect(events.at(-1)).toMatchObject({ phase: 'awaiting-decision', current: 0, total: 0 });
+		expect(events.some(value => value.status === 'completed')).toBe(false);
+		expect(events.filter(value => value.phase === 'details').map(value => value.current)).toEqual([0, 1, 2]);
+		await manager.commitPendingBatch();
+		events.length = 0;
+		expect((await manager.syncByCollections([makeCollection(next)])).completion).toBe('success');
+		expect(events.filter(value => value.phase === 'rendering').map(value => value.current)).toEqual([0, 1]);
+	});
+
+	it('handles an empty batch without inventing a percentage or skipping finalization', async () => {
+		const vault = new InMemoryVault();
+		const manager = createManager(vault, []);
+		const events: SyncProgress[] = [];
+		manager.setProgressCallback(value => events.push(value));
+		expect((await manager.syncByCollections([])).completion).toBe('success');
+		expect(events.filter(value => value.phase === 'writing')).toEqual([expect.objectContaining({ current: 0, total: 0 })]);
+		expect(events.some(value => value.phase === 'finalizing')).toBe(true);
+		expect(events.at(-1)?.status).toBe('completed');
+	});
+
 	it('isolates indexed facts across consecutive batches and persists all facts before each create', async () => {
 		const vault = new InMemoryVault();
 		const subjects = [makeSubject(901, '', 'Index A'), makeSubject(902, '', 'Index B'), makeSubject(903, '', 'Index C')];
