@@ -1,3 +1,4 @@
+import { debugLog, reportSyncSummary } from '../../common/logging';
 /**
  * 同步管理器
  * 核心同步逻辑
@@ -2332,6 +2333,7 @@ export class SyncManager {
 		}
 
 		result.duration = Date.now() - startTime;
+		reportSyncSummary(result);
 		return this.createSyncResultWithRollback(result, wasCancelled);
 	}
 
@@ -2544,7 +2546,7 @@ export class SyncManager {
 			throw new Error(tn('notices', 'usernameNotFound'));
 		}
 
-		console.debug(`[Bangumi Sync] 用户: ${username}`);
+		debugLog(() => `[Bangumi Sync] 用户: ${username}`);
 
 		// 2. 获取远程收藏列表
 		this.reportProgress({ status: 'fetching', message: tn('syncModal', 'fetchingCollections') });
@@ -2562,13 +2564,13 @@ export class SyncManager {
 			},
 		});
 
-		console.debug(`[Bangumi Sync] 获取到 ${collections.length} 条收藏`);
+		debugLog(() => `[Bangumi Sync] 获取到 ${collections.length} 条收藏`);
 
 		// 3. 扫描本地文件夹
 		this.reportProgress({ status: 'scanning', message: tn('syncModal', 'scanningLocal') });
 
 		const scanPath = this.config.scanFolderPath || 'ACGN';
-		console.debug(`[Bangumi Sync] 扫描路径: ${scanPath}`);
+		debugLog(() => `[Bangumi Sync] 扫描路径: ${scanPath}`);
 
 		await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
 			this.reportProgress({
@@ -2583,14 +2585,14 @@ export class SyncManager {
 		this.reportProgress({ status: 'preparing', message: tn('syncModal', 'computingDiff') });
 
 		const filteredCollections = this.filterCollections(collections, options);
-		console.debug(`[Bangumi Sync] 符合条件的收藏: ${filteredCollections.length}`);
+		debugLog(() => `[Bangumi Sync] 符合条件的收藏: ${filteredCollections.length}`);
 
 		const diff = this.incrementalSync.computeDiff(filteredCollections, {
 			limit: options.limit,
 			force: options.force,
 		});
 
-		console.debug(`[Bangumi Sync] 需要同步: ${diff.toAdd.length}，已存在跳过: ${diff.toSkip.length}`);
+		debugLog(() => `[Bangumi Sync] 需要同步: ${diff.toAdd.length}，已存在跳过: ${diff.toSkip.length}`);
 
 		return { username, collections, diff };
 	}
@@ -2679,14 +2681,14 @@ export class SyncManager {
 		}
 
 		try {
-			console.debug(`[Bangumi Sync] 获取章节信息: ${subject.name_cn}`);
+			debugLog(() => `[Bangumi Sync] 获取章节信息: ${subject.name_cn}`);
 
 			// 获取章节列表
 			const episodesData = await this.client.getEpisodes(subject.id);
 			const episodes = episodesData.data;
 
 			if (!episodes || episodes.length === 0) {
-				console.debug(`[Bangumi Sync] 无章节信息`);
+				debugLog(() => `[Bangumi Sync] 无章节信息`);
 				return null;
 			}
 
@@ -2695,7 +2697,7 @@ export class SyncManager {
 			try {
 				userStatus = await this.client.getUserEpisodeStatus(subject.id);
 			} catch {
-				console.debug(`[Bangumi Sync] 获取用户章节状态失败，可能未收藏此条目`);
+				debugLog(() => `[Bangumi Sync] 获取用户章节状态失败，可能未收藏此条目`);
 			}
 
 			return { episodes, userStatus };
@@ -2727,7 +2729,7 @@ export class SyncManager {
 			return '';
 		}
 
-		console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
+		debugLog(() => `[Bangumi Sync] 下载封面: ${coverUrl}`);
 		const localPath = await this.imageHandler.downloadCover(
 			coverUrl,
 			subject.id,
@@ -2748,25 +2750,25 @@ export class SyncManager {
 	 * 显示名称使用文件名（带类型后缀）
 	 */
 	private generateRelatedLinks(relations: { id: number; name_cn: string; name: string }[]): string[] {
-		console.debug(`[Bangumi Sync] 处理 ${relations?.length || 0} 个相关条目`);
+		debugLog(() => `[Bangumi Sync] 处理 ${relations?.length || 0} 个相关条目`);
 		if (!relations || relations.length === 0) {
-			console.debug(`[Bangumi Sync] 无相关条目数据`);
+			debugLog(() => `[Bangumi Sync] 无相关条目数据`);
 			return [];
 		}
 		const links: string[] = [];
 		for (const relation of relations) {
-			console.debug(`[Bangumi Sync] 检查相关条目: ${relation.name_cn || relation.name} (ID: ${relation.id})`);
+			debugLog(() => `[Bangumi Sync] 检查相关条目: ${relation.name_cn || relation.name} (ID: ${relation.id})`);
 			const localPath = this.resolveRelatedLocalPath(relation.id);
-			console.debug(`[Bangumi Sync] 本地路径: ${localPath || '未同步'}`);
+			debugLog(() => `[Bangumi Sync] 本地路径: ${localPath || '未同步'}`);
 			if (localPath) {
 				// 使用文件名作为显示名称（带类型后缀）
 				const displayName = this.extractDisplayNameFromPath(localPath);
 				const link = `[[${localPath}|${displayName}]]`;
 				links.push(link);
-				console.debug(`[Bangumi Sync] 相关条目已同步: ${relation.name_cn} -> ${link}`);
+				debugLog(() => `[Bangumi Sync] 相关条目已同步: ${relation.name_cn} -> ${link}`);
 			}
 		}
-		console.debug(`[Bangumi Sync] 生成了 ${links.length} 个相关链接`);
+		debugLog(() => `[Bangumi Sync] 生成了 ${links.length} 个相关链接`);
 		return links;
 	}
 
@@ -2818,7 +2820,7 @@ export class SyncManager {
 		const concurrency = options?.concurrency ?? 3;
 
 		try {
-			console.debug(`[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}，并发数: ${concurrency}`);
+			debugLog(() => `[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}，并发数: ${concurrency}`);
 
 			// 开始批次同步
 			this.assertNoPendingTransaction();
@@ -2859,6 +2861,7 @@ export class SyncManager {
 		}
 
 		result.duration = Date.now() - startTime;
+		reportSyncSummary(result);
 		return this.createSyncResultWithRollback(result, wasCancelled);
 	}
 
@@ -2943,7 +2946,7 @@ export class SyncManager {
 			}
 
 			result.total = itemsToSync.length;
-			console.debug(`[Bangumi Sync] 开始同步 ${itemsToSync.length} 个条目，并发数: ${concurrency}`);
+			debugLog(() => `[Bangumi Sync] 开始同步 ${itemsToSync.length} 个条目，并发数: ${concurrency}`);
 
 			// 开始批次同步
 			this.assertNoPendingTransaction();
@@ -2989,6 +2992,7 @@ export class SyncManager {
 		}
 
 		result.duration = Date.now() - startTime;
+		reportSyncSummary(result);
 		return this.createSyncResultWithRollback(result, wasCancelled);
 	}
 
@@ -3001,11 +3005,11 @@ export class SyncManager {
 		options: { overwrite: boolean; localPropertyValues?: LocalPropertyValueMap; preserveUserDataOnOverwrite: boolean },
 		prepared: PreparedCollection,
 	): Promise<RenderedCollection> {
-		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+		debugLog(() => `[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
 		const { subject, characters: relatedCharacters, relations, persons } = prepared.fullInfo;
-		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
+		debugLog(() => `[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
 
 		// 解析角色信息
 		const characters = parseCharacters(relatedCharacters, 9);
@@ -3068,7 +3072,7 @@ export class SyncManager {
 				if (localUserData) {
 					const dataProtection = this.config.dataProtection || DEFAULT_DATA_PROTECTION_SETTINGS;
 					content = this.userDataMerger.mergeUserData(existingFile, content, localUserData, dataProtection);
-					console.debug(`[Bangumi Sync] 已保护用户数据: ${localUserData.identifier.name_cn}`);
+					debugLog(() => `[Bangumi Sync] 已保护用户数据: ${localUserData.identifier.name_cn}`);
 				}
 			}
 			if (explicitLocalPropertyValues) {
@@ -3092,7 +3096,7 @@ export class SyncManager {
 		const { subject, filePath, content, shouldOverwrite, relations } = rendered;
 		const writeOptions = { overwrite: shouldOverwrite, subjectId: subject.id };
 		const writeResult = await transaction.createOrUpdateFile(filePath, content, writeOptions);
-		console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
+		debugLog(() => `[Bangumi Sync] 文件创建完成: ${filePath}`);
 
 		return { subjectId: subject.id, filePath, relations, writeStatus: writeResult.status };
 	}
@@ -3190,7 +3194,7 @@ export class SyncManager {
 
 		if (updatesByFile.size === 0) return warnings;
 
-		console.debug(`[Bangumi Sync] 后处理同批次相关链接: ${updatesByFile.size} 个文件需要更新`);
+		debugLog(() => `[Bangumi Sync] 后处理同批次相关链接: ${updatesByFile.size} 个文件需要更新`);
 
 		for (const [path, update] of updatesByFile) {
 			if (await this.checkCancellation()) break;
@@ -3215,7 +3219,7 @@ export class SyncManager {
 		const updatedContent = this.incrementalSync.updateRelated(content, links);
 		if (updatedContent === content) return;
 		await this.documentService.processSubjectFile(file, subjectId, () => updatedContent);
-		console.debug(`[Bangumi Sync] 已更新相关链接: ${path} (+${links.length})`);
+		debugLog(() => `[Bangumi Sync] 已更新相关链接: ${path} (+${links.length})`);
 	}
 
 	/**
@@ -3248,7 +3252,7 @@ export class SyncManager {
 					tags: input.tags,
 					private: input.private,
 				});
-				console.debug(`[Bangumi Sync] 已同步到云端: ${subjectId}`);
+				debugLog(() => `[Bangumi Sync] 已同步到云端: ${subjectId}`);
 			}
 
 			// 2. 创建本地文件
@@ -3409,7 +3413,7 @@ export class SyncManager {
 					break;
 				}
 				result.downloaded++;
-				console.debug(`[Bangumi Sync] 封面下载完成: ${info.name_cn} -> ${localPath}`);
+				debugLog(() => `[Bangumi Sync] 封面下载完成: ${info.name_cn} -> ${localPath}`);
 			} catch (error) {
 				console.error(`[Bangumi Sync] 封面下载失败: ${info.name_cn}`, error);
 				result.failed++;
@@ -3446,18 +3450,17 @@ export class SyncManager {
 		this.beginVaultOperation();
 		try {
 		const scanPath = this.config.scanFolderPath || 'ACGN';
-		console.debug(`[Bangumi Sync] 扫描关联条目，scanFolderPath: "${this.config.scanFolderPath}"，实际扫描路径: "${scanPath}"，pathTemplate: "${this.config.pathTemplate}"`);
+		debugLog(() => `[Bangumi Sync] 扫描关联条目，scanFolderPath: "${this.config.scanFolderPath}"，实际扫描路径: "${scanPath}"，pathTemplate: "${this.config.pathTemplate}"`);
 		await this.incrementalSync.scanLocalFolder(scanPath);
 
 		const localSubjects = this.incrementalSync.getLocalSubjects();
-		console.debug(`[Bangumi Sync] 扫描到 ${localSubjects.size} 个本地条目`);
+		debugLog(() => `[Bangumi Sync] 扫描到 ${localSubjects.size} 个本地条目`);
 
 		if (localSubjects.size === 0) {
 			console.warn(`[Bangumi Sync] 未扫描到任何本地条目，扫描路径: "${scanPath}"`);
 		}
 
-		const allIds = [...localSubjects.keys()];
-		console.debug(`[Bangumi Sync] 本地条目 ID: ${allIds.join(', ')}`);
+		debugLog(() => `[Bangumi Sync] 本地条目 ID: ${[...localSubjects.keys()].join(', ')}`);
 
 		const result = { checked: localSubjects.size, linked: 0, skipped: 0, failed: 0, details: [] as { name: string; addedLinks: string[] }[] };
 		let processed = 0;
@@ -3499,7 +3502,7 @@ export class SyncManager {
 
 			try {
 				const relations = await this.client.getSubjectRelations(subjectId);
-				console.debug(`[Bangumi Sync] [${processed}/${localSubjects.size}] ${info.name_cn || subjectId} (ID:${subjectId}): ${relations.length} 个关联`);
+				debugLog(() => `[Bangumi Sync] [${processed}/${localSubjects.size}] ${info.name_cn || subjectId} (ID:${subjectId}): ${relations.length} 个关联`);
 
 				const localRelatedIds: number[] = [];
 				for (const relation of relations) {
@@ -3510,7 +3513,7 @@ export class SyncManager {
 
 				localRelationMap.set(subjectId, localRelatedIds);
 				if (localRelatedIds.length > 0) {
-					console.debug(`[Bangumi Sync]   本地关联: ${localRelatedIds.join(', ')}`);
+					debugLog(() => `[Bangumi Sync]   本地关联: ${localRelatedIds.join(', ')}`);
 				}
 			} catch (error) {
 				console.warn(`[Bangumi Sync] 获取关联关系失败: ${info.name_cn} (${subjectId})`, error);
@@ -3530,10 +3533,10 @@ export class SyncManager {
 
 		// 过滤出含 2+ 条目的分量（需要补全链接的组）
 		const multiComponents = [...components.entries()].filter(([, ids]) => ids.length >= 2);
-		console.debug(`[Bangumi Sync] 连通分量: ${components.size} 组，其中 ${multiComponents.length} 组含 2+ 条目`);
+		debugLog(() => `[Bangumi Sync] 连通分量: ${components.size} 组，其中 ${multiComponents.length} 组含 2+ 条目`);
 
 		for (const [root, ids] of multiComponents) {
-			console.debug(`[Bangumi Sync] 分量 (root:${root}): ${ids.map(id => `${localSubjects.get(id)?.name_cn || id}(${id})`).join(', ')}`);
+			debugLog(() => `[Bangumi Sync] 分量 (root:${root}): ${ids.map(id => `${localSubjects.get(id)?.name_cn || id}(${id})`).join(', ')}`);
 		}
 
 		// === 第三阶段：为每组补全所有互链 ===
@@ -3569,7 +3572,7 @@ export class SyncManager {
 
 				if (missingLinks.length > 0) {
 					updatesByFile.set(info.path, { subjectId: id, links: missingLinks });
-					console.debug(`[Bangumi Sync] ${info.name_cn || id}: 补充 ${missingLinks.length} 个链接`);
+					debugLog(() => `[Bangumi Sync] ${info.name_cn || id}: 补充 ${missingLinks.length} 个链接`);
 				} else {
 					alreadyCorrect++;
 				}
@@ -3578,7 +3581,7 @@ export class SyncManager {
 
 		result.skipped = alreadyCorrect;
 
-		console.debug(`[Bangumi Sync] 扫描完成，需要更新 ${updatesByFile.size} 个文件`);
+		debugLog(() => `[Bangumi Sync] 扫描完成，需要更新 ${updatesByFile.size} 个文件`);
 
 		// === 第四阶段：批量更新文件 ===
 
@@ -3605,9 +3608,9 @@ export class SyncManager {
 						return match ? match[1] : link;
 					});
 					result.details.push({ name, addedLinks: addedNames });
-					console.debug(`[Bangumi Sync] 扫描关联更新: ${path} (+${links.length})`);
+					debugLog(() => `[Bangumi Sync] 扫描关联更新: ${path} (+${links.length})`);
 				} else {
-					console.debug(`[Bangumi Sync] 文件无需更新（链接已存在）: ${path}`);
+					debugLog(() => `[Bangumi Sync] 文件无需更新（链接已存在）: ${path}`);
 					result.skipped++;
 				}
 			} catch (error) {

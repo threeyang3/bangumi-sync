@@ -1,3 +1,4 @@
+import { debugLog } from '../../common/logging';
 /**
  * 增量同步逻辑
  * 通过扫描本地文件夹来检验是否已经同步
@@ -52,7 +53,7 @@ export class IncrementalSync {
 		folderPath: string,
 		onProgress?: (current: number, total: number) => void
 	): Promise<number> {
-		console.debug(`[Bangumi Sync] 扫描本地文件夹: ${folderPath}`);
+		debugLog(() => `[Bangumi Sync] 扫描本地文件夹: ${folderPath}`);
 		this.localSubjects.clear();
 		this.lastScanPath = folderPath;
 		const count = await this.registry.scan(folderPath, onProgress);
@@ -64,7 +65,7 @@ export class IncrementalSync {
 				name_cn: record.nameCn,
 			});
 		}
-		console.debug(`[Bangumi Sync] 扫描完成，发现 ${count} 个有效条目，${this.registry.invalidFiles.length} 个异常文件`);
+		debugLog(() => `[Bangumi Sync] 扫描完成，发现 ${count} 个有效条目，${this.registry.invalidFiles.length} 个异常文件`);
 		return count;
 	}
 
@@ -113,7 +114,7 @@ export class IncrementalSync {
 		toAdd: T[];
 		toSkip: T[];
 	} {
-		console.debug(`[Bangumi Sync] 计算同步差异，远程条目: ${remoteCollections.length}，本地条目: ${this.localSubjects.size}`);
+		debugLog(() => `[Bangumi Sync] 计算同步差异，远程条目: ${remoteCollections.length}，本地条目: ${this.localSubjects.size}`);
 
 		// 分离已存在和未存在的条目
 		const existing: T[] = [];
@@ -130,7 +131,7 @@ export class IncrementalSync {
 			}
 		}
 
-		console.debug(`[Bangumi Sync] 已存在: ${existing.length}，未同步: ${notExisting.length}`);
+		debugLog(() => `[Bangumi Sync] 已存在: ${existing.length}，未同步: ${notExisting.length}`);
 
 		let toAdd: T[];
 		let toSkip: T[];
@@ -146,7 +147,7 @@ export class IncrementalSync {
 			toSkip = existing;
 		}
 
-		console.debug(`[Bangumi Sync] 需要新增: ${toAdd.length}，跳过: ${toSkip.length}`);
+		debugLog(() => `[Bangumi Sync] 需要新增: ${toAdd.length}，跳过: ${toSkip.length}`);
 
 		return {
 			toAdd,
@@ -169,7 +170,7 @@ export class IncrementalSync {
 	 */
 	startBatch(): void {
 		this.clearBatch();
-		console.debug(`[Bangumi Sync] 开始新的同步批次`);
+		debugLog(() => `[Bangumi Sync] 开始新的同步批次`);
 	}
 
 	clearBatch(): void {
@@ -208,7 +209,7 @@ export class IncrementalSync {
 				collisionGroupKey: normalizePathCollisionKey(basePreferredPath),
 			} : {}),
 		});
-		console.debug(`[Bangumi Sync] 本批次已同步: ${name_cn} (ID: ${subjectId}) -> ${path}`);
+		debugLog(() => `[Bangumi Sync] 本批次已同步: ${name_cn} (ID: ${subjectId}) -> ${path}`);
 	}
 
 	/**
@@ -241,7 +242,7 @@ export class IncrementalSync {
 					await this.app.fileManager.trashFile(file);
 					this.localSubjects.delete(subjectId);
 					result.deleted++;
-					console.debug(`[Bangumi Sync] 回滚删除: ${info.name_cn} -> ${info.path}`);
+					debugLog(() => `[Bangumi Sync] 回滚删除: ${info.name_cn} -> ${info.path}`);
 				}
 			} catch (error) {
 				console.error(`[Bangumi Sync] 回滚失败: ${info.path}`, error);
@@ -512,9 +513,9 @@ export class IncrementalSync {
 			if (!allLinksSet.has(link)) {
 				allLinksSet.add(link);
 				allLinks.push(link);
-				console.debug(`[Bangumi Sync] 添加新相关链接: ${link}`);
+				debugLog(() => `[Bangumi Sync] 添加新相关链接: ${link}`);
 			} else {
-				console.debug(`[Bangumi Sync] 跳过重复链接: ${link}`);
+				debugLog(() => `[Bangumi Sync] 跳过重复链接: ${link}`);
 			}
 		}
 

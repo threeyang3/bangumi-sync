@@ -1,3 +1,4 @@
+import { debugLog } from '../../common/logging';
 /**
  * 用户数据提取器
  *
@@ -112,7 +113,7 @@ export class UserDataExtractor {
 		const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
 
 		if (!(folder instanceof TFolder)) {
-			console.debug(`[Bangumi Sync] 文件夹不存在: ${folderPath}`);
+			debugLog(() => `[Bangumi Sync] 文件夹不存在: ${folderPath}`);
 			return result;
 		}
 
@@ -147,7 +148,7 @@ export class UserDataExtractor {
 		const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
 
 		if (!(folder instanceof TFolder)) {
-			console.debug(`[Bangumi Sync] 文件夹不存在: ${folderPath}`);
+			debugLog(() => `[Bangumi Sync] 文件夹不存在: ${folderPath}`);
 			return result;
 		}
 

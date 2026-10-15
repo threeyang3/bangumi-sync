@@ -1,3 +1,4 @@
+import { debugLog } from '../../common/logging';
 import { App, Modal, Setting } from 'obsidian';
 import { Subject, UserCollection } from '../../common/api/types';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
@@ -195,7 +196,7 @@ export function hasLocalPropertyFieldsForCollections(
 		}
 		return false;
 	});
-	console.debug(`[Bangumi Sync] hasLocalPropertyFields: ${result}, custom property count across ${collections.length} collections: ${totalCustom}, customTemplates: ${customTemplates ? 'configured' : 'none'}`);
+	debugLog(() => `[Bangumi Sync] hasLocalPropertyFields: ${result}, custom property count across ${collections.length} collections: ${totalCustom}, customTemplates: ${customTemplates ? 'configured' : 'none'}`);
 	return result;
 }
 

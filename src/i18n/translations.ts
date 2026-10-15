@@ -126,6 +126,8 @@ export interface TranslationStrings {
 		syncLimitDesc: string;
 		syncConcurrency: string;
 		syncConcurrencyDesc: string;
+		diagnosticLogging: string;
+		diagnosticLoggingDesc: string;
 		syncAll: string;
 		autoSync: string;
 		enableAutoSync: string;
@@ -803,6 +805,8 @@ const en: TranslationStrings = {
 		syncLimitDesc: 'If unsynced count is less than limit, sync all unsynced items',
 		syncConcurrency: 'Sync concurrency',
 		syncConcurrencyDesc: 'Number of items to sync simultaneously (1-5)',
+		diagnosticLogging: 'Detailed diagnostic logging',
+		diagnosticLoggingDesc: 'Log per-item and request details to the developer console. Disabled by default; batch summaries, warnings, and errors remain visible. Request bodies are not logged.',
 		syncAll: 'All',
 		autoSync: 'Auto sync',
 		enableAutoSync: 'Enable auto sync',
@@ -1457,6 +1461,8 @@ const zhCN: TranslationStrings = {
 		syncLimitDesc: '每次同步的最大条目数量（0 表示不限制，会智能处理：如果未同步数量不够，同步所有未同步的）',
 		syncConcurrency: '同步并发数',
 		syncConcurrencyDesc: '同时处理的条目数量（1-5）',
+		diagnosticLogging: '详细诊断日志',
+		diagnosticLoggingDesc: '向开发者控制台输出逐条目和请求详情。默认关闭，仍保留批次摘要、警告和错误。不输出请求正文。',
 		syncAll: '全部',
 		autoSync: '自动同步',
 		enableAutoSync: '启用自动同步',

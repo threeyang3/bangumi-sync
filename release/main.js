@@ -28,6 +28,31 @@ __export(main_exports, {
   default: () => BangumiPlugin
 });
 module.exports = __toCommonJS(main_exports);
+
+// common/logging.ts
+var diagnosticsEnabled = () => false;
+function registerDiagnosticLogging(provider) {
+  diagnosticsEnabled = provider;
+  return () => {
+    if (diagnosticsEnabled === provider) diagnosticsEnabled = () => false;
+  };
+}
+function debugLog(message) {
+  if (diagnosticsEnabled()) console.debug(message());
+}
+function reportSyncSummary(result) {
+  console.info("[Bangumi Sync] Sync summary", {
+    completion: result.completion,
+    created: result.created,
+    updated: result.updated,
+    unchanged: result.unchanged,
+    skipped: result.skipped,
+    failed: result.failed,
+    durationMs: result.duration
+  });
+}
+
+// main.ts
 var import_obsidian32 = require("obsidian");
 
 // common/api/types.ts
@@ -299,6 +324,7 @@ var DEFAULT_SETTINGS = {
   defaultCollectionTypes: [1 /* Wish */, 2 /* Done */, 3 /* Doing */, 4 /* OnHold */, 5 /* Dropped */],
   syncLimit: 50,
   syncConcurrency: 3,
+  diagnosticLogging: false,
   autoSync: false,
   autoSyncInterval: 60,
   lastSyncTime: null,
@@ -427,6 +453,8 @@ var en = {
     syncLimitDesc: "If unsynced count is less than limit, sync all unsynced items",
     syncConcurrency: "Sync concurrency",
     syncConcurrencyDesc: "Number of items to sync simultaneously (1-5)",
+    diagnosticLogging: "Detailed diagnostic logging",
+    diagnosticLoggingDesc: "Log per-item and request details to the developer console. Disabled by default; batch summaries, warnings, and errors remain visible. Request bodies are not logged.",
     syncAll: "All",
     autoSync: "Auto sync",
     enableAutoSync: "Enable auto sync",
@@ -1089,6 +1117,8 @@ var zhCN = {
     syncLimitDesc: "\u6BCF\u6B21\u540C\u6B65\u7684\u6700\u5927\u6761\u76EE\u6570\u91CF\uFF080 \u8868\u793A\u4E0D\u9650\u5236\uFF0C\u4F1A\u667A\u80FD\u5904\u7406\uFF1A\u5982\u679C\u672A\u540C\u6B65\u6570\u91CF\u4E0D\u591F\uFF0C\u540C\u6B65\u6240\u6709\u672A\u540C\u6B65\u7684\uFF09",
     syncConcurrency: "\u540C\u6B65\u5E76\u53D1\u6570",
     syncConcurrencyDesc: "\u540C\u65F6\u5904\u7406\u7684\u6761\u76EE\u6570\u91CF\uFF081-5\uFF09",
+    diagnosticLogging: "\u8BE6\u7EC6\u8BCA\u65AD\u65E5\u5FD7",
+    diagnosticLoggingDesc: "\u5411\u5F00\u53D1\u8005\u63A7\u5236\u53F0\u8F93\u51FA\u9010\u6761\u76EE\u548C\u8BF7\u6C42\u8BE6\u60C5\u3002\u9ED8\u8BA4\u5173\u95ED\uFF0C\u4ECD\u4FDD\u7559\u6279\u6B21\u6458\u8981\u3001\u8B66\u544A\u548C\u9519\u8BEF\u3002\u4E0D\u8F93\u51FA\u8BF7\u6C42\u6B63\u6587\u3002",
     syncAll: "\u5168\u90E8",
     autoSync: "\u81EA\u52A8\u540C\u6B65",
     enableAutoSync: "\u542F\u7528\u81EA\u52A8\u540C\u6B65",
@@ -2945,6 +2975,10 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
   }
   // ==================== 标签页：高级 ====================
   buildAdvancedTab(containerEl) {
+    new import_obsidian2.Setting(containerEl).setName(tn("settings", "diagnosticLogging")).setDesc(tn("settings", "diagnosticLoggingDesc")).addToggle((toggle) => toggle.setTooltip(tn("settings", "diagnosticLogging")).setValue(this.settings.diagnosticLogging).onChange(async (value) => {
+      this.settings.diagnosticLogging = value;
+      await this.onSave();
+    }));
     new import_obsidian2.Setting(containerEl).setName(tn("settings", "relatedLinks")).setHeading();
     new import_obsidian2.Setting(containerEl).setName(tn("settings", "enableRelatedLinks")).setDesc(tn("settings", "enableRelatedLinksDesc")).addToggle((toggle) => toggle.setValue(this.settings.enableRelatedLinks).onChange(async (value) => {
       this.settings.enableRelatedLinks = value;
@@ -3689,15 +3723,12 @@ var BangumiClient = class {
       };
       try {
         if (attempt === 0) {
-          console.debug(`[Bangumi Sync] ${method} ${url}`);
-          if (data !== void 0) {
-            console.debug("[Bangumi Sync] Request payload:", { method, endpoint, data });
-          }
+          debugLog(() => `[Bangumi Sync] ${method} ${url}`);
         } else {
-          console.debug(`[Bangumi Sync] \u91CD\u8BD5 ${attempt}/${maxRetries}: ${method} ${url}`);
+          debugLog(() => `[Bangumi Sync] \u91CD\u8BD5 ${attempt}/${maxRetries}: ${method} ${url}`);
         }
         const response = await (0, import_obsidian3.requestUrl)(options);
-        console.debug(`[Bangumi Sync] Response status: ${response.status}`);
+        debugLog(() => `[Bangumi Sync] Response status: ${response.status}`);
         if (this.isRetryableStatus(response.status) && attempt < maxRetries) {
           const delay2 = Math.pow(2, attempt) * 1e3;
           console.warn(`[Bangumi Sync] HTTP ${response.status}\uFF0C${delay2}ms \u540E\u91CD\u8BD5...`);
@@ -3708,30 +3739,30 @@ var BangumiClient = class {
         if (response.status >= 400) {
           const error = this.toApiError(responseJson, response.status);
           const errorMsg = error.title + (error.description ? `: ${error.description}` : "");
-          console.error(`[Bangumi Sync] API Error ${response.status} on ${method} ${endpoint}:`, errorMsg, data);
+          console.error(`[Bangumi Sync] API Error ${response.status} on ${method} ${endpoint}`);
           throw new Error(`HTTP ${response.status}: ${errorMsg}`);
         }
         if (response.status === 204) {
           return {};
         }
         if (responseJson instanceof SyntaxError) {
-          console.debug(`[Bangumi Sync] Empty success response on ${method} ${endpoint}`);
+          debugLog(() => `[Bangumi Sync] Empty success response on ${method} ${endpoint}`);
           return {};
         }
         return responseJson;
       } catch (error) {
         if (attempt < maxRetries && !(error instanceof Error && error.message.includes("HTTP"))) {
           const delay2 = Math.pow(2, attempt) * 1e3;
-          console.warn(`[Bangumi Sync] \u8BF7\u6C42\u5931\u8D25\uFF0C${delay2}ms \u540E\u91CD\u8BD5...`, error);
+          console.warn(`[Bangumi Sync] \u8BF7\u6C42\u5931\u8D25\uFF0C${delay2}ms \u540E\u91CD\u8BD5...`);
           await new Promise((resolve) => activeWindow.setTimeout(resolve, delay2));
           continue;
         }
-        const errorInfo = { method, endpoint, data, error };
+        const errorInfo = { method, endpoint };
         console.error(`[Bangumi Sync] Request failed:`, errorInfo);
         if (error instanceof Error) {
-          throw new Error(`${error.message} | ${method} ${endpoint} | payload=${JSON.stringify(data)}`);
+          throw new Error(`${error.message} | ${method} ${endpoint}`);
         }
-        throw new Error(`Request failed: ${String(error)} | ${method} ${endpoint} | payload=${JSON.stringify(data)}`);
+        throw new Error(`Request failed | ${method} ${endpoint}`);
       }
     }
     throw new Error(`Request failed after ${maxRetries} retries | ${method} ${endpoint}`);
@@ -3769,7 +3800,7 @@ var BangumiClient = class {
     if (!this.accessToken) {
       return { valid: false, error: "\u672A\u914D\u7F6E Access Token" };
     }
-    console.debug("[Bangumi Sync] \u9A8C\u8BC1 Token...");
+    debugLog(() => "[Bangumi Sync] \u9A8C\u8BC1 Token...");
     try {
       const headers = this.getHeaders();
       const response = await (0, import_obsidian3.requestUrl)({
@@ -3777,10 +3808,10 @@ var BangumiClient = class {
         method: "GET",
         headers
       });
-      console.debug(`[Bangumi Sync] /v0/me \u54CD\u5E94\u72B6\u6001: ${response.status}`);
+      debugLog(() => `[Bangumi Sync] /v0/me \u54CD\u5E94\u72B6\u6001: ${response.status}`);
       if (response.status === 200) {
         const user = response.json;
-        console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230\u7528\u6237: ${user.username}`);
+        debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u5230\u7528\u6237: ${user.username}`);
         this.authenticatedUsername = (_a = user.username) != null ? _a : null;
         return { valid: true, username: user.username };
       }
@@ -3813,7 +3844,7 @@ var BangumiClient = class {
     const username = await this.getAuthenticatedUsername();
     const endpoint = ENDPOINTS.USER_COLLECTION_BY_ID(username, subjectId);
     const url = `${this.baseUrl}${endpoint}`;
-    console.debug(`[Bangumi Sync] \u83B7\u53D6\u6536\u85CF\u72B6\u6001: GET ${endpoint}`);
+    debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u6536\u85CF\u72B6\u6001: GET ${endpoint}`);
     try {
       const response = await (0, import_obsidian3.requestUrl)({
         url,
@@ -3909,10 +3940,10 @@ var BangumiClient = class {
       }
     }
     const endpoint = `${ENDPOINTS.USER_COLLECTIONS(username)}?${params.toString()}`;
-    console.debug(`[Bangumi Sync] \u83B7\u53D6\u6536\u85CF: ${endpoint}`);
+    debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u6536\u85CF: ${endpoint}`);
     try {
       const result = await this.request("GET", endpoint);
-      console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230 ${result.data.length}/${result.total} \u6761\u6536\u85CF`);
+      debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u5230 ${result.data.length}/${result.total} \u6761\u6536\u85CF`);
       return result;
     } catch (error) {
       if (error instanceof Error && error.message.includes("404")) {
@@ -3957,7 +3988,7 @@ var BangumiClient = class {
     }
     while (allCollections.length < total) {
       if ((_a = options == null ? void 0 : options.cancelled) == null ? void 0 : _a.value) {
-        console.debug("[Bangumi Sync] \u5206\u9875\u83B7\u53D6\u5DF2\u53D6\u6D88");
+        debugLog(() => "[Bangumi Sync] \u5206\u9875\u83B7\u53D6\u5DF2\u53D6\u6D88");
         break;
       }
       offset += limit;
@@ -3985,10 +4016,9 @@ var BangumiClient = class {
   async createOrUpdateCollection(subjectId, data) {
     const payload = this.sanitizeCollectionUpdateData(data);
     const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
-    console.debug(`[Bangumi Sync] \u521B\u5EFA/\u66F4\u65B0\u6536\u85CF: POST ${endpoint}`);
-    console.debug(`[Bangumi Sync] \u6570\u636E:`, payload);
+    debugLog(() => `[Bangumi Sync] \u521B\u5EFA/\u66F4\u65B0\u6536\u85CF: POST ${endpoint}`);
     await this.request("POST", endpoint, payload);
-    console.debug(`[Bangumi Sync] \u6536\u85CF\u66F4\u65B0\u6210\u529F: ${subjectId}`);
+    debugLog(() => `[Bangumi Sync] \u6536\u85CF\u66F4\u65B0\u6210\u529F: ${subjectId}`);
   }
   /**
    * 创建新收藏（条目未收藏时使用）
@@ -4003,10 +4033,9 @@ var BangumiClient = class {
   async updateCollection(subjectId, data) {
     const payload = this.sanitizeCollectionUpdateData(data);
     const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
-    console.debug(`[Bangumi Sync] \u66F4\u65B0\u6536\u85CF: POST ${endpoint}`);
-    console.debug(`[Bangumi Sync] \u66F4\u65B0\u6570\u636E:`, payload);
+    debugLog(() => `[Bangumi Sync] \u66F4\u65B0\u6536\u85CF: POST ${endpoint}`);
     await this.request("POST", endpoint, payload);
-    console.debug(`[Bangumi Sync] \u6536\u85CF\u66F4\u65B0\u6210\u529F: ${subjectId}`);
+    debugLog(() => `[Bangumi Sync] \u6536\u85CF\u66F4\u65B0\u6210\u529F: ${subjectId}`);
   }
   sanitizeCollectionUpdateData(data) {
     const payload = {};
@@ -4051,12 +4080,15 @@ var BangumiClient = class {
    * @param subjectId 条目 ID
    */
   async getEpisodes(subjectId) {
-    var _a, _b;
+    var _a;
     const endpoint = `${ENDPOINTS.EPISODES}?subject_id=${subjectId}`;
-    console.debug(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282: ${endpoint}`);
+    debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282: ${endpoint}`);
     const result = await this.request("GET", endpoint);
     const data = (_a = result == null ? void 0 : result.data) != null ? _a : [];
-    console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230 ${data.length}/${(_b = result == null ? void 0 : result.total) != null ? _b : 0} \u4E2A\u7AE0\u8282`);
+    debugLog(() => {
+      var _a2;
+      return `[Bangumi Sync] \u83B7\u53D6\u5230 ${data.length}/${(_a2 = result == null ? void 0 : result.total) != null ? _a2 : 0} \u4E2A\u7AE0\u8282`;
+    });
     return result;
   }
   /**
@@ -4066,10 +4098,10 @@ var BangumiClient = class {
   async getUserEpisodeStatus(subjectId) {
     var _a;
     const endpoint = ENDPOINTS.USER_SUBJECT_EPISODES(subjectId);
-    console.debug(`[Bangumi Sync] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001: ${endpoint}`);
+    debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001: ${endpoint}`);
     const result = await this.request("GET", endpoint);
     const data = (_a = result == null ? void 0 : result.data) != null ? _a : [];
-    console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230 ${data.length} \u4E2A\u7AE0\u8282\u72B6\u6001`);
+    debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u5230 ${data.length} \u4E2A\u7AE0\u8282\u72B6\u6001`);
     return data;
   }
   /**
@@ -4079,9 +4111,9 @@ var BangumiClient = class {
    */
   async updateEpisodeStatus(episodeId, type) {
     const endpoint = ENDPOINTS.UPDATE_EPISODE_STATUS(episodeId);
-    console.debug(`[Bangumi Sync] \u66F4\u65B0\u7AE0\u8282\u72B6\u6001: PUT ${endpoint}, type=${type}`);
+    debugLog(() => `[Bangumi Sync] \u66F4\u65B0\u7AE0\u8282\u72B6\u6001: PUT ${endpoint}, type=${type}`);
     await this.request("PUT", endpoint, { type });
-    console.debug(`[Bangumi Sync] \u7AE0\u8282\u72B6\u6001\u66F4\u65B0\u6210\u529F: ${episodeId}`);
+    debugLog(() => `[Bangumi Sync] \u7AE0\u8282\u72B6\u6001\u66F4\u65B0\u6210\u529F: ${episodeId}`);
   }
   /**
    * 搜索条目
@@ -4098,9 +4130,9 @@ var BangumiClient = class {
       filter: options == null ? void 0 : options.filter
     };
     const endpoint = `${ENDPOINTS.SEARCH_SUBJECTS}?${params.toString()}`;
-    console.debug(`[Bangumi Sync] \u641C\u7D22\u6761\u76EE: POST ${endpoint}`);
+    debugLog(() => `[Bangumi Sync] \u641C\u7D22\u6761\u76EE: POST ${endpoint}`);
     const result = await this.request("POST", endpoint, body);
-    console.debug(`[Bangumi Sync] \u641C\u7D22\u5230 ${result.data.length}/${result.total} \u4E2A\u6761\u76EE`);
+    debugLog(() => `[Bangumi Sync] \u641C\u7D22\u5230 ${result.data.length}/${result.total} \u4E2A\u6761\u76EE`);
     return result;
   }
 };
@@ -5106,16 +5138,16 @@ var FileManager = class {
     const lastSlash = normalizedPath.lastIndexOf("/");
     const dirPath = lastSlash > 0 ? normalizedPath.substring(0, lastSlash) : "";
     if (dirPath) {
-      console.debug(`[Bangumi Sync] \u68C0\u67E5\u76EE\u5F55: ${dirPath}`);
+      debugLog(() => `[Bangumi Sync] \u68C0\u67E5\u76EE\u5F55: ${dirPath}`);
       const exists = await this.app.vault.adapter.exists(dirPath);
       if (!exists) {
-        console.debug(`[Bangumi Sync] \u521B\u5EFA\u76EE\u5F55: ${dirPath}`);
+        debugLog(() => `[Bangumi Sync] \u521B\u5EFA\u76EE\u5F55: ${dirPath}`);
         await this.ensureDirectory(dirPath);
         try {
           await this.app.vault.createFolder(dirPath);
         } catch (error) {
           const errorMessage2 = error instanceof Error ? error.message : String(error);
-          console.debug(`[Bangumi Sync] \u521B\u5EFA\u76EE\u5F55\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\uFF09: ${errorMessage2}`);
+          debugLog(() => `[Bangumi Sync] \u521B\u5EFA\u76EE\u5F55\u5931\u8D25\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\uFF09: ${errorMessage2}`);
         }
       }
     }
@@ -5156,11 +5188,11 @@ var FileManager = class {
    */
   async createFile(path, content) {
     const normalizedPath = (0, import_obsidian5.normalizePath)(path);
-    console.debug(`[Bangumi Sync] \u521B\u5EFA\u6587\u4EF6: ${normalizedPath}`);
+    debugLog(() => `[Bangumi Sync] \u521B\u5EFA\u6587\u4EF6: ${normalizedPath}`);
     await this.ensureDirectory(normalizedPath);
     try {
       const file = await this.app.vault.create(normalizedPath, content);
-      console.debug(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${normalizedPath}`);
+      debugLog(() => `[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u6210\u529F: ${normalizedPath}`);
       return file;
     } catch (error) {
       console.error(`[Bangumi Sync] \u521B\u5EFA\u6587\u4EF6\u5931\u8D25: ${normalizedPath}`, error);
@@ -5191,7 +5223,7 @@ var FileManager = class {
         await this.updateFile(existingFile, content);
         return { file: existingFile, status: "updated" };
       }
-      console.debug(`[Bangumi Sync] \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${normalizedPath}`);
+      debugLog(() => `[Bangumi Sync] \u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${normalizedPath}`);
       return { file: existingFile, status: "unchanged" };
     }
     const file = await this.createFile(normalizedPath, content);
@@ -5700,7 +5732,7 @@ var IncrementalSync = class {
    * @param onProgress 进度回调
    */
   async scanLocalFolder(folderPath, onProgress) {
-    console.debug(`[Bangumi Sync] \u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939: ${folderPath}`);
+    debugLog(() => `[Bangumi Sync] \u626B\u63CF\u672C\u5730\u6587\u4EF6\u5939: ${folderPath}`);
     this.localSubjects.clear();
     this.lastScanPath = folderPath;
     const count = await this.registry.scan(folderPath, onProgress);
@@ -5712,7 +5744,7 @@ var IncrementalSync = class {
         name_cn: record.nameCn
       });
     }
-    console.debug(`[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u53D1\u73B0 ${count} \u4E2A\u6709\u6548\u6761\u76EE\uFF0C${this.registry.invalidFiles.length} \u4E2A\u5F02\u5E38\u6587\u4EF6`);
+    debugLog(() => `[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u53D1\u73B0 ${count} \u4E2A\u6709\u6548\u6761\u76EE\uFF0C${this.registry.invalidFiles.length} \u4E2A\u5F02\u5E38\u6587\u4EF6`);
     return count;
   }
   /**
@@ -5747,7 +5779,7 @@ var IncrementalSync = class {
    * @returns toAdd: 需要新增的条目; toSkip: 本地已存在的条目
    */
   computeDiff(remoteCollections, options) {
-    console.debug(`[Bangumi Sync] \u8BA1\u7B97\u540C\u6B65\u5DEE\u5F02\uFF0C\u8FDC\u7A0B\u6761\u76EE: ${remoteCollections.length}\uFF0C\u672C\u5730\u6761\u76EE: ${this.localSubjects.size}`);
+    debugLog(() => `[Bangumi Sync] \u8BA1\u7B97\u540C\u6B65\u5DEE\u5F02\uFF0C\u8FDC\u7A0B\u6761\u76EE: ${remoteCollections.length}\uFF0C\u672C\u5730\u6761\u76EE: ${this.localSubjects.size}`);
     const existing = [];
     const notExisting = [];
     for (const collection of remoteCollections) {
@@ -5759,7 +5791,7 @@ var IncrementalSync = class {
         notExisting.push(collection);
       }
     }
-    console.debug(`[Bangumi Sync] \u5DF2\u5B58\u5728: ${existing.length}\uFF0C\u672A\u540C\u6B65: ${notExisting.length}`);
+    debugLog(() => `[Bangumi Sync] \u5DF2\u5B58\u5728: ${existing.length}\uFF0C\u672A\u540C\u6B65: ${notExisting.length}`);
     let toAdd;
     let toSkip;
     if (options.force) {
@@ -5769,7 +5801,7 @@ var IncrementalSync = class {
       toAdd = options.limit > 0 ? notExisting.slice(0, options.limit) : notExisting;
       toSkip = existing;
     }
-    console.debug(`[Bangumi Sync] \u9700\u8981\u65B0\u589E: ${toAdd.length}\uFF0C\u8DF3\u8FC7: ${toSkip.length}`);
+    debugLog(() => `[Bangumi Sync] \u9700\u8981\u65B0\u589E: ${toAdd.length}\uFF0C\u8DF3\u8FC7: ${toSkip.length}`);
     return {
       toAdd,
       toSkip
@@ -5789,7 +5821,7 @@ var IncrementalSync = class {
    */
   startBatch() {
     this.clearBatch();
-    console.debug(`[Bangumi Sync] \u5F00\u59CB\u65B0\u7684\u540C\u6B65\u6279\u6B21`);
+    debugLog(() => `[Bangumi Sync] \u5F00\u59CB\u65B0\u7684\u540C\u6B65\u6279\u6B21`);
   }
   clearBatch() {
     this.batchSyncedItems.clear();
@@ -5819,7 +5851,7 @@ var IncrementalSync = class {
         collisionGroupKey: normalizePathCollisionKey(basePreferredPath)
       } : {}
     });
-    console.debug(`[Bangumi Sync] \u672C\u6279\u6B21\u5DF2\u540C\u6B65: ${name_cn} (ID: ${subjectId}) -> ${path}`);
+    debugLog(() => `[Bangumi Sync] \u672C\u6279\u6B21\u5DF2\u540C\u6B65: ${name_cn} (ID: ${subjectId}) -> ${path}`);
   }
   /**
    * 获取本批次已同步的文件列表（用于回滚）
@@ -5851,7 +5883,7 @@ var IncrementalSync = class {
           await this.app.fileManager.trashFile(file);
           this.localSubjects.delete(subjectId);
           result.deleted++;
-          console.debug(`[Bangumi Sync] \u56DE\u6EDA\u5220\u9664: ${info.name_cn} -> ${info.path}`);
+          debugLog(() => `[Bangumi Sync] \u56DE\u6EDA\u5220\u9664: ${info.name_cn} -> ${info.path}`);
         }
       } catch (error) {
         console.error(`[Bangumi Sync] \u56DE\u6EDA\u5931\u8D25: ${info.path}`, error);
@@ -6066,9 +6098,9 @@ var IncrementalSync = class {
       if (!allLinksSet.has(link)) {
         allLinksSet.add(link);
         allLinks.push(link);
-        console.debug(`[Bangumi Sync] \u6DFB\u52A0\u65B0\u76F8\u5173\u94FE\u63A5: ${link}`);
+        debugLog(() => `[Bangumi Sync] \u6DFB\u52A0\u65B0\u76F8\u5173\u94FE\u63A5: ${link}`);
       } else {
-        console.debug(`[Bangumi Sync] \u8DF3\u8FC7\u91CD\u590D\u94FE\u63A5: ${link}`);
+        debugLog(() => `[Bangumi Sync] \u8DF3\u8FC7\u91CD\u590D\u94FE\u63A5: ${link}`);
       }
     }
     if (allLinks.length === existingLinks.length && normalizedNewLinks.every((l) => allLinksSet.has(l))) {
@@ -7025,7 +7057,7 @@ var UserDataExtractor = class {
     const normalizedPath = (0, import_obsidian9.normalizePath)(folderPath);
     const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
     if (!(folder instanceof import_obsidian9.TFolder)) {
-      console.debug(`[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
+      debugLog(() => `[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return result;
     }
     const allFiles = this.app.vault.getMarkdownFiles();
@@ -7050,7 +7082,7 @@ var UserDataExtractor = class {
     const normalizedPath = (0, import_obsidian9.normalizePath)(folderPath);
     const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
     if (!(folder instanceof import_obsidian9.TFolder)) {
-      console.debug(`[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
+      debugLog(() => `[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return result;
     }
     const allFiles = this.app.vault.getMarkdownFiles();
@@ -10911,6 +10943,7 @@ var SyncManager = class {
       this.endVaultOperation();
     }
     result.duration = Date.now() - startTime;
+    reportSyncSummary(result);
     return this.createSyncResultWithRollback(result, wasCancelled);
   }
   /**
@@ -11081,7 +11114,7 @@ var SyncManager = class {
     if (!username) {
       throw new Error(tn("notices", "usernameNotFound"));
     }
-    console.debug(`[Bangumi Sync] \u7528\u6237: ${username}`);
+    debugLog(() => `[Bangumi Sync] \u7528\u6237: ${username}`);
     this.reportProgress({ status: "fetching", message: tn("syncModal", "fetchingCollections") });
     const collections = await this.client.getAllUserCollections(username, {
       subjectType: options.subjectTypes.length === 1 ? options.subjectTypes[0] : void 0,
@@ -11095,10 +11128,10 @@ var SyncManager = class {
         });
       }
     });
-    console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
+    debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
     this.reportProgress({ status: "scanning", message: tn("syncModal", "scanningLocal") });
     const scanPath = this.config.scanFolderPath || "ACGN";
-    console.debug(`[Bangumi Sync] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
+    debugLog(() => `[Bangumi Sync] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
     await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
       this.reportProgress({
         status: "scanning",
@@ -11109,12 +11142,12 @@ var SyncManager = class {
     });
     this.reportProgress({ status: "preparing", message: tn("syncModal", "computingDiff") });
     const filteredCollections = this.filterCollections(collections, options);
-    console.debug(`[Bangumi Sync] \u7B26\u5408\u6761\u4EF6\u7684\u6536\u85CF: ${filteredCollections.length}`);
+    debugLog(() => `[Bangumi Sync] \u7B26\u5408\u6761\u4EF6\u7684\u6536\u85CF: ${filteredCollections.length}`);
     const diff = this.incrementalSync.computeDiff(filteredCollections, {
       limit: options.limit,
       force: options.force
     });
-    console.debug(`[Bangumi Sync] \u9700\u8981\u540C\u6B65: ${diff.toAdd.length}\uFF0C\u5DF2\u5B58\u5728\u8DF3\u8FC7: ${diff.toSkip.length}`);
+    debugLog(() => `[Bangumi Sync] \u9700\u8981\u540C\u6B65: ${diff.toAdd.length}\uFF0C\u5DF2\u5B58\u5728\u8DF3\u8FC7: ${diff.toSkip.length}`);
     return { username, collections, diff };
   }
   /**
@@ -11180,18 +11213,18 @@ var SyncManager = class {
       return null;
     }
     try {
-      console.debug(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F: ${subject.name_cn}`);
+      debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F: ${subject.name_cn}`);
       const episodesData = await this.client.getEpisodes(subject.id);
       const episodes = episodesData.data;
       if (!episodes || episodes.length === 0) {
-        console.debug(`[Bangumi Sync] \u65E0\u7AE0\u8282\u4FE1\u606F`);
+        debugLog(() => `[Bangumi Sync] \u65E0\u7AE0\u8282\u4FE1\u606F`);
         return null;
       }
       let userStatus = [];
       try {
         userStatus = await this.client.getUserEpisodeStatus(subject.id);
       } catch (e) {
-        console.debug(`[Bangumi Sync] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001\u5931\u8D25\uFF0C\u53EF\u80FD\u672A\u6536\u85CF\u6B64\u6761\u76EE`);
+        debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001\u5931\u8D25\uFF0C\u53EF\u80FD\u672A\u6536\u85CF\u6B64\u6761\u76EE`);
       }
       return { episodes, userStatus };
     } catch (error) {
@@ -11218,7 +11251,7 @@ var SyncManager = class {
     if (!this.config.downloadImages || !coverUrl) {
       return "";
     }
-    console.debug(`[Bangumi Sync] \u4E0B\u8F7D\u5C01\u9762: ${coverUrl}`);
+    debugLog(() => `[Bangumi Sync] \u4E0B\u8F7D\u5C01\u9762: ${coverUrl}`);
     const localPath = await this.imageHandler.downloadCover(
       coverUrl,
       subject.id,
@@ -11237,24 +11270,24 @@ var SyncManager = class {
    * 显示名称使用文件名（带类型后缀）
    */
   generateRelatedLinks(relations) {
-    console.debug(`[Bangumi Sync] \u5904\u7406 ${(relations == null ? void 0 : relations.length) || 0} \u4E2A\u76F8\u5173\u6761\u76EE`);
+    debugLog(() => `[Bangumi Sync] \u5904\u7406 ${(relations == null ? void 0 : relations.length) || 0} \u4E2A\u76F8\u5173\u6761\u76EE`);
     if (!relations || relations.length === 0) {
-      console.debug(`[Bangumi Sync] \u65E0\u76F8\u5173\u6761\u76EE\u6570\u636E`);
+      debugLog(() => `[Bangumi Sync] \u65E0\u76F8\u5173\u6761\u76EE\u6570\u636E`);
       return [];
     }
     const links = [];
     for (const relation of relations) {
-      console.debug(`[Bangumi Sync] \u68C0\u67E5\u76F8\u5173\u6761\u76EE: ${relation.name_cn || relation.name} (ID: ${relation.id})`);
+      debugLog(() => `[Bangumi Sync] \u68C0\u67E5\u76F8\u5173\u6761\u76EE: ${relation.name_cn || relation.name} (ID: ${relation.id})`);
       const localPath = this.resolveRelatedLocalPath(relation.id);
-      console.debug(`[Bangumi Sync] \u672C\u5730\u8DEF\u5F84: ${localPath || "\u672A\u540C\u6B65"}`);
+      debugLog(() => `[Bangumi Sync] \u672C\u5730\u8DEF\u5F84: ${localPath || "\u672A\u540C\u6B65"}`);
       if (localPath) {
         const displayName = this.extractDisplayNameFromPath(localPath);
         const link = `[[${localPath}|${displayName}]]`;
         links.push(link);
-        console.debug(`[Bangumi Sync] \u76F8\u5173\u6761\u76EE\u5DF2\u540C\u6B65: ${relation.name_cn} -> ${link}`);
+        debugLog(() => `[Bangumi Sync] \u76F8\u5173\u6761\u76EE\u5DF2\u540C\u6B65: ${relation.name_cn} -> ${link}`);
       }
     }
-    console.debug(`[Bangumi Sync] \u751F\u6210\u4E86 ${links.length} \u4E2A\u76F8\u5173\u94FE\u63A5`);
+    debugLog(() => `[Bangumi Sync] \u751F\u6210\u4E86 ${links.length} \u4E2A\u76F8\u5173\u94FE\u63A5`);
     return links;
   }
   resolveRelatedLocalPath(subjectId) {
@@ -11292,7 +11325,7 @@ var SyncManager = class {
     const localPropertyValuesBySubjectId = options == null ? void 0 : options.localPropertyValuesBySubjectId;
     const concurrency = (_b = options == null ? void 0 : options.concurrency) != null ? _b : 3;
     try {
-      console.debug(`[Bangumi Sync] \u5F00\u59CB\u6309\u6536\u85CF\u5217\u8868\u540C\u6B65 ${collections.length} \u4E2A\u6761\u76EE\uFF0C\u8986\u76D6\u6A21\u5F0F: ${overwrite}\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
+      debugLog(() => `[Bangumi Sync] \u5F00\u59CB\u6309\u6536\u85CF\u5217\u8868\u540C\u6B65 ${collections.length} \u4E2A\u6761\u76EE\uFF0C\u8986\u76D6\u6A21\u5F0F: ${overwrite}\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
       this.assertNoPendingTransaction();
       this.beginVaultOperation();
       this.incrementalSync.startBatch();
@@ -11326,6 +11359,7 @@ var SyncManager = class {
       this.endVaultOperation();
     }
     result.duration = Date.now() - startTime;
+    reportSyncSummary(result);
     return this.createSyncResultWithRollback(result, wasCancelled);
   }
   /**
@@ -11390,7 +11424,7 @@ var SyncManager = class {
         itemsToSync = previewItems.filter((item) => !item.selected);
       }
       result.total = itemsToSync.length;
-      console.debug(`[Bangumi Sync] \u5F00\u59CB\u540C\u6B65 ${itemsToSync.length} \u4E2A\u6761\u76EE\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
+      debugLog(() => `[Bangumi Sync] \u5F00\u59CB\u540C\u6B65 ${itemsToSync.length} \u4E2A\u6761\u76EE\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
       this.assertNoPendingTransaction();
       this.beginVaultOperation();
       this.incrementalSync.startBatch();
@@ -11434,6 +11468,7 @@ var SyncManager = class {
       this.endVaultOperation();
     }
     result.duration = Date.now() - startTime;
+    reportSyncSummary(result);
     return this.createSyncResultWithRollback(result, wasCancelled);
   }
   /**
@@ -11442,9 +11477,9 @@ var SyncManager = class {
    */
   async renderCollection(collection, options, prepared) {
     var _a, _b;
-    console.debug(`[Bangumi Sync] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
+    debugLog(() => `[Bangumi Sync] \u5904\u7406\u6761\u76EE: ${collection.subject.name_cn || collection.subject.name}`);
     const { subject, characters: relatedCharacters, relations, persons } = prepared.fullInfo;
-    console.debug(`[Bangumi Sync] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
+    debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u5230\u6761\u76EE\u4FE1\u606F: ${subject.name_cn}`);
     const characters = parseCharacters(relatedCharacters, 9);
     const typeLabel = getTypeLabel(subject.type);
     const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
@@ -11483,7 +11518,7 @@ var SyncManager = class {
         if (localUserData) {
           const dataProtection = this.config.dataProtection || DEFAULT_DATA_PROTECTION_SETTINGS;
           content = this.userDataMerger.mergeUserData(existingFile, content, localUserData, dataProtection);
-          console.debug(`[Bangumi Sync] \u5DF2\u4FDD\u62A4\u7528\u6237\u6570\u636E: ${localUserData.identifier.name_cn}`);
+          debugLog(() => `[Bangumi Sync] \u5DF2\u4FDD\u62A4\u7528\u6237\u6570\u636E: ${localUserData.identifier.name_cn}`);
         }
       }
       if (explicitLocalPropertyValues) {
@@ -11498,7 +11533,7 @@ var SyncManager = class {
     const { subject, filePath, content, shouldOverwrite, relations } = rendered;
     const writeOptions = { overwrite: shouldOverwrite, subjectId: subject.id };
     const writeResult = await transaction.createOrUpdateFile(filePath, content, writeOptions);
-    console.debug(`[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
+    debugLog(() => `[Bangumi Sync] \u6587\u4EF6\u521B\u5EFA\u5B8C\u6210: ${filePath}`);
     return { subjectId: subject.id, filePath, relations, writeStatus: writeResult.status };
   }
   /**
@@ -11573,7 +11608,7 @@ var SyncManager = class {
       }
     }
     if (updatesByFile.size === 0) return warnings;
-    console.debug(`[Bangumi Sync] \u540E\u5904\u7406\u540C\u6279\u6B21\u76F8\u5173\u94FE\u63A5: ${updatesByFile.size} \u4E2A\u6587\u4EF6\u9700\u8981\u66F4\u65B0`);
+    debugLog(() => `[Bangumi Sync] \u540E\u5904\u7406\u540C\u6279\u6B21\u76F8\u5173\u94FE\u63A5: ${updatesByFile.size} \u4E2A\u6587\u4EF6\u9700\u8981\u66F4\u65B0`);
     for (const [path, update] of updatesByFile) {
       if (await this.checkCancellation()) break;
       try {
@@ -11596,7 +11631,7 @@ var SyncManager = class {
     const updatedContent = this.incrementalSync.updateRelated(content, links);
     if (updatedContent === content) return;
     await this.documentService.processSubjectFile(file, subjectId, () => updatedContent);
-    console.debug(`[Bangumi Sync] \u5DF2\u66F4\u65B0\u76F8\u5173\u94FE\u63A5: ${path} (+${links.length})`);
+    debugLog(() => `[Bangumi Sync] \u5DF2\u66F4\u65B0\u76F8\u5173\u94FE\u63A5: ${path} (+${links.length})`);
   }
   /**
    * 同步单个条目（用于搜索功能）
@@ -11616,7 +11651,7 @@ var SyncManager = class {
           tags: input.tags,
           private: input.private
         });
-        console.debug(`[Bangumi Sync] \u5DF2\u540C\u6B65\u5230\u4E91\u7AEF: ${subjectId}`);
+        debugLog(() => `[Bangumi Sync] \u5DF2\u540C\u6B65\u5230\u4E91\u7AEF: ${subjectId}`);
       }
       if (input.createLocal) {
         const subject = await this.client.getSubject(subjectId);
@@ -11758,7 +11793,7 @@ var SyncManager = class {
             break;
           }
           result.downloaded++;
-          console.debug(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5B8C\u6210: ${info.name_cn} -> ${localPath}`);
+          debugLog(() => `[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5B8C\u6210: ${info.name_cn} -> ${localPath}`);
         } catch (error) {
           console.error(`[Bangumi Sync] \u5C01\u9762\u4E0B\u8F7D\u5931\u8D25: ${info.name_cn}`, error);
           result.failed++;
@@ -11792,15 +11827,14 @@ var SyncManager = class {
     this.beginVaultOperation();
     try {
       const scanPath = this.config.scanFolderPath || "ACGN";
-      console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u6761\u76EE\uFF0CscanFolderPath: "${this.config.scanFolderPath}"\uFF0C\u5B9E\u9645\u626B\u63CF\u8DEF\u5F84: "${scanPath}"\uFF0CpathTemplate: "${this.config.pathTemplate}"`);
+      debugLog(() => `[Bangumi Sync] \u626B\u63CF\u5173\u8054\u6761\u76EE\uFF0CscanFolderPath: "${this.config.scanFolderPath}"\uFF0C\u5B9E\u9645\u626B\u63CF\u8DEF\u5F84: "${scanPath}"\uFF0CpathTemplate: "${this.config.pathTemplate}"`);
       await this.incrementalSync.scanLocalFolder(scanPath);
       const localSubjects = this.incrementalSync.getLocalSubjects();
-      console.debug(`[Bangumi Sync] \u626B\u63CF\u5230 ${localSubjects.size} \u4E2A\u672C\u5730\u6761\u76EE`);
+      debugLog(() => `[Bangumi Sync] \u626B\u63CF\u5230 ${localSubjects.size} \u4E2A\u672C\u5730\u6761\u76EE`);
       if (localSubjects.size === 0) {
         console.warn(`[Bangumi Sync] \u672A\u626B\u63CF\u5230\u4EFB\u4F55\u672C\u5730\u6761\u76EE\uFF0C\u626B\u63CF\u8DEF\u5F84: "${scanPath}"`);
       }
-      const allIds = [...localSubjects.keys()];
-      console.debug(`[Bangumi Sync] \u672C\u5730\u6761\u76EE ID: ${allIds.join(", ")}`);
+      debugLog(() => `[Bangumi Sync] \u672C\u5730\u6761\u76EE ID: ${[...localSubjects.keys()].join(", ")}`);
       const result = { checked: localSubjects.size, linked: 0, skipped: 0, failed: 0, details: [] };
       let processed = 0;
       const localPathMap = /* @__PURE__ */ new Map();
@@ -11831,7 +11865,7 @@ var SyncManager = class {
         });
         try {
           const relations = await this.client.getSubjectRelations(subjectId);
-          console.debug(`[Bangumi Sync] [${processed}/${localSubjects.size}] ${info.name_cn || subjectId} (ID:${subjectId}): ${relations.length} \u4E2A\u5173\u8054`);
+          debugLog(() => `[Bangumi Sync] [${processed}/${localSubjects.size}] ${info.name_cn || subjectId} (ID:${subjectId}): ${relations.length} \u4E2A\u5173\u8054`);
           const localRelatedIds = [];
           for (const relation of relations) {
             if (!localPathMap.has(relation.id) || relation.id === subjectId) continue;
@@ -11840,7 +11874,7 @@ var SyncManager = class {
           }
           localRelationMap.set(subjectId, localRelatedIds);
           if (localRelatedIds.length > 0) {
-            console.debug(`[Bangumi Sync]   \u672C\u5730\u5173\u8054: ${localRelatedIds.join(", ")}`);
+            debugLog(() => `[Bangumi Sync]   \u672C\u5730\u5173\u8054: ${localRelatedIds.join(", ")}`);
           }
         } catch (error) {
           console.warn(`[Bangumi Sync] \u83B7\u53D6\u5173\u8054\u5173\u7CFB\u5931\u8D25: ${info.name_cn} (${subjectId})`, error);
@@ -11855,9 +11889,9 @@ var SyncManager = class {
         components.get(root).push(subjectId);
       }
       const multiComponents = [...components.entries()].filter(([, ids]) => ids.length >= 2);
-      console.debug(`[Bangumi Sync] \u8FDE\u901A\u5206\u91CF: ${components.size} \u7EC4\uFF0C\u5176\u4E2D ${multiComponents.length} \u7EC4\u542B 2+ \u6761\u76EE`);
+      debugLog(() => `[Bangumi Sync] \u8FDE\u901A\u5206\u91CF: ${components.size} \u7EC4\uFF0C\u5176\u4E2D ${multiComponents.length} \u7EC4\u542B 2+ \u6761\u76EE`);
       for (const [root, ids] of multiComponents) {
-        console.debug(`[Bangumi Sync] \u5206\u91CF (root:${root}): ${ids.map((id) => {
+        debugLog(() => `[Bangumi Sync] \u5206\u91CF (root:${root}): ${ids.map((id) => {
           var _a;
           return `${((_a = localSubjects.get(id)) == null ? void 0 : _a.name_cn) || id}(${id})`;
         }).join(", ")}`);
@@ -11886,14 +11920,14 @@ var SyncManager = class {
           }
           if (missingLinks.length > 0) {
             updatesByFile.set(info.path, { subjectId: id, links: missingLinks });
-            console.debug(`[Bangumi Sync] ${info.name_cn || id}: \u8865\u5145 ${missingLinks.length} \u4E2A\u94FE\u63A5`);
+            debugLog(() => `[Bangumi Sync] ${info.name_cn || id}: \u8865\u5145 ${missingLinks.length} \u4E2A\u94FE\u63A5`);
           } else {
             alreadyCorrect++;
           }
         }
       }
       result.skipped = alreadyCorrect;
-      console.debug(`[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u9700\u8981\u66F4\u65B0 ${updatesByFile.size} \u4E2A\u6587\u4EF6`);
+      debugLog(() => `[Bangumi Sync] \u626B\u63CF\u5B8C\u6210\uFF0C\u9700\u8981\u66F4\u65B0 ${updatesByFile.size} \u4E2A\u6587\u4EF6`);
       for (const [path, update] of updatesByFile) {
         if (await this.checkCancellation()) break;
         try {
@@ -11915,9 +11949,9 @@ var SyncManager = class {
               return match ? match[1] : link;
             });
             result.details.push({ name, addedLinks: addedNames });
-            console.debug(`[Bangumi Sync] \u626B\u63CF\u5173\u8054\u66F4\u65B0: ${path} (+${links.length})`);
+            debugLog(() => `[Bangumi Sync] \u626B\u63CF\u5173\u8054\u66F4\u65B0: ${path} (+${links.length})`);
           } else {
-            console.debug(`[Bangumi Sync] \u6587\u4EF6\u65E0\u9700\u66F4\u65B0\uFF08\u94FE\u63A5\u5DF2\u5B58\u5728\uFF09: ${path}`);
+            debugLog(() => `[Bangumi Sync] \u6587\u4EF6\u65E0\u9700\u66F4\u65B0\uFF08\u94FE\u63A5\u5DF2\u5B58\u5728\uFF09: ${path}`);
             result.skipped++;
           }
         } catch (error) {
@@ -13290,7 +13324,7 @@ function hasLocalPropertyFieldsForCollections(collections, subjectsById, customT
     }
     return false;
   });
-  console.debug(`[Bangumi Sync] hasLocalPropertyFields: ${result}, custom property count across ${collections.length} collections: ${totalCustom}, customTemplates: ${customTemplates ? "configured" : "none"}`);
+  debugLog(() => `[Bangumi Sync] hasLocalPropertyFields: ${result}, custom property count across ${collections.length} collections: ${totalCustom}, customTemplates: ${customTemplates ? "configured" : "none"}`);
   return result;
 }
 function parseListInput2(value) {
@@ -16551,7 +16585,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
   }
   async collectLocalPropertyValues(collections) {
     if (collections.length > 10) {
-      console.debug(`[Bangumi Sync] \u6279\u91CF\u540C\u6B65 ${collections.length} \u6761\uFF0C\u8DF3\u8FC7\u81EA\u5B9A\u4E49\u5C5E\u6027\u5F39\u7A97`);
+      debugLog(() => `[Bangumi Sync] \u6279\u91CF\u540C\u6B65 ${collections.length} \u6761\uFF0C\u8DF3\u8FC7\u81EA\u5B9A\u4E49\u5C5E\u6027\u5F39\u7A97`);
       return { propertyValuesBySubjectId: /* @__PURE__ */ new Map() };
     }
     let warned = false;
@@ -16566,10 +16600,10 @@ var ControlPanel = class extends import_obsidian24.Modal {
       }
     );
     if (!hasLocalPropertyFieldsForCollections(collections, subjectsById, this.syncManager.getCustomTemplates())) {
-      console.debug(`[Bangumi Sync] No custom property fields, skipping modal`);
+      debugLog(() => `[Bangumi Sync] No custom property fields, skipping modal`);
       return { propertyValuesBySubjectId: /* @__PURE__ */ new Map() };
     }
-    console.debug(`[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
+    debugLog(() => `[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
     return new Promise((resolve) => {
       let resolved = false;
       const modal = new LocalPropertyModal(
@@ -16784,7 +16818,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
     }
     this.state.loading = true;
     this.renderStatus(`${this.getSyncStatusLabel(scope)} (1/2)`);
-    console.debug(`[Bangumi Sync][Perf] syncStatus:start synced=${syncedCollections.length}`);
+    debugLog(() => `[Bangumi Sync][Perf] syncStatus:start synced=${syncedCollections.length}`);
     try {
       const snapshotStart = Date.now();
       const { snapshots, diffs } = await this.statusSyncService.buildDiffSession({
@@ -16811,15 +16845,11 @@ var ControlPanel = class extends import_obsidian24.Modal {
       const snapshotDuration = Date.now() - snapshotStart;
       this.lastStatusSyncPerf.snapshotDurationMs = snapshotDuration;
       this.lastStatusSyncPerf.snapshotCount = snapshots.length;
-      console.debug(
-        `[Bangumi Sync][Perf] syncStatus:snapshots duration=${snapshotDuration}ms snapshots=${snapshots.length}`
-      );
+      debugLog(() => `[Bangumi Sync][Perf] syncStatus:snapshots duration=${snapshotDuration}ms snapshots=${snapshots.length}`);
       const diffBuildDuration = 0;
       this.lastStatusSyncPerf.initialDiffDurationMs = diffBuildDuration;
       this.lastStatusSyncPerf.initialVisibleDiffs = diffs.length;
-      console.debug(
-        `[Bangumi Sync][Perf] syncStatus:initialDiffs duration=${diffBuildDuration}ms visible=${diffs.length}`
-      );
+      debugLog(() => `[Bangumi Sync][Perf] syncStatus:initialDiffs duration=${diffBuildDuration}ms visible=${diffs.length}`);
       this.state.loading = false;
       if (diffs.length === 0) {
         const message = this.getNoDiffMessage(selection);
@@ -16839,9 +16869,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
       modal.open();
       const modalOpenDuration = Date.now() - perfStart;
       this.lastStatusSyncPerf.modalOpenedMs = modalOpenDuration;
-      console.debug(
-        `[Bangumi Sync][Perf] syncStatus:modalOpened total=${modalOpenDuration}ms visible=${diffs.length}`
-      );
+      debugLog(() => `[Bangumi Sync][Perf] syncStatus:modalOpened total=${modalOpenDuration}ms visible=${diffs.length}`);
       this.renderStatus(`${this.getSyncStatusLabel(scope)} (2/2)`);
       void this.statusSyncService.loadBackgroundDiffs(
         selection,
@@ -16892,7 +16920,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
     void this.subjectSnapshotSession.warm(syncedCollections, this.state.localSubjects, {
       concurrency: 4,
       onComplete: (count) => {
-        console.debug(`[Bangumi Sync] \u7528\u6237\u6570\u636E\u9884\u70ED\u5B8C\u6210: ${count}`);
+        debugLog(() => `[Bangumi Sync] \u7528\u6237\u6570\u636E\u9884\u70ED\u5B8C\u6210: ${count}`);
       },
       onError: (error) => {
         console.warn("[Bangumi Sync] \u7528\u6237\u6570\u636E\u9884\u70ED\u5931\u8D25:", error);
@@ -20257,6 +20285,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
   // 10 分钟缓存
   async onload() {
     await this.loadSettings();
+    this.register(registerDiagnosticLogging(() => this.settings.diagnosticLogging === true));
     await this.initOrUpdateSyncManager();
     this.syncStatusBarEl = this.addStatusBarItem();
     this.syncStatusBarEl.addClass("bangumi-sync-status-bar", "bangumi-hidden");
@@ -20421,7 +20450,6 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       this.controlPanel.close();
       this.controlPanel = null;
     }
-    console.debug("[Bangumi Sync] \u63D2\u4EF6\u5378\u8F7D");
   }
   /**
    * 更新状态栏同步进度
@@ -20459,18 +20487,17 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     }
     this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData != null ? loadedData : {});
     this.settings.syncConcurrency = normalizeSyncConcurrency(this.settings.syncConcurrency);
+    this.settings.diagnosticLogging = this.settings.diagnosticLogging === true;
     if (this.settings.syncPathTemplate && this.settings.syncPathTemplate.includes("{{name_cn}}") && !this.settings.syncPathTemplate.includes("{{name_cn_with_type}}")) {
       this.settings.syncPathTemplate = this.settings.syncPathTemplate.replace(
         /{{name_cn}}/g,
         "{{name_cn_with_type}}"
       );
-      console.debug("[Bangumi Sync] \u5DF2\u81EA\u52A8\u66F4\u65B0\u8DEF\u5F84\u6A21\u677F\uFF0C\u4F7F\u7528\u5E26\u7C7B\u578B\u540E\u7F00\u7684\u6587\u4EF6\u540D");
       await this.saveSettings();
     }
     if (this.settings.notePathTemplate && !this.settings.notePathTemplate.endsWith(".md")) {
       const normalized = this.settings.notePathTemplate.replace(/\/+$/, "");
       this.settings.notePathTemplate = `${normalized}/{{name_cn}}.md`;
-      console.debug("[Bangumi Sync] \u5DF2\u8FC1\u79FB\u5171\u4EAB\u7B14\u8BB0\u8DEF\u5F84\u6A21\u677F\u4E3A\u5B8C\u6574\u6587\u4EF6\u8DEF\u5F84");
       await this.saveSettings();
     }
     if (this.settings.noteTemplateContent.includes("\nid:\n{{id_yaml}}")) {
@@ -20478,7 +20505,6 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         /\nid:\n\{\{id_yaml\}\}/,
         "\n\u7B14\u8BB0ID:\n{{id_yaml}}"
       );
-      console.debug("[Bangumi Sync] \u5DF2\u8FC1\u79FB\u5171\u4EAB\u7B14\u8BB0\u6A21\u677F\u5B57\u6BB5\u4E3A \u7B14\u8BB0ID");
       await this.saveSettings();
     }
     if (this.settings.noteTemplateContent.includes("\n\u7B14\u8BB0ID: {{id_yaml}}")) {
@@ -20486,7 +20512,6 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         /\n笔记ID: \{\{id_yaml\}\}/,
         "\n\u7B14\u8BB0ID:\n{{id_yaml}}"
       );
-      console.debug("[Bangumi Sync] \u5DF2\u8FC1\u79FB\u5171\u4EAB\u7B14\u8BB0\u6A21\u677F\u5B57\u6BB5\u4E3A \u7B14\u8BB0ID");
       await this.saveSettings();
     }
   }
@@ -21073,17 +21098,20 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         if (this.syncModal) {
           this.syncModal.updateProgress({ current: 0, total: 0, status: "preparing", message: "Preparing preview..." });
         }
-        console.debug(`[Bangumi Sync] Preview items: ${prepareResult.previewItems.length}, collecting custom properties`);
+        debugLog(() => {
+          var _a, _b;
+          return `[Bangumi Sync] Preview items: ${(_b = (_a = prepareResult.previewItems) == null ? void 0 : _a.length) != null ? _b : 0}, collecting custom properties`;
+        });
         const localPropertyResult = await this.collectLocalPropertyValuesForCollections(
           prepareResult.previewItems.map((item) => item.collection)
         );
         if (localPropertyResult === null) {
-          console.debug("[Bangumi Sync] User cancelled custom properties");
+          debugLog(() => "[Bangumi Sync] User cancelled custom properties");
           new import_obsidian32.Notice(tn("notices", "syncCancelled"));
           this.cleanupSyncState(0);
           return;
         }
-        console.debug("[Bangumi Sync] Custom properties done, opening preview modal");
+        debugLog(() => "[Bangumi Sync] Custom properties done, opening preview modal");
         this.syncModal.close();
         this.syncModal = null;
         const previewModal = new SyncPreviewModal(
@@ -21222,7 +21250,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         }
       }
     );
-    console.debug(`[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
+    debugLog(() => `[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
     return new Promise((resolve) => {
       const modal = new LocalPropertyModal(
         this.app,

@@ -1,3 +1,4 @@
+import { debugLog, registerDiagnosticLogging } from './common/logging';
 /**
  * Bangumi Sync 插件入口
  *
@@ -83,6 +84,7 @@ export default class BangumiPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
+		this.register(registerDiagnosticLogging(() => this.settings.diagnosticLogging === true));
 
 		// 初始化同步管理器
 		await this.initOrUpdateSyncManager();
@@ -279,7 +281,6 @@ export default class BangumiPlugin extends Plugin {
 			this.controlPanel = null;
 		}
 
-		console.debug('[Bangumi Sync] 插件卸载');
 	}
 
 	/**
@@ -321,6 +322,7 @@ export default class BangumiPlugin extends Plugin {
 		}
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData ?? {});
 		this.settings.syncConcurrency = normalizeSyncConcurrency(this.settings.syncConcurrency);
+		this.settings.diagnosticLogging = this.settings.diagnosticLogging === true;
 
 		// 迁移：如果路径模板使用 {{name_cn}} 而不是 {{name_cn_with_type}}，自动更新
 		if (this.settings.syncPathTemplate &&
@@ -330,14 +332,12 @@ export default class BangumiPlugin extends Plugin {
 				/{{name_cn}}/g,
 				'{{name_cn_with_type}}'
 			);
-			console.debug('[Bangumi Sync] 已自动更新路径模板，使用带类型后缀的文件名');
 			await this.saveSettings();
 		}
 
 		if (this.settings.notePathTemplate && !this.settings.notePathTemplate.endsWith('.md')) {
 			const normalized = this.settings.notePathTemplate.replace(/\/+$/, '');
 			this.settings.notePathTemplate = `${normalized}/{{name_cn}}.md`;
-			console.debug('[Bangumi Sync] 已迁移共享笔记路径模板为完整文件路径');
 			await this.saveSettings();
 		}
 
@@ -346,7 +346,6 @@ export default class BangumiPlugin extends Plugin {
 				/\nid:\n\{\{id_yaml\}\}/,
 				'\n笔记ID:\n{{id_yaml}}'
 			);
-			console.debug('[Bangumi Sync] 已迁移共享笔记模板字段为 笔记ID');
 			await this.saveSettings();
 		}
 
@@ -355,7 +354,6 @@ export default class BangumiPlugin extends Plugin {
 				/\n笔记ID: \{\{id_yaml\}\}/,
 				'\n笔记ID:\n{{id_yaml}}'
 			);
-			console.debug('[Bangumi Sync] 已迁移共享笔记模板字段为 笔记ID');
 			await this.saveSettings();
 		}
 	}
@@ -996,19 +994,19 @@ export default class BangumiPlugin extends Plugin {
 				this.syncModal.updateProgress({ current: 0, total: 0, status: 'preparing', message: 'Preparing preview...' });
 			}
 
-			console.debug(`[Bangumi Sync] Preview items: ${prepareResult.previewItems.length}, collecting custom properties`);
+			debugLog(() => `[Bangumi Sync] Preview items: ${prepareResult.previewItems?.length ?? 0}, collecting custom properties`);
 
 			const localPropertyResult = await this.collectLocalPropertyValuesForCollections(
 				prepareResult.previewItems.map(item => item.collection)
 			);
 			if (localPropertyResult === null) {
-				console.debug('[Bangumi Sync] User cancelled custom properties');
+				debugLog(() => '[Bangumi Sync] User cancelled custom properties');
 				new Notice(tn('notices', 'syncCancelled'));
 				this.cleanupSyncState(0);
 				return;
 			}
 
-			console.debug('[Bangumi Sync] Custom properties done, opening preview modal');
+			debugLog(() => '[Bangumi Sync] Custom properties done, opening preview modal');
 
 			this.syncModal.close();
 			this.syncModal = null;
@@ -1166,7 +1164,7 @@ export default class BangumiPlugin extends Plugin {
 			}
 		);
 
-		console.debug(`[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
+		debugLog(() => `[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
 
 		return new Promise<LocalPropertyModalResult | null>(resolve => {
 			const modal = new LocalPropertyModal(

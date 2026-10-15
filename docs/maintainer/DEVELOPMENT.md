@@ -167,7 +167,7 @@ git push origin adv
 ## Debugging
 
 1. 在 Obsidian 开启开发者工具。
-2. 只使用 `console.debug`、`console.warn`、`console.error`，日志带 `[Bangumi Sync]` 前缀。
+2. 默认仅保留 `console.info` 批次摘要、`console.warn` 和 `console.error`，日志带 `[Bangumi Sync]` 前缀。逐项详情统一经过 `common/logging.ts` 的惰性 `debugLog`，在“高级 → 详细诊断日志”启用时才构造消息并输出 `console.debug`；不得输出请求正文或 secrets。
 3. 使用 Obsidian CLI 重载插件、读取 errors/console 和检查 DOM。
 4. 插件数据位于 `.obsidian/plugins/bangumi-sync/`；不要公开 Token 或 recovery journal。
 

@@ -44,6 +44,8 @@ path transaction + recovery journal
 
 ### Infrastructure
 
+- `common/logging.ts`：按当前已应用设置控制惰性详细日志；插件注册设置读取器并在卸载时解除。默认保留显式挑选统计字段的批次摘要和警告/错误，详细日志不得输出请求正文、Token 或恢复日志原文。
+
 - `src/api/`：Bangumi API 和重试边界。
 - `common/file/`：Vault 文件与图片基础操作。
 - `common/template/`：模板解析和渲染。
