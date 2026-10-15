@@ -903,6 +903,73 @@ describe('SyncManager path transaction integration', () => {
 		}));
 	});
 
+	it('aggregates actual committed collections including batch peers and an existing shared target', async () => {
+		const vault = new InMemoryVault();
+		const first = makeSubject(931, '', 'Batch first'), second = makeSubject(932, '', 'Batch second');
+		const target = makeSubject(939, '', 'Shared target');
+		const targetPath = 'ACGN/music/Shared target.md';
+		vault.addFile(targetPath, '---\nid: 939\n相关:\n  - "[[Manual]]"\n---\nUser text');
+		const related = (id: number) => ({ id, type: SubjectType.Music, name: `${id}`, name_cn: `${id}`, relation: '关联' });
+		const manager = createManager(vault, [first, second, target], { relationsById: new Map([
+			[931, [related(932), related(939), related(939)]], [932, [related(939)]],
+		]) });
+		manager.updateConfig({ enableRelatedLinks: true });
+		let linking = false;
+		manager.setProgressCallback(progress => { if (progress.phase === 'linking') linking = true; });
+		const read = vault.app.vault.read.bind(vault.app.vault), process = vault.app.vault.process.bind(vault.app.vault);
+		const reads: string[] = [], updates: string[] = [];
+		vault.app.vault.read = file => { if (linking) reads.push(file.path); return read(file); };
+		vault.app.vault.process = (file, updater) => {
+			if (linking) {
+				updates.push(file.path);
+				expect(() => manager.ensureCanStartSync()).toThrow(VaultOperationInProgressError);
+			}
+			return process(file, updater);
+		};
+		const result = await manager.syncByCollections([first, second].map(makeCollection), { concurrency: 2 });
+		expect(result).toMatchObject({ completion: 'success', created: 2, failed: 0, warnings: [] });
+		for (const path of [targetPath, 'ACGN/music/Batch first.md', 'ACGN/music/Batch second.md']) {
+			expect(reads.filter(value => value === path)).toHaveLength(1);
+			expect(updates.filter(value => value === path)).toHaveLength(1);
+		}
+		expect(vault.contents.get(targetPath)).toContain('[[Manual]]');
+		expect(vault.contents.get(targetPath)).toContain('User text');
+		expect(vault.contents.get('ACGN/music/Batch first.md')).toContain('[[ACGN/music/Batch second.md|Batch second]]');
+		expect(vault.contents.get('ACGN/music/Batch second.md')).toContain('[[ACGN/music/Batch first.md|Batch first]]');
+		expect(manager.getManagerState()).toBe('idle');
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+	});
+
+	it.each(['keep', 'rollback'] as const)('aggregates deferred backlinks only when a partial batch is kept: %s', async action => {
+		const vault = new InMemoryVault();
+		const subjects = [makeSubject(941, '', 'Deferred first'), makeSubject(942, '', 'Deferred second'), makeSubject(943, '', 'Failed')];
+		const targetPath = 'ACGN/music/Deferred target.md', original = '---\nid: 949\n---\nOriginal target';
+		vault.addFile(targetPath, original);
+		const relation = { id: 949, type: SubjectType.Music, name: 'Target', name_cn: 'Target', relation: '关联' };
+		const manager = createManager(vault, subjects, { failures: new Set([943]), relationsById: new Map([[941, [relation]], [942, [relation]]]) });
+		manager.updateConfig({ enableRelatedLinks: true });
+		const process = vi.spyOn(vault.app.vault, 'process');
+		const result = await manager.syncByCollections(subjects.map(makeCollection), { concurrency: 2 });
+		expect(result.completion).toBe('partial-success');
+		expect(manager.getManagerState()).toBe('awaiting-decision');
+		expect(vault.contents.get(targetPath)).toBe(original);
+		expect(process.mock.calls.filter(([file]) => file.path === targetPath)).toHaveLength(0);
+		vault.contents.set(targetPath, original + '\nEdit while waiting');
+		if (action === 'keep') {
+			expect((await manager.commitPendingBatch()).status).toBe('committed');
+			expect(process.mock.calls.filter(([file]) => file.path === targetPath)).toHaveLength(1);
+			expect(vault.contents.get(targetPath)).toContain('[[ACGN/music/Deferred first.md|Deferred first]]');
+			expect(vault.contents.get(targetPath)).toContain('[[ACGN/music/Deferred second.md|Deferred second]]');
+		} else {
+			expect((await manager.rollbackBatch()).status).toBe('rolled-back');
+			expect(process.mock.calls.filter(([file]) => file.path === targetPath)).toHaveLength(0);
+			expect(vault.contents.get(targetPath)).toBe(original + '\nEdit while waiting');
+		}
+		expect(vault.contents.get(targetPath)).toContain('Edit while waiting');
+		expect(manager.getManagerState()).toBe('idle');
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+	});
+
 	it('routes search sync through the same collision planner and clears a successful transaction', async () => {
 		const vault = new InMemoryVault();
 		vault.addFile('ACGN/music/乱马.md', '---\nid: 1\n中文名: "乱马"\n---\nlegacy');

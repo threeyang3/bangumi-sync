@@ -509,8 +509,10 @@ export class IncrementalSync {
 		}
 
 		// 再添加新链接（仅添加不存在的）
+		let hasNew = false;
 		for (const link of normalizedNewLinks) {
 			if (!allLinksSet.has(link)) {
+				hasNew = true;
 				allLinksSet.add(link);
 				allLinks.push(link);
 				debugLog(() => `[Bangumi Sync] 添加新相关链接: ${link}`);
@@ -520,13 +522,7 @@ export class IncrementalSync {
 		}
 
 		// 如果没有变化，直接返回原内容
-		if (allLinks.length === existingLinks.length && normalizedNewLinks.every(l => allLinksSet.has(l))) {
-			// 检查是否真的没有新增
-			const hasNew = normalizedNewLinks.some(l => !existingLinks.includes(l));
-			if (!hasNew) {
-				return content;
-			}
-		}
+		if (!hasNew && allLinks.length === existingLinks.length) return content;
 
 		// 构建新的相关链接 YAML 数组（用双引号包围链接）
 		const newLinksYaml = allLinks.length > 0

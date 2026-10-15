@@ -6238,8 +6238,10 @@ var IncrementalSync = class {
         allLinks.push(link);
       }
     }
+    let hasNew = false;
     for (const link of normalizedNewLinks) {
       if (!allLinksSet.has(link)) {
+        hasNew = true;
         allLinksSet.add(link);
         allLinks.push(link);
         debugLog(() => `[Bangumi Sync] \u6DFB\u52A0\u65B0\u76F8\u5173\u94FE\u63A5: ${link}`);
@@ -6247,12 +6249,7 @@ var IncrementalSync = class {
         debugLog(() => `[Bangumi Sync] \u8DF3\u8FC7\u91CD\u590D\u94FE\u63A5: ${link}`);
       }
     }
-    if (allLinks.length === existingLinks.length && normalizedNewLinks.every((l) => allLinksSet.has(l))) {
-      const hasNew = normalizedNewLinks.some((l) => !existingLinks.includes(l));
-      if (!hasNew) {
-        return content;
-      }
-    }
+    if (!hasNew && allLinks.length === existingLinks.length) return content;
     const newLinksYaml = allLinks.length > 0 ? `\u76F8\u5173:
 ${allLinks.map((l) => `  - "${l}"`).join("\n")}` : "\u76F8\u5173:";
     const existingRelatedMatch = frontmatter.match(/^相关:.*(\n\s+- .+)*/m);
@@ -11697,88 +11694,50 @@ var SyncManager = class {
     return { subjectId: subject.id, filePath, relations, writeStatus: writeResult.status };
   }
   /**
-   * 更新已同步相关条目的链接（双向链接）
-   * 批量处理：先收集所有需要更新的关联关系，按目标文件分组，每个文件只读写一次
-   */
-  async updateRelatedItemsBidirectional(currentId, currentPath, currentName, relations) {
-    var _a;
-    const warnings = [];
-    const displayName = this.extractDisplayNameFromPath(currentPath);
-    const currentLink = `[[${currentPath}|${displayName}]]`;
-    const updatesByFile = /* @__PURE__ */ new Map();
-    for (const relation of relations) {
-      const relatedPath = this.resolveRelatedLocalPath(relation.id);
-      if (relatedPath) {
-        const existing = (_a = updatesByFile.get(relatedPath)) != null ? _a : { subjectId: relation.id, links: [] };
-        existing.links.push(currentLink);
-        updatesByFile.set(relatedPath, existing);
-      }
-    }
-    for (const [path, update] of updatesByFile) {
-      if (await this.checkCancellation()) break;
-      try {
-        await this.updateRelatedFile(path, update.subjectId, update.links);
-      } catch (error) {
-        console.error(`[Bangumi Sync] \u66F4\u65B0\u76F8\u5173\u6761\u76EE\u94FE\u63A5\u5931\u8D25: ${path}`, error);
-        warnings.push({
-          subjectId: update.subjectId,
-          operation: "related-link-update",
-          message: error instanceof Error ? error.message : String(error)
-        });
-      }
-    }
-    return warnings;
-  }
-  /**
-   * 后处理同批次相关条目的双向链接
-   * 解决并发同步时相关条目互相检测不到的问题
-   * 按目标文件分组，每个文件只读写一次
+   * Aggregate the entire committed batch before touching any related file.
+   * Sources gain forward links to batch peers; every local target gains backlinks.
    */
   async postProcessBatchRelations(batchItems) {
-    var _a, _b;
     const warnings = [];
     if (this.config.enableRelatedLinks === false) return warnings;
     this.reportPhase("linking");
+    const batchSubjectIds = new Set(batchItems.map((item) => item.subjectId));
+    const resolvedPaths = /* @__PURE__ */ new Map();
+    const updatesByFile = /* @__PURE__ */ new Map();
+    const linkFor = (path) => `[[${path}|${this.extractDisplayNameFromPath(path)}]]`;
+    const addUpdate = (path, subjectId, link, operation) => {
+      var _a;
+      path = (0, import_obsidian11.normalizePath)(path);
+      const update = (_a = updatesByFile.get(path)) != null ? _a : { subjectId, links: /* @__PURE__ */ new Set(), operation, identityConflict: false };
+      if (update.subjectId !== subjectId) update.identityConflict = true;
+      if (operation === "related-link-update") update.operation = operation;
+      update.links.add(link);
+      updatesByFile.set(path, update);
+    };
     for (const item of batchItems) {
       if (await this.checkCancellation()) return warnings;
-      warnings.push(...await this.updateRelatedItemsBidirectional(
-        item.subjectId,
-        item.filePath,
-        this.extractDisplayNameFromPath(item.filePath),
-        item.relations
-      ));
-    }
-    const batchSubjectIds = new Set(batchItems.map((item) => item.subjectId));
-    const updatesByFile = /* @__PURE__ */ new Map();
-    for (const item of batchItems) {
-      const batchRelations = item.relations.filter((r) => batchSubjectIds.has(r.id));
-      if (batchRelations.length === 0) continue;
-      const currentDisplayName = this.extractDisplayNameFromPath(item.filePath);
-      const currentLink = `[[${item.filePath}|${currentDisplayName}]]`;
-      for (const relation of batchRelations) {
-        const relatedPath = this.resolveRelatedLocalPath(relation.id);
+      const currentLink = linkFor(item.filePath);
+      for (const relation of item.relations) {
+        if (!resolvedPaths.has(relation.id)) resolvedPaths.set(relation.id, this.resolveRelatedLocalPath(relation.id));
+        const relatedPath = resolvedPaths.get(relation.id);
         if (!relatedPath) continue;
-        const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
-        const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
-        const existing1 = (_a = updatesByFile.get(item.filePath)) != null ? _a : { subjectId: item.subjectId, links: [] };
-        existing1.links.push(relatedLink);
-        updatesByFile.set(item.filePath, existing1);
-        const existing2 = (_b = updatesByFile.get(relatedPath)) != null ? _b : { subjectId: relation.id, links: [] };
-        existing2.links.push(currentLink);
-        updatesByFile.set(relatedPath, existing2);
+        addUpdate(relatedPath, relation.id, currentLink, "related-link-update");
+        if (batchSubjectIds.has(relation.id)) {
+          addUpdate(item.filePath, item.subjectId, linkFor(relatedPath), "related-link-postprocess");
+        }
       }
     }
-    if (updatesByFile.size === 0) return warnings;
-    debugLog(() => `[Bangumi Sync] \u540E\u5904\u7406\u540C\u6279\u6B21\u76F8\u5173\u94FE\u63A5: ${updatesByFile.size} \u4E2A\u6587\u4EF6\u9700\u8981\u66F4\u65B0`);
+    debugLog(() => `[Bangumi Sync] \u6279\u91CF\u8865\u5168\u76F8\u5173\u94FE\u63A5: ${updatesByFile.size} \u4E2A\u76EE\u6807\u6587\u4EF6`);
     for (const [path, update] of updatesByFile) {
       if (await this.checkCancellation()) break;
       try {
-        await this.updateRelatedFile(path, update.subjectId, update.links);
+        if (update.identityConflict) throw new Error(`Conflicting subject IDs resolve to ${path}.`);
+        await this.updateRelatedFile(path, update.subjectId, [...update.links]);
       } catch (error) {
-        console.error(`[Bangumi Sync] \u540E\u5904\u7406\u66F4\u65B0\u76F8\u5173\u94FE\u63A5\u5931\u8D25: ${path}`, error);
+        console.error(`[Bangumi Sync] \u66F4\u65B0\u76F8\u5173\u94FE\u63A5\u5931\u8D25: ${path}`, error);
         warnings.push({
           subjectId: update.subjectId,
-          operation: "related-link-postprocess",
+          operation: update.operation,
           message: error instanceof Error ? error.message : String(error)
         });
       }
@@ -11786,12 +11745,20 @@ var SyncManager = class {
     return warnings;
   }
   async updateRelatedFile(path, subjectId, links) {
-    const file = await this.fileManager.assertPathOwnership(path, subjectId);
+    const file = this.fileManager.getFile(path);
     if (!file) return;
     const content = await this.app.vault.read(file);
-    const updatedContent = this.incrementalSync.updateRelated(content, links);
-    if (updatedContent === content) return;
-    await this.documentService.processSubjectFile(file, subjectId, () => updatedContent);
+    this.documentService.assertContentSubjectId(content, subjectId, file.path);
+    if (this.incrementalSync.updateRelated(content, links) === content) return;
+    if (await this.checkCancellation()) return;
+    await this.documentService.processSubjectFile(
+      file,
+      subjectId,
+      (latest) => {
+        var _a;
+        return this.shuttingDown || ((_a = this.cancellationSignal) == null ? void 0 : _a.cancelled) ? latest : this.incrementalSync.updateRelated(latest, links);
+      }
+    );
     debugLog(() => `[Bangumi Sync] \u5DF2\u66F4\u65B0\u76F8\u5173\u94FE\u63A5: ${path} (+${links.length})`);
   }
   /**

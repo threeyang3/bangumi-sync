@@ -3124,52 +3124,8 @@ export class SyncManager {
 	}
 
 	/**
-	 * 更新已同步相关条目的链接（双向链接）
-	 * 批量处理：先收集所有需要更新的关联关系，按目标文件分组，每个文件只读写一次
-	 */
-	private async updateRelatedItemsBidirectional(
-		currentId: number,
-		currentPath: string,
-		currentName: string,
-		relations: { id: number; name_cn: string; name: string }[]
-	): Promise<SyncWarning[]> {
-		const warnings: SyncWarning[] = [];
-		const displayName = this.extractDisplayNameFromPath(currentPath);
-		const currentLink = `[[${currentPath}|${displayName}]]`;
-
-		// 收集需要更新的文件及其新增链接
-		const updatesByFile = new Map<string, { subjectId: number; links: string[] }>();
-
-		for (const relation of relations) {
-			const relatedPath = this.resolveRelatedLocalPath(relation.id);
-			if (relatedPath) {
-				const existing = updatesByFile.get(relatedPath) ?? { subjectId: relation.id, links: [] };
-				existing.links.push(currentLink);
-				updatesByFile.set(relatedPath, existing);
-			}
-		}
-
-		// 批量更新每个目标文件
-		for (const [path, update] of updatesByFile) {
-			if (await this.checkCancellation()) break;
-			try {
-				await this.updateRelatedFile(path, update.subjectId, update.links);
-			} catch (error) {
-				console.error(`[Bangumi Sync] 更新相关条目链接失败: ${path}`, error);
-				warnings.push({
-					subjectId: update.subjectId,
-					operation: 'related-link-update',
-					message: error instanceof Error ? error.message : String(error),
-				});
-			}
-		}
-		return warnings;
-	}
-
-	/**
-	 * 后处理同批次相关条目的双向链接
-	 * 解决并发同步时相关条目互相检测不到的问题
-	 * 按目标文件分组，每个文件只读写一次
+	 * Aggregate the entire committed batch before touching any related file.
+	 * Sources gain forward links to batch peers; every local target gains backlinks.
 	 */
 	private async postProcessBatchRelations(
 		batchItems: { subjectId: number; filePath: string; relations: RelatedSubject[] }[]
@@ -3177,57 +3133,49 @@ export class SyncManager {
 		const warnings: SyncWarning[] = [];
 		if (this.config.enableRelatedLinks === false) return warnings;
 		this.reportPhase('linking');
+		const batchSubjectIds = new Set(batchItems.map(item => item.subjectId));
+		const resolvedPaths = new Map<number, string | undefined>();
+		const updatesByFile = new Map<string, {
+			subjectId: number;
+			links: Set<string>;
+			operation: SyncWarning['operation'];
+			identityConflict: boolean;
+		}>();
+		const linkFor = (path: string) => `[[${path}|${this.extractDisplayNameFromPath(path)}]]`;
+		const addUpdate = (path: string, subjectId: number, link: string, operation: SyncWarning['operation']) => {
+			path = normalizePath(path);
+			const update = updatesByFile.get(path) ?? { subjectId, links: new Set<string>(), operation, identityConflict: false };
+			if (update.subjectId !== subjectId) update.identityConflict = true;
+			if (operation === 'related-link-update') update.operation = operation;
+			update.links.add(link);
+			updatesByFile.set(path, update);
+		};
+
 		for (const item of batchItems) {
 			if (await this.checkCancellation()) return warnings;
-			warnings.push(...await this.updateRelatedItemsBidirectional(
-				item.subjectId,
-				item.filePath,
-				this.extractDisplayNameFromPath(item.filePath),
-				item.relations,
-			));
-		}
-
-		const batchSubjectIds = new Set(batchItems.map(item => item.subjectId));
-		const updatesByFile = new Map<string, { subjectId: number; links: string[] }>();
-
-		for (const item of batchItems) {
-			const batchRelations = item.relations.filter(r => batchSubjectIds.has(r.id));
-			if (batchRelations.length === 0) continue;
-
-			const currentDisplayName = this.extractDisplayNameFromPath(item.filePath);
-			const currentLink = `[[${item.filePath}|${currentDisplayName}]]`;
-
-			for (const relation of batchRelations) {
-				const relatedPath = this.resolveRelatedLocalPath(relation.id);
+			const currentLink = linkFor(item.filePath);
+			for (const relation of item.relations) {
+				if (!resolvedPaths.has(relation.id)) resolvedPaths.set(relation.id, this.resolveRelatedLocalPath(relation.id));
+				const relatedPath = resolvedPaths.get(relation.id);
 				if (!relatedPath) continue;
-
-				// 当前条目 → 相关条目
-				const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
-				const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
-				const existing1 = updatesByFile.get(item.filePath) ?? { subjectId: item.subjectId, links: [] };
-				existing1.links.push(relatedLink);
-				updatesByFile.set(item.filePath, existing1);
-
-				// 相关条目 → 当前条目（反向）
-				const existing2 = updatesByFile.get(relatedPath) ?? { subjectId: relation.id, links: [] };
-				existing2.links.push(currentLink);
-				updatesByFile.set(relatedPath, existing2);
+				addUpdate(relatedPath, relation.id, currentLink, 'related-link-update');
+				if (batchSubjectIds.has(relation.id)) {
+					addUpdate(item.filePath, item.subjectId, linkFor(relatedPath), 'related-link-postprocess');
+				}
 			}
 		}
 
-		if (updatesByFile.size === 0) return warnings;
-
-		debugLog(() => `[Bangumi Sync] 后处理同批次相关链接: ${updatesByFile.size} 个文件需要更新`);
-
+		debugLog(() => `[Bangumi Sync] 批量补全相关链接: ${updatesByFile.size} 个目标文件`);
 		for (const [path, update] of updatesByFile) {
 			if (await this.checkCancellation()) break;
 			try {
-				await this.updateRelatedFile(path, update.subjectId, update.links);
+				if (update.identityConflict) throw new Error(`Conflicting subject IDs resolve to ${path}.`);
+				await this.updateRelatedFile(path, update.subjectId, [...update.links]);
 			} catch (error) {
-				console.error(`[Bangumi Sync] 后处理更新相关链接失败: ${path}`, error);
+				console.error(`[Bangumi Sync] 更新相关链接失败: ${path}`, error);
 				warnings.push({
 					subjectId: update.subjectId,
-					operation: 'related-link-postprocess',
+					operation: update.operation,
 					message: error instanceof Error ? error.message : String(error),
 				});
 			}
@@ -3236,12 +3184,15 @@ export class SyncManager {
 	}
 
 	private async updateRelatedFile(path: string, subjectId: number, links: string[]): Promise<void> {
-		const file = await this.fileManager.assertPathOwnership(path, subjectId);
+		const file = this.fileManager.getFile(path);
 		if (!file) return;
 		const content = await this.app.vault.read(file);
-		const updatedContent = this.incrementalSync.updateRelated(content, links);
-		if (updatedContent === content) return;
-		await this.documentService.processSubjectFile(file, subjectId, () => updatedContent);
+		this.documentService.assertContentSubjectId(content, subjectId, file.path);
+		if (this.incrementalSync.updateRelated(content, links) === content) return;
+		if (await this.checkCancellation()) return;
+		await this.documentService.processSubjectFile(file, subjectId,
+			latest => this.shuttingDown || this.cancellationSignal?.cancelled
+				? latest : this.incrementalSync.updateRelated(latest, links));
 		debugLog(() => `[Bangumi Sync] 已更新相关链接: ${path} (+${links.length})`);
 	}
 
