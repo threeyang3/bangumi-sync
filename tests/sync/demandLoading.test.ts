@@ -3,6 +3,7 @@ import { Subject, SubjectType, UserCollection } from '../../common/api/types';
 import { SyncManager } from '../../src/sync/syncManager';
 import { InMemoryVault } from '../mocks/inMemoryVault';
 import { setRequestUrlHandler } from '../mocks/obsidian';
+import { createCancellationSignal } from '../../src/sync/syncStatus';
 
 function subject(type: SubjectType, platform: string): Subject {
 	return { id: 1, type, platform, name: 'Synthetic', name_cn: 'Synthetic', summary: 'Full summary', date: '2026-01-01',
@@ -45,6 +46,45 @@ async function sync(template: string, value: Subject, links = false, failStatus 
 }
 
 describe('real client and manager demand loading', () => {
+	it.each([false, true])('restores shared background concurrency after a single-worker sync, failed=%s', async failed => {
+		const value = subject(SubjectType.Music, '');
+		const { manager } = await sync('---\nid: {{id}}\n---\n{{summary}}', value);
+		manager.client.setRequestConcurrency(3);
+		if (failed) {
+			vi.spyOn(console, 'error').mockImplementation(() => undefined);
+			setRequestUrlHandler(() => Promise.resolve({ status: 401, arrayBuffer: new ArrayBuffer(0), json: { title: 'Unauthorized' } }));
+		}
+		const result = await manager.syncByCollections([collection(value)], { concurrency: 1 });
+		expect(result.completion).toBe(failed ? 'failed' : 'success');
+		let release!: () => void, active = 0, maximum = 0;
+		const held = new Promise<void>(resolve => { release = resolve; });
+		setRequestUrlHandler(async () => {
+			maximum = Math.max(maximum, ++active); await held; active--;
+			return { status: 200, arrayBuffer: new ArrayBuffer(0), json: {} };
+		});
+		const background = manager.client.getFullSubjectInfo(11);
+		try { await vi.waitFor(() => expect(maximum).toBe(3)); }
+		finally { release(); }
+		await background; expect(active).toBe(0);
+	});
+	it('pins queued HTTP requests to their manager signal even after the signal is cleared', async () => {
+		const { manager } = await sync('---\nid: {{id}}\n---\n{{summary}}', subject(SubjectType.Music, ''));
+		manager.client.setRequestConcurrency(1);
+		const old = createCancellationSignal(); manager.setCancellationSignal(old);
+		let release!: () => void;
+		const held = new Promise<void>(resolve => { release = resolve; });
+		const ids: number[] = [];
+		setRequestUrlHandler(async options => {
+			const id = Number(options.url.split('/').pop()); ids.push(id); await held;
+			return { status: 200, arrayBuffer: new ArrayBuffer(0), json: { id } };
+		});
+		const cancelled = Promise.allSettled([manager.client.getSubject(11), manager.client.getSubject(12)]);
+		await vi.waitFor(() => expect(ids).toEqual([11]));
+		old.cancel(); manager.setCancellationSignal(null);
+		const next = manager.client.getSubject(13); release();
+		expect((await cancelled).every(value => value.status === 'rejected')).toBe(true);
+		expect(await next).toMatchObject({ id: 13 }); expect(ids).toEqual([11, 13]);
+	});
 	it('uses one full subject request for a minimal template and retains path author/year information', async () => {
 		const { urls, output, result } = await sync('---\nid: {{id}}\n---\n{{summary}}', subject(SubjectType.Book, '小说'));
 		expect(result.completion).toBe('success');

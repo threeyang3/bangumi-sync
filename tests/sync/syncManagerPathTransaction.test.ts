@@ -9,7 +9,7 @@ import { InMemoryVault } from '../mocks/inMemoryVault';
 import { RECOVERY_JOURNAL_PATH } from '../../src/sync/recoveryJournal';
 import type { PersistentRecoveryJournal } from '../../src/sync/recoveryJournal';
 import { setRequestUrlHandler } from '../mocks/obsidian';
-import type { SyncProgress } from '../../src/sync/syncStatus';
+import { createCancellationSignal, type SyncProgress } from '../../src/sync/syncStatus';
 
 function progressGate(): { promise: Promise<void>; release: () => void } {
 	let release = () => undefined as void;
@@ -87,6 +87,43 @@ interface CoverHandlerProbe {
 }
 
 describe('SyncManager path transaction integration', () => {
+	it('postprocesses batch peer links during automatic sync too', async () => {
+		const vault = new InMemoryVault(), first = makeSubject(951, '', 'Auto first'), second = makeSubject(952, '', 'Auto second');
+		const relation = { id: 952, type: SubjectType.Music, name: 'Auto second', name_cn: 'Auto second', relation: '关联' };
+		const manager = createManager(vault, [first, second], { relationsById: new Map([[951, [relation]]]) });
+		manager.updateConfig({ enableRelatedLinks: true });
+		const result = await manager.sync({ subjectTypes: [SubjectType.Music], collectionTypes: [CollectionType.Done], limit: 0, force: false }, 2);
+		expect(result).toMatchObject({ completion: 'success', created: 2, warnings: [] });
+		expect(vault.contents.get('ACGN/music/Auto first.md')).toContain('[[ACGN/music/Auto second.md|Auto second]]');
+		expect(vault.contents.get('ACGN/music/Auto second.md')).toContain('[[ACGN/music/Auto first.md|Auto first]]');
+	});
+
+	it.each(['sync', 'syncByCollections', 'executeSync'] as const)('reports cancellation during post-commit linking for %s', async entry => {
+		const vault = new InMemoryVault(), incoming = makeSubject(961, '', 'Cancelled link');
+		const targets = [makeSubject(962, '', 'Target one'), makeSubject(963, '', 'Target two')];
+		for (const target of targets) vault.addFile(`ACGN/music/${target.name}.md`, `---\nid: ${target.id}\n---\nKeep target body`);
+		const manager = createManager(vault, [incoming, ...targets], { relationsById: new Map([[961, targets.map(target => ({ id: target.id, type: SubjectType.Music, name: target.name, name_cn: target.name, relation: '关联' }))]]) });
+		manager.updateConfig({ enableRelatedLinks: true });
+		const signal = createCancellationSignal(); manager.setCancellationSignal(signal);
+		const process = vault.app.vault.process.bind(vault.app.vault);
+		vault.app.vault.process = async (file, updater) => { const value = await process(file, updater); signal.cancel(); return value; };
+		const events: SyncProgress[] = []; manager.setProgressCallback(progress => events.push(progress));
+		const options = { subjectTypes: [SubjectType.Music], collectionTypes: [CollectionType.Done], limit: 0, force: false };
+		let result;
+		if (entry === 'sync') result = await manager.sync(options, 2);
+		else if (entry === 'syncByCollections') result = await manager.syncByCollections([makeCollection(incoming)], { concurrency: 2 });
+		else {
+			const preview = await manager.prepareSync(options);
+			result = await manager.executeSync(preview.previewItems ?? [], 'all', undefined, 2);
+		}
+		expect(signal.cancelled).toBe(true);
+		expect(result).toMatchObject({ completion: 'cancelled', created: 1, canRollback: false });
+		expect(events.at(-1)?.status).not.toBe('completed');
+		expect(vault.contents.get('ACGN/music/Target two.md')).toBe('---\nid: 963\n---\nKeep target body');
+		expect(manager.getManagerState()).toBe('idle');
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
+	});
+
 	it('reuses preview successes and retries failed details through the real full-info method before writing', async () => {
 		vi.stubGlobal('activeWindow', { setTimeout, clearTimeout });
 		const vault = new InMemoryVault();

@@ -67,12 +67,14 @@ var SubjectDetailSession = class {
     var _a;
     this.revision = client.subjectDetailRevision;
     this.limit = Number.isFinite(concurrency) ? Math.max(1, Math.min(5, Math.floor(concurrency))) : 3;
-    (_a = client.setRequestConcurrency) == null ? void 0 : _a.call(client, this.limit);
+    this.releaseRequests = (_a = client.acquireRequestConcurrency) == null ? void 0 : _a.call(client, this.limit);
   }
   get isValid() {
     return !this.disposed && !this.cancelled() && this.client.subjectDetailRevision === this.revision;
   }
   dispose() {
+    var _a;
+    (_a = this.releaseRequests) == null ? void 0 : _a.call(this);
     this.disposed = true;
     this.successes.clear();
     this.queue.length = 0;
@@ -116,7 +118,7 @@ var SubjectDetailSession = class {
         this.active++;
         void Promise.resolve().then(() => {
           if (!this.isValid) throw new Error("Subject detail session cancelled or invalidated");
-          return this.client.getSubject(subjectId);
+          return this.client.getSubject(subjectId, () => expired || !this.isValid);
         }).then(
           (subject) => subject.id === subjectId ? finish(subject) : finish(void 0, new Error("Subject detail identity mismatch")),
           (error) => finish(void 0, error instanceof Error ? error : new Error(String(error)))
@@ -3824,10 +3826,22 @@ var RequestScheduler = class {
     this.active = 0;
     this.limit = 3;
     this.queue = [];
+    this.scopes = /* @__PURE__ */ new Map();
   }
   setConcurrency(value) {
-    this.limit = Number.isFinite(value) ? Math.max(1, Math.min(5, Math.floor(value))) : 3;
+    this.limit = this.normalize(value);
     this.drain();
+  }
+  acquireConcurrency(value) {
+    const key = /* @__PURE__ */ Symbol();
+    this.scopes.set(key, this.normalize(value));
+    return () => {
+      this.scopes.delete(key);
+      this.drain();
+    };
+  }
+  normalize(value) {
+    return Number.isFinite(value) ? Math.max(1, Math.min(5, Math.floor(value))) : 3;
   }
   run(request) {
     return new Promise((resolve, reject) => {
@@ -3843,7 +3857,8 @@ var RequestScheduler = class {
   }
   drain() {
     var _a;
-    while (this.active < this.limit && this.queue.length > 0) (_a = this.queue.shift()) == null ? void 0 : _a();
+    const limit = Math.min(this.limit, ...this.scopes.values());
+    while (this.active < limit && this.queue.length > 0) (_a = this.queue.shift()) == null ? void 0 : _a();
   }
 };
 var bangumiRequestScheduler = new RequestScheduler();
@@ -3862,13 +3877,18 @@ var BangumiClient = class {
   setRequestConcurrency(value) {
     bangumiRequestScheduler.setConcurrency(value);
   }
+  acquireRequestConcurrency(value) {
+    return bangumiRequestScheduler.acquireConcurrency(value);
+  }
   setRequestCancellationChecker(checker) {
     this.requestCancelled = checker;
   }
-  scheduledRequest(options) {
+  scheduledRequest(options, cancelled, contextCancelled = this.requestCancelled) {
     const revision = this.credentialRevision;
     const assertContext = () => {
-      if (this.requestCancelled() || revision !== this.credentialRevision) throw new RequestCancelledError("Request context cancelled");
+      if (contextCancelled() || (cancelled == null ? void 0 : cancelled()) || revision !== this.credentialRevision) {
+        throw new RequestCancelledError("Request context cancelled");
+      }
     };
     return bangumiRequestScheduler.run(async () => {
       assertContext();
@@ -3908,17 +3928,20 @@ var BangumiClient = class {
    * 发送 API 请求（带指数退避重试）
    * 对 429 和 5xx 自动重试 3 次，退避 1s→2s→4s
    */
-  async request(method, endpoint, data) {
+  async request(method, endpoint, data, cancelled) {
     const maxRetries = 3;
     const url = `${this.baseUrl}${endpoint}`;
     const requestRevision = this.credentialRevision;
+    const contextCancelled = this.requestCancelled;
+    const isCancelled = () => contextCancelled() || (cancelled == null ? void 0 : cancelled()) || requestRevision !== this.credentialRevision;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      if (this.requestCancelled() || requestRevision !== this.credentialRevision) throw new RequestCancelledError("Request context cancelled");
+      if (isCancelled()) throw new RequestCancelledError("Request context cancelled");
       const options = {
         url,
         method,
         headers: this.getHeaders(),
-        body: data ? JSON.stringify(data) : void 0
+        body: data ? JSON.stringify(data) : void 0,
+        throw: false
       };
       try {
         if (attempt === 0) {
@@ -3926,7 +3949,7 @@ var BangumiClient = class {
         } else {
           debugLog(() => `[Bangumi Sync] \u91CD\u8BD5 ${attempt}/${maxRetries}: ${method} ${url}`);
         }
-        const response = await this.scheduledRequest(options);
+        const response = await this.scheduledRequest(options, cancelled, contextCancelled);
         debugLog(() => `[Bangumi Sync] Response status: ${response.status}`);
         if (this.isRetryableStatus(response.status) && attempt < maxRetries) {
           const delay2 = Math.pow(2, attempt) * 1e3;
@@ -3950,7 +3973,7 @@ var BangumiClient = class {
         }
         return responseJson;
       } catch (error) {
-        if (error instanceof RequestCancelledError || this.requestCancelled() || requestRevision !== this.credentialRevision) throw error;
+        if (error instanceof RequestCancelledError || isCancelled()) throw error;
         if (attempt < maxRetries && !(error instanceof Error && error.message.includes("HTTP"))) {
           const delay2 = Math.pow(2, attempt) * 1e3;
           console.warn(`[Bangumi Sync] \u8BF7\u6C42\u5931\u8D25\uFF0C${delay2}ms \u540E\u91CD\u8BD5...`);
@@ -4099,8 +4122,8 @@ var BangumiClient = class {
   /**
    * 获取条目详情
    */
-  async getSubject(subjectId) {
-    return this.request("GET", ENDPOINTS.SUBJECT_BY_ID(subjectId));
+  async getSubject(subjectId, cancelled) {
+    return this.request("GET", ENDPOINTS.SUBJECT_BY_ID(subjectId), void 0, cancelled);
   }
   /**
    * 获取条目关联的角色
@@ -9164,10 +9187,7 @@ var SyncManager = class {
     this.app = app;
     this.config = cloneSyncManagerConfig(config);
     this.client = new BangumiClient(config.accessToken);
-    this.client.setRequestCancellationChecker(() => {
-      var _a2, _b;
-      return this.shuttingDown || ((_b = (_a2 = this.cancellationSignal) == null ? void 0 : _a2.cancelled) != null ? _b : false);
-    });
+    this.client.setRequestCancellationChecker(() => this.shuttingDown);
     this.fileManager = new FileManager(app);
     this.imageHandler = new ImageHandler(app, this.fileManager);
     this.imageHandler.setBeforeCreateHook((path) => this.persistCreatedResourcePath(path));
@@ -9320,7 +9340,13 @@ var SyncManager = class {
    * 设置取消信号
    */
   setCancellationSignal(signal) {
+    var _a, _b;
+    if (this.cancellationSignal === signal) return;
     this.cancellationSignal = signal;
+    (_b = (_a = this.client).setRequestCancellationChecker) == null ? void 0 : _b.call(_a, () => {
+      var _a2;
+      return this.shuttingDown || ((_a2 = signal == null ? void 0 : signal.cancelled) != null ? _a2 : false);
+    });
   }
   shutdown() {
     var _a;
@@ -11150,10 +11176,12 @@ var SyncManager = class {
    * 优化：支持并发处理多个条目，提高同步速度
    */
   async sync(options, concurrency = 3) {
+    var _a, _b, _c, _d;
     this.ensureCanStartSync();
     const startTime = Date.now();
     let wasCancelled = false;
     const result = this.createSyncResult();
+    const releaseRequests = (_b = (_a = this.client).acquireRequestConcurrency) == null ? void 0 : _b.call(_a, concurrency);
     try {
       this.assertNoPendingTransaction();
       this.beginVaultOperation();
@@ -11169,6 +11197,10 @@ var SyncManager = class {
         () => ({ overwrite: false, preserveUserDataOnOverwrite: false })
       );
       wasCancelled = execution.wasCancelled;
+      if (execution.relations.length > 0) {
+        result.warnings.push(...await this.postProcessBatchRelations(execution.relations));
+      }
+      wasCancelled || (wasCancelled = this.shuttingDown || ((_d = (_c = this.cancellationSignal) == null ? void 0 : _c.cancelled) != null ? _d : false));
       this.finalizeSyncResult(result, wasCancelled);
       this.reportFinalSyncProgress(result, wasCancelled);
     } catch (error) {
@@ -11178,6 +11210,7 @@ var SyncManager = class {
       new import_obsidian11.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       this.endVaultOperation();
+      releaseRequests == null ? void 0 : releaseRequests();
     }
     result.duration = Date.now() - startTime;
     reportSyncSummary(result);
@@ -11209,8 +11242,6 @@ var SyncManager = class {
     }
   }
   async prepareCollectionBatch(collections, concurrency, subjectDetails) {
-    var _a, _b;
-    (_b = (_a = this.client).setRequestConcurrency) == null ? void 0 : _b.call(_a, concurrency);
     this.reportPhase("planning");
     await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
     const registry = this.incrementalSync.getRegistry();
@@ -11248,7 +11279,7 @@ var SyncManager = class {
     });
     this.reportPhase("planning");
     const candidates = collections.flatMap((collection) => {
-      var _a2;
+      var _a;
       const fullInfo = details.get(collection.subject_id);
       if (!fullInfo) return [];
       const existing = registry.getById(collection.subject_id);
@@ -11262,7 +11293,7 @@ var SyncManager = class {
         preferredPath,
         year: extractPathVars(fullInfo.subject, collection).year,
         currentPath: reconciled == null ? void 0 : reconciled.path,
-        namingState: (_a2 = reconciled == null ? void 0 : reconciled.namingState) != null ? _a2 : "managed",
+        namingState: (_a = reconciled == null ? void 0 : reconciled.namingState) != null ? _a : "managed",
         collisionSuffixMode: this.collisionSuffixMode()
       }];
     });
@@ -11296,15 +11327,15 @@ var SyncManager = class {
     });
     const blockedGroupKeys = /* @__PURE__ */ new Set();
     await this.processConcurrently(contextRecords, concurrency, async (record) => {
-      var _a2, _b2;
+      var _a, _b;
       try {
-        const subject = (_a2 = backfilledSubjects.get(record.subjectId)) != null ? _a2 : await this.client.getSubject(record.subjectId);
+        const subject = (_a = backfilledSubjects.get(record.subjectId)) != null ? _a : await this.client.getSubject(record.subjectId);
         const preferredPath = this.generatePreferredPath(subject);
         if (record.namingState === "unknown") {
           registry.markInferredManaged(record.subjectId, preferredPath);
         }
         registry.setPathPlanningMetadata(record.subjectId, preferredPath);
-        const reconciled = (_b2 = registry.getById(record.subjectId)) != null ? _b2 : record;
+        const reconciled = (_b = registry.getById(record.subjectId)) != null ? _b : record;
         candidates.push({
           subjectId: record.subjectId,
           preferredPath,
@@ -11569,7 +11600,7 @@ var SyncManager = class {
    * 用于控制面板选中同步功能，保留用户数据（评分、状态、短评等）
    */
   async syncByCollections(collections, options, onProgress) {
-    var _a, _b;
+    var _a, _b, _c, _d, _e, _f;
     this.ensureCanStartSync();
     const startTime = Date.now();
     let wasCancelled = false;
@@ -11577,6 +11608,7 @@ var SyncManager = class {
     const overwrite = (_a = options == null ? void 0 : options.overwrite) != null ? _a : false;
     const localPropertyValuesBySubjectId = options == null ? void 0 : options.localPropertyValuesBySubjectId;
     const concurrency = (_b = options == null ? void 0 : options.concurrency) != null ? _b : 3;
+    const releaseRequests = (_d = (_c = this.client).acquireRequestConcurrency) == null ? void 0 : _d.call(_c, concurrency);
     const previousProgress = this.operationProgress;
     this.operationProgress = options == null ? void 0 : options.onPhaseProgress;
     try {
@@ -11603,6 +11635,7 @@ var SyncManager = class {
       if (batchRelations.length > 0) {
         result.warnings.push(...await this.postProcessBatchRelations(batchRelations));
       }
+      wasCancelled || (wasCancelled = this.shuttingDown || ((_f = (_e = this.cancellationSignal) == null ? void 0 : _e.cancelled) != null ? _f : false));
       this.finalizeSyncResult(result, wasCancelled);
       this.reportFinalSyncProgress(result, wasCancelled);
     } catch (error) {
@@ -11612,6 +11645,7 @@ var SyncManager = class {
     } finally {
       this.operationProgress = previousProgress;
       this.endVaultOperation();
+      releaseRequests == null ? void 0 : releaseRequests();
     }
     result.duration = Date.now() - startTime;
     reportSyncSummary(result);
@@ -11665,10 +11699,12 @@ var SyncManager = class {
    * 用于手动同步模式，在用户确认后调用
    */
   async executeSync(previewItems, action, localPropertyResult, concurrency = 3, subjectDetails) {
+    var _a, _b, _c, _d;
     this.ensureCanStartSync();
     const startTime = Date.now();
     let wasCancelled = false;
     const result = this.createSyncResult();
+    const releaseRequests = (_b = (_a = this.client).acquireRequestConcurrency) == null ? void 0 : _b.call(_a, concurrency);
     try {
       let itemsToSync;
       if (action === "all") {
@@ -11693,11 +11729,11 @@ var SyncManager = class {
         concurrency,
         result,
         (prepared) => {
-          var _a;
+          var _a2;
           return {
             overwrite: false,
             preserveUserDataOnOverwrite: false,
-            localPropertyValues: (_a = localPropertyResult == null ? void 0 : localPropertyResult.propertyValuesBySubjectId) == null ? void 0 : _a.get(prepared.collection.subject_id)
+            localPropertyValues: (_a2 = localPropertyResult == null ? void 0 : localPropertyResult.propertyValuesBySubjectId) == null ? void 0 : _a2.get(prepared.collection.subject_id)
           };
         }
       );
@@ -11706,6 +11742,7 @@ var SyncManager = class {
       if (batchRelations.length > 0) {
         result.warnings.push(...await this.postProcessBatchRelations(batchRelations));
       }
+      wasCancelled || (wasCancelled = this.shuttingDown || ((_d = (_c = this.cancellationSignal) == null ? void 0 : _c.cancelled) != null ? _d : false));
       this.finalizeSyncResult(result, wasCancelled);
       this.reportFinalSyncProgress(result, wasCancelled);
     } catch (error) {
@@ -11715,6 +11752,7 @@ var SyncManager = class {
       new import_obsidian11.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       this.endVaultOperation();
+      releaseRequests == null ? void 0 : releaseRequests();
     }
     result.duration = Date.now() - startTime;
     reportSyncSummary(result);

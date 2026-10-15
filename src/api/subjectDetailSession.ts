@@ -11,6 +11,7 @@ export class SubjectDetailSession {
 	private disposed = false;
 	private readonly revision: number;
 	private readonly limit: number;
+	private readonly releaseRequests: (() => void) | undefined;
 
 	constructor(
 		private readonly client: BangumiClient,
@@ -20,7 +21,7 @@ export class SubjectDetailSession {
 	) {
 		this.revision = client.subjectDetailRevision;
 		this.limit = Number.isFinite(concurrency) ? Math.max(1, Math.min(5, Math.floor(concurrency))) : 3;
-		client.setRequestConcurrency?.(this.limit);
+		this.releaseRequests = client.acquireRequestConcurrency?.(this.limit);
 	}
 
 	get isValid(): boolean {
@@ -28,6 +29,7 @@ export class SubjectDetailSession {
 	}
 
 	dispose(): void {
+		this.releaseRequests?.();
 		this.disposed = true;
 		this.successes.clear();
 		this.queue.length = 0;
@@ -70,7 +72,7 @@ export class SubjectDetailSession {
 				this.active++;
 				void Promise.resolve().then(() => {
 					if (!this.isValid) throw new Error('Subject detail session cancelled or invalidated');
-					return this.client.getSubject(subjectId);
+					return this.client.getSubject(subjectId, () => expired || !this.isValid);
 				}).then(
 					subject => subject.id === subjectId
 						? finish(subject) : finish(undefined, new Error('Subject detail identity mismatch')),

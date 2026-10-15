@@ -348,7 +348,7 @@ export class SyncManager {
 		this.app = app;
 		this.config = cloneSyncManagerConfig(config);
 		this.client = new BangumiClient(config.accessToken);
-		this.client.setRequestCancellationChecker(() => this.shuttingDown || (this.cancellationSignal?.cancelled ?? false));
+		this.client.setRequestCancellationChecker(() => this.shuttingDown);
 		this.fileManager = new FileManager(app);
 		this.imageHandler = new ImageHandler(app, this.fileManager);
 		this.imageHandler.setBeforeCreateHook(path => this.persistCreatedResourcePath(path));
@@ -487,7 +487,9 @@ export class SyncManager {
 	 * 设置取消信号
 	 */
 	setCancellationSignal(signal: SyncCancellationSignal | null): void {
+		if (this.cancellationSignal === signal) return;
 		this.cancellationSignal = signal;
+		this.client.setRequestCancellationChecker?.(() => this.shuttingDown || (signal?.cancelled ?? false));
 	}
 
 	shutdown(): void {
@@ -2316,6 +2318,7 @@ export class SyncManager {
 		const startTime = Date.now();
 		let wasCancelled = false;
 		const result = this.createSyncResult();
+		const releaseRequests = this.client.acquireRequestConcurrency?.(concurrency);
 
 		try {
 			this.assertNoPendingTransaction();
@@ -2335,6 +2338,10 @@ export class SyncManager {
 				() => ({ overwrite: false, preserveUserDataOnOverwrite: false }),
 			);
 			wasCancelled = execution.wasCancelled;
+			if (execution.relations.length > 0) {
+				result.warnings.push(...await this.postProcessBatchRelations(execution.relations));
+			}
+			wasCancelled ||= this.shuttingDown || (this.cancellationSignal?.cancelled ?? false);
 
 			this.finalizeSyncResult(result, wasCancelled);
 			this.reportFinalSyncProgress(result, wasCancelled);
@@ -2346,6 +2353,7 @@ export class SyncManager {
 			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
 		} finally {
 			this.endVaultOperation();
+			releaseRequests?.();
 		}
 
 		result.duration = Date.now() - startTime;
@@ -2400,7 +2408,6 @@ export class SyncManager {
 		concurrency: number,
 		subjectDetails?: SubjectDetailSession,
 	): Promise<PreparedCollectionBatch> {
-		this.client.setRequestConcurrency?.(concurrency);
 		this.reportPhase('planning');
 		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
 		const registry = this.incrementalSync.getRegistry();
@@ -2845,6 +2852,7 @@ export class SyncManager {
 		const overwrite = options?.overwrite ?? false;
 		const localPropertyValuesBySubjectId = options?.localPropertyValuesBySubjectId;
 		const concurrency = options?.concurrency ?? 3;
+		const releaseRequests = this.client.acquireRequestConcurrency?.(concurrency);
 		const previousProgress = this.operationProgress;
 		this.operationProgress = options?.onPhaseProgress;
 
@@ -2876,6 +2884,7 @@ export class SyncManager {
 			if (batchRelations.length > 0) {
 				result.warnings.push(...await this.postProcessBatchRelations(batchRelations));
 			}
+			wasCancelled ||= this.shuttingDown || (this.cancellationSignal?.cancelled ?? false);
 
 			this.finalizeSyncResult(result, wasCancelled);
 			this.reportFinalSyncProgress(result, wasCancelled);
@@ -2887,6 +2896,7 @@ export class SyncManager {
 		} finally {
 			this.operationProgress = previousProgress;
 			this.endVaultOperation();
+			releaseRequests?.();
 		}
 
 		result.duration = Date.now() - startTime;
@@ -2963,6 +2973,7 @@ export class SyncManager {
 		const startTime = Date.now();
 		let wasCancelled = false;
 		const result = this.createSyncResult();
+		const releaseRequests = this.client.acquireRequestConcurrency?.(concurrency);
 
 		try {
 			// 根据用户选择过滤条目
@@ -3004,6 +3015,7 @@ export class SyncManager {
 			if (batchRelations.length > 0) {
 				result.warnings.push(...await this.postProcessBatchRelations(batchRelations));
 			}
+			wasCancelled ||= this.shuttingDown || (this.cancellationSignal?.cancelled ?? false);
 
 			this.finalizeSyncResult(result, wasCancelled);
 			this.reportFinalSyncProgress(result, wasCancelled);
@@ -3015,6 +3027,7 @@ export class SyncManager {
 			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
 		} finally {
 			this.endVaultOperation();
+			releaseRequests?.();
 		}
 
 		result.duration = Date.now() - startTime;

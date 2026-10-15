@@ -32,12 +32,17 @@ export class BangumiClient {
 	private requestCancelled: () => boolean = () => false;
 
 	setRequestConcurrency(value: number): void { bangumiRequestScheduler.setConcurrency(value); }
-	setRequestCancellationChecker(checker: () => boolean): void { this.requestCancelled = checker; }
+	acquireRequestConcurrency(value: number): () => void { return bangumiRequestScheduler.acquireConcurrency(value); }
+	setRequestCancellationChecker(checker: () => boolean): void {
+		this.requestCancelled = checker;
+	}
 
-	private scheduledRequest(options: RequestUrlParam) {
+	private scheduledRequest(options: RequestUrlParam, cancelled?: () => boolean, contextCancelled = this.requestCancelled) {
 		const revision = this.credentialRevision;
 		const assertContext = () => {
-			if (this.requestCancelled() || revision !== this.credentialRevision) throw new RequestCancelledError('Request context cancelled');
+			if (contextCancelled() || cancelled?.() || revision !== this.credentialRevision) {
+				throw new RequestCancelledError('Request context cancelled');
+			}
 		};
 		return bangumiRequestScheduler.run(async () => {
 			assertContext();
@@ -88,19 +93,23 @@ export class BangumiClient {
 	private async request<T>(
 		method: 'GET' | 'POST' | 'PUT' | 'DELETE',
 		endpoint: string,
-		data?: unknown
+		data?: unknown,
+		cancelled?: () => boolean,
 	): Promise<T> {
 		const maxRetries = 3;
 		const url = `${this.baseUrl}${endpoint}`;
 		const requestRevision = this.credentialRevision;
+		const contextCancelled = this.requestCancelled;
+		const isCancelled = () => contextCancelled() || cancelled?.() || requestRevision !== this.credentialRevision;
 
 		for (let attempt = 0; attempt <= maxRetries; attempt++) {
-			if (this.requestCancelled() || requestRevision !== this.credentialRevision) throw new RequestCancelledError('Request context cancelled');
+			if (isCancelled()) throw new RequestCancelledError('Request context cancelled');
 			const options: RequestUrlParam = {
 				url,
 				method,
 				headers: this.getHeaders(),
 				body: data ? JSON.stringify(data) : undefined,
+				throw: false,
 			};
 
 			try {
@@ -110,7 +119,7 @@ export class BangumiClient {
 					debugLog(() => `[Bangumi Sync] 重试 ${attempt}/${maxRetries}: ${method} ${url}`);
 				}
 
-				const response = await this.scheduledRequest(options);
+				const response = await this.scheduledRequest(options, cancelled, contextCancelled);
 				debugLog(() => `[Bangumi Sync] Response status: ${response.status}`);
 
 				// 可重试的状态码且未超过重试次数
@@ -142,7 +151,7 @@ export class BangumiClient {
 
 				return responseJson as T;
 			} catch (error) {
-				if (error instanceof RequestCancelledError || this.requestCancelled() || requestRevision !== this.credentialRevision) throw error;
+				if (error instanceof RequestCancelledError || isCancelled()) throw error;
 				// 网络错误等非 HTTP 错误也可重试
 				if (attempt < maxRetries && !(error instanceof Error && error.message.includes('HTTP'))) {
 					const delay = Math.pow(2, attempt) * 1000;
@@ -320,8 +329,8 @@ export class BangumiClient {
 	/**
 	 * 获取条目详情
 	 */
-	async getSubject(subjectId: number): Promise<Subject> {
-		return this.request<Subject>('GET', ENDPOINTS.SUBJECT_BY_ID(subjectId));
+	async getSubject(subjectId: number, cancelled?: () => boolean): Promise<Subject> {
+		return this.request<Subject>('GET', ENDPOINTS.SUBJECT_BY_ID(subjectId), undefined, cancelled);
 	}
 
 	/**

@@ -3,10 +3,21 @@ export class RequestScheduler {
 	private active = 0;
 	private limit = 3;
 	private readonly queue: Array<() => void> = [];
+	private readonly scopes = new Map<symbol, number>();
 
 	setConcurrency(value: number): void {
-		this.limit = Number.isFinite(value) ? Math.max(1, Math.min(5, Math.floor(value))) : 3;
+		this.limit = this.normalize(value);
 		this.drain();
+	}
+
+	acquireConcurrency(value: number): () => void {
+		const key = Symbol();
+		this.scopes.set(key, this.normalize(value));
+		return () => { this.scopes.delete(key); this.drain(); };
+	}
+
+	private normalize(value: number): number {
+		return Number.isFinite(value) ? Math.max(1, Math.min(5, Math.floor(value))) : 3;
 	}
 
 	run<T>(request: () => Promise<T>): Promise<T> {
@@ -23,7 +34,8 @@ export class RequestScheduler {
 	}
 
 	private drain(): void {
-		while (this.active < this.limit && this.queue.length > 0) this.queue.shift()?.();
+		const limit = Math.min(this.limit, ...this.scopes.values());
+		while (this.active < limit && this.queue.length > 0) this.queue.shift()?.();
 	}
 }
 
