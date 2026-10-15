@@ -25,7 +25,7 @@ bangumi/
 ├── manifest.json           # 插件清单
 ├── styles.css              # 插件样式
 ├── common/                 # 共享模块
-│   ├── api/               # API 层（类型、端点、客户端）
+│   ├── api/               # API 类型与端点
 │   ├── parser/            # 解析层（条目、角色、章节）
 │   ├── template/          # 模板层（默认模板、路径处理）
 │   ├── file/              # 文件层（文件管理、图片处理）
@@ -65,7 +65,7 @@ bangumi/
 - 文件更新使用 `vault.process()` 而非 `vault.modify()`
 - 使用 `requestUrl` 而非 `fetch`
 - 定时器使用 `activeWindow.setTimeout`
-- 创建元素使用 `activeDocument.createElement`
+- 创建元素优先使用 Obsidian DOM helpers（`createDiv` / `createEl`）
 - 插件入口必须默认导出插件类，避免 `h is not a constructor`
 - 代码使用的 API 必须与 `manifest.json` 的 `minAppVersion` 对齐
 - 跨窗口 DOM 判断优先使用 `.instanceOf(...)`
@@ -79,7 +79,9 @@ bangumi/
 
 ### 日志
 
-- 使用 `console.debug()`、`console.warn()`、`console.error()`
+- 详细日志统一通过 `common/logging.ts` 的惰性 `debugLog`，默认关闭
+- 批次摘要使用 `reportSyncSummary`；保留 `console.warn()`、`console.error()`
+- 不输出 Token、请求正文、完整恢复日志或用户私密正文
 - 不使用 `console.log()`
 - 日志前缀：`[Bangumi Sync]`
 

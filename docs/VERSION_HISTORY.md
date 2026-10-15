@@ -2,6 +2,18 @@
 
 [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases) 是已发布版本的最终对外事实；根目录 `release-notes-{version}.md` 是 Release notes 源文件。本文只提供简洁索引，不复制完整变更日志。
 
+## 6.13.0
+
+重点：预览详情复用、模板资料按需加载、共享 HTTP 并发预算、批量关联补链、阶段进度与惰性诊断日志。
+
+[GitHub Release](https://github.com/threeyang3/bangumi-sync/releases/tag/6.13.0) · [Release notes source](../release-notes-6.13.0.md)
+
+## 6.12.2
+
+重点：恢复日志的增量事实与路径索引、快照 hash 复用，以及大批量同步收尾性能改进。
+
+[GitHub Release](https://github.com/threeyang3/bangumi-sync/releases/tag/6.12.2) · [Release notes source](../release-notes-6.12.2.md)
+
 ## 6.12.1
 
 重点：Vault 操作全流程互斥、插件重载取消、路径迁移持久恢复、并发配置边界和依赖安全更新。
