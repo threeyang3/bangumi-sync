@@ -18,12 +18,34 @@ import {
 	UserEpisodeCollection,
 } from '../../common/api/types';
 import { API_BASE_URL, ENDPOINTS, DEFAULT_HEADERS } from '../../common/api/endpoints';
+import { bangumiRequestScheduler } from './requestScheduler';
+
+class RequestCancelledError extends Error {}
+
+export interface SubjectRelatedDataRequirements { characters: boolean; persons: boolean; relations: boolean }
 
 export class BangumiClient {
 	private accessToken: string;
 	private baseUrl: string;
 	private authenticatedUsername: string | null = null;
 	private credentialRevision = 0;
+	private requestCancelled: () => boolean = () => false;
+
+	setRequestConcurrency(value: number): void { bangumiRequestScheduler.setConcurrency(value); }
+	setRequestCancellationChecker(checker: () => boolean): void { this.requestCancelled = checker; }
+
+	private scheduledRequest(options: RequestUrlParam) {
+		const revision = this.credentialRevision;
+		const assertContext = () => {
+			if (this.requestCancelled() || revision !== this.credentialRevision) throw new RequestCancelledError('Request context cancelled');
+		};
+		return bangumiRequestScheduler.run(async () => {
+			assertContext();
+			const response = await requestUrl(options);
+			assertContext();
+			return response;
+		});
+	}
 
 	get subjectDetailRevision(): number { return this.credentialRevision; }
 
@@ -70,8 +92,10 @@ export class BangumiClient {
 	): Promise<T> {
 		const maxRetries = 3;
 		const url = `${this.baseUrl}${endpoint}`;
+		const requestRevision = this.credentialRevision;
 
 		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			if (this.requestCancelled() || requestRevision !== this.credentialRevision) throw new RequestCancelledError('Request context cancelled');
 			const options: RequestUrlParam = {
 				url,
 				method,
@@ -86,7 +110,7 @@ export class BangumiClient {
 					debugLog(() => `[Bangumi Sync] 重试 ${attempt}/${maxRetries}: ${method} ${url}`);
 				}
 
-				const response = await requestUrl(options);
+				const response = await this.scheduledRequest(options);
 				debugLog(() => `[Bangumi Sync] Response status: ${response.status}`);
 
 				// 可重试的状态码且未超过重试次数
@@ -118,6 +142,7 @@ export class BangumiClient {
 
 				return responseJson as T;
 			} catch (error) {
+				if (error instanceof RequestCancelledError || this.requestCancelled() || requestRevision !== this.credentialRevision) throw error;
 				// 网络错误等非 HTTP 错误也可重试
 				if (attempt < maxRetries && !(error instanceof Error && error.message.includes('HTTP'))) {
 					const delay = Math.pow(2, attempt) * 1000;
@@ -179,7 +204,7 @@ export class BangumiClient {
 
 		try {
 			const headers = this.getHeaders();
-			const response = await requestUrl({
+			const response = await this.scheduledRequest({
 				url: `${this.baseUrl}/v0/me`,
 				method: 'GET',
 				headers: headers,
@@ -231,7 +256,7 @@ export class BangumiClient {
 		debugLog(() => `[Bangumi Sync] 获取收藏状态: GET ${endpoint}`);
 
 		try {
-			const response = await requestUrl({
+			const response = await this.scheduledRequest({
 				url,
 				method: 'GET',
 				headers: this.getHeaders(),
@@ -265,7 +290,7 @@ export class BangumiClient {
 		const url = `${this.baseUrl}${endpoint}`;
 
 		try {
-			const response = await requestUrl({
+			const response = await this.scheduledRequest({
 				url,
 				method: 'GET',
 				headers: this.getHeaders(),
@@ -367,12 +392,22 @@ export class BangumiClient {
 	/**
 	 * 获取完整的条目信息（包括角色、人物和关联条目）
 	 */
-	async getFullSubjectInfo(subjectId: number, subjectDetail?: Promise<Subject>): Promise<{
+	async getFullSubjectInfo(subjectId: number, subjectDetail?: Promise<Subject>, requirements?: (subject: Subject) => SubjectRelatedDataRequirements): Promise<{
 		subject: Subject;
 		characters: RelatedCharacter[];
 		persons: RelatedPerson[];
 		relations: RelatedSubject[];
 	}> {
+		if (requirements) {
+			const subject = await (subjectDetail ?? this.getSubject(subjectId));
+			const needs = requirements(subject);
+			const [characters, persons, relations] = await Promise.all([
+				needs.characters ? this.getSubjectCharacters(subjectId) : Promise.resolve([]),
+				needs.persons ? this.getSubjectPersons(subjectId) : Promise.resolve([]),
+				needs.relations ? this.getSubjectRelations(subjectId) : Promise.resolve([]),
+			]);
+			return { subject, characters, persons, relations };
+		}
 		const [subject, characters, persons, relations] = await Promise.all([
 			subjectDetail ?? this.getSubject(subjectId),
 			this.getSubjectCharacters(subjectId),

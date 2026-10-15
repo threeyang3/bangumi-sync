@@ -20,6 +20,7 @@ export class SubjectDetailSession {
 	) {
 		this.revision = client.subjectDetailRevision;
 		this.limit = Number.isFinite(concurrency) ? Math.max(1, Math.min(5, Math.floor(concurrency))) : 3;
+		client.setRequestConcurrency?.(this.limit);
 	}
 
 	get isValid(): boolean {

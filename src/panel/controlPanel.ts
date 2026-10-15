@@ -1207,7 +1207,9 @@ export class ControlPanel extends Modal {
 					warned = true;
 					new Notice(message);
 				}
-			}
+			},
+			undefined,
+			{ concurrency: this.settings.syncConcurrency },
 		);
 
 		// 没有可填写的自定义属性时跳过弹窗

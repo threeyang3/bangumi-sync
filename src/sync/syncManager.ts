@@ -22,6 +22,7 @@ import { determineSyncCompletion, SyncOptions, SyncResult, SyncProgress, SyncPha
 import { parseCharacters } from '../../common/parser/characterParser';
 import { generateFilePath, extractPathVars } from '../../common/template/pathTemplate';
 import { applyNamedPropertyValuesToContent, CustomTemplates, generateContentByType } from '../template/contentTemplate';
+import { getSubjectDataRequirements } from '../template/subjectDataRequirements';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { SyncPreviewItem } from '../ui/syncPreviewModal';
 import { CoverLinkType, PathNamingStrategy } from '../settings/settings';
@@ -347,6 +348,7 @@ export class SyncManager {
 		this.app = app;
 		this.config = cloneSyncManagerConfig(config);
 		this.client = new BangumiClient(config.accessToken);
+		this.client.setRequestCancellationChecker(() => this.shuttingDown || (this.cancellationSignal?.cancelled ?? false));
 		this.fileManager = new FileManager(app);
 		this.imageHandler = new ImageHandler(app, this.fileManager);
 		this.imageHandler.setBeforeCreateHook(path => this.persistCreatedResourcePath(path));
@@ -2398,6 +2400,7 @@ export class SyncManager {
 		concurrency: number,
 		subjectDetails?: SubjectDetailSession,
 	): Promise<PreparedCollectionBatch> {
+		this.client.setRequestConcurrency?.(concurrency);
 		this.reportPhase('planning');
 		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
 		const registry = this.incrementalSync.getRegistry();
@@ -2417,7 +2420,8 @@ export class SyncManager {
 			}
 			try {
 				details.set(collection.subject_id, await this.client.getFullSubjectInfo(collection.subject_id,
-					subjectDetails?.getSubject(collection.subject_id)));
+					subjectDetails?.getSubject(collection.subject_id), subject => getSubjectDataRequirements(
+						subject, this.config.customTemplates, this.config.enableRelatedLinks !== false)));
 			} catch (error) {
 				failures.push({
 					collection,
@@ -3046,7 +3050,8 @@ export class SyncManager {
 		const filePath = prepared.allocation.finalPath;
 
 		// 获取章节信息
-		const episodeData = await this.fetchEpisodeData(subject);
+		const needs = getSubjectDataRequirements(subject, this.config.customTemplates, this.config.enableRelatedLinks !== false);
+		const episodeData = needs.episodes ? await this.fetchEpisodeData(subject) : null;
 
 		// 构建额外模板变量（当有自定义属性或需要覆盖时才解析）
 		let extraTemplateVars: Record<string, string> | undefined;

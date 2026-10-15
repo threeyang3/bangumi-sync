@@ -426,3 +426,18 @@
 否则会出现“当前界面显示变了，但重新打开文件后又回去”的假持久化问题。
 
 当前必须保持的规则见[状态同步不变量](STATUS_SYNC_INVARIANTS.md)，历史 bug 根因见[状态同步历史坑点](../history/pitfalls/status-sync-2026-04.md)。
+
+## 22. 同步时如何决定资料需求与请求并发
+
+`getSubjectDataRequirements()` 必须复用 `resolveTemplateForSubject()` 选择实际类别模板、类型 fallback 或默认模板。完整 subject 始终是必要输入，可复用本次预览的成功响应；当前所有路径变量，包括 author、category、year，均来自此详情及 infobox，不依赖辅助接口。不能用收藏简版信息替代路径或正式渲染的完整详情。
+
+| 资料 | 请求条件 |
+| --- | --- |
+| 角色 | 模板引用 character1–9、characterCV1–9 或 characterPhoto1–9 |
+| 人物 | 动画模板引用 animeMake，且现有 infobox/Copyright 不能提供制作公司 |
+| 关联条目 | enableRelatedLinks 开启；即使模板无 related，也需为已存在条目补反向链接 |
+| 章节及用户章节状态 | 动画/三次元引用 episodes；书籍按实际解析类别，小说引用 volumes_display，漫画引用 episodes；与渲染器的小说优先判断一致 |
+
+静态收集条件键、所有条件体和默认值语法中的变量，不推断条件值，因此可能保守地请求隐藏分支所需资料。普通 episode 话数和 infobox 字段不依赖章节接口。章节为空时不请求用户状态，状态失败时仍渲染章节；章节失败保持原有降级，必要的角色/人物/关联接口失败仍导致该条目准备失败，不以空数据伪装成功。API 方法 getFullSubjectInfo 未提供需求回调的既有调用者保留原来四类资料获取行为。
+
+所有 BangumiClient 的请求（含认证与收藏探测）通过共享 requestScheduler 调度，以实际 requestUrl 生命周期占用名额。上限为 1–5，设置应用与失败恢复同步更新预算，同步操作也按传入并发值配置预算。重试策略与端点不变，退避等待不占 HTTP 名额；队列启动和返回时检查操作取消/卸载及凭据 revision，账号变化或取消不继续重试。SDK 无法中断已开始的请求，超时或调低上限都不会提前释放已有名额，后续请求等在途数低于上限后再启动。该预算属于当前加载的插件，不覆盖独立封面/CDN 下载或另一次插件加载的在途请求。

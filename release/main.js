@@ -64,8 +64,10 @@ var SubjectDetailSession = class {
     this.cancelWaiters = /* @__PURE__ */ new Set();
     this.active = 0;
     this.disposed = false;
+    var _a;
     this.revision = client.subjectDetailRevision;
     this.limit = Number.isFinite(concurrency) ? Math.max(1, Math.min(5, Math.floor(concurrency))) : 3;
+    (_a = client.setRequestConcurrency) == null ? void 0 : _a.call(client, this.limit);
   }
   get isValid() {
     return !this.disposed && !this.cancelled() && this.client.subjectDetailRevision === this.revision;
@@ -3816,13 +3818,64 @@ var DEFAULT_HEADERS = {
   "User-Agent": "Bangumi-Obsidian-Plugin/1.0.0"
 };
 
+// src/api/requestScheduler.ts
+var RequestScheduler = class {
+  constructor() {
+    this.active = 0;
+    this.limit = 3;
+    this.queue = [];
+  }
+  setConcurrency(value) {
+    this.limit = Number.isFinite(value) ? Math.max(1, Math.min(5, Math.floor(value))) : 3;
+    this.drain();
+  }
+  run(request) {
+    return new Promise((resolve, reject) => {
+      this.queue.push(() => {
+        this.active++;
+        void Promise.resolve().then(request).then(resolve, reject).finally(() => {
+          this.active--;
+          this.drain();
+        });
+      });
+      this.drain();
+    });
+  }
+  drain() {
+    var _a;
+    while (this.active < this.limit && this.queue.length > 0) (_a = this.queue.shift()) == null ? void 0 : _a();
+  }
+};
+var bangumiRequestScheduler = new RequestScheduler();
+
 // src/api/client.ts
+var RequestCancelledError = class extends Error {
+};
 var BangumiClient = class {
   constructor(accessToken = "", baseUrl = API_BASE_URL) {
     this.authenticatedUsername = null;
     this.credentialRevision = 0;
+    this.requestCancelled = () => false;
     this.accessToken = accessToken;
     this.baseUrl = baseUrl;
+  }
+  setRequestConcurrency(value) {
+    bangumiRequestScheduler.setConcurrency(value);
+  }
+  setRequestCancellationChecker(checker) {
+    this.requestCancelled = checker;
+  }
+  scheduledRequest(options) {
+    const revision = this.credentialRevision;
+    const assertContext = () => {
+      if (this.requestCancelled() || revision !== this.credentialRevision) throw new RequestCancelledError("Request context cancelled");
+    };
+    return bangumiRequestScheduler.run(async () => {
+      assertContext();
+      const response = await (0, import_obsidian3.requestUrl)(options);
+      assertContext();
+      return response;
+    });
   }
   get subjectDetailRevision() {
     return this.credentialRevision;
@@ -3858,7 +3911,9 @@ var BangumiClient = class {
   async request(method, endpoint, data) {
     const maxRetries = 3;
     const url = `${this.baseUrl}${endpoint}`;
+    const requestRevision = this.credentialRevision;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (this.requestCancelled() || requestRevision !== this.credentialRevision) throw new RequestCancelledError("Request context cancelled");
       const options = {
         url,
         method,
@@ -3871,7 +3926,7 @@ var BangumiClient = class {
         } else {
           debugLog(() => `[Bangumi Sync] \u91CD\u8BD5 ${attempt}/${maxRetries}: ${method} ${url}`);
         }
-        const response = await (0, import_obsidian3.requestUrl)(options);
+        const response = await this.scheduledRequest(options);
         debugLog(() => `[Bangumi Sync] Response status: ${response.status}`);
         if (this.isRetryableStatus(response.status) && attempt < maxRetries) {
           const delay2 = Math.pow(2, attempt) * 1e3;
@@ -3895,6 +3950,7 @@ var BangumiClient = class {
         }
         return responseJson;
       } catch (error) {
+        if (error instanceof RequestCancelledError || this.requestCancelled() || requestRevision !== this.credentialRevision) throw error;
         if (attempt < maxRetries && !(error instanceof Error && error.message.includes("HTTP"))) {
           const delay2 = Math.pow(2, attempt) * 1e3;
           console.warn(`[Bangumi Sync] \u8BF7\u6C42\u5931\u8D25\uFF0C${delay2}ms \u540E\u91CD\u8BD5...`);
@@ -3947,7 +4003,7 @@ var BangumiClient = class {
     debugLog(() => "[Bangumi Sync] \u9A8C\u8BC1 Token...");
     try {
       const headers = this.getHeaders();
-      const response = await (0, import_obsidian3.requestUrl)({
+      const response = await this.scheduledRequest({
         url: `${this.baseUrl}/v0/me`,
         method: "GET",
         headers
@@ -3990,7 +4046,7 @@ var BangumiClient = class {
     const url = `${this.baseUrl}${endpoint}`;
     debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u6536\u85CF\u72B6\u6001: GET ${endpoint}`);
     try {
-      const response = await (0, import_obsidian3.requestUrl)({
+      const response = await this.scheduledRequest({
         url,
         method: "GET",
         headers: this.getHeaders()
@@ -4018,7 +4074,7 @@ var BangumiClient = class {
     const endpoint = ENDPOINTS.USER_COLLECTION_BY_ID(username, subjectId);
     const url = `${this.baseUrl}${endpoint}`;
     try {
-      const response = await (0, import_obsidian3.requestUrl)({
+      const response = await this.scheduledRequest({
         url,
         method: "GET",
         headers: this.getHeaders()
@@ -4099,7 +4155,17 @@ var BangumiClient = class {
   /**
    * 获取完整的条目信息（包括角色、人物和关联条目）
    */
-  async getFullSubjectInfo(subjectId, subjectDetail) {
+  async getFullSubjectInfo(subjectId, subjectDetail, requirements) {
+    if (requirements) {
+      const subject2 = await (subjectDetail != null ? subjectDetail : this.getSubject(subjectId));
+      const needs = requirements(subject2);
+      const [characters2, persons2, relations2] = await Promise.all([
+        needs.characters ? this.getSubjectCharacters(subjectId) : Promise.resolve([]),
+        needs.persons ? this.getSubjectPersons(subjectId) : Promise.resolve([]),
+        needs.relations ? this.getSubjectRelations(subjectId) : Promise.resolve([])
+      ]);
+      return { subject: subject2, characters: characters2, persons: persons2, relations: relations2 };
+    }
     const [subject, characters, persons, relations] = await Promise.all([
       subjectDetail != null ? subjectDetail : this.getSubject(subjectId),
       this.getSubjectCharacters(subjectId),
@@ -7093,6 +7159,21 @@ ${value.map((item) => `  - ${item}`).join("\n")}`;
   return value;
 }
 
+// src/template/subjectDataRequirements.ts
+function getSubjectDataRequirements(subject, templates, enableRelatedLinks = true) {
+  const template = resolveTemplateForSubject(subject, templates);
+  const variables = new Set(Array.from(template.matchAll(/\{\{(?:#if\s+)?(\w+)(?=\||\}\})/g), (match) => match[1]));
+  const info = parseInfoByType(subject.infobox, subject.type, subject.platform);
+  const bookNovel = subject.type === 1 /* Book */ && info.category.includes("\u5C0F\u8BF4");
+  const bookComic = subject.type === 1 /* Book */ && !bookNovel && info.category.includes("\u6F2B\u753B");
+  return {
+    characters: [...variables].some((name) => /^character(?:CV|Photo)?[1-9]$/.test(name)),
+    persons: subject.type === 2 /* Anime */ && variables.has("animeMake") && !info.animeMake,
+    relations: enableRelatedLinks,
+    episodes: bookNovel && variables.has("volumes_display") || (subject.type === 2 /* Anime */ || subject.type === 6 /* Real */ || bookComic) && variables.has("episodes")
+  };
+}
+
 // src/userData/userDataExtractor.ts
 var import_obsidian9 = require("obsidian");
 
@@ -9083,6 +9164,10 @@ var SyncManager = class {
     this.app = app;
     this.config = cloneSyncManagerConfig(config);
     this.client = new BangumiClient(config.accessToken);
+    this.client.setRequestCancellationChecker(() => {
+      var _a2, _b;
+      return this.shuttingDown || ((_b = (_a2 = this.cancellationSignal) == null ? void 0 : _a2.cancelled) != null ? _b : false);
+    });
     this.fileManager = new FileManager(app);
     this.imageHandler = new ImageHandler(app, this.fileManager);
     this.imageHandler.setBeforeCreateHook((path) => this.persistCreatedResourcePath(path));
@@ -11124,6 +11209,8 @@ var SyncManager = class {
     }
   }
   async prepareCollectionBatch(collections, concurrency, subjectDetails) {
+    var _a, _b;
+    (_b = (_a = this.client).setRequestConcurrency) == null ? void 0 : _b.call(_a, concurrency);
     this.reportPhase("planning");
     await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
     const registry = this.incrementalSync.getRegistry();
@@ -11143,7 +11230,12 @@ var SyncManager = class {
       try {
         details.set(collection.subject_id, await this.client.getFullSubjectInfo(
           collection.subject_id,
-          subjectDetails == null ? void 0 : subjectDetails.getSubject(collection.subject_id)
+          subjectDetails == null ? void 0 : subjectDetails.getSubject(collection.subject_id),
+          (subject) => getSubjectDataRequirements(
+            subject,
+            this.config.customTemplates,
+            this.config.enableRelatedLinks !== false
+          )
         ));
       } catch (error) {
         failures.push({
@@ -11156,7 +11248,7 @@ var SyncManager = class {
     });
     this.reportPhase("planning");
     const candidates = collections.flatMap((collection) => {
-      var _a;
+      var _a2;
       const fullInfo = details.get(collection.subject_id);
       if (!fullInfo) return [];
       const existing = registry.getById(collection.subject_id);
@@ -11170,7 +11262,7 @@ var SyncManager = class {
         preferredPath,
         year: extractPathVars(fullInfo.subject, collection).year,
         currentPath: reconciled == null ? void 0 : reconciled.path,
-        namingState: (_a = reconciled == null ? void 0 : reconciled.namingState) != null ? _a : "managed",
+        namingState: (_a2 = reconciled == null ? void 0 : reconciled.namingState) != null ? _a2 : "managed",
         collisionSuffixMode: this.collisionSuffixMode()
       }];
     });
@@ -11204,15 +11296,15 @@ var SyncManager = class {
     });
     const blockedGroupKeys = /* @__PURE__ */ new Set();
     await this.processConcurrently(contextRecords, concurrency, async (record) => {
-      var _a, _b;
+      var _a2, _b2;
       try {
-        const subject = (_a = backfilledSubjects.get(record.subjectId)) != null ? _a : await this.client.getSubject(record.subjectId);
+        const subject = (_a2 = backfilledSubjects.get(record.subjectId)) != null ? _a2 : await this.client.getSubject(record.subjectId);
         const preferredPath = this.generatePreferredPath(subject);
         if (record.namingState === "unknown") {
           registry.markInferredManaged(record.subjectId, preferredPath);
         }
         registry.setPathPlanningMetadata(record.subjectId, preferredPath);
-        const reconciled = (_b = registry.getById(record.subjectId)) != null ? _b : record;
+        const reconciled = (_b2 = registry.getById(record.subjectId)) != null ? _b2 : record;
         candidates.push({
           subjectId: record.subjectId,
           preferredPath,
@@ -11641,7 +11733,8 @@ var SyncManager = class {
     const typeLabel = getTypeLabel(subject.type);
     const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
     const filePath = prepared.allocation.finalPath;
-    const episodeData = await this.fetchEpisodeData(subject);
+    const needs = getSubjectDataRequirements(subject, this.config.customTemplates, this.config.enableRelatedLinks !== false);
+    const episodeData = needs.episodes ? await this.fetchEpisodeData(subject) : null;
     let extraTemplateVars;
     if (options.localPropertyValues || options.overwrite) {
       const templateProperties = getTemplatePropertyGroupsForSubject(subject, this.config.customTemplates).customProperties;
@@ -16761,7 +16854,9 @@ var ControlPanel = class extends import_obsidian24.Modal {
           warned = true;
           new import_obsidian24.Notice(message);
         }
-      }
+      },
+      void 0,
+      { concurrency: this.settings.syncConcurrency }
     );
     if (!hasLocalPropertyFieldsForCollections(collections, subjectsById, this.syncManager.getCustomTemplates())) {
       debugLog(() => `[Bangumi Sync] No custom property fields, skipping modal`);
@@ -20748,6 +20843,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     return fields.filter((field) => !syncConfigFieldEqual(previous, next, field));
   }
   refreshDependentServices(manager, settings = this.settings) {
+    manager.client.setRequestConcurrency(settings.syncConcurrency);
     this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.cloneSettings(settings));
   }
   applySettingsChanges(patch) {

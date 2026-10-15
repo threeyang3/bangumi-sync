@@ -422,6 +422,7 @@ export default class BangumiPlugin extends Plugin {
 	}
 
 	private refreshDependentServices(manager: SyncManager, settings: BangumiPluginSettings = this.settings): void {
+		manager.client.setRequestConcurrency(settings.syncConcurrency);
 		this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.cloneSettings(settings));
 	}
 
