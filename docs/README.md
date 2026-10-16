@@ -30,6 +30,7 @@
 ## 历史资料
 
 - [版本索引](VERSION_HISTORY.md)：版本重点和 GitHub Release 链接。
+- [`history/release-notes/`](history/release-notes/)：按版本归档的 GitHub Release 说明源文件。
 - [`history/releases/`](history/releases/)：特定版本的测试、CI、Sandbox 和发布证据。
 - [`history/migrations/`](history/migrations/)：旧版本升级与迁移记录。
 - [`history/pitfalls/`](history/pitfalls/)：历史 bug、根因和排查经验。
@@ -54,7 +55,7 @@
 | 开发、测试、PR、Release | [`maintainer/DEVELOPMENT.md`](maintainer/DEVELOPMENT.md) |
 | 可复用验证模板 | [`maintainer/REGRESSION_CHECKLIST.md`](maintainer/REGRESSION_CHECKLIST.md) |
 | 已发布版本最终事实 | [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases) |
-| Release notes 源文件 | 根目录 `release-notes-{version}.md` |
+| Release notes 源文件 | [`history/release-notes/`](history/release-notes/) 下的 `{version}.md` |
 | 历史证据 | [`history/`](history/) |
 
 ## 维护规则
