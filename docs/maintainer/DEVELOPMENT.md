@@ -18,6 +18,7 @@ npm run lint
 npm run test
 npm run test:watch
 npm run build
+npm run docs:check
 git diff --check
 ```
 
@@ -53,7 +54,7 @@ Vitest 优先覆盖高风险判断：
 GitHub Actions 在 Ubuntu 与 Windows 执行：
 
 ```text
-npm ci → npm run lint → npm run test → npm run build
+npm ci → npm run lint → npm run test → npm run build → npm run docs:check
 ```
 
 两个平台都通过才可进入稳定版发布。
@@ -118,13 +119,15 @@ git push origin {版本号}
 
 ### 3. GitHub Release
 
+Release notes 源文件统一放在 `docs/history/release-notes/{版本号}.md`，不在根目录新增逐版本文件。`docs/history/releases/` 保存测试、CI、Sandbox 和发布验证证据，两者职责分开。
+
 ```bash
 gh release create {版本号} \
   release/main.js \
   release/manifest.json \
   release/styles.css \
   --title "{版本号}" \
-  --notes-file release-notes-{版本号}.md \
+  --notes-file docs/history/release-notes/{版本号}.md \
   --target {RELEASE_COMMIT}
 ```
 
