@@ -1,3 +1,6 @@
+import { debugLog, registerDiagnosticLogging } from './common/logging';
+import { SubjectDetailSession } from './src/api/subjectDetailSession';
+import { getSyncProgressPresentation, SyncProgressThrottle } from './src/sync/syncProgressPresentation';
 /**
  * Bangumi Sync 插件入口
  *
@@ -64,7 +67,9 @@ export default class BangumiPlugin extends Plugin {
 	private autoSyncIntervalId: number | null = null;
 	private syncModal: SyncModal | null = null;
 	private syncStatusBarEl: HTMLElement | null = null;
+	private readonly statusProgressThrottle = new SyncProgressThrottle();
 	private cancellationSignal: ReturnType<typeof createCancellationSignal> | null = null;
+	private previewDetails: SubjectDetailSession | null = null;
 	private controlPanel: ControlPanel | null = null;
 	private appliedSyncConfig: SyncManagerConfig | null = null;
 	private lastSavedSettings: BangumiPluginSettings | null = null;
@@ -83,6 +88,7 @@ export default class BangumiPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
+		this.register(registerDiagnosticLogging(() => this.settings.diagnosticLogging === true));
 
 		// 初始化同步管理器
 		await this.initOrUpdateSyncManager();
@@ -257,6 +263,8 @@ export default class BangumiPlugin extends Plugin {
 	}
 
 	onunload() {
+		this.previewDetails?.dispose();
+		this.previewDetails = null;
 		this.cancellationSignal?.cancel();
 		this.syncManager?.shutdown();
 		setWriteOperationGuard(null);
@@ -279,7 +287,6 @@ export default class BangumiPlugin extends Plugin {
 			this.controlPanel = null;
 		}
 
-		console.debug('[Bangumi Sync] 插件卸载');
 	}
 
 	/**
@@ -287,16 +294,15 @@ export default class BangumiPlugin extends Plugin {
 	 */
 	private updateStatusBar(progress: SyncProgress): void {
 		if (!this.syncStatusBarEl) return;
+		if (!this.statusProgressThrottle.shouldUpdate(progress)) return;
 		this.syncStatusBarEl.removeClass('bangumi-hidden');
-		if (progress.total > 0) {
-			const percent = Math.floor((progress.current / progress.total) * 100);
-			const prefix = this.cancellationSignal?.paused
-				? tn('syncModal', 'paused')
-				: tn('syncModal', 'syncing');
-			this.syncStatusBarEl.setText(`Bangumi: ${prefix} ${progress.current}/${progress.total} (${percent}%)`);
-		} else {
-			this.syncStatusBarEl.setText(`Bangumi: ${tn('syncModal', 'preparing')}`);
-		}
+		const presentation = getSyncProgressPresentation(progress);
+		const cancelling = this.cancellationSignal?.cancelled && progress.status !== 'error'
+			&& progress.status !== 'completed' && progress.phase !== 'awaiting-decision';
+		const paused = cancelling ? `${tn('syncModal', 'cancelling')} · `
+			: this.cancellationSignal?.paused ? `${tn('syncModal', 'paused')} · ` : '';
+		const count = !progress.phase && presentation.percent !== null ? ` ${progress.current}/${progress.total} (${presentation.percent}%)` : '';
+		this.syncStatusBarEl.setText(`Bangumi: ${paused}${presentation.text}${count}`);
 	}
 
 	/**
@@ -321,6 +327,7 @@ export default class BangumiPlugin extends Plugin {
 		}
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData ?? {});
 		this.settings.syncConcurrency = normalizeSyncConcurrency(this.settings.syncConcurrency);
+		this.settings.diagnosticLogging = this.settings.diagnosticLogging === true;
 
 		// 迁移：如果路径模板使用 {{name_cn}} 而不是 {{name_cn_with_type}}，自动更新
 		if (this.settings.syncPathTemplate &&
@@ -330,14 +337,12 @@ export default class BangumiPlugin extends Plugin {
 				/{{name_cn}}/g,
 				'{{name_cn_with_type}}'
 			);
-			console.debug('[Bangumi Sync] 已自动更新路径模板，使用带类型后缀的文件名');
 			await this.saveSettings();
 		}
 
 		if (this.settings.notePathTemplate && !this.settings.notePathTemplate.endsWith('.md')) {
 			const normalized = this.settings.notePathTemplate.replace(/\/+$/, '');
 			this.settings.notePathTemplate = `${normalized}/{{name_cn}}.md`;
-			console.debug('[Bangumi Sync] 已迁移共享笔记路径模板为完整文件路径');
 			await this.saveSettings();
 		}
 
@@ -346,7 +351,6 @@ export default class BangumiPlugin extends Plugin {
 				/\nid:\n\{\{id_yaml\}\}/,
 				'\n笔记ID:\n{{id_yaml}}'
 			);
-			console.debug('[Bangumi Sync] 已迁移共享笔记模板字段为 笔记ID');
 			await this.saveSettings();
 		}
 
@@ -355,7 +359,6 @@ export default class BangumiPlugin extends Plugin {
 				/\n笔记ID: \{\{id_yaml\}\}/,
 				'\n笔记ID:\n{{id_yaml}}'
 			);
-			console.debug('[Bangumi Sync] 已迁移共享笔记模板字段为 笔记ID');
 			await this.saveSettings();
 		}
 	}
@@ -419,6 +422,7 @@ export default class BangumiPlugin extends Plugin {
 	}
 
 	private refreshDependentServices(manager: SyncManager, settings: BangumiPluginSettings = this.settings): void {
+		manager.client.setRequestConcurrency(settings.syncConcurrency);
 		this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.cloneSettings(settings));
 	}
 
@@ -933,6 +937,8 @@ export default class BangumiPlugin extends Plugin {
 	 */
 	async syncCollectionsWithOptions(options: SyncOptionsInput, showPreview: boolean = true) {
 		if (!this.ensureSyncCanStart()) return;
+		this.previewDetails?.dispose();
+		this.previewDetails = null;
 		if (!this.settings.accessToken) {
 			new Notice(tn('notices', 'configureTokenFirst'));
 			return;
@@ -971,6 +977,16 @@ export default class BangumiPlugin extends Plugin {
 		});
 
 		if (showPreview) {
+			let previewSignal = this.cancellationSignal;
+			const previewManager = this.syncManager;
+			const previewConfig = JSON.stringify(this.appliedSyncConfig);
+			const details = new SubjectDetailSession(previewManager.client, this.settings.syncConcurrency,
+				() => previewSignal.cancelled);
+			this.previewDetails = details;
+			const disposeDetails = () => {
+				details.dispose();
+				if (this.previewDetails === details) this.previewDetails = null;
+			};
 			try {
 			const prepareResult = await this.syncManager.prepareSync({
 				subjectTypes: options.subjectTypes,
@@ -978,6 +994,7 @@ export default class BangumiPlugin extends Plugin {
 				limit: options.limit,
 				force: options.force,
 			});
+			if (this.previewDetails !== details) { disposeDetails(); return; }
 
 			if (!prepareResult.success) {
 				new Notice(`${tn('notices', 'syncFailed')}: ${prepareResult.error}`);
@@ -996,19 +1013,20 @@ export default class BangumiPlugin extends Plugin {
 				this.syncModal.updateProgress({ current: 0, total: 0, status: 'preparing', message: 'Preparing preview...' });
 			}
 
-			console.debug(`[Bangumi Sync] Preview items: ${prepareResult.previewItems.length}, collecting custom properties`);
+			debugLog(() => `[Bangumi Sync] Preview items: ${prepareResult.previewItems?.length ?? 0}, collecting custom properties`);
 
 			const localPropertyResult = await this.collectLocalPropertyValuesForCollections(
-				prepareResult.previewItems.map(item => item.collection)
+				prepareResult.previewItems.map(item => item.collection), details,
 			);
+			if (this.previewDetails !== details) { disposeDetails(); return; }
 			if (localPropertyResult === null) {
-				console.debug('[Bangumi Sync] User cancelled custom properties');
+				debugLog(() => '[Bangumi Sync] User cancelled custom properties');
 				new Notice(tn('notices', 'syncCancelled'));
 				this.cleanupSyncState(0);
 				return;
 			}
 
-			console.debug('[Bangumi Sync] Custom properties done, opening preview modal');
+			debugLog(() => '[Bangumi Sync] Custom properties done, opening preview modal');
 
 			this.syncModal.close();
 			this.syncModal = null;
@@ -1018,34 +1036,44 @@ export default class BangumiPlugin extends Plugin {
 				prepareResult.previewItems,
 				(result: SyncPreviewResult) => {
 					void (async () => {
+						try {
+						if (this.previewDetails !== details) return;
 						if (result.action === 'cancel') {
 							new Notice(tn('notices', 'syncCancelled'));
+							this.cleanupSyncState(0);
+							return;
+						}
+						if (!details.isValid || this.syncManager !== previewManager
+							|| JSON.stringify(this.appliedSyncConfig) !== previewConfig) {
+							new Notice(tn('notices', 'syncCancelled'));
+							this.cleanupSyncState(0);
 							return;
 						}
 						if (!this.ensureSyncCanStart()) return;
 
 						this.cancellationSignal = createCancellationSignal();
-						this.syncManager!.setCancellationSignal(this.cancellationSignal);
+						previewSignal = this.cancellationSignal;
+						previewManager.setCancellationSignal(this.cancellationSignal);
 						this.syncModal = new SyncModal(this.app, this.cancellationSignal);
-						const modalManager = this.syncManager!;
+						const modalManager = previewManager;
 						this.syncModal.setRollbackHandler(() => modalManager.rollbackBatch());
 						this.syncModal.setCommitHandler(() => modalManager.commitPendingBatch());
 						this.syncModal.setRecoveryStateSubscriber(listener => modalManager.subscribeRecoveryState(listener));
 						this.syncModal.setRecoveryCenterHandler(() => this.openRecoveryCenter());
 						this.syncModal.open();
 
-						this.syncManager!.setProgressCallback((progress: SyncProgress) => {
+						previewManager.setProgressCallback((progress: SyncProgress) => {
 							if (this.syncModal) {
 								this.syncModal.updateProgress(progress);
 							}
 							this.updateStatusBar(progress);
 						});
 
-						const syncResult = await this.syncManager!.executeSync(
+						const syncResult = await previewManager.executeSync(
 							result.items,
 							result.action,
 							localPropertyResult,
-							this.settings.syncConcurrency
+							this.settings.syncConcurrency, details,
 						);
 
 						this.settings.lastSyncTime = new Date().toISOString();
@@ -1056,8 +1084,13 @@ export default class BangumiPlugin extends Plugin {
 							this.syncModal.showCompleted(syncResult);
 						}
 						this.cancellationSignal = null;
-						this.syncManager!.setCancellationSignal(null);
+						previewManager.setCancellationSignal(null);
 						this.hideStatusBar();
+						} catch (error) {
+							console.error('[Bangumi Sync] Preview execution failed:', error);
+							new Notice(tn('notices', 'syncFailed'));
+							this.cleanupSyncState(0);
+						} finally { disposeDetails(); }
 					})();
 				}
 			);
@@ -1066,7 +1099,8 @@ export default class BangumiPlugin extends Plugin {
 			} catch (error) {
 				console.error('[Bangumi Sync] Preview flow error:', error);
 				new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
-				this.cleanupSyncState(0);
+				if (this.previewDetails === details) this.cleanupSyncState(0);
+				disposeDetails();
 			}
 
 		} else {
@@ -1133,6 +1167,8 @@ export default class BangumiPlugin extends Plugin {
 	}
 
 	private cleanupSyncState(statusBarDelay: number = 0): void {
+		this.previewDetails?.dispose();
+		this.previewDetails = null;
 		if (this.syncModal) {
 			this.syncModal.close();
 			this.syncModal = null;
@@ -1145,7 +1181,8 @@ export default class BangumiPlugin extends Plugin {
 	}
 
 	private async collectLocalPropertyValuesForCollections(
-		collections: UserCollection[]
+		collections: UserCollection[],
+		details?: SubjectDetailSession,
 	): Promise<LocalPropertyModalResult | null> {
 		const syncManager = this.syncManager;
 		if (!syncManager) {
@@ -1163,10 +1200,18 @@ export default class BangumiPlugin extends Plugin {
 					warned = true;
 					new Notice(message);
 				}
-			}
+			},
+			(current, total) => {
+				if (details && this.previewDetails !== details) return;
+				const progress: SyncProgress = { status: 'fetching', phase: 'details', current, total };
+				this.syncModal?.updateProgress(progress);
+				this.updateStatusBar(progress);
+			},
+			{ concurrency: this.settings.syncConcurrency, session: details },
 		);
+		if (details && !details.isValid) return null;
 
-		console.debug(`[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
+		debugLog(() => `[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
 
 		return new Promise<LocalPropertyModalResult | null>(resolve => {
 			const modal = new LocalPropertyModal(

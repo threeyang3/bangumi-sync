@@ -542,6 +542,17 @@ export class BangumiSettingTab extends PluginSettingTab {
 	// ==================== 标签页：高级 ====================
 
 	private buildAdvancedTab(containerEl: HTMLElement): void {
+		new Setting(containerEl)
+			.setName(tn('settings', 'diagnosticLogging'))
+			.setDesc(tn('settings', 'diagnosticLoggingDesc'))
+			.addToggle(toggle => toggle
+				.setTooltip(tn('settings', 'diagnosticLogging'))
+				.setValue(this.settings.diagnosticLogging)
+				.onChange(async value => {
+					this.settings.diagnosticLogging = value;
+					await this.onSave();
+				}));
+
 		// 相关条目链接
 		new Setting(containerEl).setName(tn('settings', 'relatedLinks')).setHeading();
 

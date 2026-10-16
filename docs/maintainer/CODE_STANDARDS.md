@@ -55,7 +55,8 @@
 允许：
 
 ```typescript
-console.debug('[Bangumi Sync] ...');
+debugLog(() => '[Bangumi Sync] ...'); // common/logging.ts；仅详细诊断启用时构造消息
+reportSyncSummary(result); // common/logging.ts 中输出 info 摘要，仅挑选统计字段
 console.warn('[Bangumi Sync] ...');
 console.error('[Bangumi Sync] ...', error);
 ```

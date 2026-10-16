@@ -70,4 +70,20 @@ export default [
 			}],
 		},
 	},
+	{
+		files: ['main.ts', 'src/**/*.ts', 'common/**/*.ts'],
+		ignores: ['common/logging.ts'],
+		rules: {
+			'no-restricted-syntax': ['error', {
+				selector: "CallExpression[callee.object.name='console'][callee.property.name='debug']",
+				message: 'Use lazy debugLog from common/logging.ts for detailed diagnostics.',
+			}],
+		},
+	},
+	{
+		files: ['common/logging.ts'],
+		rules: {
+			'no-console': ['error', { allow: ['info', 'warn', 'error', 'debug'] }],
+		},
+	},
 ];

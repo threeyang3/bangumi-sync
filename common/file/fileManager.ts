@@ -1,3 +1,4 @@
+import { debugLog } from '../logging';
 /**
  * 文件管理器
  * 处理 Obsidian 中文件的创建和更新
@@ -43,11 +44,11 @@ export class FileManager {
 		const dirPath = lastSlash > 0 ? normalizedPath.substring(0, lastSlash) : '';
 
 		if (dirPath) {
-			console.debug(`[Bangumi Sync] 检查目录: ${dirPath}`);
+			debugLog(() => `[Bangumi Sync] 检查目录: ${dirPath}`);
 			const exists = await this.app.vault.adapter.exists(dirPath);
 
 			if (!exists) {
-				console.debug(`[Bangumi Sync] 创建目录: ${dirPath}`);
+				debugLog(() => `[Bangumi Sync] 创建目录: ${dirPath}`);
 				// 递归创建父目录
 				await this.ensureDirectory(dirPath);
 				try {
@@ -55,7 +56,7 @@ export class FileManager {
 				} catch (error: unknown) {
 					// 目录可能已存在（并发创建）
 					const errorMessage = error instanceof Error ? error.message : String(error);
-					console.debug(`[Bangumi Sync] 创建目录失败（可能已存在）: ${errorMessage}`);
+					debugLog(() => `[Bangumi Sync] 创建目录失败（可能已存在）: ${errorMessage}`);
 				}
 			}
 		}
@@ -100,7 +101,7 @@ export class FileManager {
 	 */
 	async createFile(path: string, content: string): Promise<TFile> {
 		const normalizedPath = normalizePath(path);
-		console.debug(`[Bangumi Sync] 创建文件: ${normalizedPath}`);
+		debugLog(() => `[Bangumi Sync] 创建文件: ${normalizedPath}`);
 
 		// 确保目录存在
 		await this.ensureDirectory(normalizedPath);
@@ -108,7 +109,7 @@ export class FileManager {
 		// 创建文件
 		try {
 			const file = await this.app.vault.create(normalizedPath, content);
-			console.debug(`[Bangumi Sync] 文件创建成功: ${normalizedPath}`);
+			debugLog(() => `[Bangumi Sync] 文件创建成功: ${normalizedPath}`);
 			return file;
 		} catch (error) {
 			console.error(`[Bangumi Sync] 创建文件失败: ${normalizedPath}`, error);
@@ -153,7 +154,7 @@ export class FileManager {
 			}
 
 			// 默认不更新已存在的文件
-			console.debug(`[Bangumi Sync] 文件已存在，跳过: ${normalizedPath}`);
+			debugLog(() => `[Bangumi Sync] 文件已存在，跳过: ${normalizedPath}`);
 			return { file: existingFile, status: 'unchanged' };
 		}
 
