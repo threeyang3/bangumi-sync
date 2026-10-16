@@ -12,6 +12,7 @@ npm run dev      # 开发模式（监听文件变化）
 npm run lint     # 本地复现 Obsidian 社区扫描
 npm run test     # 完整自动化测试
 npm run build    # 生产构建
+npm run docs:check # 文档链接与发布说明目录检查
 git diff --check
 ```
 
@@ -87,7 +88,7 @@ bangumi/
 
 ## 提交前检查
 
-- 提交前至少运行 `npm run lint`、`npm run test`、`npm run build` 和 `git diff --check`
+- 提交前至少运行 `npm run lint`、`npm run test`、`npm run build`、`npm run docs:check` 和 `git diff --check`
 - 本地 ESLint 配置用于尽量复现 Obsidian 社区扫描，不要随意删改 `eslint.config.mjs`
 - 高风险修改还需要 targeted tests 和 production Obsidian Sandbox
 
@@ -121,7 +122,7 @@ bangumi/
 ```bash
 # 仅限明确的 adv prerelease
 gh release create {版本号} ./release/main.js ./release/manifest.json ./release/styles.css \
-  --title "{版本号}" --notes-file release-notes-{版本号}.md \
+  --title "{版本号}" --notes-file docs/history/release-notes/{版本号}.md \
   --target adv --prerelease
 
 # 稳定版见 docs/maintainer/DEVELOPMENT.md，target 为冻结 commit
@@ -180,6 +181,7 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 详见 [docs/maintainer/DEVELOPMENT.md](docs/maintainer/DEVELOPMENT.md)。稳定版流程固定为 PR → `main` → main CI → Tag → GitHub Release → assets verification → `main` merge 到 `adv` → adv CI。
 
 - GitHub Release notes 默认使用中文
+- Release notes 源文件统一放在 `docs/history/release-notes/{版本号}.md`，不放在根目录；验证证据放在 `docs/history/releases/`
 - Release notes 按 `新功能`、`改进`、`修复` 三部分组织
 - 某一部分没有内容时不要保留空标题
 - Release notes 必须使用真正的多行 Markdown 列表，不要把 `\n` 当作字面量写入单段文本

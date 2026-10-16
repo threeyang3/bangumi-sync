@@ -17,13 +17,12 @@ function collectMarkdown(directory) {
 
 const files = [
 	...rootDocuments.map((file) => join(root, file)).filter(existsSync),
-	...readdirSync(root)
-		.filter((file) => /^release-notes-.*\.md$/.test(file))
-		.map((file) => join(root, file)),
 	...collectMarkdown(join(root, 'docs')),
 ];
 
-const failures = [];
+const failures = readdirSync(root)
+	.filter((file) => /^release-notes-.*\.md$/.test(file))
+	.map((file) => `${file}: move release notes to docs/history/release-notes/{version}.md`);
 const markdownLink = /!?\[[^\]]*\]\(([^)]+)\)/g;
 
 for (const file of files) {
