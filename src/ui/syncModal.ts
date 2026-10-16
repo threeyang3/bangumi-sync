@@ -8,6 +8,7 @@ import { SyncProgress, SyncCancellationSignal, SyncResultWithRollback } from '..
 import type { PendingDecisionResult, RecoveryRequiredState, RecoveryStateListener } from '../sync/syncManager';
 import { formatRollbackFailureDetail, getSyncCompletionPresentation, pendingDecisionAllowsClose } from '../sync/syncCompletionPresentation';
 import { tn, tnFormat } from '../i18n';
+import { getSyncProgressPresentation, SyncProgressThrottle } from '../sync/syncProgressPresentation';
 
 export class SyncModal extends Modal {
 	private progress: SyncProgress;
@@ -28,6 +29,9 @@ export class SyncModal extends Modal {
 	private pendingClosePrompt: PendingSyncDecisionModal | null = null;
 	private recoverySubscriber: ((listener: RecoveryStateListener) => () => void) | null = null;
 	private recoveryUnsubscribe: (() => void) | null = null;
+	private executionDurationMs: number | null = null;
+	private decisionDurationMs: number | null = null;
+	private readonly progressThrottle = new SyncProgressThrottle();
 
 	constructor(app: App, cancellationSignal: SyncCancellationSignal) {
 		super(app);
@@ -46,6 +50,10 @@ export class SyncModal extends Modal {
 
 		// 进度条容器
 		this.progressBar = contentEl.createDiv({ cls: 'bangumi-progress-bar' });
+		this.progressBar.setAttribute('role', 'progressbar');
+		this.progressBar.setAttribute('aria-label', tn('syncModal', 'preparing'));
+		this.progressBar.setAttribute('aria-valuemin', '0');
+		this.progressBar.setAttribute('aria-valuemax', '100');
 		this.progressBar.createEl('div', { cls: 'bangumi-progress-fill' });
 
 		// 状态文本
@@ -100,7 +108,7 @@ export class SyncModal extends Modal {
 				this.pauseBtn.setText(tn('syncModal', 'pause'));
 			}
 			this.progressBar?.removeClass('bangumi-sync-paused');
-			this.updateStatus(tn('syncModal', 'processing'));
+			this.updateStatus(getSyncProgressPresentation(this.progress).text);
 		} else {
 			this.cancellationSignal.pause();
 			if (this.pauseBtn) {
@@ -123,7 +131,7 @@ export class SyncModal extends Modal {
 			this.cancelBtn.disabled = true;
 			this.cancelBtn.setText(tn('syncModal', 'cancel') + '...');
 		}
-		this.updateStatus(tn('notices', 'syncCancelled'));
+		this.updateStatus(tn('syncModal', 'cancelling'));
 	}
 
 	/**
@@ -160,21 +168,29 @@ export class SyncModal extends Modal {
 	 * 更新进度
 	 */
 	updateProgress(progress: SyncProgress): void {
-		if (this.isCompleted) return;
+		if (this.isCompleted && !this.decisionInProgress) return;
 		this.progress = progress;
+		if (!this.progressThrottle.shouldUpdate(progress)) return;
+		const presentation = getSyncProgressPresentation(progress);
 
 		// 更新进度条
-		if (this.progressBar && progress.total > 0) {
-			const percent = Math.floor((progress.current / progress.total) * 100);
+		if (this.progressBar) {
+			this.progressBar.removeClass('bangumi-progress-complete');
 			const fill = this.progressBar.querySelector('.bangumi-progress-fill') as HTMLElement;
 			if (fill) {
-				fill.setCssProps({ '--bangumi-progress-width': `${percent}%` });
+				fill.setCssProps({ '--bangumi-progress-width': `${presentation.percent ?? 0}%` });
 			}
+			this.progressBar.setAttribute('aria-label', presentation.text);
+			if (presentation.percent === null) this.progressBar.removeAttribute('aria-valuenow');
+			else this.progressBar.setAttribute('aria-valuenow', String(presentation.percent));
 		}
 
 		// 更新状态文本（暂停状态下不覆盖）
-		if (!this.cancellationSignal.paused && progress.message) {
-			this.updateStatus(progress.message);
+		if (!this.cancellationSignal.paused) {
+			const cancelling = this.cancellationSignal.cancelled && !this.decisionInProgress
+				&& progress.status !== 'error' && progress.status !== 'completed' && progress.phase !== 'awaiting-decision'
+				? `${tn('syncModal', 'cancelling')} · ` : '';
+			this.updateStatus(`${cancelling}${presentation.text}`);
 		}
 	}
 
@@ -182,9 +198,13 @@ export class SyncModal extends Modal {
 	 * 显示同步完成状态
 	 */
 	showCompleted(result: SyncResultWithRollback): void {
+		this.executionDurationMs ??= result.duration;
 		this.isCompleted = true;
 		this.decisionButtons = [];
 		const presentation = getSyncCompletionPresentation(result);
+		const statusKey = presentation.statusKey;
+		const statusLabel = statusKey === 'syncFailed' || statusKey === 'syncCancelled'
+			? tn('notices', statusKey) : tn('syncModal', statusKey);
 		this.pendingDecision = !presentation.allowClose;
 
 		// 隐藏操作按钮
@@ -208,6 +228,15 @@ export class SyncModal extends Modal {
 				failed: result.failed,
 			});
 			this.completedEl.createEl('p', { text: statsText, cls: 'bangumi-sync-stats' });
+			this.completedEl.createEl('p', {
+				text: tnFormat('syncModal', 'executionDuration', { seconds: (this.executionDurationMs / 1000).toFixed(1) }),
+				cls: 'bangumi-sync-stats',
+			});
+			this.completedEl.createEl('p', { text: tn('syncModal', 'executionDurationScope'), cls: 'bangumi-setting-desc' });
+			if (this.decisionDurationMs !== null) this.completedEl.createEl('p', {
+				text: tnFormat('syncModal', 'decisionDuration', { seconds: (this.decisionDurationMs / 1000).toFixed(1) }),
+				cls: 'bangumi-sync-stats',
+			});
 			if (result.rollback) {
 				this.completedEl.createEl('p', {
 					text: result.rollback.failed > 0
@@ -286,22 +315,21 @@ export class SyncModal extends Modal {
 
 		// 更新进度条为完成状态
 		if (this.progressBar) {
-			this.progressBar.addClass('bangumi-progress-complete');
+			const fill = this.progressBar.querySelector<HTMLElement>('.bangumi-progress-fill');
+			if (this.pendingDecision || !result.success) {
+				this.progressBar.removeClass('bangumi-progress-complete');
+				this.progressBar.removeAttribute('aria-valuenow');
+				this.progressBar.setAttribute('aria-label', this.pendingDecision ? tn('syncModal', 'pendingDecision') : statusLabel);
+				fill?.setCssProps({ '--bangumi-progress-width': '0%' });
+			} else {
+				this.progressBar.addClass('bangumi-progress-complete');
+				this.progressBar.setAttribute('aria-valuenow', '100');
+				this.progressBar.setAttribute('aria-label', statusLabel);
+				fill?.setCssProps({ '--bangumi-progress-width': '100%' });
+			}
 		}
 		if (this.statusText) {
-			if (result.wasCancelled) {
-				this.updateStatus(tn('notices', 'syncCancelled'));
-			} else if (result.completion === 'partial-success') {
-				this.updateStatus(tn('syncModal', 'partialSuccess'));
-			} else if (result.completion === 'rolled-back') {
-				this.updateStatus(tn('syncModal', 'rolledBack'));
-			} else if (result.completion === 'rollback-failed') {
-				this.updateStatus(tn('syncModal', 'rollbackFailed'));
-			} else if (result.completion === 'failed') {
-				this.updateStatus(tn('notices', 'syncFailed'));
-			} else {
-				this.updateStatus(tn('syncModal', 'completed'));
-			}
+			this.updateStatus(statusLabel);
 		}
 	}
 
@@ -310,9 +338,11 @@ export class SyncModal extends Modal {
 		const handler = decision === 'keep' ? this.onCommitted : this.onCancelled;
 		if (!handler) return undefined;
 		this.decisionInProgress = true;
+		const startedAt = performance.now();
 		for (const button of this.decisionButtons) button.disabled = true;
 		try {
 			const resolved = await handler();
+			this.decisionDurationMs = performance.now() - startedAt;
 			this.pendingDecision = !pendingDecisionAllowsClose(resolved);
 			if (resolved.result) this.showCompleted(resolved.result);
 			return resolved;

@@ -1,3 +1,5 @@
+import { debugLog, reportSyncSummary } from '../../common/logging';
+import type { SubjectDetailSession } from '../api/subjectDetailSession';
 /**
  * 同步管理器
  * 核心同步逻辑
@@ -16,10 +18,11 @@ import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType, R
 import { FileManager, FileWriteStatus } from '../../common/file/fileManager';
 import { ImageHandler, ImageMutationUncertainError, ImageQuality } from '../../common/file/imageHandler';
 import { IncrementalSync } from './incrementalSync';
-import { determineSyncCompletion, SyncOptions, SyncResult, SyncProgress, SyncCancellationSignal, SyncResultWithRollback, SyncWarning } from './syncStatus';
+import { determineSyncCompletion, SyncOptions, SyncResult, SyncProgress, SyncPhase, SyncCancellationSignal, SyncResultWithRollback, SyncWarning } from './syncStatus';
 import { parseCharacters } from '../../common/parser/characterParser';
 import { generateFilePath, extractPathVars } from '../../common/template/pathTemplate';
 import { applyNamedPropertyValuesToContent, CustomTemplates, generateContentByType } from '../template/contentTemplate';
+import { getSubjectDataRequirements } from '../template/subjectDataRequirements';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
 import { SyncPreviewItem } from '../ui/syncPreviewModal';
 import { CoverLinkType, PathNamingStrategy } from '../settings/settings';
@@ -324,6 +327,7 @@ export class SyncManager {
 	private readonly recoveryFactIndexes = new WeakMap<PersistentRecoveryJournal, RecoveryFactIndex>();
 	private config: SyncManagerConfig;
 	private onProgress?: (progress: SyncProgress) => void;
+	private operationProgress?: (progress: SyncProgress) => void;
 	private cancellationSignal: SyncCancellationSignal | null = null;
 	private pathResolver = new SubjectPathResolver();
 	private pendingTransaction: PendingSyncTransaction | null = null;
@@ -344,6 +348,7 @@ export class SyncManager {
 		this.app = app;
 		this.config = cloneSyncManagerConfig(config);
 		this.client = new BangumiClient(config.accessToken);
+		this.client.setRequestCancellationChecker(() => this.shuttingDown);
 		this.fileManager = new FileManager(app);
 		this.imageHandler = new ImageHandler(app, this.fileManager);
 		this.imageHandler.setBeforeCreateHook(path => this.persistCreatedResourcePath(path));
@@ -482,13 +487,16 @@ export class SyncManager {
 	 * 设置取消信号
 	 */
 	setCancellationSignal(signal: SyncCancellationSignal | null): void {
+		if (this.cancellationSignal === signal) return;
 		this.cancellationSignal = signal;
+		this.client.setRequestCancellationChecker?.(() => this.shuttingDown || (signal?.cancelled ?? false));
 	}
 
 	shutdown(): void {
 		this.shuttingDown = true;
 		this.cancellationSignal?.cancel();
 		this.onProgress = undefined;
+		this.operationProgress = undefined;
 	}
 
 	/**
@@ -859,6 +867,7 @@ export class SyncManager {
 	}
 
 	private async persistPendingJournal(pending: PendingSyncTransaction, state: PersistentRecoveryJournal['state']): Promise<void> {
+		this.reportPhase('finalizing');
 		this.activeRecoveryJournal = this.journalFromPending(pending, state);
 		try {
 			await this.recoveryJournalStore.write(this.activeRecoveryJournal);
@@ -1244,6 +1253,7 @@ export class SyncManager {
 	private async rollbackPendingTransaction(pending: PendingSyncTransaction, cause?: unknown): Promise<PendingDecisionResult> {
 		const result = this.emptyRollbackResult();
 		await this.persistPendingJournal(pending, 'rolling-back');
+		this.reportPhase('recovering');
 		for (const transaction of [...pending.transactions].reverse()) {
 			try {
 				this.mergeRollbackResult(result, await transaction.rollback());
@@ -2000,7 +2010,9 @@ export class SyncManager {
 	}
 
 	private reportFinalSyncProgress(result: SyncResult, wasCancelled: boolean): void {
-		if (wasCancelled || result.completion === 'cancelled') {
+		if (this.pendingTransaction?.state === 'awaiting') {
+			this.reportPhase('awaiting-decision');
+		} else if (wasCancelled || result.completion === 'cancelled') {
 			this.reportProgress({ status: 'error', message: tn('notices', 'syncCancelled') });
 		} else if (result.completion === 'success' || result.completion === 'partial-success') {
 			this.reportProgress({ status: 'completed', message: tn('notices', 'syncComplete') });
@@ -2044,14 +2056,15 @@ export class SyncManager {
 		let batchHasUncertainBinaryMutation = false;
 		const renderedByGroup = new Map<string, RenderedCollection[]>();
 		const failedGroups = new Set<string>();
-		await this.processConcurrently(batch.prepared, concurrency, async (prepared, index) => {
+		let renderedCount = 0;
+		this.reportPhase('rendering', 0, batch.prepared.length);
+		await this.processConcurrently(batch.prepared, concurrency, async prepared => {
 			if (batchHasUncertainBinaryMutation) return;
 			const groupKey = batch.groupKeyBySubjectId.get(prepared.collection.subject_id) ?? `subject:${prepared.collection.subject_id}`;
 			if (await this.checkCancellation()) {
 				wasCancelled = true;
 				return;
 			}
-			onProgress?.(prepared, index);
 			try {
 				const rendered = await this.renderCollection(prepared.collection, optionsFor(prepared), prepared);
 				const items = renderedByGroup.get(groupKey) ?? [];
@@ -2061,6 +2074,10 @@ export class SyncManager {
 				failedGroups.add(groupKey);
 				if (error instanceof ImageMutationUncertainError) batchHasUncertainBinaryMutation = true;
 				this.recordProcessingFailure(result, prepared, error);
+			} finally {
+				renderedCount++;
+				onProgress?.(prepared, renderedCount - 1);
+				this.reportPhase('rendering', renderedCount, batch.prepared.length, prepared.collection.subject.name_cn || prepared.collection.subject.name);
 			}
 		});
 		if (await this.checkCancellation()) wasCancelled = true;
@@ -2104,6 +2121,9 @@ export class SyncManager {
 			...batch.renamed.map(rename => batch.groupKeyBySubjectId.get(rename.subjectId) ?? `subject:${rename.subjectId}`),
 		]);
 
+		const writeTotal = [...renderedByGroup].reduce((total, [key, items]) => total + (failedGroups.has(key) ? 0 : items.length), 0);
+		let writtenCount = 0;
+		this.reportPhase('writing', 0, writeTotal);
 		for (const groupKey of groupKeys) {
 			const items = renderedByGroup.get(groupKey) ?? [];
 			if (failedGroups.has(groupKey)) {
@@ -2116,6 +2136,7 @@ export class SyncManager {
 			const groupOutcomeStart = result.outcomes.length;
 			const written: Array<{ item: RenderedCollection; writeStatus: FileWriteStatus }> = [];
 			const writeFailures = new Set<number>();
+			this.reportPhase('writing', writtenCount, writeTotal);
 			try {
 				await transaction.executeRenames(renames);
 				await this.processConcurrently(items, Math.min(concurrency, Math.max(1, items.length)), async item => {
@@ -2125,6 +2146,8 @@ export class SyncManager {
 					} catch (error) {
 						writeFailures.add(item.prepared.collection.subject_id);
 						this.recordProcessingFailure(result, item.prepared, error);
+					} finally {
+						this.reportPhase('writing', ++writtenCount, writeTotal, item.subject.name_cn || item.subject.name);
 					}
 				});
 				if (writeFailures.size > 0) throw new Error('An item write failed inside the atomic transaction group.');
@@ -2132,6 +2155,7 @@ export class SyncManager {
 				for (const item of items) {
 					if (!writeFailures.has(item.prepared.collection.subject_id)) this.recordProcessingFailure(result, item.prepared, error);
 				}
+				this.reportPhase('recovering');
 				const rollback = await transaction.rollback();
 				hadAutomaticRollback = hadAutomaticRollback || rollback.attempted;
 				this.mergeRollbackResult(automaticRollback, rollback);
@@ -2294,6 +2318,7 @@ export class SyncManager {
 		const startTime = Date.now();
 		let wasCancelled = false;
 		const result = this.createSyncResult();
+		const releaseRequests = this.client.acquireRequestConcurrency?.(concurrency);
 
 		try {
 			this.assertNoPendingTransaction();
@@ -2311,13 +2336,12 @@ export class SyncManager {
 				concurrency,
 				result,
 				() => ({ overwrite: false, preserveUserDataOnOverwrite: false }),
-				(prepared, index) => this.reportProgress({
-					status: 'processing', current: index + 1, total: diff.toAdd.length,
-					currentItem: prepared.collection.subject.name_cn || prepared.collection.subject.name,
-					message: `处理条目... (${index + 1}/${diff.toAdd.length})`,
-				}),
 			);
 			wasCancelled = execution.wasCancelled;
+			if (execution.relations.length > 0) {
+				result.warnings.push(...await this.postProcessBatchRelations(execution.relations));
+			}
+			wasCancelled ||= this.shuttingDown || (this.cancellationSignal?.cancelled ?? false);
 
 			this.finalizeSyncResult(result, wasCancelled);
 			this.reportFinalSyncProgress(result, wasCancelled);
@@ -2329,9 +2353,11 @@ export class SyncManager {
 			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
 		} finally {
 			this.endVaultOperation();
+			releaseRequests?.();
 		}
 
 		result.duration = Date.now() - startTime;
+		reportSyncSummary(result);
 		return this.createSyncResultWithRollback(result, wasCancelled);
 	}
 
@@ -2380,11 +2406,15 @@ export class SyncManager {
 	private async prepareCollectionBatch(
 		collections: UserCollection[],
 		concurrency: number,
+		subjectDetails?: SubjectDetailSession,
 	): Promise<PreparedCollectionBatch> {
+		this.reportPhase('planning');
 		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
 		const registry = this.incrementalSync.getRegistry();
 		const details = new Map<number, FullSubjectInfo>();
 		const failures: PreparationFailure[] = [];
+		let loadedCount = 0;
+		this.reportPhase('details', 0, collections.length);
 
 		await this.processConcurrently(collections, concurrency, async collection => {
 			if (registry.duplicateIds.has(collection.subject_id)) {
@@ -2392,18 +2422,24 @@ export class SyncManager {
 					collection,
 					error: `Subject ${collection.subject_id} appears in multiple local files.`,
 				});
+				this.reportPhase('details', ++loadedCount, collections.length);
 				return;
 			}
 			try {
-				details.set(collection.subject_id, await this.client.getFullSubjectInfo(collection.subject_id));
+				details.set(collection.subject_id, await this.client.getFullSubjectInfo(collection.subject_id,
+					subjectDetails?.getSubject(collection.subject_id), subject => getSubjectDataRequirements(
+						subject, this.config.customTemplates, this.config.enableRelatedLinks !== false)));
 			} catch (error) {
 				failures.push({
 					collection,
 					error: error instanceof Error ? error.message : String(error),
 				});
+			} finally {
+				this.reportPhase('details', ++loadedCount, collections.length);
 			}
 		});
 
+		this.reportPhase('planning');
 		const candidates = collections.flatMap(collection => {
 			const fullInfo = details.get(collection.subject_id);
 			if (!fullInfo) return [];
@@ -2544,7 +2580,7 @@ export class SyncManager {
 			throw new Error(tn('notices', 'usernameNotFound'));
 		}
 
-		console.debug(`[Bangumi Sync] 用户: ${username}`);
+		debugLog(() => `[Bangumi Sync] 用户: ${username}`);
 
 		// 2. 获取远程收藏列表
 		this.reportProgress({ status: 'fetching', message: tn('syncModal', 'fetchingCollections') });
@@ -2562,13 +2598,13 @@ export class SyncManager {
 			},
 		});
 
-		console.debug(`[Bangumi Sync] 获取到 ${collections.length} 条收藏`);
+		debugLog(() => `[Bangumi Sync] 获取到 ${collections.length} 条收藏`);
 
 		// 3. 扫描本地文件夹
 		this.reportProgress({ status: 'scanning', message: tn('syncModal', 'scanningLocal') });
 
 		const scanPath = this.config.scanFolderPath || 'ACGN';
-		console.debug(`[Bangumi Sync] 扫描路径: ${scanPath}`);
+		debugLog(() => `[Bangumi Sync] 扫描路径: ${scanPath}`);
 
 		await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
 			this.reportProgress({
@@ -2583,14 +2619,14 @@ export class SyncManager {
 		this.reportProgress({ status: 'preparing', message: tn('syncModal', 'computingDiff') });
 
 		const filteredCollections = this.filterCollections(collections, options);
-		console.debug(`[Bangumi Sync] 符合条件的收藏: ${filteredCollections.length}`);
+		debugLog(() => `[Bangumi Sync] 符合条件的收藏: ${filteredCollections.length}`);
 
 		const diff = this.incrementalSync.computeDiff(filteredCollections, {
 			limit: options.limit,
 			force: options.force,
 		});
 
-		console.debug(`[Bangumi Sync] 需要同步: ${diff.toAdd.length}，已存在跳过: ${diff.toSkip.length}`);
+		debugLog(() => `[Bangumi Sync] 需要同步: ${diff.toAdd.length}，已存在跳过: ${diff.toSkip.length}`);
 
 		return { username, collections, diff };
 	}
@@ -2679,14 +2715,14 @@ export class SyncManager {
 		}
 
 		try {
-			console.debug(`[Bangumi Sync] 获取章节信息: ${subject.name_cn}`);
+			debugLog(() => `[Bangumi Sync] 获取章节信息: ${subject.name_cn}`);
 
 			// 获取章节列表
 			const episodesData = await this.client.getEpisodes(subject.id);
 			const episodes = episodesData.data;
 
 			if (!episodes || episodes.length === 0) {
-				console.debug(`[Bangumi Sync] 无章节信息`);
+				debugLog(() => `[Bangumi Sync] 无章节信息`);
 				return null;
 			}
 
@@ -2695,7 +2731,7 @@ export class SyncManager {
 			try {
 				userStatus = await this.client.getUserEpisodeStatus(subject.id);
 			} catch {
-				console.debug(`[Bangumi Sync] 获取用户章节状态失败，可能未收藏此条目`);
+				debugLog(() => `[Bangumi Sync] 获取用户章节状态失败，可能未收藏此条目`);
 			}
 
 			return { episodes, userStatus };
@@ -2727,7 +2763,7 @@ export class SyncManager {
 			return '';
 		}
 
-		console.debug(`[Bangumi Sync] 下载封面: ${coverUrl}`);
+		debugLog(() => `[Bangumi Sync] 下载封面: ${coverUrl}`);
 		const localPath = await this.imageHandler.downloadCover(
 			coverUrl,
 			subject.id,
@@ -2748,25 +2784,25 @@ export class SyncManager {
 	 * 显示名称使用文件名（带类型后缀）
 	 */
 	private generateRelatedLinks(relations: { id: number; name_cn: string; name: string }[]): string[] {
-		console.debug(`[Bangumi Sync] 处理 ${relations?.length || 0} 个相关条目`);
+		debugLog(() => `[Bangumi Sync] 处理 ${relations?.length || 0} 个相关条目`);
 		if (!relations || relations.length === 0) {
-			console.debug(`[Bangumi Sync] 无相关条目数据`);
+			debugLog(() => `[Bangumi Sync] 无相关条目数据`);
 			return [];
 		}
 		const links: string[] = [];
 		for (const relation of relations) {
-			console.debug(`[Bangumi Sync] 检查相关条目: ${relation.name_cn || relation.name} (ID: ${relation.id})`);
+			debugLog(() => `[Bangumi Sync] 检查相关条目: ${relation.name_cn || relation.name} (ID: ${relation.id})`);
 			const localPath = this.resolveRelatedLocalPath(relation.id);
-			console.debug(`[Bangumi Sync] 本地路径: ${localPath || '未同步'}`);
+			debugLog(() => `[Bangumi Sync] 本地路径: ${localPath || '未同步'}`);
 			if (localPath) {
 				// 使用文件名作为显示名称（带类型后缀）
 				const displayName = this.extractDisplayNameFromPath(localPath);
 				const link = `[[${localPath}|${displayName}]]`;
 				links.push(link);
-				console.debug(`[Bangumi Sync] 相关条目已同步: ${relation.name_cn} -> ${link}`);
+				debugLog(() => `[Bangumi Sync] 相关条目已同步: ${relation.name_cn} -> ${link}`);
 			}
 		}
-		console.debug(`[Bangumi Sync] 生成了 ${links.length} 个相关链接`);
+		debugLog(() => `[Bangumi Sync] 生成了 ${links.length} 个相关链接`);
 		return links;
 	}
 
@@ -2785,14 +2821,13 @@ export class SyncManager {
 	 * 报告进度
 	 */
 	private reportProgress(progress: Partial<SyncProgress>): void {
-		if (this.onProgress) {
-			this.onProgress({
-				current: 0,
-				total: 0,
-				status: 'preparing',
-				...progress,
-			});
-		}
+		const event: SyncProgress = { current: 0, total: 0, status: 'preparing', ...progress };
+		this.onProgress?.(event);
+		this.operationProgress?.(event);
+	}
+
+	private reportPhase(phase: SyncPhase, current = 0, total = 0, currentItem?: string): void {
+		this.reportProgress({ status: 'processing', phase, current, total, currentItem });
 	}
 
 	/**
@@ -2805,6 +2840,7 @@ export class SyncManager {
 			overwrite?: boolean;
 			localPropertyValuesBySubjectId?: Map<number, LocalPropertyValueMap>;
 			concurrency?: number;
+			onPhaseProgress?: (progress: SyncProgress) => void;
 		},
 		onProgress?: (current: number, total: number, message: string) => void
 	): Promise<SyncResultWithRollback> {
@@ -2816,9 +2852,12 @@ export class SyncManager {
 		const overwrite = options?.overwrite ?? false;
 		const localPropertyValuesBySubjectId = options?.localPropertyValuesBySubjectId;
 		const concurrency = options?.concurrency ?? 3;
+		const releaseRequests = this.client.acquireRequestConcurrency?.(concurrency);
+		const previousProgress = this.operationProgress;
+		this.operationProgress = options?.onPhaseProgress;
 
 		try {
-			console.debug(`[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}，并发数: ${concurrency}`);
+			debugLog(() => `[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}，并发数: ${concurrency}`);
 
 			// 开始批次同步
 			this.assertNoPendingTransaction();
@@ -2836,7 +2875,6 @@ export class SyncManager {
 				}),
 				(_prepared, index) => {
 					onProgress?.(index + 1, collections.length, `正在同步条目 ${index + 1}/${collections.length}`);
-					this.reportProgress({ status: 'processing', current: index + 1, total: collections.length, message: `同步条目... (${index + 1}/${collections.length})` });
 				},
 			);
 			wasCancelled = execution.wasCancelled;
@@ -2846,6 +2884,7 @@ export class SyncManager {
 			if (batchRelations.length > 0) {
 				result.warnings.push(...await this.postProcessBatchRelations(batchRelations));
 			}
+			wasCancelled ||= this.shuttingDown || (this.cancellationSignal?.cancelled ?? false);
 
 			this.finalizeSyncResult(result, wasCancelled);
 			this.reportFinalSyncProgress(result, wasCancelled);
@@ -2855,10 +2894,13 @@ export class SyncManager {
 			console.error('[Bangumi Sync] 按收藏列表同步失败:', error);
 			this.reportProgress({ status: 'error', message: String(error) });
 		} finally {
+			this.operationProgress = previousProgress;
 			this.endVaultOperation();
+			releaseRequests?.();
 		}
 
 		result.duration = Date.now() - startTime;
+		reportSyncSummary(result);
 		return this.createSyncResultWithRollback(result, wasCancelled);
 	}
 
@@ -2924,12 +2966,14 @@ export class SyncManager {
 		previewItems: SyncPreviewItem[],
 		action: 'all' | 'selected' | 'unselected',
 		localPropertyResult?: LocalPropertyModalResult,
-		concurrency: number = 3
+		concurrency: number = 3,
+		subjectDetails?: SubjectDetailSession,
 	): Promise<SyncResultWithRollback> {
 		this.ensureCanStartSync();
 		const startTime = Date.now();
 		let wasCancelled = false;
 		const result = this.createSyncResult();
+		const releaseRequests = this.client.acquireRequestConcurrency?.(concurrency);
 
 		try {
 			// 根据用户选择过滤条目
@@ -2943,7 +2987,7 @@ export class SyncManager {
 			}
 
 			result.total = itemsToSync.length;
-			console.debug(`[Bangumi Sync] 开始同步 ${itemsToSync.length} 个条目，并发数: ${concurrency}`);
+			debugLog(() => `[Bangumi Sync] 开始同步 ${itemsToSync.length} 个条目，并发数: ${concurrency}`);
 
 			// 开始批次同步
 			this.assertNoPendingTransaction();
@@ -2952,6 +2996,7 @@ export class SyncManager {
 			const batch = await this.prepareCollectionBatch(
 				itemsToSync.map(item => item.collection),
 				concurrency,
+				subjectDetails,
 			);
 			const execution = await this.executePreparedCollectionBatch(
 				batch,
@@ -2962,11 +3007,6 @@ export class SyncManager {
 					preserveUserDataOnOverwrite: false,
 					localPropertyValues: localPropertyResult?.propertyValuesBySubjectId?.get(prepared.collection.subject_id),
 				}),
-				(prepared, index) => this.reportProgress({
-					status: 'processing', current: index + 1, total: itemsToSync.length,
-					currentItem: prepared.collection.subject.name_cn || prepared.collection.subject.name,
-					message: `处理条目... (${index + 1}/${itemsToSync.length})`,
-				}),
 			);
 			wasCancelled = execution.wasCancelled;
 			const batchRelations = execution.relations;
@@ -2975,6 +3015,7 @@ export class SyncManager {
 			if (batchRelations.length > 0) {
 				result.warnings.push(...await this.postProcessBatchRelations(batchRelations));
 			}
+			wasCancelled ||= this.shuttingDown || (this.cancellationSignal?.cancelled ?? false);
 
 			this.finalizeSyncResult(result, wasCancelled);
 			this.reportFinalSyncProgress(result, wasCancelled);
@@ -2986,9 +3027,11 @@ export class SyncManager {
 			new Notice(`${tn('notices', 'syncFailed')}: ${error instanceof Error ? error.message : String(error)}`);
 		} finally {
 			this.endVaultOperation();
+			releaseRequests?.();
 		}
 
 		result.duration = Date.now() - startTime;
+		reportSyncSummary(result);
 		return this.createSyncResultWithRollback(result, wasCancelled);
 	}
 
@@ -3001,11 +3044,11 @@ export class SyncManager {
 		options: { overwrite: boolean; localPropertyValues?: LocalPropertyValueMap; preserveUserDataOnOverwrite: boolean },
 		prepared: PreparedCollection,
 	): Promise<RenderedCollection> {
-		console.debug(`[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+		debugLog(() => `[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
 
 		// 获取完整条目信息
 		const { subject, characters: relatedCharacters, relations, persons } = prepared.fullInfo;
-		console.debug(`[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
+		debugLog(() => `[Bangumi Sync] 获取到条目信息: ${subject.name_cn}`);
 
 		// 解析角色信息
 		const characters = parseCharacters(relatedCharacters, 9);
@@ -3020,7 +3063,8 @@ export class SyncManager {
 		const filePath = prepared.allocation.finalPath;
 
 		// 获取章节信息
-		const episodeData = await this.fetchEpisodeData(subject);
+		const needs = getSubjectDataRequirements(subject, this.config.customTemplates, this.config.enableRelatedLinks !== false);
+		const episodeData = needs.episodes ? await this.fetchEpisodeData(subject) : null;
 
 		// 构建额外模板变量（当有自定义属性或需要覆盖时才解析）
 		let extraTemplateVars: Record<string, string> | undefined;
@@ -3068,7 +3112,7 @@ export class SyncManager {
 				if (localUserData) {
 					const dataProtection = this.config.dataProtection || DEFAULT_DATA_PROTECTION_SETTINGS;
 					content = this.userDataMerger.mergeUserData(existingFile, content, localUserData, dataProtection);
-					console.debug(`[Bangumi Sync] 已保护用户数据: ${localUserData.identifier.name_cn}`);
+					debugLog(() => `[Bangumi Sync] 已保护用户数据: ${localUserData.identifier.name_cn}`);
 				}
 			}
 			if (explicitLocalPropertyValues) {
@@ -3092,115 +3136,64 @@ export class SyncManager {
 		const { subject, filePath, content, shouldOverwrite, relations } = rendered;
 		const writeOptions = { overwrite: shouldOverwrite, subjectId: subject.id };
 		const writeResult = await transaction.createOrUpdateFile(filePath, content, writeOptions);
-		console.debug(`[Bangumi Sync] 文件创建完成: ${filePath}`);
+		debugLog(() => `[Bangumi Sync] 文件创建完成: ${filePath}`);
 
 		return { subjectId: subject.id, filePath, relations, writeStatus: writeResult.status };
 	}
 
 	/**
-	 * 更新已同步相关条目的链接（双向链接）
-	 * 批量处理：先收集所有需要更新的关联关系，按目标文件分组，每个文件只读写一次
-	 */
-	private async updateRelatedItemsBidirectional(
-		currentId: number,
-		currentPath: string,
-		currentName: string,
-		relations: { id: number; name_cn: string; name: string }[]
-	): Promise<SyncWarning[]> {
-		const warnings: SyncWarning[] = [];
-		const displayName = this.extractDisplayNameFromPath(currentPath);
-		const currentLink = `[[${currentPath}|${displayName}]]`;
-
-		// 收集需要更新的文件及其新增链接
-		const updatesByFile = new Map<string, { subjectId: number; links: string[] }>();
-
-		for (const relation of relations) {
-			const relatedPath = this.resolveRelatedLocalPath(relation.id);
-			if (relatedPath) {
-				const existing = updatesByFile.get(relatedPath) ?? { subjectId: relation.id, links: [] };
-				existing.links.push(currentLink);
-				updatesByFile.set(relatedPath, existing);
-			}
-		}
-
-		// 批量更新每个目标文件
-		for (const [path, update] of updatesByFile) {
-			if (await this.checkCancellation()) break;
-			try {
-				await this.updateRelatedFile(path, update.subjectId, update.links);
-			} catch (error) {
-				console.error(`[Bangumi Sync] 更新相关条目链接失败: ${path}`, error);
-				warnings.push({
-					subjectId: update.subjectId,
-					operation: 'related-link-update',
-					message: error instanceof Error ? error.message : String(error),
-				});
-			}
-		}
-		return warnings;
-	}
-
-	/**
-	 * 后处理同批次相关条目的双向链接
-	 * 解决并发同步时相关条目互相检测不到的问题
-	 * 按目标文件分组，每个文件只读写一次
+	 * Aggregate the entire committed batch before touching any related file.
+	 * Sources gain forward links to batch peers; every local target gains backlinks.
 	 */
 	private async postProcessBatchRelations(
 		batchItems: { subjectId: number; filePath: string; relations: RelatedSubject[] }[]
 	): Promise<SyncWarning[]> {
 		const warnings: SyncWarning[] = [];
 		if (this.config.enableRelatedLinks === false) return warnings;
+		this.reportPhase('linking');
+		const batchSubjectIds = new Set(batchItems.map(item => item.subjectId));
+		const resolvedPaths = new Map<number, string | undefined>();
+		const updatesByFile = new Map<string, {
+			subjectId: number;
+			links: Set<string>;
+			operation: SyncWarning['operation'];
+			identityConflict: boolean;
+		}>();
+		const linkFor = (path: string) => `[[${path}|${this.extractDisplayNameFromPath(path)}]]`;
+		const addUpdate = (path: string, subjectId: number, link: string, operation: SyncWarning['operation']) => {
+			path = normalizePath(path);
+			const update = updatesByFile.get(path) ?? { subjectId, links: new Set<string>(), operation, identityConflict: false };
+			if (update.subjectId !== subjectId) update.identityConflict = true;
+			if (operation === 'related-link-update') update.operation = operation;
+			update.links.add(link);
+			updatesByFile.set(path, update);
+		};
+
 		for (const item of batchItems) {
 			if (await this.checkCancellation()) return warnings;
-			warnings.push(...await this.updateRelatedItemsBidirectional(
-				item.subjectId,
-				item.filePath,
-				this.extractDisplayNameFromPath(item.filePath),
-				item.relations,
-			));
-		}
-
-		const batchSubjectIds = new Set(batchItems.map(item => item.subjectId));
-		const updatesByFile = new Map<string, { subjectId: number; links: string[] }>();
-
-		for (const item of batchItems) {
-			const batchRelations = item.relations.filter(r => batchSubjectIds.has(r.id));
-			if (batchRelations.length === 0) continue;
-
-			const currentDisplayName = this.extractDisplayNameFromPath(item.filePath);
-			const currentLink = `[[${item.filePath}|${currentDisplayName}]]`;
-
-			for (const relation of batchRelations) {
-				const relatedPath = this.resolveRelatedLocalPath(relation.id);
+			const currentLink = linkFor(item.filePath);
+			for (const relation of item.relations) {
+				if (!resolvedPaths.has(relation.id)) resolvedPaths.set(relation.id, this.resolveRelatedLocalPath(relation.id));
+				const relatedPath = resolvedPaths.get(relation.id);
 				if (!relatedPath) continue;
-
-				// 当前条目 → 相关条目
-				const relatedDisplayName = this.extractDisplayNameFromPath(relatedPath);
-				const relatedLink = `[[${relatedPath}|${relatedDisplayName}]]`;
-				const existing1 = updatesByFile.get(item.filePath) ?? { subjectId: item.subjectId, links: [] };
-				existing1.links.push(relatedLink);
-				updatesByFile.set(item.filePath, existing1);
-
-				// 相关条目 → 当前条目（反向）
-				const existing2 = updatesByFile.get(relatedPath) ?? { subjectId: relation.id, links: [] };
-				existing2.links.push(currentLink);
-				updatesByFile.set(relatedPath, existing2);
+				addUpdate(relatedPath, relation.id, currentLink, 'related-link-update');
+				if (batchSubjectIds.has(relation.id)) {
+					addUpdate(item.filePath, item.subjectId, linkFor(relatedPath), 'related-link-postprocess');
+				}
 			}
 		}
 
-		if (updatesByFile.size === 0) return warnings;
-
-		console.debug(`[Bangumi Sync] 后处理同批次相关链接: ${updatesByFile.size} 个文件需要更新`);
-
+		debugLog(() => `[Bangumi Sync] 批量补全相关链接: ${updatesByFile.size} 个目标文件`);
 		for (const [path, update] of updatesByFile) {
 			if (await this.checkCancellation()) break;
 			try {
-				await this.updateRelatedFile(path, update.subjectId, update.links);
+				if (update.identityConflict) throw new Error(`Conflicting subject IDs resolve to ${path}.`);
+				await this.updateRelatedFile(path, update.subjectId, [...update.links]);
 			} catch (error) {
-				console.error(`[Bangumi Sync] 后处理更新相关链接失败: ${path}`, error);
+				console.error(`[Bangumi Sync] 更新相关链接失败: ${path}`, error);
 				warnings.push({
 					subjectId: update.subjectId,
-					operation: 'related-link-postprocess',
+					operation: update.operation,
 					message: error instanceof Error ? error.message : String(error),
 				});
 			}
@@ -3209,13 +3202,16 @@ export class SyncManager {
 	}
 
 	private async updateRelatedFile(path: string, subjectId: number, links: string[]): Promise<void> {
-		const file = await this.fileManager.assertPathOwnership(path, subjectId);
+		const file = this.fileManager.getFile(path);
 		if (!file) return;
 		const content = await this.app.vault.read(file);
-		const updatedContent = this.incrementalSync.updateRelated(content, links);
-		if (updatedContent === content) return;
-		await this.documentService.processSubjectFile(file, subjectId, () => updatedContent);
-		console.debug(`[Bangumi Sync] 已更新相关链接: ${path} (+${links.length})`);
+		this.documentService.assertContentSubjectId(content, subjectId, file.path);
+		if (this.incrementalSync.updateRelated(content, links) === content) return;
+		if (await this.checkCancellation()) return;
+		await this.documentService.processSubjectFile(file, subjectId,
+			latest => this.shuttingDown || this.cancellationSignal?.cancelled
+				? latest : this.incrementalSync.updateRelated(latest, links));
+		debugLog(() => `[Bangumi Sync] 已更新相关链接: ${path} (+${links.length})`);
 	}
 
 	/**
@@ -3248,7 +3244,7 @@ export class SyncManager {
 					tags: input.tags,
 					private: input.private,
 				});
-				console.debug(`[Bangumi Sync] 已同步到云端: ${subjectId}`);
+				debugLog(() => `[Bangumi Sync] 已同步到云端: ${subjectId}`);
 			}
 
 			// 2. 创建本地文件
@@ -3409,7 +3405,7 @@ export class SyncManager {
 					break;
 				}
 				result.downloaded++;
-				console.debug(`[Bangumi Sync] 封面下载完成: ${info.name_cn} -> ${localPath}`);
+				debugLog(() => `[Bangumi Sync] 封面下载完成: ${info.name_cn} -> ${localPath}`);
 			} catch (error) {
 				console.error(`[Bangumi Sync] 封面下载失败: ${info.name_cn}`, error);
 				result.failed++;
@@ -3446,18 +3442,17 @@ export class SyncManager {
 		this.beginVaultOperation();
 		try {
 		const scanPath = this.config.scanFolderPath || 'ACGN';
-		console.debug(`[Bangumi Sync] 扫描关联条目，scanFolderPath: "${this.config.scanFolderPath}"，实际扫描路径: "${scanPath}"，pathTemplate: "${this.config.pathTemplate}"`);
+		debugLog(() => `[Bangumi Sync] 扫描关联条目，scanFolderPath: "${this.config.scanFolderPath}"，实际扫描路径: "${scanPath}"，pathTemplate: "${this.config.pathTemplate}"`);
 		await this.incrementalSync.scanLocalFolder(scanPath);
 
 		const localSubjects = this.incrementalSync.getLocalSubjects();
-		console.debug(`[Bangumi Sync] 扫描到 ${localSubjects.size} 个本地条目`);
+		debugLog(() => `[Bangumi Sync] 扫描到 ${localSubjects.size} 个本地条目`);
 
 		if (localSubjects.size === 0) {
 			console.warn(`[Bangumi Sync] 未扫描到任何本地条目，扫描路径: "${scanPath}"`);
 		}
 
-		const allIds = [...localSubjects.keys()];
-		console.debug(`[Bangumi Sync] 本地条目 ID: ${allIds.join(', ')}`);
+		debugLog(() => `[Bangumi Sync] 本地条目 ID: ${[...localSubjects.keys()].join(', ')}`);
 
 		const result = { checked: localSubjects.size, linked: 0, skipped: 0, failed: 0, details: [] as { name: string; addedLinks: string[] }[] };
 		let processed = 0;
@@ -3499,7 +3494,7 @@ export class SyncManager {
 
 			try {
 				const relations = await this.client.getSubjectRelations(subjectId);
-				console.debug(`[Bangumi Sync] [${processed}/${localSubjects.size}] ${info.name_cn || subjectId} (ID:${subjectId}): ${relations.length} 个关联`);
+				debugLog(() => `[Bangumi Sync] [${processed}/${localSubjects.size}] ${info.name_cn || subjectId} (ID:${subjectId}): ${relations.length} 个关联`);
 
 				const localRelatedIds: number[] = [];
 				for (const relation of relations) {
@@ -3510,7 +3505,7 @@ export class SyncManager {
 
 				localRelationMap.set(subjectId, localRelatedIds);
 				if (localRelatedIds.length > 0) {
-					console.debug(`[Bangumi Sync]   本地关联: ${localRelatedIds.join(', ')}`);
+					debugLog(() => `[Bangumi Sync]   本地关联: ${localRelatedIds.join(', ')}`);
 				}
 			} catch (error) {
 				console.warn(`[Bangumi Sync] 获取关联关系失败: ${info.name_cn} (${subjectId})`, error);
@@ -3530,10 +3525,10 @@ export class SyncManager {
 
 		// 过滤出含 2+ 条目的分量（需要补全链接的组）
 		const multiComponents = [...components.entries()].filter(([, ids]) => ids.length >= 2);
-		console.debug(`[Bangumi Sync] 连通分量: ${components.size} 组，其中 ${multiComponents.length} 组含 2+ 条目`);
+		debugLog(() => `[Bangumi Sync] 连通分量: ${components.size} 组，其中 ${multiComponents.length} 组含 2+ 条目`);
 
 		for (const [root, ids] of multiComponents) {
-			console.debug(`[Bangumi Sync] 分量 (root:${root}): ${ids.map(id => `${localSubjects.get(id)?.name_cn || id}(${id})`).join(', ')}`);
+			debugLog(() => `[Bangumi Sync] 分量 (root:${root}): ${ids.map(id => `${localSubjects.get(id)?.name_cn || id}(${id})`).join(', ')}`);
 		}
 
 		// === 第三阶段：为每组补全所有互链 ===
@@ -3569,7 +3564,7 @@ export class SyncManager {
 
 				if (missingLinks.length > 0) {
 					updatesByFile.set(info.path, { subjectId: id, links: missingLinks });
-					console.debug(`[Bangumi Sync] ${info.name_cn || id}: 补充 ${missingLinks.length} 个链接`);
+					debugLog(() => `[Bangumi Sync] ${info.name_cn || id}: 补充 ${missingLinks.length} 个链接`);
 				} else {
 					alreadyCorrect++;
 				}
@@ -3578,7 +3573,7 @@ export class SyncManager {
 
 		result.skipped = alreadyCorrect;
 
-		console.debug(`[Bangumi Sync] 扫描完成，需要更新 ${updatesByFile.size} 个文件`);
+		debugLog(() => `[Bangumi Sync] 扫描完成，需要更新 ${updatesByFile.size} 个文件`);
 
 		// === 第四阶段：批量更新文件 ===
 
@@ -3605,9 +3600,9 @@ export class SyncManager {
 						return match ? match[1] : link;
 					});
 					result.details.push({ name, addedLinks: addedNames });
-					console.debug(`[Bangumi Sync] 扫描关联更新: ${path} (+${links.length})`);
+					debugLog(() => `[Bangumi Sync] 扫描关联更新: ${path} (+${links.length})`);
 				} else {
-					console.debug(`[Bangumi Sync] 文件无需更新（链接已存在）: ${path}`);
+					debugLog(() => `[Bangumi Sync] 文件无需更新（链接已存在）: ${path}`);
 					result.skipped++;
 				}
 			} catch (error) {

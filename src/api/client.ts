@@ -1,3 +1,4 @@
+import { debugLog } from '../../common/logging';
 /**
  * Bangumi API 客户端
  * 处理与 Bangumi API 的所有通信
@@ -17,11 +18,41 @@ import {
 	UserEpisodeCollection,
 } from '../../common/api/types';
 import { API_BASE_URL, ENDPOINTS, DEFAULT_HEADERS } from '../../common/api/endpoints';
+import { bangumiRequestScheduler } from './requestScheduler';
+
+class RequestCancelledError extends Error {}
+
+export interface SubjectRelatedDataRequirements { characters: boolean; persons: boolean; relations: boolean }
 
 export class BangumiClient {
 	private accessToken: string;
 	private baseUrl: string;
 	private authenticatedUsername: string | null = null;
+	private credentialRevision = 0;
+	private requestCancelled: () => boolean = () => false;
+
+	setRequestConcurrency(value: number): void { bangumiRequestScheduler.setConcurrency(value); }
+	acquireRequestConcurrency(value: number): () => void { return bangumiRequestScheduler.acquireConcurrency(value); }
+	setRequestCancellationChecker(checker: () => boolean): void {
+		this.requestCancelled = checker;
+	}
+
+	private scheduledRequest(options: RequestUrlParam, cancelled?: () => boolean, contextCancelled = this.requestCancelled) {
+		const revision = this.credentialRevision;
+		const assertContext = () => {
+			if (contextCancelled() || cancelled?.() || revision !== this.credentialRevision) {
+				throw new RequestCancelledError('Request context cancelled');
+			}
+		};
+		return bangumiRequestScheduler.run(async () => {
+			assertContext();
+			const response = await requestUrl(options);
+			assertContext();
+			return response;
+		});
+	}
+
+	get subjectDetailRevision(): number { return this.credentialRevision; }
 
 	constructor(accessToken: string = '', baseUrl: string = API_BASE_URL) {
 		this.accessToken = accessToken;
@@ -32,6 +63,7 @@ export class BangumiClient {
 	 * 设置 Access Token
 	 */
 	setAccessToken(token: string): void {
+		if (this.accessToken !== token) this.credentialRevision++;
 		this.accessToken = token;
 		this.authenticatedUsername = null;
 	}
@@ -61,31 +93,34 @@ export class BangumiClient {
 	private async request<T>(
 		method: 'GET' | 'POST' | 'PUT' | 'DELETE',
 		endpoint: string,
-		data?: unknown
+		data?: unknown,
+		cancelled?: () => boolean,
 	): Promise<T> {
 		const maxRetries = 3;
 		const url = `${this.baseUrl}${endpoint}`;
+		const requestRevision = this.credentialRevision;
+		const contextCancelled = this.requestCancelled;
+		const isCancelled = () => contextCancelled() || cancelled?.() || requestRevision !== this.credentialRevision;
 
 		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			if (isCancelled()) throw new RequestCancelledError('Request context cancelled');
 			const options: RequestUrlParam = {
 				url,
 				method,
 				headers: this.getHeaders(),
 				body: data ? JSON.stringify(data) : undefined,
+				throw: false,
 			};
 
 			try {
 				if (attempt === 0) {
-					console.debug(`[Bangumi Sync] ${method} ${url}`);
-					if (data !== undefined) {
-						console.debug('[Bangumi Sync] Request payload:', { method, endpoint, data });
-					}
+					debugLog(() => `[Bangumi Sync] ${method} ${url}`);
 				} else {
-					console.debug(`[Bangumi Sync] 重试 ${attempt}/${maxRetries}: ${method} ${url}`);
+					debugLog(() => `[Bangumi Sync] 重试 ${attempt}/${maxRetries}: ${method} ${url}`);
 				}
 
-				const response = await requestUrl(options);
-				console.debug(`[Bangumi Sync] Response status: ${response.status}`);
+				const response = await this.scheduledRequest(options, cancelled, contextCancelled);
+				debugLog(() => `[Bangumi Sync] Response status: ${response.status}`);
 
 				// 可重试的状态码且未超过重试次数
 				if (this.isRetryableStatus(response.status) && attempt < maxRetries) {
@@ -100,7 +135,7 @@ export class BangumiClient {
 				if (response.status >= 400) {
 					const error = this.toApiError(responseJson, response.status);
 					const errorMsg = error.title + (error.description ? `: ${error.description}` : '');
-					console.error(`[Bangumi Sync] API Error ${response.status} on ${method} ${endpoint}:`, errorMsg, data);
+					console.error(`[Bangumi Sync] API Error ${response.status} on ${method} ${endpoint}`);
 					throw new Error(`HTTP ${response.status}: ${errorMsg}`);
 				}
 
@@ -110,26 +145,27 @@ export class BangumiClient {
 				}
 
 				if (responseJson instanceof SyntaxError) {
-					console.debug(`[Bangumi Sync] Empty success response on ${method} ${endpoint}`);
+					debugLog(() => `[Bangumi Sync] Empty success response on ${method} ${endpoint}`);
 					return {} as T;
 				}
 
 				return responseJson as T;
 			} catch (error) {
+				if (error instanceof RequestCancelledError || isCancelled()) throw error;
 				// 网络错误等非 HTTP 错误也可重试
 				if (attempt < maxRetries && !(error instanceof Error && error.message.includes('HTTP'))) {
 					const delay = Math.pow(2, attempt) * 1000;
-					console.warn(`[Bangumi Sync] 请求失败，${delay}ms 后重试...`, error);
+					console.warn(`[Bangumi Sync] 请求失败，${delay}ms 后重试...`);
 					await new Promise(resolve => activeWindow.setTimeout(resolve, delay));
 					continue;
 				}
 
-				const errorInfo = { method, endpoint, data, error };
+				const errorInfo = { method, endpoint };
 				console.error(`[Bangumi Sync] Request failed:`, errorInfo);
 				if (error instanceof Error) {
-					throw new Error(`${error.message} | ${method} ${endpoint} | payload=${JSON.stringify(data)}`);
+					throw new Error(`${error.message} | ${method} ${endpoint}`);
 				}
-				throw new Error(`Request failed: ${String(error)} | ${method} ${endpoint} | payload=${JSON.stringify(data)}`);
+				throw new Error(`Request failed | ${method} ${endpoint}`);
 			}
 		}
 
@@ -173,21 +209,21 @@ export class BangumiClient {
 			return { valid: false, error: '未配置 Access Token' };
 		}
 
-		console.debug('[Bangumi Sync] 验证 Token...');
+		debugLog(() => '[Bangumi Sync] 验证 Token...');
 
 		try {
 			const headers = this.getHeaders();
-			const response = await requestUrl({
+			const response = await this.scheduledRequest({
 				url: `${this.baseUrl}/v0/me`,
 				method: 'GET',
 				headers: headers,
 			});
 
-			console.debug(`[Bangumi Sync] /v0/me 响应状态: ${response.status}`);
+			debugLog(() => `[Bangumi Sync] /v0/me 响应状态: ${response.status}`);
 
 			if (response.status === 200) {
 				const user = response.json as { username?: string };
-				console.debug(`[Bangumi Sync] 获取到用户: ${user.username}`);
+				debugLog(() => `[Bangumi Sync] 获取到用户: ${user.username}`);
 				this.authenticatedUsername = user.username ?? null;
 				return { valid: true, username: user.username };
 			}
@@ -226,10 +262,10 @@ export class BangumiClient {
 		const username = await this.getAuthenticatedUsername();
 		const endpoint = ENDPOINTS.USER_COLLECTION_BY_ID(username, subjectId);
 		const url = `${this.baseUrl}${endpoint}`;
-		console.debug(`[Bangumi Sync] 获取收藏状态: GET ${endpoint}`);
+		debugLog(() => `[Bangumi Sync] 获取收藏状态: GET ${endpoint}`);
 
 		try {
-			const response = await requestUrl({
+			const response = await this.scheduledRequest({
 				url,
 				method: 'GET',
 				headers: this.getHeaders(),
@@ -263,7 +299,7 @@ export class BangumiClient {
 		const url = `${this.baseUrl}${endpoint}`;
 
 		try {
-			const response = await requestUrl({
+			const response = await this.scheduledRequest({
 				url,
 				method: 'GET',
 				headers: this.getHeaders(),
@@ -293,8 +329,8 @@ export class BangumiClient {
 	/**
 	 * 获取条目详情
 	 */
-	async getSubject(subjectId: number): Promise<Subject> {
-		return this.request<Subject>('GET', ENDPOINTS.SUBJECT_BY_ID(subjectId));
+	async getSubject(subjectId: number, cancelled?: () => boolean): Promise<Subject> {
+		return this.request<Subject>('GET', ENDPOINTS.SUBJECT_BY_ID(subjectId), undefined, cancelled);
 	}
 
 	/**
@@ -348,11 +384,11 @@ export class BangumiClient {
 		}
 
 		const endpoint = `${ENDPOINTS.USER_COLLECTIONS(username)}?${params.toString()}`;
-		console.debug(`[Bangumi Sync] 获取收藏: ${endpoint}`);
+		debugLog(() => `[Bangumi Sync] 获取收藏: ${endpoint}`);
 
 		try {
 			const result = await this.request<PagedResult<UserCollection>>('GET', endpoint);
-			console.debug(`[Bangumi Sync] 获取到 ${result.data.length}/${result.total} 条收藏`);
+			debugLog(() => `[Bangumi Sync] 获取到 ${result.data.length}/${result.total} 条收藏`);
 			return result;
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('404')) {
@@ -365,14 +401,24 @@ export class BangumiClient {
 	/**
 	 * 获取完整的条目信息（包括角色、人物和关联条目）
 	 */
-	async getFullSubjectInfo(subjectId: number): Promise<{
+	async getFullSubjectInfo(subjectId: number, subjectDetail?: Promise<Subject>, requirements?: (subject: Subject) => SubjectRelatedDataRequirements): Promise<{
 		subject: Subject;
 		characters: RelatedCharacter[];
 		persons: RelatedPerson[];
 		relations: RelatedSubject[];
 	}> {
+		if (requirements) {
+			const subject = await (subjectDetail ?? this.getSubject(subjectId));
+			const needs = requirements(subject);
+			const [characters, persons, relations] = await Promise.all([
+				needs.characters ? this.getSubjectCharacters(subjectId) : Promise.resolve([]),
+				needs.persons ? this.getSubjectPersons(subjectId) : Promise.resolve([]),
+				needs.relations ? this.getSubjectRelations(subjectId) : Promise.resolve([]),
+			]);
+			return { subject, characters, persons, relations };
+		}
 		const [subject, characters, persons, relations] = await Promise.all([
-			this.getSubject(subjectId),
+			subjectDetail ?? this.getSubject(subjectId),
 			this.getSubjectCharacters(subjectId),
 			this.getSubjectPersons(subjectId),
 			this.getSubjectRelations(subjectId),
@@ -417,7 +463,7 @@ export class BangumiClient {
 		// 继续获取剩余数据
 		while (allCollections.length < total) {
 			if (options?.cancelled?.value) {
-				console.debug('[Bangumi Sync] 分页获取已取消');
+				debugLog(() => '[Bangumi Sync] 分页获取已取消');
 				break;
 			}
 
@@ -457,11 +503,10 @@ export class BangumiClient {
 	}): Promise<void> {
 		const payload = this.sanitizeCollectionUpdateData(data);
 		const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
-		console.debug(`[Bangumi Sync] 创建/更新收藏: POST ${endpoint}`);
-		console.debug(`[Bangumi Sync] 数据:`, payload);
+		debugLog(() => `[Bangumi Sync] 创建/更新收藏: POST ${endpoint}`);
 
 		await this.request('POST', endpoint, payload);
-		console.debug(`[Bangumi Sync] 收藏更新成功: ${subjectId}`);
+		debugLog(() => `[Bangumi Sync] 收藏更新成功: ${subjectId}`);
 	}
 
 	/**
@@ -483,11 +528,10 @@ export class BangumiClient {
 	}): Promise<void> {
 		const payload = this.sanitizeCollectionUpdateData(data);
 		const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
-		console.debug(`[Bangumi Sync] 更新收藏: POST ${endpoint}`);
-		console.debug(`[Bangumi Sync] 更新数据:`, payload);
+		debugLog(() => `[Bangumi Sync] 更新收藏: POST ${endpoint}`);
 
 		await this.request('POST', endpoint, payload);
-		console.debug(`[Bangumi Sync] 收藏更新成功: ${subjectId}`);
+		debugLog(() => `[Bangumi Sync] 收藏更新成功: ${subjectId}`);
 	}
 
 	private sanitizeCollectionUpdateData(data: {
@@ -570,11 +614,11 @@ export class BangumiClient {
 	 */
 	async getEpisodes(subjectId: number): Promise<PagedEpisodes> {
 		const endpoint = `${ENDPOINTS.EPISODES}?subject_id=${subjectId}`;
-		console.debug(`[Bangumi Sync] 获取章节: ${endpoint}`);
+		debugLog(() => `[Bangumi Sync] 获取章节: ${endpoint}`);
 
 		const result = await this.request<PagedEpisodes>('GET', endpoint);
 		const data = result?.data ?? [];
-		console.debug(`[Bangumi Sync] 获取到 ${data.length}/${result?.total ?? 0} 个章节`);
+		debugLog(() => `[Bangumi Sync] 获取到 ${data.length}/${result?.total ?? 0} 个章节`);
 		return result;
 	}
 
@@ -584,11 +628,11 @@ export class BangumiClient {
 	 */
 	async getUserEpisodeStatus(subjectId: number): Promise<UserEpisodeCollection[]> {
 		const endpoint = ENDPOINTS.USER_SUBJECT_EPISODES(subjectId);
-		console.debug(`[Bangumi Sync] 获取用户章节状态: ${endpoint}`);
+		debugLog(() => `[Bangumi Sync] 获取用户章节状态: ${endpoint}`);
 
 		const result = await this.request<PagedResult<UserEpisodeCollection>>('GET', endpoint);
 		const data = result?.data ?? [];
-		console.debug(`[Bangumi Sync] 获取到 ${data.length} 个章节状态`);
+		debugLog(() => `[Bangumi Sync] 获取到 ${data.length} 个章节状态`);
 		return data;
 	}
 
@@ -599,10 +643,10 @@ export class BangumiClient {
 	 */
 	async updateEpisodeStatus(episodeId: number, type: number): Promise<void> {
 		const endpoint = ENDPOINTS.UPDATE_EPISODE_STATUS(episodeId);
-		console.debug(`[Bangumi Sync] 更新章节状态: PUT ${endpoint}, type=${type}`);
+		debugLog(() => `[Bangumi Sync] 更新章节状态: PUT ${endpoint}, type=${type}`);
 
 		await this.request('PUT', endpoint, { type });
-		console.debug(`[Bangumi Sync] 章节状态更新成功: ${episodeId}`);
+		debugLog(() => `[Bangumi Sync] 章节状态更新成功: ${episodeId}`);
 	}
 
 	/**
@@ -637,10 +681,10 @@ export class BangumiClient {
 		};
 
 		const endpoint = `${ENDPOINTS.SEARCH_SUBJECTS}?${params.toString()}`;
-		console.debug(`[Bangumi Sync] 搜索条目: POST ${endpoint}`);
+		debugLog(() => `[Bangumi Sync] 搜索条目: POST ${endpoint}`);
 
 		const result = await this.request<PagedResult<Subject>>('POST', endpoint, body);
-		console.debug(`[Bangumi Sync] 搜索到 ${result.data.length}/${result.total} 个条目`);
+		debugLog(() => `[Bangumi Sync] 搜索到 ${result.data.length}/${result.total} 个条目`);
 		return result;
 	}
 }

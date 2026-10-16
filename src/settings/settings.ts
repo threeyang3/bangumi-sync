@@ -88,6 +88,7 @@ export interface BangumiPluginSettings {
 	defaultCollectionTypes: CollectionType[];
 	syncLimit: number;
 	syncConcurrency: number;  // 并发同步数（1-5，默认 3）
+	diagnosticLogging: boolean;
 
 	// 自动同步
 	autoSync: boolean;
@@ -174,6 +175,7 @@ export const DEFAULT_SETTINGS: BangumiPluginSettings = {
 	defaultCollectionTypes: [CollectionType.Wish, CollectionType.Done, CollectionType.Doing, CollectionType.OnHold, CollectionType.Dropped],
 	syncLimit: 50,
 	syncConcurrency: 3,
+	diagnosticLogging: false,
 
 	autoSync: false,
 	autoSyncInterval: 60,

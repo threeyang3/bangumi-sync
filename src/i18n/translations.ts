@@ -126,6 +126,8 @@ export interface TranslationStrings {
 		syncLimitDesc: string;
 		syncConcurrency: string;
 		syncConcurrencyDesc: string;
+		diagnosticLogging: string;
+		diagnosticLoggingDesc: string;
 		syncAll: string;
 		autoSync: string;
 		enableAutoSync: string;
@@ -232,6 +234,17 @@ export interface TranslationStrings {
 		scanningLocal: string;
 		computingDiff: string;
 		processing: string;
+		phaseDetails: string;
+		phasePlanning: string;
+		phaseRendering: string;
+		phaseWriting: string;
+		phaseFinalizing: string;
+		phaseLinking: string;
+		phaseRecovering: string;
+		executionDuration: string;
+		executionDurationScope: string;
+		decisionDuration: string;
+		cancelling: string;
 		completed: string;
 		error: string;
 		pause: string;
@@ -803,6 +816,8 @@ const en: TranslationStrings = {
 		syncLimitDesc: 'If unsynced count is less than limit, sync all unsynced items',
 		syncConcurrency: 'Sync concurrency',
 		syncConcurrencyDesc: 'Number of items to sync simultaneously (1-5)',
+		diagnosticLogging: 'Detailed diagnostic logging',
+		diagnosticLoggingDesc: 'Log per-item and request details to the developer console. Disabled by default; batch summaries, warnings, and errors remain visible. Request bodies are not logged.',
 		syncAll: 'All',
 		autoSync: 'Auto sync',
 		enableAutoSync: 'Enable auto sync',
@@ -903,6 +918,17 @@ const en: TranslationStrings = {
 		scanningLocal: 'Scanning local folder...',
 		computingDiff: 'Computing sync diff...',
 		processing: 'Processing...',
+		phaseDetails: 'Loading details',
+		phasePlanning: 'Planning paths',
+		phaseRendering: 'Generating content',
+		phaseWriting: 'Processing file writes',
+		phaseFinalizing: 'Finalizing recovery journal',
+		phaseLinking: 'Completing related links',
+		phaseRecovering: 'Rolling back changes',
+		executionDuration: 'Execution time: {seconds} s',
+		executionDurationScope: 'Time spent in this execution, including its data preparation, writes, journal finalization, and related links. Excludes loading before the preview, waiting for confirmation, and subsequent keep/rollback work.',
+		decisionDuration: 'Keep/rollback processing time: {seconds} s',
+		cancelling: 'Cancelling after the current operation',
 		completed: 'Completed',
 		error: 'Error',
 		pause: 'Pause',
@@ -1457,6 +1483,8 @@ const zhCN: TranslationStrings = {
 		syncLimitDesc: '每次同步的最大条目数量（0 表示不限制，会智能处理：如果未同步数量不够，同步所有未同步的）',
 		syncConcurrency: '同步并发数',
 		syncConcurrencyDesc: '同时处理的条目数量（1-5）',
+		diagnosticLogging: '详细诊断日志',
+		diagnosticLoggingDesc: '向开发者控制台输出逐条目和请求详情。默认关闭，仍保留批次摘要、警告和错误。不输出请求正文。',
 		syncAll: '全部',
 		autoSync: '自动同步',
 		enableAutoSync: '启用自动同步',
@@ -1557,6 +1585,17 @@ const zhCN: TranslationStrings = {
 		scanningLocal: '扫描本地文件夹...',
 		computingDiff: '计算同步差异...',
 		processing: '处理中...',
+		phaseDetails: '加载条目资料',
+		phasePlanning: '规划文件路径',
+		phaseRendering: '生成笔记内容',
+		phaseWriting: '处理文件写入',
+		phaseFinalizing: '完成恢复日志收尾',
+		phaseLinking: '补全关联链接',
+		phaseRecovering: '回滚本次修改',
+		executionDuration: '正式执行耗时：{seconds} 秒',
+		executionDurationScope: '统计本次执行中的资料准备、写入、日志收尾和补链，不含预览前加载、等待确认及后续保留/回滚处理。',
+		decisionDuration: '保留/回滚处理耗时：{seconds} 秒',
+		cancelling: '正在取消，等待当前操作结束',
 		completed: '完成',
 		error: '错误',
 		pause: '暂停',

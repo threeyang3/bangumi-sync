@@ -28,6 +28,8 @@ path transaction + recovery journal
 
 `src/panel/`、`src/ui/`、设置页和各类 modal 负责收集用户选择、展示进度与错误、调用 service。UI 不直接决定 recovery actions，也不自行解析 Subject ID。
 
+`SyncProgress.phase` 为可选展示信息；存在时 current/total 仅指当前阶段完成的处理次数。Manager 在实际异步处理结束后推进计数，未知总量的阶段使用 total=0。`syncProgressPresentation.ts` 统一 modal 与状态栏的阶段文案和计数边界，仅在 UI 层节流 DOM 刷新，不丢弃 manager 进度事件。进度不进入 recovery journal；`SyncResult.duration` 保持本次执行调用的计时范围，不累计预览前加载或用户确认等待。
+
 ### Application services
 
 - `src/sync/syncManager.ts`：主同步、事务、恢复和全局 manager 状态。
@@ -44,10 +46,17 @@ path transaction + recovery journal
 
 ### Infrastructure
 
+- `common/logging.ts`：按当前已应用设置控制惰性详细日志；插件注册设置读取器并在卸载时解除。默认保留显式挑选统计字段的批次摘要和警告/错误，详细日志不得输出请求正文、Token 或恢复日志原文。
+
 - `src/api/`：Bangumi API 和重试边界。
+- `src/api/requestScheduler.ts`：同一已加载插件的所有 BangumiClient 共用实际 API HTTP 请求名额；重试退避在名额之外等待，已在途请求结束前不释放名额。设置应用/恢复配置 1–5 基础上限；同步入口与预览会话持有临时预算，实际取所有上限的最小值，并在操作结束或会话关闭时释放，恢复到当前基础设置。不纳入封面等独立 binary/CDN 下载。
 - `common/file/`：Vault 文件与图片基础操作。
 - `common/template/`：模板解析和渲染。
 - Obsidian `Vault`、`requestUrl`、plugin data persistence：运行时适配层。
+
+`src/api/subjectDetailSession.ts` 为一次手动预览与导入共享完整 subject 响应，合并同 ID 的在途请求，只缓存成功响应。预览 worker 和会话均限制详情并发；超时后底层 `requestUrl` 未结束仍占用会话名额，迟到结果不进入缓存。简版回退仅供表单展示，执行阶段仍重试完整详情；其余关联 API 按执行流程加载。取消、完成、卸载清理会话；凭据 revision、manager 与已应用配置检查阻止旧预览跨配置执行。此会话不是全局缓存；HTTP 总预算由共享 requestScheduler 管理，不用会话的详情计数代替。
+
+`src/template/subjectDataRequirements.ts` 复用实际模板选择和 infobox 解析，集中推导辅助资料与章节显示需求。Manager 先取得完整 subject（可复用预览），再按需求调用角色/人物/关联 API，渲染前按需加载章节；完整 subject 保持满足现有全部路径变量。具体判断见[逻辑参考第 22 节](LOGIC_REFERENCE.md#22-同步时如何决定资料需求与请求并发)。
 
 ## Module responsibilities
 

@@ -134,6 +134,7 @@ Migration staging 必须完整写入、重读、结构校验和 secret scan 后�
 - 独立路径迁移同样必须先写 journal，再执行 rename，并在 rename 或 rollback 无法完成时保留 recovery gate。
 - 内容准备完成前不移动旧文件。
 - 关联链接仅在主事务 Commit 且 journal cleanup 后 best-effort 执行；失败只记录 warning。
+- 补链阶段取消仅停止剩余补链并返回 cancelled；已提交文件保留，不重新创建待回滚事务。
 - Retry、Manual Confirm 和 Rescan 共用互斥动作。
 - 终态 progress 必须反映真实磁盘状态；rolled-back、rollback-failed 和 finalization failure 不报告 completed。
 

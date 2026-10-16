@@ -1,3 +1,5 @@
+import { debugLog } from '../../common/logging';
+import { getSyncProgressPresentation, SyncProgressThrottle } from '../sync/syncProgressPresentation';
 /**
  * 控制面板
  * 展示所有收藏条目，标记同步状态，支持批量操作
@@ -1129,6 +1131,7 @@ export class ControlPanel extends Modal {
 		// 显示同步进度
 		this.state.loading = true;
 		this.renderStatus(`${tn('controlPanel', 'syncingItems')} ${selectedCollections.length}...`);
+		const progressThrottle = new SyncProgressThrottle();
 
 		try {
 			const result = await this.syncManager.syncByCollections(
@@ -1137,10 +1140,10 @@ export class ControlPanel extends Modal {
 					overwrite,
 					localPropertyValuesBySubjectId: localPropertyResult.propertyValuesBySubjectId,
 					concurrency: this.settings.syncConcurrency,
+					onPhaseProgress: progress => {
+						if (progressThrottle.shouldUpdate(progress)) this.renderStatus(getSyncProgressPresentation(progress).text);
+					},
 				},
-				(current, total, message) => {
-					this.renderStatus(message);
-				}
 			);
 
 			this.state.loading = false;
@@ -1191,7 +1194,7 @@ export class ControlPanel extends Modal {
 	): Promise<LocalPropertyModalResult | null> {
 		// 批量同步超过 10 条时跳过自定义属性弹窗，直接使用默认值
 		if (collections.length > 10) {
-			console.debug(`[Bangumi Sync] 批量同步 ${collections.length} 条，跳过自定义属性弹窗`);
+			debugLog(() => `[Bangumi Sync] 批量同步 ${collections.length} 条，跳过自定义属性弹窗`);
 			return { propertyValuesBySubjectId: new Map() };
 		}
 
@@ -1204,16 +1207,18 @@ export class ControlPanel extends Modal {
 					warned = true;
 					new Notice(message);
 				}
-			}
+			},
+			undefined,
+			{ concurrency: this.settings.syncConcurrency },
 		);
 
 		// 没有可填写的自定义属性时跳过弹窗
 		if (!hasLocalPropertyFieldsForCollections(collections, subjectsById, this.syncManager.getCustomTemplates())) {
-			console.debug(`[Bangumi Sync] No custom property fields, skipping modal`);
+			debugLog(() => `[Bangumi Sync] No custom property fields, skipping modal`);
 			return { propertyValuesBySubjectId: new Map() };
 		}
 
-		console.debug(`[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
+		debugLog(() => `[Bangumi Sync] Opening custom properties modal for ${collections.length} collections`);
 
 		return new Promise<LocalPropertyModalResult | null>(resolve => {
 			let resolved = false;
@@ -1463,7 +1468,7 @@ export class ControlPanel extends Modal {
 
 		this.state.loading = true;
 		this.renderStatus(`${this.getSyncStatusLabel(scope)} (1/2)`);
-		console.debug(`[Bangumi Sync][Perf] syncStatus:start synced=${syncedCollections.length}`);
+		debugLog(() => `[Bangumi Sync][Perf] syncStatus:start synced=${syncedCollections.length}`);
 
 		try {
                         const snapshotStart = Date.now();
@@ -1489,16 +1494,12 @@ export class ControlPanel extends Modal {
 			const snapshotDuration = Date.now() - snapshotStart;
 			this.lastStatusSyncPerf.snapshotDurationMs = snapshotDuration;
 			this.lastStatusSyncPerf.snapshotCount = snapshots.length;
-			console.debug(
-				`[Bangumi Sync][Perf] syncStatus:snapshots duration=${snapshotDuration}ms snapshots=${snapshots.length}`
-			);
+			debugLog(() => `[Bangumi Sync][Perf] syncStatus:snapshots duration=${snapshotDuration}ms snapshots=${snapshots.length}`);
 
 			const diffBuildDuration = 0;
 			this.lastStatusSyncPerf.initialDiffDurationMs = diffBuildDuration;
 			this.lastStatusSyncPerf.initialVisibleDiffs = diffs.length;
-			console.debug(
-				`[Bangumi Sync][Perf] syncStatus:initialDiffs duration=${diffBuildDuration}ms visible=${diffs.length}`
-			);
+			debugLog(() => `[Bangumi Sync][Perf] syncStatus:initialDiffs duration=${diffBuildDuration}ms visible=${diffs.length}`);
 
 			this.state.loading = false;
 
@@ -1523,9 +1524,7 @@ export class ControlPanel extends Modal {
 			modal.open();
 			const modalOpenDuration = Date.now() - perfStart;
 			this.lastStatusSyncPerf.modalOpenedMs = modalOpenDuration;
-			console.debug(
-				`[Bangumi Sync][Perf] syncStatus:modalOpened total=${modalOpenDuration}ms visible=${diffs.length}`
-			);
+			debugLog(() => `[Bangumi Sync][Perf] syncStatus:modalOpened total=${modalOpenDuration}ms visible=${diffs.length}`);
                         this.renderStatus(`${this.getSyncStatusLabel(scope)} (2/2)`);
                         void this.statusSyncService.loadBackgroundDiffs(
                                 selection,
@@ -1586,7 +1585,7 @@ export class ControlPanel extends Modal {
 		void this.subjectSnapshotSession.warm(syncedCollections, this.state.localSubjects, {
 			concurrency: 4,
 			onComplete: (count) => {
-				console.debug(`[Bangumi Sync] 用户数据预热完成: ${count}`);
+				debugLog(() => `[Bangumi Sync] 用户数据预热完成: ${count}`);
 			},
 			onError: (error) => {
 				console.warn('[Bangumi Sync] 用户数据预热失败:', error);
