@@ -1,3 +1,4 @@
+import { requestBudgetForItems } from './src/api/requestScheduler';
 import { debugLog, registerDiagnosticLogging } from './common/logging';
 import { SubjectDetailSession } from './src/api/subjectDetailSession';
 import { getSyncProgressPresentation, SyncProgressThrottle } from './src/sync/syncProgressPresentation';
@@ -422,7 +423,7 @@ export default class BangumiPlugin extends Plugin {
 	}
 
 	private refreshDependentServices(manager: SyncManager, settings: BangumiPluginSettings = this.settings): void {
-		manager.client.setRequestConcurrency(settings.syncConcurrency);
+		manager.client.setRequestConcurrency(requestBudgetForItems(settings.syncConcurrency));
 		this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.cloneSettings(settings));
 	}
 

@@ -1,3 +1,4 @@
+import { requestBudgetForItems } from '../api/requestScheduler';
 import { debugLog, reportSyncSummary } from '../../common/logging';
 import type { SubjectDetailSession } from '../api/subjectDetailSession';
 /**
@@ -2318,7 +2319,7 @@ export class SyncManager {
 		const startTime = Date.now();
 		let wasCancelled = false;
 		const result = this.createSyncResult();
-		const releaseRequests = this.client.acquireRequestConcurrency?.(concurrency);
+		const releaseRequests = this.client.acquireRequestConcurrency?.(requestBudgetForItems(concurrency));
 
 		try {
 			this.assertNoPendingTransaction();
@@ -2852,7 +2853,7 @@ export class SyncManager {
 		const overwrite = options?.overwrite ?? false;
 		const localPropertyValuesBySubjectId = options?.localPropertyValuesBySubjectId;
 		const concurrency = options?.concurrency ?? 3;
-		const releaseRequests = this.client.acquireRequestConcurrency?.(concurrency);
+		const releaseRequests = this.client.acquireRequestConcurrency?.(requestBudgetForItems(concurrency));
 		const previousProgress = this.operationProgress;
 		this.operationProgress = options?.onPhaseProgress;
 
@@ -2973,7 +2974,7 @@ export class SyncManager {
 		const startTime = Date.now();
 		let wasCancelled = false;
 		const result = this.createSyncResult();
-		const releaseRequests = this.client.acquireRequestConcurrency?.(concurrency);
+		const releaseRequests = this.client.acquireRequestConcurrency?.(requestBudgetForItems(concurrency));
 
 		try {
 			// 根据用户选择过滤条目

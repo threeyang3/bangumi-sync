@@ -10,6 +10,17 @@ beforeEach(() => { requestUrl.mockReset(); bangumiRequestScheduler.setConcurrenc
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('shared actual HTTP request scheduling', () => {
+	it('caps an oversized HTTP budget at twenty actual requests', async () => {
+		const scheduler = new RequestScheduler(); scheduler.setConcurrency(100);
+		const held = gate(); let active = 0, maximum = 0;
+		const work = Promise.all(Array.from({ length: 40 }, () => scheduler.run(async () => {
+			maximum = Math.max(maximum, ++active); await held.promise; active--;
+		})));
+		try { await vi.waitFor(() => expect(active).toBe(20)); }
+		finally { held.release(); }
+		await work; expect(maximum).toBe(20); expect(active).toBe(0);
+	});
+
 	it('releases scoped limits without overwriting a newer configured budget', async () => {
 		const scheduler = new RequestScheduler(); scheduler.setConcurrency(3);
 		const release = scheduler.acquireConcurrency(1);
@@ -92,6 +103,7 @@ describe('shared actual HTTP request scheduling', () => {
 			return { status: 200, json: { id: Number(url.split('/').pop()) } };
 		});
 		const first = new BangumiClient(), second = new BangumiClient();
+		first.setRequestConcurrency(1); // Explicit HTTP cap, independent of preview item workers.
 		const session = new SubjectDetailSession(first, 1, undefined, 1000);
 		const expired = expect(session.getSubject(1)).rejects.toThrow('timed out');
 		await vi.advanceTimersByTimeAsync(1000); await expired;

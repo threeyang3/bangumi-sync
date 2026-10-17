@@ -1,7 +1,13 @@
+/** Preserve the legacy subject + characters + persons + relations fanout per item. */
+export function requestBudgetForItems(concurrency: number): number {
+	const items = Number.isFinite(concurrency) ? Math.max(1, Math.min(5, Math.floor(concurrency))) : 3;
+	return items * 4;
+}
+
 /** Shared by all Bangumi clients, including panel and preview clients. */
 export class RequestScheduler {
 	private active = 0;
-	private limit = 3;
+	private limit = requestBudgetForItems(3);
 	private readonly queue: Array<() => void> = [];
 	private readonly scopes = new Map<symbol, number>();
 
@@ -17,7 +23,7 @@ export class RequestScheduler {
 	}
 
 	private normalize(value: number): number {
-		return Number.isFinite(value) ? Math.max(1, Math.min(5, Math.floor(value))) : 3;
+		return Number.isFinite(value) ? Math.max(1, Math.min(20, Math.floor(value))) : requestBudgetForItems(3);
 	}
 
 	run<T>(request: () => Promise<T>): Promise<T> {

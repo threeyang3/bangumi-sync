@@ -1,3 +1,4 @@
+import { requestBudgetForItems } from './requestScheduler';
 import type { Subject } from '../../common/api/types';
 import type { BangumiClient } from './client';
 
@@ -21,7 +22,7 @@ export class SubjectDetailSession {
 	) {
 		this.revision = client.subjectDetailRevision;
 		this.limit = Number.isFinite(concurrency) ? Math.max(1, Math.min(5, Math.floor(concurrency))) : 3;
-		this.releaseRequests = client.acquireRequestConcurrency?.(this.limit);
+		this.releaseRequests = client.acquireRequestConcurrency?.(requestBudgetForItems(this.limit));
 	}
 
 	get isValid(): boolean {

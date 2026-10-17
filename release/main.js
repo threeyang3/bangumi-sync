@@ -29,6 +29,53 @@ __export(main_exports, {
 });
 module.exports = __toCommonJS(main_exports);
 
+// src/api/requestScheduler.ts
+function requestBudgetForItems(concurrency) {
+  const items = Number.isFinite(concurrency) ? Math.max(1, Math.min(5, Math.floor(concurrency))) : 3;
+  return items * 4;
+}
+var RequestScheduler = class {
+  constructor() {
+    this.active = 0;
+    this.limit = requestBudgetForItems(3);
+    this.queue = [];
+    this.scopes = /* @__PURE__ */ new Map();
+  }
+  setConcurrency(value) {
+    this.limit = this.normalize(value);
+    this.drain();
+  }
+  acquireConcurrency(value) {
+    const key = /* @__PURE__ */ Symbol();
+    this.scopes.set(key, this.normalize(value));
+    return () => {
+      this.scopes.delete(key);
+      this.drain();
+    };
+  }
+  normalize(value) {
+    return Number.isFinite(value) ? Math.max(1, Math.min(20, Math.floor(value))) : requestBudgetForItems(3);
+  }
+  run(request) {
+    return new Promise((resolve, reject) => {
+      this.queue.push(() => {
+        this.active++;
+        void Promise.resolve().then(request).then(resolve, reject).finally(() => {
+          this.active--;
+          this.drain();
+        });
+      });
+      this.drain();
+    });
+  }
+  drain() {
+    var _a;
+    const limit = Math.min(this.limit, ...this.scopes.values());
+    while (this.active < limit && this.queue.length > 0) (_a = this.queue.shift()) == null ? void 0 : _a();
+  }
+};
+var bangumiRequestScheduler = new RequestScheduler();
+
 // common/logging.ts
 var diagnosticsEnabled = () => false;
 function registerDiagnosticLogging(provider) {
@@ -67,7 +114,7 @@ var SubjectDetailSession = class {
     var _a;
     this.revision = client.subjectDetailRevision;
     this.limit = Number.isFinite(concurrency) ? Math.max(1, Math.min(5, Math.floor(concurrency))) : 3;
-    this.releaseRequests = (_a = client.acquireRequestConcurrency) == null ? void 0 : _a.call(client, this.limit);
+    this.releaseRequests = (_a = client.acquireRequestConcurrency) == null ? void 0 : _a.call(client, requestBudgetForItems(this.limit));
   }
   get isValid() {
     return !this.disposed && !this.cancelled() && this.client.subjectDetailRevision === this.revision;
@@ -3819,49 +3866,6 @@ var DEFAULT_HEADERS = {
   "Content-Type": "application/json",
   "User-Agent": "Bangumi-Obsidian-Plugin/1.0.0"
 };
-
-// src/api/requestScheduler.ts
-var RequestScheduler = class {
-  constructor() {
-    this.active = 0;
-    this.limit = 3;
-    this.queue = [];
-    this.scopes = /* @__PURE__ */ new Map();
-  }
-  setConcurrency(value) {
-    this.limit = this.normalize(value);
-    this.drain();
-  }
-  acquireConcurrency(value) {
-    const key = /* @__PURE__ */ Symbol();
-    this.scopes.set(key, this.normalize(value));
-    return () => {
-      this.scopes.delete(key);
-      this.drain();
-    };
-  }
-  normalize(value) {
-    return Number.isFinite(value) ? Math.max(1, Math.min(5, Math.floor(value))) : 3;
-  }
-  run(request) {
-    return new Promise((resolve, reject) => {
-      this.queue.push(() => {
-        this.active++;
-        void Promise.resolve().then(request).then(resolve, reject).finally(() => {
-          this.active--;
-          this.drain();
-        });
-      });
-      this.drain();
-    });
-  }
-  drain() {
-    var _a;
-    const limit = Math.min(this.limit, ...this.scopes.values());
-    while (this.active < limit && this.queue.length > 0) (_a = this.queue.shift()) == null ? void 0 : _a();
-  }
-};
-var bangumiRequestScheduler = new RequestScheduler();
 
 // src/api/client.ts
 var RequestCancelledError = class extends Error {
@@ -11181,7 +11185,7 @@ var SyncManager = class {
     const startTime = Date.now();
     let wasCancelled = false;
     const result = this.createSyncResult();
-    const releaseRequests = (_b = (_a = this.client).acquireRequestConcurrency) == null ? void 0 : _b.call(_a, concurrency);
+    const releaseRequests = (_b = (_a = this.client).acquireRequestConcurrency) == null ? void 0 : _b.call(_a, requestBudgetForItems(concurrency));
     try {
       this.assertNoPendingTransaction();
       this.beginVaultOperation();
@@ -11608,7 +11612,7 @@ var SyncManager = class {
     const overwrite = (_a = options == null ? void 0 : options.overwrite) != null ? _a : false;
     const localPropertyValuesBySubjectId = options == null ? void 0 : options.localPropertyValuesBySubjectId;
     const concurrency = (_b = options == null ? void 0 : options.concurrency) != null ? _b : 3;
-    const releaseRequests = (_d = (_c = this.client).acquireRequestConcurrency) == null ? void 0 : _d.call(_c, concurrency);
+    const releaseRequests = (_d = (_c = this.client).acquireRequestConcurrency) == null ? void 0 : _d.call(_c, requestBudgetForItems(concurrency));
     const previousProgress = this.operationProgress;
     this.operationProgress = options == null ? void 0 : options.onPhaseProgress;
     try {
@@ -11704,7 +11708,7 @@ var SyncManager = class {
     const startTime = Date.now();
     let wasCancelled = false;
     const result = this.createSyncResult();
-    const releaseRequests = (_b = (_a = this.client).acquireRequestConcurrency) == null ? void 0 : _b.call(_a, concurrency);
+    const releaseRequests = (_b = (_a = this.client).acquireRequestConcurrency) == null ? void 0 : _b.call(_a, requestBudgetForItems(concurrency));
     try {
       let itemsToSync;
       if (action === "all") {
@@ -20881,7 +20885,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     return fields.filter((field) => !syncConfigFieldEqual(previous, next, field));
   }
   refreshDependentServices(manager, settings = this.settings) {
-    manager.client.setRequestConcurrency(settings.syncConcurrency);
+    manager.client.setRequestConcurrency(requestBudgetForItems(settings.syncConcurrency));
     this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.cloneSettings(settings));
   }
   applySettingsChanges(patch) {

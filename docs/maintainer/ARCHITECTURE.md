@@ -49,7 +49,7 @@ path transaction + recovery journal
 - `common/logging.ts`：按当前已应用设置控制惰性详细日志；插件注册设置读取器并在卸载时解除。默认保留显式挑选统计字段的批次摘要和警告/错误，详细日志不得输出请求正文、Token 或恢复日志原文。
 
 - `src/api/`：Bangumi API 和重试边界。
-- `src/api/requestScheduler.ts`：同一已加载插件的所有 BangumiClient 共用实际 API HTTP 请求名额；重试退避在名额之外等待，已在途请求结束前不释放名额。设置应用/恢复配置 1–5 基础上限；同步入口与预览会话持有临时预算，实际取所有上限的最小值，并在操作结束或会话关闭时释放，恢复到当前基础设置。不纳入封面等独立 binary/CDN 下载。
+- `src/api/requestScheduler.ts`：同一已加载插件的所有 BangumiClient 共用实际 API HTTP 请求名额；重试退避在名额之外等待，已在途请求结束前不释放名额。设置应用/恢复按条目并发 × 4 配置 HTTP 基础上限（4–20，默认 12）；同步入口与预览会话持有临时预算，实际取所有上限的最小值，并在操作结束或会话关闭时释放，恢复到当前基础设置。不纳入封面等独立 binary/CDN 下载。
 - `common/file/`：Vault 文件与图片基础操作。
 - `common/template/`：模板解析和渲染。
 - Obsidian `Vault`、`requestUrl`、plugin data persistence：运行时适配层。
