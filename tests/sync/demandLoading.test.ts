@@ -33,10 +33,10 @@ async function sync(template: string, value: Subject, links = false, failStatus 
 		else if (url.pathname.endsWith('/characters')) json = [{ name: 'Hero', relation: '主角', actors: [{ name: 'Actor' }], images: { grid: 'hero.png' } }];
 		else if (url.pathname.endsWith('/persons')) json = [{ id: 3, name: 'Fallback Studio', relation: '动画制作' }];
 		else if (url.pathname.endsWith('/subjects')) json = [{ id: 2, type: 3, name: 'Related', name_cn: 'Related', relation: '关联' }];
-		else if (url.pathname === '/v0/episodes') json = { data: emptyEpisodes ? [] : [{ id: 10, ep: 1, sort: 1, type: 0, name: 'Episode', name_cn: 'Episode', airdate: '2026-01-01', duration: '24m' }] };
+		else if (url.pathname === '/v0/episodes') json = { total: emptyEpisodes ? 0 : 1, offset: 0, limit: 200, data: emptyEpisodes ? [] : [{ id: 10, ep: 1, sort: 1, type: 0, name: 'Episode', name_cn: 'Episode', airdate: '2026-01-01', duration: '24m' }] };
 		else if (url.pathname.endsWith('/episodes')) {
 			if (failStatus) return Promise.resolve({ status: 401, arrayBuffer: new ArrayBuffer(0), json: { title: 'Unauthorized' } });
-			json = { data: [{ episode: { id: 10 }, type: 2 }] };
+			json = { total: emptyEpisodes ? 0 : 1, offset: 0, limit: 200, data: emptyEpisodes ? [] : [{ episode: { id: 10, ep: 1, sort: 1, type: 0, name: 'Episode', name_cn: 'Episode', airdate: '2026-01-01', duration: '24m' }, type: 2 }] };
 		} else throw new Error(`Unexpected synthetic request ${url.pathname}`);
 		return Promise.resolve({ status: 200, arrayBuffer: new ArrayBuffer(0), json });
 	});
@@ -50,16 +50,16 @@ async function sync(template: string, value: Subject, links = false, failStatus 
 }
 
 describe('real client and manager demand loading', () => {
-	it('finishes rich-subject preparation in three network rounds rather than four', async () => {
+	it('finishes rich-subject preparation in two network rounds with combined chapters and status', async () => {
 		vi.useFakeTimers(); bangumiRequestScheduler.setConcurrency(12);
 		const start = Date.now();
 		const work = sync('---\nid: {{id}}\n---\n{{character1}} {{animeMake}} {{episodes}}', subject(SubjectType.Anime, 'TV'), false, false, false,
 			async () => { await new Promise<void>(resolve => activeWindow.setTimeout(resolve, 100)); });
 		await vi.runAllTimersAsync();
 		const { result, urls, output } = await work;
-		expect(result.completion).toBe('success'); expect(urls).toHaveLength(5);
+		expect(result.completion).toBe('success'); expect(urls).toHaveLength(4);
 		expect(output?.[1]).toContain('ep-box watched'); expect(output?.[1]).toContain('Fallback Studio');
-		expect(Date.now() - start).toBe(300);
+		expect(Date.now() - start).toBe(200);
 	});
 
 	it('loads chapters and status while independent character data is still in flight', async () => {
@@ -74,7 +74,7 @@ describe('real client and manager demand loading', () => {
 		finally { release(); }
 		const { result, output, urls } = await work;
 		expect(result.completion).toBe('success'); expect(output?.[1]).toContain('Hero'); expect(output?.[1]).toContain('ep-box watched');
-		expect(urls.filter(path => path === '/v0/episodes')).toHaveLength(1);
+		expect(urls.filter(path => path === '/v0/episodes')).toHaveLength(0);
 	});
 
 	it('drains prefetched chapters after a related-data failure and writes no incomplete note', async () => {
@@ -82,7 +82,7 @@ describe('real client and manager demand loading', () => {
 		let release!: () => void, episodeStarted = false, settled = false;
 		const held = new Promise<void>(resolve => { release = resolve; });
 		const work = sync('---\nid: {{id}}\n---\n{{character1}} {{episodes}}', subject(SubjectType.Anime, 'TV'), false, false, false, async path => {
-			if (path === '/v0/episodes') { episodeStarted = true; await held; }
+			if (path.endsWith('/episodes')) { episodeStarted = true; await held; }
 			if (path.endsWith('/characters')) return 401;
 		}).then(value => { settled = true; return value; });
 		try { await vi.waitFor(() => expect(episodeStarted).toBe(true)); expect(settled).toBe(false); }
@@ -149,7 +149,7 @@ describe('real client and manager demand loading', () => {
 
 	it('loads novel volumes and their watched status through a conditional/default template', async () => {
 		const { output, urls } = await sync('---\nid: {{id}}\n---\n{{#if volumes_display}}{{volumes_display|Empty}}{{/if}}', subject(SubjectType.Book, '小说'));
-		expect(output?.[1]).toContain('ep-box watched'); expect(urls).toHaveLength(3);
+		expect(output?.[1]).toContain('ep-box watched'); expect(urls).toHaveLength(2);
 	});
 
 	it('still updates external backlinks when the enabled feature is absent from the template', async () => {
@@ -164,15 +164,15 @@ describe('real client and manager demand loading', () => {
 		expect(result.completion).toBe('success'); expect(output?.[1]).toContain('ep-box'); expect(output?.[1]).not.toContain('ep-box watched');
 	});
 
-	it('does not fetch user status when no episodes are returned', async () => {
+	it('does not fetch a second chapter endpoint for an empty combined response', async () => {
 		const { urls, result } = await sync('---\nid: {{id}}\n---\n{{episodes|Empty}}', subject(SubjectType.Anime, 'TV'), false, false, true);
-		expect(result.completion).toBe('success'); expect(urls).toEqual(['/v0/subjects/1', '/v0/episodes']);
+		expect(result.completion).toBe('success'); expect(urls).toEqual(['/v0/subjects/1', '/v0/users/-/collections/1/episodes']);
 	});
 
 	it('retains the existing chapter-error fallback without fetching the failed data again at render time', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => undefined);
 		const { urls, result } = await sync('---\nid: {{id}}\n---\n{{episodes|Empty}}', subject(SubjectType.Anime, 'TV'), false, false, false,
-			path => Promise.resolve(path === '/v0/episodes' ? 401 : undefined));
-		expect(result.completion).toBe('success'); expect(urls).toEqual(['/v0/subjects/1', '/v0/episodes']);
+			path => Promise.resolve(path.endsWith('/episodes') ? 401 : undefined));
+		expect(result.completion).toBe('success'); expect(urls).toEqual(['/v0/subjects/1', '/v0/users/-/collections/1/episodes', '/v0/episodes']);
 	});
 });

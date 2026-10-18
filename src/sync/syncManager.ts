@@ -2727,25 +2727,8 @@ export class SyncManager {
 
 		try {
 			debugLog(() => `[Bangumi Sync] 获取章节信息: ${subject.name_cn}`);
-
-			// 获取章节列表
-			const episodesData = await this.client.getEpisodes(subject.id);
-			const episodes = episodesData.data;
-
-			if (!episodes || episodes.length === 0) {
-				debugLog(() => `[Bangumi Sync] 无章节信息`);
-				return null;
-			}
-
-			// 获取用户章节状态
-			let userStatus: UserEpisodeCollection[] = [];
-			try {
-				userStatus = await this.client.getUserEpisodeStatus(subject.id);
-			} catch {
-				debugLog(() => `[Bangumi Sync] 获取用户章节状态失败，可能未收藏此条目`);
-			}
-
-			return { episodes, userStatus };
+			const data = await this.client.getEpisodeData(subject.id);
+			return data.episodes.length ? data : null;
 		} catch (error) {
 			console.error(`[Bangumi Sync] 获取章节信息失败:`, error);
 			return null;

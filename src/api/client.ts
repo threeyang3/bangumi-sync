@@ -7,6 +7,7 @@ import { debugLog } from '../../common/logging';
 import { requestUrl, RequestUrlParam } from 'obsidian';
 import {
 	Subject,
+	Episode,
 	SubjectType,
 	UserCollection,
 	PagedResult,
@@ -625,6 +626,56 @@ export class BangumiClient {
 		const data = result?.data ?? [];
 		debugLog(() => `[Bangumi Sync] 获取到 ${data.length}/${result?.total ?? 0} 个章节`);
 		return result;
+	}
+
+	/** The collection endpoint lists all episodes, including uncollected ones, with full episode data. */
+	async getEpisodeData(subjectId: number): Promise<{ episodes: Episode[]; userStatus: UserEpisodeCollection[] }> {
+		const revision = this.credentialRevision;
+		const cancelled = this.requestCancelled;
+		const assertContext = () => {
+			if (cancelled() || revision !== this.credentialRevision) throw new RequestCancelledError('Request context cancelled');
+		};
+		const readPages = async <T extends Episode | UserEpisodeCollection>(endpoint: string, valid: (item: T) => boolean): Promise<T[]> => {
+			const items: T[] = [];
+			const seen = new Set<number>();
+			let expectedTotal: number | undefined;
+			for (;;) {
+				assertContext();
+				const page = await this.request<PagedResult<T>>('GET', `${endpoint}${endpoint.includes('?') ? '&' : '?'}limit=200&offset=${items.length}`);
+				assertContext();
+				if (page?.total === 0 && page.data === null) page.data = [];
+				if (!page || !Array.isArray(page.data) || !Number.isSafeInteger(page.total) || page.total < 0
+					|| page.offset !== items.length || (expectedTotal !== undefined && page.total !== expectedTotal)
+					|| page.data.length + items.length > page.total || (page.data.length === 0 && items.length < page.total)) {
+					throw new Error('Incomplete episode page');
+				}
+				expectedTotal = page.total;
+				for (const item of page.data) {
+					if (!valid(item)) throw new Error('Invalid episode data');
+					const id = 'episode' in item ? item.episode.id : item.id;
+					if (seen.has(id)) throw new Error('Repeated episode page');
+					seen.add(id); items.push(item);
+				}
+				if (items.length === page.total) return items;
+			}
+		};
+		const validEpisode = (episode: Episode): boolean => !!episode && Number.isSafeInteger(episode.id) && episode.id > 0
+			&& Number.isFinite(episode.sort) && Number.isInteger(episode.type)
+			&& ['name', 'name_cn', 'airdate', 'duration'].every(key => typeof episode[key as keyof Episode] === 'string')
+			&& (episode.subject_id === undefined || episode.subject_id === subjectId);
+		if (this.accessToken) {
+			try {
+				const userStatus = await readPages<UserEpisodeCollection>(ENDPOINTS.USER_SUBJECT_EPISODES(subjectId),
+					item => !!item && Number.isInteger(item.type) && item.type >= 0 && item.type <= 3 && validEpisode(item.episode));
+				return { episodes: userStatus.map(item => item.episode), userStatus };
+			} catch (error) {
+				if (error instanceof RequestCancelledError) throw error;
+				assertContext();
+				// No second authenticated probe: use public chapters when status is unavailable or malformed.
+			}
+		}
+		const episodes = await readPages<Episode>(`${ENDPOINTS.EPISODES}?subject_id=${subjectId}`, validEpisode);
+		return { episodes, userStatus: [] };
 	}
 
 	/**

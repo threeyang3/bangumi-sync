@@ -4332,6 +4332,52 @@ var BangumiClient = class {
     });
     return result;
   }
+  /** The collection endpoint lists all episodes, including uncollected ones, with full episode data. */
+  async getEpisodeData(subjectId) {
+    const revision = this.credentialRevision;
+    const cancelled = this.requestCancelled;
+    const assertContext = () => {
+      if (cancelled() || revision !== this.credentialRevision) throw new RequestCancelledError("Request context cancelled");
+    };
+    const readPages = async (endpoint, valid) => {
+      const items = [];
+      const seen = /* @__PURE__ */ new Set();
+      let expectedTotal;
+      for (; ; ) {
+        assertContext();
+        const page = await this.request("GET", `${endpoint}${endpoint.includes("?") ? "&" : "?"}limit=200&offset=${items.length}`);
+        assertContext();
+        if ((page == null ? void 0 : page.total) === 0 && page.data === null) page.data = [];
+        if (!page || !Array.isArray(page.data) || !Number.isSafeInteger(page.total) || page.total < 0 || page.offset !== items.length || expectedTotal !== void 0 && page.total !== expectedTotal || page.data.length + items.length > page.total || page.data.length === 0 && items.length < page.total) {
+          throw new Error("Incomplete episode page");
+        }
+        expectedTotal = page.total;
+        for (const item of page.data) {
+          if (!valid(item)) throw new Error("Invalid episode data");
+          const id = "episode" in item ? item.episode.id : item.id;
+          if (seen.has(id)) throw new Error("Repeated episode page");
+          seen.add(id);
+          items.push(item);
+        }
+        if (items.length === page.total) return items;
+      }
+    };
+    const validEpisode = (episode) => !!episode && Number.isSafeInteger(episode.id) && episode.id > 0 && Number.isFinite(episode.sort) && Number.isInteger(episode.type) && ["name", "name_cn", "airdate", "duration"].every((key) => typeof episode[key] === "string") && (episode.subject_id === void 0 || episode.subject_id === subjectId);
+    if (this.accessToken) {
+      try {
+        const userStatus = await readPages(
+          ENDPOINTS.USER_SUBJECT_EPISODES(subjectId),
+          (item) => !!item && Number.isInteger(item.type) && item.type >= 0 && item.type <= 3 && validEpisode(item.episode)
+        );
+        return { episodes: userStatus.map((item) => item.episode), userStatus };
+      } catch (error) {
+        if (error instanceof RequestCancelledError) throw error;
+        assertContext();
+      }
+    }
+    const episodes = await readPages(`${ENDPOINTS.EPISODES}?subject_id=${subjectId}`, validEpisode);
+    return { episodes, userStatus: [] };
+  }
   /**
    * 获取用户章节收藏状态
    * @param subjectId 条目 ID
@@ -11510,19 +11556,8 @@ var SyncManager = class {
     }
     try {
       debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F: ${subject.name_cn}`);
-      const episodesData = await this.client.getEpisodes(subject.id);
-      const episodes = episodesData.data;
-      if (!episodes || episodes.length === 0) {
-        debugLog(() => `[Bangumi Sync] \u65E0\u7AE0\u8282\u4FE1\u606F`);
-        return null;
-      }
-      let userStatus = [];
-      try {
-        userStatus = await this.client.getUserEpisodeStatus(subject.id);
-      } catch (e) {
-        debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001\u5931\u8D25\uFF0C\u53EF\u80FD\u672A\u6536\u85CF\u6B64\u6761\u76EE`);
-      }
-      return { episodes, userStatus };
+      const data = await this.client.getEpisodeData(subject.id);
+      return data.episodes.length ? data : null;
     } catch (error) {
       console.error(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F\u5931\u8D25:`, error);
       return null;
