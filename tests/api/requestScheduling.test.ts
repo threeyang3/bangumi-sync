@@ -10,6 +10,22 @@ beforeEach(() => { requestUrl.mockReset(); bangumiRequestScheduler.setConcurrenc
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('shared actual HTTP request scheduling', () => {
+	it('waits for in-flight related requests before returning the first preparation failure', async () => {
+		const client = new BangumiClient(); client.setRequestConcurrency(12);
+		const held = gate(); let active = 0, settled = false;
+		requestUrl.mockImplementation(async ({ url }: { url: string }) => {
+			if (/\/subjects\/1$/.test(url)) return { status: 200, json: { id: 1 } };
+			if (url.endsWith('/characters')) return { status: 401, json: {} };
+			active++; await held.promise; active--;
+			return { status: 200, json: [] };
+		});
+		const work = client.getFullSubjectInfo(1, undefined, () => ({ characters: true, persons: true, relations: true }))
+			.then(() => { settled = true; return 'success'; }, (error: unknown) => { settled = true; return error; });
+		try { await vi.waitFor(() => expect(active).toBe(2)); expect(settled).toBe(false); }
+		finally { held.release(); }
+		expect(await work).toBeInstanceOf(Error); expect(active).toBe(0);
+	});
+
 	it('caps an oversized HTTP budget at twenty actual requests', async () => {
 		const scheduler = new RequestScheduler(); scheduler.setConcurrency(100);
 		const held = gate(); let active = 0, maximum = 0;

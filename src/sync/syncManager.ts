@@ -71,7 +71,11 @@ function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-type FullSubjectInfo = Awaited<ReturnType<BangumiClient['getFullSubjectInfo']>>;
+type EpisodeData = { episodes: Episode[]; userStatus: UserEpisodeCollection[] };
+type FullSubjectInfo = Awaited<ReturnType<BangumiClient['getFullSubjectInfo']>> & {
+	/** Undefined means not prefetched; null means fetched without usable episodes. */
+	episodeData?: EpisodeData | null;
+};
 
 interface PreparedCollection {
 	collection: UserCollection;
@@ -2426,16 +2430,25 @@ export class SyncManager {
 				this.reportPhase('details', ++loadedCount, collections.length);
 				return;
 			}
+			let episodeRequest: Promise<EpisodeData | null> | undefined;
 			try {
-				details.set(collection.subject_id, await this.client.getFullSubjectInfo(collection.subject_id,
-					subjectDetails?.getSubject(collection.subject_id), subject => getSubjectDataRequirements(
-						subject, this.config.customTemplates, this.config.enableRelatedLinks !== false)));
+				const fullInfo = await this.client.getFullSubjectInfo(collection.subject_id,
+					subjectDetails?.getSubject(collection.subject_id), subject => {
+						const needs = getSubjectDataRequirements(subject, this.config.customTemplates, this.config.enableRelatedLinks !== false);
+						// Overlap the chapter/status chain with independent related-data requests.
+						// Keep it inside this worker and the same cancellation/HTTP budget scope.
+						episodeRequest = needs.episodes ? this.fetchEpisodeData(subject) : Promise.resolve(null);
+						return needs;
+					});
+				details.set(collection.subject_id, { ...fullInfo, episodeData: await episodeRequest });
 			} catch (error) {
 				failures.push({
 					collection,
 					error: error instanceof Error ? error.message : String(error),
 				});
 			} finally {
+				// A related-data failure must not leave chapter requests running into the next batch.
+				await episodeRequest;
 				this.reportPhase('details', ++loadedCount, collections.length);
 			}
 		});
@@ -2703,10 +2716,7 @@ export class SyncManager {
 	 * V4: 获取章节数据
 	 * 仅对动画、小说、漫画类型获取
 	 */
-	private async fetchEpisodeData(subject: Subject): Promise<{
-		episodes: Episode[];
-		userStatus: UserEpisodeCollection[];
-	} | null> {
+	private async fetchEpisodeData(subject: Subject): Promise<EpisodeData | null> {
 		// 判断是否需要获取章节
 		// 动画（type=2）始终获取
 		// 书籍（type=1）需要检查 category 是否为小说或漫画
@@ -3065,7 +3075,9 @@ export class SyncManager {
 
 		// 获取章节信息
 		const needs = getSubjectDataRequirements(subject, this.config.customTemplates, this.config.enableRelatedLinks !== false);
-		const episodeData = needs.episodes ? await this.fetchEpisodeData(subject) : null;
+		const episodeData = prepared.fullInfo.episodeData !== undefined
+			? prepared.fullInfo.episodeData
+			: needs.episodes ? await this.fetchEpisodeData(subject) : null;
 
 		// 构建额外模板变量（当有自定义属性或需要覆盖时才解析）
 		let extraTemplateVars: Record<string, string> | undefined;

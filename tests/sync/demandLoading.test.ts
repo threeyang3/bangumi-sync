@@ -4,6 +4,7 @@ import { SyncManager } from '../../src/sync/syncManager';
 import { InMemoryVault } from '../mocks/inMemoryVault';
 import { setRequestUrlHandler } from '../mocks/obsidian';
 import { createCancellationSignal } from '../../src/sync/syncStatus';
+import { bangumiRequestScheduler } from '../../src/api/requestScheduler';
 
 function subject(type: SubjectType, platform: string): Subject {
 	return { id: 1, type, platform, name: 'Synthetic', name_cn: 'Synthetic', summary: 'Full summary', date: '2026-01-01',
@@ -15,15 +16,18 @@ const collection = (value: Subject): UserCollection => ({ subject_id: value.id, 
 	rate: 0, comment: '', tags: [], private: false, ep_status: 0, vol_status: 0, updated_at: '',
 	subject: { ...value, short_summary: 'Short', collection_total: 0, score: 0, rank: 0 } });
 
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); bangumiRequestScheduler.setConcurrency(12); });
 
-async function sync(template: string, value: Subject, links = false, failStatus = false, emptyEpisodes = false) {
+async function sync(template: string, value: Subject, links = false, failStatus = false, emptyEpisodes = false,
+	beforeRequest?: (path: string) => Promise<number | void>) {
 	vi.stubGlobal('activeWindow', { setTimeout, clearTimeout });
 	const vault = new InMemoryVault();
 	if (links) vault.addFile('ACGN/Related.md', '---\nid: 2\n---\nKeep related body');
 	const urls: string[] = [];
-	setRequestUrlHandler(options => {
+	setRequestUrlHandler(async options => {
 		const url = new URL(options.url); urls.push(url.pathname);
+		const status = await beforeRequest?.(url.pathname);
+		if (status) return { status, arrayBuffer: new ArrayBuffer(0), json: { title: 'Synthetic failure' } };
 		let json: unknown;
 		if (url.pathname === '/v0/subjects/1') json = value;
 		else if (url.pathname.endsWith('/characters')) json = [{ name: 'Hero', relation: '主角', actors: [{ name: 'Actor' }], images: { grid: 'hero.png' } }];
@@ -46,6 +50,47 @@ async function sync(template: string, value: Subject, links = false, failStatus 
 }
 
 describe('real client and manager demand loading', () => {
+	it('finishes rich-subject preparation in three network rounds rather than four', async () => {
+		vi.useFakeTimers(); bangumiRequestScheduler.setConcurrency(12);
+		const start = Date.now();
+		const work = sync('---\nid: {{id}}\n---\n{{character1}} {{animeMake}} {{episodes}}', subject(SubjectType.Anime, 'TV'), false, false, false,
+			async () => { await new Promise<void>(resolve => activeWindow.setTimeout(resolve, 100)); });
+		await vi.runAllTimersAsync();
+		const { result, urls, output } = await work;
+		expect(result.completion).toBe('success'); expect(urls).toHaveLength(5);
+		expect(output?.[1]).toContain('ep-box watched'); expect(output?.[1]).toContain('Fallback Studio');
+		expect(Date.now() - start).toBe(300);
+	});
+
+	it('loads chapters and status while independent character data is still in flight', async () => {
+		let release!: () => void;
+		const held = new Promise<void>(resolve => { release = resolve; });
+		const started: string[] = [];
+		const work = sync('---\nid: {{id}}\n---\n{{character1}} {{episodes}}', subject(SubjectType.Anime, 'TV'), false, false, false, async path => {
+			started.push(path);
+			if (path.endsWith('/characters')) await held;
+		});
+		try { await vi.waitFor(() => expect(started).toContain('/v0/users/-/collections/1/episodes')); }
+		finally { release(); }
+		const { result, output, urls } = await work;
+		expect(result.completion).toBe('success'); expect(output?.[1]).toContain('Hero'); expect(output?.[1]).toContain('ep-box watched');
+		expect(urls.filter(path => path === '/v0/episodes')).toHaveLength(1);
+	});
+
+	it('drains prefetched chapters after a related-data failure and writes no incomplete note', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		let release!: () => void, episodeStarted = false, settled = false;
+		const held = new Promise<void>(resolve => { release = resolve; });
+		const work = sync('---\nid: {{id}}\n---\n{{character1}} {{episodes}}', subject(SubjectType.Anime, 'TV'), false, false, false, async path => {
+			if (path === '/v0/episodes') { episodeStarted = true; await held; }
+			if (path.endsWith('/characters')) return 401;
+		}).then(value => { settled = true; return value; });
+		try { await vi.waitFor(() => expect(episodeStarted).toBe(true)); expect(settled).toBe(false); }
+		finally { release(); }
+		const { result, output, manager } = await work;
+		expect(result.completion).toBe('failed'); expect(output).toBeUndefined(); expect(manager.getManagerState()).toBe('idle');
+	});
+
 	it.each([false, true])('restores shared background concurrency after a single-worker sync, failed=%s', async failed => {
 		const value = subject(SubjectType.Music, '');
 		const { manager } = await sync('---\nid: {{id}}\n---\n{{summary}}', value);
@@ -121,6 +166,13 @@ describe('real client and manager demand loading', () => {
 
 	it('does not fetch user status when no episodes are returned', async () => {
 		const { urls, result } = await sync('---\nid: {{id}}\n---\n{{episodes|Empty}}', subject(SubjectType.Anime, 'TV'), false, false, true);
+		expect(result.completion).toBe('success'); expect(urls).toEqual(['/v0/subjects/1', '/v0/episodes']);
+	});
+
+	it('retains the existing chapter-error fallback without fetching the failed data again at render time', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		const { urls, result } = await sync('---\nid: {{id}}\n---\n{{episodes|Empty}}', subject(SubjectType.Anime, 'TV'), false, false, false,
+			path => Promise.resolve(path === '/v0/episodes' ? 401 : undefined));
 		expect(result.completion).toBe('success'); expect(urls).toEqual(['/v0/subjects/1', '/v0/episodes']);
 	});
 });

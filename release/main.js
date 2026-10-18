@@ -4186,11 +4186,15 @@ var BangumiClient = class {
     if (requirements) {
       const subject2 = await (subjectDetail != null ? subjectDetail : this.getSubject(subjectId));
       const needs = requirements(subject2);
-      const [characters2, persons2, relations2] = await Promise.all([
+      const requests = [
         needs.characters ? this.getSubjectCharacters(subjectId) : Promise.resolve([]),
         needs.persons ? this.getSubjectPersons(subjectId) : Promise.resolve([]),
         needs.relations ? this.getSubjectRelations(subjectId) : Promise.resolve([])
-      ]);
+      ];
+      const [characters2, persons2, relations2] = await Promise.all(requests).catch(async (error) => {
+        await Promise.allSettled(requests);
+        throw error;
+      });
       return { subject: subject2, characters: characters2, persons: persons2, relations: relations2 };
     }
     const [subject, characters, persons, relations] = await Promise.all([
@@ -11262,22 +11266,25 @@ var SyncManager = class {
         this.reportPhase("details", ++loadedCount, collections.length);
         return;
       }
+      let episodeRequest;
       try {
-        details.set(collection.subject_id, await this.client.getFullSubjectInfo(
+        const fullInfo = await this.client.getFullSubjectInfo(
           collection.subject_id,
           subjectDetails == null ? void 0 : subjectDetails.getSubject(collection.subject_id),
-          (subject) => getSubjectDataRequirements(
-            subject,
-            this.config.customTemplates,
-            this.config.enableRelatedLinks !== false
-          )
-        ));
+          (subject) => {
+            const needs = getSubjectDataRequirements(subject, this.config.customTemplates, this.config.enableRelatedLinks !== false);
+            episodeRequest = needs.episodes ? this.fetchEpisodeData(subject) : Promise.resolve(null);
+            return needs;
+          }
+        );
+        details.set(collection.subject_id, { ...fullInfo, episodeData: await episodeRequest });
       } catch (error) {
         failures.push({
           collection,
           error: error instanceof Error ? error.message : String(error)
         });
       } finally {
+        await episodeRequest;
         this.reportPhase("details", ++loadedCount, collections.length);
       }
     });
@@ -11776,7 +11783,7 @@ var SyncManager = class {
     const localCoverPath = await this.resolveLocalCoverPath(subject, typeLabel);
     const filePath = prepared.allocation.finalPath;
     const needs = getSubjectDataRequirements(subject, this.config.customTemplates, this.config.enableRelatedLinks !== false);
-    const episodeData = needs.episodes ? await this.fetchEpisodeData(subject) : null;
+    const episodeData = prepared.fullInfo.episodeData !== void 0 ? prepared.fullInfo.episodeData : needs.episodes ? await this.fetchEpisodeData(subject) : null;
     let extraTemplateVars;
     if (options.localPropertyValues || options.overwrite) {
       const templateProperties = getTemplatePropertyGroupsForSubject(subject, this.config.customTemplates).customProperties;

@@ -410,11 +410,16 @@ export class BangumiClient {
 		if (requirements) {
 			const subject = await (subjectDetail ?? this.getSubject(subjectId));
 			const needs = requirements(subject);
-			const [characters, persons, relations] = await Promise.all([
+			const requests = [
 				needs.characters ? this.getSubjectCharacters(subjectId) : Promise.resolve([]),
 				needs.persons ? this.getSubjectPersons(subjectId) : Promise.resolve([]),
 				needs.relations ? this.getSubjectRelations(subjectId) : Promise.resolve([]),
-			]);
+			] as const;
+			const [characters, persons, relations] = await Promise.all(requests).catch(async error => {
+				// requestUrl cannot abort in-flight siblings. Drain them before releasing the operation's budget.
+				await Promise.allSettled(requests);
+				throw error;
+			});
 			return { subject, characters, persons, relations };
 		}
 		const [subject, characters, persons, relations] = await Promise.all([

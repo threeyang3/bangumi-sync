@@ -56,7 +56,7 @@ path transaction + recovery journal
 
 `src/api/subjectDetailSession.ts` 为一次手动预览与导入共享完整 subject 响应，合并同 ID 的在途请求，只缓存成功响应。预览 worker 和会话均限制详情并发；超时后底层 `requestUrl` 未结束仍占用会话名额，迟到结果不进入缓存。简版回退仅供表单展示，执行阶段仍重试完整详情；其余关联 API 按执行流程加载。取消、完成、卸载清理会话；凭据 revision、manager 与已应用配置检查阻止旧预览跨配置执行。此会话不是全局缓存；HTTP 总预算由共享 requestScheduler 管理，不用会话的详情计数代替。
 
-`src/template/subjectDataRequirements.ts` 复用实际模板选择和 infobox 解析，集中推导辅助资料与章节显示需求。Manager 先取得完整 subject（可复用预览），再按需求调用角色/人物/关联 API，渲染前按需加载章节；完整 subject 保持满足现有全部路径变量。具体判断见[逻辑参考第 22 节](LOGIC_REFERENCE.md#22-同步时如何决定资料需求与请求并发)。
+`src/template/subjectDataRequirements.ts` 复用实际模板选择和 infobox 解析，集中推导辅助资料与章节显示需求。Manager 先取得完整 subject（可复用预览），再按需求并行启动角色/人物/关联资料与章节加载。章节及用户状态保存在本次批次的准备结果中，渲染直接复用；完整 subject 保持满足现有全部路径变量。具体判断见[逻辑参考第 22 节](LOGIC_REFERENCE.md#22-同步时如何决定资料需求与请求并发)。
 
 ## Module responsibilities
 
