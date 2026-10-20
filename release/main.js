@@ -13301,7 +13301,7 @@ var SearchModal = class extends import_obsidian16.Modal {
       this.isLoading = false;
       inputEl.value = "";
       this.currentKeyword = "";
-      this.searchResults = [];
+      this.clearResultState();
       this.totalResults = 0;
       this.resultsContainer.empty();
       this.statusEl.setText("");
@@ -13315,6 +13315,7 @@ var SearchModal = class extends import_obsidian16.Modal {
     });
   }
   async changeSearchOptions(type, sort) {
+    if (type === this.currentType && sort === this.currentSort) return;
     this.currentType = type;
     this.currentSort = sort;
     if (this.currentKeyword) await this.search(true);
@@ -13327,13 +13328,8 @@ var SearchModal = class extends import_obsidian16.Modal {
     const generation = isNew ? ++this.requestGeneration : this.requestGeneration;
     if (isNew) {
       this.loadMoreBtn.removeClass("visible");
-      this.searchResults = [];
       this.resultsContainer.empty();
-      this.syncedSubjectIds.clear();
-      this.collectionStatuses.clear();
-      this.resolvedStatusIds.clear();
-      this.failedStatusIds.clear();
-      this.resultElements.clear();
+      this.clearResultState();
     }
     this.isLoading = true;
     this.statusEl.setText(tn("searchModal", "searching"));
@@ -13427,33 +13423,21 @@ var SearchModal = class extends import_obsidian16.Modal {
    * 渲染单个搜索结果
    */
   renderResultItem(subject) {
-    var _a, _b;
-    const previous = this.resultElements.get(subject.id);
-    const itemEl = this.resultsContainer.createDiv({ cls: "bangumi-search-result-item" });
-    if (previous) previous.replaceWith(itemEl);
-    this.resultElements.set(subject.id, itemEl);
+    var _a;
+    let itemEl = this.resultElements.get(subject.id);
+    if (!itemEl) {
+      itemEl = this.resultsContainer.createDiv({ cls: "bangumi-search-result-item" });
+      this.resultElements.set(subject.id, itemEl);
+      this.renderResultContent(itemEl, subject);
+    }
     const resolved = this.resolvedStatusIds.has(subject.id);
     const failed = this.failedStatusIds.has(subject.id);
-    const imgContainer = itemEl.createDiv({ cls: "bangumi-search-result-cover" });
-    if ((_a = subject.images) == null ? void 0 : _a.medium) {
-      imgContainer.createEl("img", {
-        attr: {
-          src: subject.images.medium,
-          alt: subject.name_cn || subject.name
-        }
-      });
-    }
-    const infoEl = itemEl.createDiv({ cls: "bangumi-search-result-info" });
-    const nameEl = infoEl.createDiv({ cls: "bangumi-search-result-name" });
-    nameEl.createSpan({ text: subject.name_cn || subject.name, cls: "bangumi-search-result-name-cn" });
-    if (subject.name && subject.name_cn && subject.name !== subject.name_cn) {
-      nameEl.createSpan({ text: ` (${subject.name})`, cls: "bangumi-search-result-name-original" });
-    }
-    const metaRowEl = infoEl.createDiv({ cls: "bangumi-search-result-meta-row" });
+    const metaRowEl = itemEl.querySelector(".bangumi-search-result-meta-row");
+    metaRowEl.empty();
     const metaEl = metaRowEl.createDiv({ cls: "bangumi-search-result-meta" });
     const typeLabel = getTypeLabel(subject.type);
     metaEl.createSpan({ text: typeLabel, cls: "bangumi-search-result-type" });
-    if ((_b = subject.rating) == null ? void 0 : _b.score) {
+    if ((_a = subject.rating) == null ? void 0 : _a.score) {
       metaEl.createSpan({ text: `\u2605${subject.rating.score.toFixed(1)}`, cls: "bangumi-search-result-rating" });
     }
     const isSynced = this.syncedSubjectIds.has(subject.id);
@@ -13490,6 +13474,23 @@ var SearchModal = class extends import_obsidian16.Modal {
       }
       this.openAddModal(subject, collection);
     });
+  }
+  /** Create static content once; status updates must not recreate covers. */
+  renderResultContent(itemEl, subject) {
+    var _a;
+    const imgContainer = itemEl.createDiv({ cls: "bangumi-search-result-cover" });
+    if ((_a = subject.images) == null ? void 0 : _a.medium) {
+      imgContainer.createEl("img", {
+        attr: { src: subject.images.medium, alt: subject.name_cn || subject.name }
+      });
+    }
+    const infoEl = itemEl.createDiv({ cls: "bangumi-search-result-info" });
+    const nameEl = infoEl.createDiv({ cls: "bangumi-search-result-name" });
+    nameEl.createSpan({ text: subject.name_cn || subject.name, cls: "bangumi-search-result-name-cn" });
+    if (subject.name && subject.name_cn && subject.name !== subject.name_cn) {
+      nameEl.createSpan({ text: ` (${subject.name})`, cls: "bangumi-search-result-name-original" });
+    }
+    infoEl.createDiv({ cls: "bangumi-search-result-meta-row" });
   }
   /**
    * 打开添加收藏弹窗
@@ -13528,8 +13529,17 @@ var SearchModal = class extends import_obsidian16.Modal {
     }
     this.onComplete();
   }
+  clearResultState() {
+    this.resultElements.clear();
+    this.searchResults = [];
+    this.collectionStatuses.clear();
+    this.syncedSubjectIds.clear();
+    this.resolvedStatusIds.clear();
+    this.failedStatusIds.clear();
+  }
   onClose() {
     this.requestGeneration++;
+    this.clearResultState();
     const { contentEl } = this;
     contentEl.empty();
   }
@@ -16705,7 +16715,10 @@ var ControlPanel = class extends import_obsidian24.Modal {
       this.tableEl.createDiv({ cls: "bangumi-table-empty", text: "No items" });
       return;
     }
-    const table = this.tableEl.createEl("table", { cls: "bangumi-collection-table" });
+    const table = createEl("table", {
+      cls: "bangumi-collection-table",
+      parent: this.tableEl.ownerDocument.createDocumentFragment()
+    });
     const thead = table.createEl("thead");
     const headerRow = thead.createEl("tr");
     headerRow.createEl("th").createEl("input", { type: "checkbox" }, (checkbox) => {
@@ -16788,22 +16801,20 @@ var ControlPanel = class extends import_obsidian24.Modal {
         const metaCell = row.createEl("td", { cls: "bangumi-mobile-meta" });
         metaCell.createSpan({ cls: "bangumi-mobile-meta-item", text: getTypeLabel(collection.subject_type) });
         metaCell.createSpan({ cls: "bangumi-mobile-meta-item", text: getCollectionStatusLabel(collection.type, collection.subject_type) });
-        const ratingSpan = metaCell.createSpan({ cls: "bangumi-mobile-meta-item" });
-        if (collection.subject.score) {
-          ratingSpan.createSpan({ text: `\u2605${collection.subject.score.toFixed(1)}` });
-        }
+        const ratingSpan = metaCell.createSpan({
+          cls: "bangumi-mobile-meta-item",
+          text: collection.subject.score ? `\u2605${collection.subject.score.toFixed(1)}` : ""
+        });
         if (collection.rate) {
           ratingSpan.createSpan({ cls: "bangumi-my-rate", text: ` [${collection.rate}]` });
         }
         if (!collection.subject.score && !collection.rate) {
           ratingSpan.setText("-");
         }
-        const syncSpan = metaCell.createSpan({ cls: "bangumi-mobile-meta-item" });
-        if (isSynced) {
-          syncSpan.createSpan({ text: `\u2713 ${tn("controlPanel", "synced")}`, cls: "synced" });
-        } else {
-          syncSpan.createSpan({ text: `\u2717 ${tn("controlPanel", "unsynced")}`, cls: "unsynced" });
-        }
+        metaCell.createSpan({
+          cls: `bangumi-mobile-meta-item ${isSynced ? "synced" : "unsynced"}`,
+          text: isSynced ? `\u2713 ${tn("controlPanel", "synced")}` : `\u2717 ${tn("controlPanel", "unsynced")}`
+        });
       }
       const actionCell = row.createEl("td", { cls: "bangumi-action-cell" });
       if (isSynced && localInfo) {
@@ -16817,6 +16828,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
         });
       }
     });
+    this.tableEl.appendChild(table);
   }
   async openOrCreateNote(path) {
     if (!this.subjectNoteManager) {

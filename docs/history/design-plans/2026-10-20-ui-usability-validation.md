@@ -21,7 +21,7 @@ Date: 2026-10-20. Branch: `codex/ui-usability`, based on `origin/adv` (`dc37924`
 
 Node 22.23.3 used for the final checks. Dependency installation, ESLint, TypeScript/production build, documentation links and whitespace checks passed.
 
-47 test files / 403 tests passed, including ten UI regression cases: progressive rendering, discarded stale results, duplicate/failed pagination, late collection-status responses, cancelled tag drafts, refreshed edit snapshots, refresh failure, local-only saves, and type/sort pagination resets.
+47 test files / 405 tests passed, including twelve UI regression cases: progressive rendering, discarded stale results, duplicate/failed pagination, late collection-status responses, cancelled tag drafts, refreshed edit snapshots, refresh failure, local-only saves, type/sort pagination resets, unchanged options, and releasing references on close.
 
 ## Production Sandbox
 
@@ -48,3 +48,22 @@ Local screenshots and fixture drivers: `E:/cctry/bangumi-ui-usability-sandbox/` 
 ## Limits
 
 Narrow-window desktop emulation is not a physical iOS/Android test. Native soft keyboard behavior, rotation and device safe-area behavior still need real-device verification. Network tests use deterministic fixtures; full live-account synchronization was not repeated. Existing transaction, identity, recovery and sync regression tests passed.
+
+## Performance follow-up
+
+Compared the production build at `2af2a29` with the subsequent performance changes in the same Obsidian Sandbox. The fixture has 60 collections (50 rendered per page) and 20 search cards with embedded 1-pixel covers. Each workload ran 10 warmups and 30 measured iterations, including a layout read after rendering. This measures synchronous DOM/layout cost, not network latency, real cover decoding or end-to-end synchronization.
+
+Paired rerun results (milliseconds):
+
+| Workload | Before median / p95 | After median / p95 |
+| --- | --- | --- |
+| Desktop 1280×900, 50-row table | 16.9 / 24.8 | 17.0 / 26.3 |
+| Desktop, 20 search status updates | 4.7 / 5.4 | 3.2 / 8.5 |
+| Narrow 390×844, 50-row table | 19.7 / 26.1 | 17.9 / 25.8 |
+| Narrow, 20 search status updates | 7.3 / 12.2 | 3.3 / 4.8 |
+
+Search updates reuse cover/title nodes and rebuild only metadata/actions. The table builds off-document before attachment and removes redundant nested spans: 1,314 → 1,214 element nodes for the fixture. Desktop table medians are effectively unchanged; timing tails vary, so these runs do not establish a universal speedup or p95 guarantee.
+
+No new polling, resize observers or background jobs were added. Initial search still performs one collection-status request per returned subject, and a successful cloud edit retains one required subject refresh; local-only edits do not request cloud status. Unchanged search options do not submit a new search. Clear/close releases result references, and generation checks stop stale results from repopulating them.
+
+Production DOM checks verified that pending edit remains disabled, status resolution reuses the same cover and title, selection still toggles, closing clears result references, and resizing/continuous editing still works. Local drivers: `perf.js`, `perf-regression.js`, and `second-pass.mjs` in the Sandbox directory above. No runtime errors captured.

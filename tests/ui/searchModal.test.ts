@@ -22,7 +22,7 @@ function fixture() {
 		loadMoreBtn: { addClass: vi.fn(), removeClass: vi.fn() },
 		client: { searchSubjects: vi.fn(), getCollectionStatus: vi.fn() },
 		checkLocalSyncStatus: vi.fn(() => null), renderResultItem: vi.fn(),
-		contentEl: { isConnected: true }, onComplete: vi.fn(),
+		contentEl: { isConnected: true, empty: vi.fn() }, onComplete: vi.fn(),
 	}) as SearchModal & {
 		// Test the actual async controller without requiring an Obsidian DOM.
 	};
@@ -30,6 +30,8 @@ function fixture() {
 		search(isNew: boolean): Promise<void>; loadMore(): Promise<void>;
 		changeSearchOptions(type: number, sort: string): Promise<void>;
 		handleAddComplete(input: AddToCollectionInput): Promise<void>;
+		onClose(): void;
+		resultElements: Map<number, unknown>;
 		requestGeneration: number; isLoading: boolean; searchResults: { id: number }[];
 		resolvedStatusIds: Set<number>; renderResultItem: ReturnType<typeof vi.fn>;
 		collectionStatuses: Map<number, { rate: number }>;
@@ -85,6 +87,26 @@ const savedInput: AddToCollectionInput = {
 };
 
 describe('search edit snapshots and query changes', () => {
+	it('does not repeat requests for unchanged search options', async () => {
+		const modal = fixture();
+		await modal.changeSearchOptions(0, 'match');
+		expect(modal.client.searchSubjects).not.toHaveBeenCalled();
+	});
+	it('releases result references on close and ignores in-flight status responses', async () => {
+		const modal = fixture();
+		const status = deferred<null>();
+		modal.client.searchSubjects.mockResolvedValue({ data: [{ id: 1 }], total: 1 });
+		modal.client.getCollectionStatus.mockReturnValue(status.promise);
+		await modal.search(true);
+		modal.resultElements.set(1, {});
+		modal.collectionStatuses.set(1, { rate: 8 });
+		modal.onClose();
+		status.resolve(null); await Promise.resolve();
+		expect(modal.searchResults).toEqual([]);
+		expect(modal.resultElements.size).toBe(0);
+		expect(modal.collectionStatuses.size).toBe(0);
+		expect(modal.resolvedStatusIds.size).toBe(0);
+	});
 	it('discards tag edits when the editor is cancelled', () => {
 		type Args = ConstructorParameters<typeof AddToCollectionModal>;
 		const existing = { type: 3, rate: 8, tags: ['original'] };

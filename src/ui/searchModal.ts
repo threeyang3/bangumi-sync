@@ -178,7 +178,7 @@ export class SearchModal extends Modal {
 			this.isLoading = false;
 			inputEl.value = '';
 			this.currentKeyword = '';
-			this.searchResults = [];
+			this.clearResultState();
 			this.totalResults = 0;
 			this.resultsContainer.empty();
 			this.statusEl.setText('');
@@ -195,6 +195,7 @@ export class SearchModal extends Modal {
 	}
 
 	private async changeSearchOptions(type: SubjectType | 0, sort: 'match' | 'heat' | 'rank' | 'score'): Promise<void> {
+		if (type === this.currentType && sort === this.currentSort) return;
 		this.currentType = type;
 		this.currentSort = sort;
 		if (this.currentKeyword) await this.search(true);
@@ -209,13 +210,8 @@ export class SearchModal extends Modal {
 
 		if (isNew) {
 			this.loadMoreBtn.removeClass('visible');
-			this.searchResults = [];
 			this.resultsContainer.empty();
-			this.syncedSubjectIds.clear();
-			this.collectionStatuses.clear();
-			this.resolvedStatusIds.clear();
-			this.failedStatusIds.clear();
-			this.resultElements.clear();
+			this.clearResultState();
 		}
 
 		this.isLoading = true;
@@ -334,35 +330,16 @@ export class SearchModal extends Modal {
 	 * 渲染单个搜索结果
 	 */
 	private renderResultItem(subject: Subject): void {
-		const previous = this.resultElements.get(subject.id);
-		const itemEl = this.resultsContainer.createDiv({ cls: 'bangumi-search-result-item' });
-		if (previous) previous.replaceWith(itemEl);
-		this.resultElements.set(subject.id, itemEl);
+		let itemEl = this.resultElements.get(subject.id);
+		if (!itemEl) {
+			itemEl = this.resultsContainer.createDiv({ cls: 'bangumi-search-result-item' });
+			this.resultElements.set(subject.id, itemEl);
+			this.renderResultContent(itemEl, subject);
+		}
 		const resolved = this.resolvedStatusIds.has(subject.id);
 		const failed = this.failedStatusIds.has(subject.id);
-
-		// 封面图片
-		const imgContainer = itemEl.createDiv({ cls: 'bangumi-search-result-cover' });
-		if (subject.images?.medium) {
-			imgContainer.createEl('img', {
-				attr: {
-					src: subject.images.medium,
-					alt: subject.name_cn || subject.name,
-				},
-			});
-		}
-
-		// 信息区域
-		const infoEl = itemEl.createDiv({ cls: 'bangumi-search-result-info' });
-
-		// 名称
-		const nameEl = infoEl.createDiv({ cls: 'bangumi-search-result-name' });
-		nameEl.createSpan({ text: subject.name_cn || subject.name, cls: 'bangumi-search-result-name-cn' });
-		if (subject.name && subject.name_cn && subject.name !== subject.name_cn) {
-			nameEl.createSpan({ text: ` (${subject.name})`, cls: 'bangumi-search-result-name-original' });
-		}
-
-		const metaRowEl = infoEl.createDiv({ cls: 'bangumi-search-result-meta-row' });
+		const metaRowEl = itemEl.querySelector<HTMLElement>('.bangumi-search-result-meta-row')!;
+		metaRowEl.empty();
 
 		// 类型、评分和收藏状态
 		const metaEl = metaRowEl.createDiv({ cls: 'bangumi-search-result-meta' });
@@ -415,6 +392,23 @@ export class SearchModal extends Modal {
 		});
 	}
 
+	/** Create static content once; status updates must not recreate covers. */
+	private renderResultContent(itemEl: HTMLElement, subject: Subject): void {
+		const imgContainer = itemEl.createDiv({ cls: 'bangumi-search-result-cover' });
+		if (subject.images?.medium) {
+			imgContainer.createEl('img', {
+				attr: { src: subject.images.medium, alt: subject.name_cn || subject.name },
+			});
+		}
+		const infoEl = itemEl.createDiv({ cls: 'bangumi-search-result-info' });
+		const nameEl = infoEl.createDiv({ cls: 'bangumi-search-result-name' });
+		nameEl.createSpan({ text: subject.name_cn || subject.name, cls: 'bangumi-search-result-name-cn' });
+		if (subject.name && subject.name_cn && subject.name !== subject.name_cn) {
+			nameEl.createSpan({ text: ` (${subject.name})`, cls: 'bangumi-search-result-name-original' });
+		}
+		infoEl.createDiv({ cls: 'bangumi-search-result-meta-row' });
+	}
+
 	/**
 	 * 打开添加收藏弹窗
 	 */
@@ -456,8 +450,18 @@ export class SearchModal extends Modal {
 		this.onComplete();
 	}
 
+	private clearResultState(): void {
+		this.resultElements.clear();
+		this.searchResults = [];
+		this.collectionStatuses.clear();
+		this.syncedSubjectIds.clear();
+		this.resolvedStatusIds.clear();
+		this.failedStatusIds.clear();
+	}
+
 	onClose(): void {
 		this.requestGeneration++;
+		this.clearResultState();
 		const { contentEl } = this;
 		contentEl.empty();
 	}

@@ -883,7 +883,11 @@ export class ControlPanel extends Modal {
 		}
 
 		// 创建表格
-		const table = this.tableEl.createEl('table', { cls: 'bangumi-collection-table' });
+		// Build off-document and attach once, including responsive metadata.
+		const table = createEl('table', {
+			cls: 'bangumi-collection-table',
+			parent: this.tableEl.ownerDocument.createDocumentFragment(),
+		});
 
 		// 表头
 		const thead = table.createEl('thead');
@@ -1002,10 +1006,10 @@ export class ControlPanel extends Modal {
 				metaCell.createSpan({ cls: 'bangumi-mobile-meta-item', text: getCollectionStatusLabel(collection.type, collection.subject_type) });
 
 				// 评分
-				const ratingSpan = metaCell.createSpan({ cls: 'bangumi-mobile-meta-item' });
-				if (collection.subject.score) {
-					ratingSpan.createSpan({ text: `★${collection.subject.score.toFixed(1)}` });
-				}
+				const ratingSpan = metaCell.createSpan({
+					cls: 'bangumi-mobile-meta-item',
+					text: collection.subject.score ? `★${collection.subject.score.toFixed(1)}` : '',
+				});
 				if (collection.rate) {
 					ratingSpan.createSpan({ cls: 'bangumi-my-rate', text: ` [${collection.rate}]` });
 				}
@@ -1014,12 +1018,10 @@ export class ControlPanel extends Modal {
 				}
 
 				// 同步状态
-				const syncSpan = metaCell.createSpan({ cls: 'bangumi-mobile-meta-item' });
-				if (isSynced) {
-					syncSpan.createSpan({ text: `✓ ${tn('controlPanel', 'synced')}`, cls: 'synced' });
-				} else {
-					syncSpan.createSpan({ text: `✗ ${tn('controlPanel', 'unsynced')}`, cls: 'unsynced' });
-				}
+				metaCell.createSpan({
+					cls: `bangumi-mobile-meta-item ${isSynced ? 'synced' : 'unsynced'}`,
+					text: isSynced ? `✓ ${tn('controlPanel', 'synced')}` : `✗ ${tn('controlPanel', 'unsynced')}`,
+				});
 			}
 
 			// 操作
@@ -1035,6 +1037,7 @@ export class ControlPanel extends Modal {
 				});
 			}
 		});
+		this.tableEl.appendChild(table);
 	}
 
 	private async openOrCreateNote(path: string): Promise<void> {
