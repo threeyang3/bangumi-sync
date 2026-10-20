@@ -429,6 +429,7 @@ var en = {
     noSyncedItemsTag: "No synced items to compare tags",
     noSyncedItemsStatus: "No synced items to compare status",
     selectFirst: "Please select items first",
+    filterOptions: "Filters and sorting",
     confirmDelete: "Confirm delete",
     deleteConfirm: "Move selected files to trash?",
     open: "Open",
@@ -1104,6 +1105,7 @@ var zhCN = {
     noSyncedItemsTag: "\u6CA1\u6709\u5DF2\u540C\u6B65\u7684\u6761\u76EE\uFF0C\u65E0\u6CD5\u5BF9\u6BD4\u6807\u7B7E",
     noSyncedItemsStatus: "\u6CA1\u6709\u5DF2\u540C\u6B65\u7684\u6761\u76EE\uFF0C\u65E0\u6CD5\u5BF9\u6BD4\u72B6\u6001",
     selectFirst: "\u8BF7\u5148\u9009\u62E9\u6761\u76EE",
+    filterOptions: "\u7B5B\u9009\u4E0E\u6392\u5E8F",
     confirmDelete: "\u786E\u8BA4\u5220\u9664",
     deleteConfirm: "\u5C06\u9009\u4E2D\u7684\u6587\u4EF6\u79FB\u52A8\u5230\u56DE\u6536\u7AD9\uFF1F",
     open: "\u6253\u5F00",
@@ -2861,7 +2863,7 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
     const tabHeaders = tabContainer.createDiv({ cls: "bangumi-settings-tab-headers" });
     const tabContents = tabContainer.createDiv({ cls: "bangumi-settings-tab-contents" });
     tabs.forEach((tab, index) => {
-      const tabHeader = tabHeaders.createDiv({ cls: "bangumi-settings-tab-header", text: tab.name });
+      const tabHeader = tabHeaders.createEl("button", { cls: "bangumi-settings-tab-header", text: tab.name, attr: { type: "button", "aria-pressed": String(index === 0) } });
       const tabContent = tabContents.createDiv({ cls: "bangumi-settings-tab-content" });
       if (index === 0) {
         tabHeader.addClass("active");
@@ -2869,9 +2871,13 @@ var BangumiSettingTab = class extends import_obsidian2.PluginSettingTab {
       }
       tab.build(tabContent);
       tabHeader.addEventListener("click", () => {
-        tabHeaders.querySelectorAll(".bangumi-settings-tab-header").forEach((h) => h.removeClass("active"));
+        tabHeaders.querySelectorAll(".bangumi-settings-tab-header").forEach((h) => {
+          h.removeClass("active");
+          h.setAttribute("aria-pressed", "false");
+        });
         tabContents.querySelectorAll(".bangumi-settings-tab-content").forEach((c) => c.removeClass("active"));
         tabHeader.addClass("active");
+        tabHeader.setAttribute("aria-pressed", "true");
         tabContent.addClass("active");
       });
     });
@@ -13216,10 +13222,13 @@ var SearchModal = class extends import_obsidian16.Modal {
     this.currentKeyword = "";
     this.currentType = 0;
     this.currentSort = "match";
-    this.currentOffset = 0;
     this.totalResults = 0;
     this.searchResults = [];
     this.isLoading = false;
+    this.requestGeneration = 0;
+    this.resolvedStatusIds = /* @__PURE__ */ new Set();
+    this.failedStatusIds = /* @__PURE__ */ new Set();
+    this.resultElements = /* @__PURE__ */ new Map();
     // 状态缓存
     this.syncedSubjectIds = /* @__PURE__ */ new Set();
     this.collectionStatuses = /* @__PURE__ */ new Map();
@@ -13288,6 +13297,8 @@ var SearchModal = class extends import_obsidian16.Modal {
       }
     });
     clearBtn.addEventListener("click", () => {
+      this.requestGeneration++;
+      this.isLoading = false;
       inputEl.value = "";
       this.currentKeyword = "";
       this.searchResults = [];
@@ -13307,13 +13318,16 @@ var SearchModal = class extends import_obsidian16.Modal {
    * 执行搜索
    */
   async search(isNew) {
-    if (this.isLoading) return;
+    if (this.isLoading && !isNew) return;
+    const generation = isNew ? ++this.requestGeneration : this.requestGeneration;
     if (isNew) {
-      this.currentOffset = 0;
       this.searchResults = [];
       this.resultsContainer.empty();
       this.syncedSubjectIds.clear();
       this.collectionStatuses.clear();
+      this.resolvedStatusIds.clear();
+      this.failedStatusIds.clear();
+      this.resultElements.clear();
     }
     this.isLoading = true;
     this.statusEl.setText(tn("searchModal", "searching"));
@@ -13321,7 +13335,7 @@ var SearchModal = class extends import_obsidian16.Modal {
       const options = {
         sort: this.currentSort,
         limit: 20,
-        offset: this.currentOffset
+        offset: this.searchResults.length
       };
       if (this.currentType !== 0) {
         options.filter = { type: [this.currentType] };
@@ -13330,45 +13344,51 @@ var SearchModal = class extends import_obsidian16.Modal {
         this.currentKeyword,
         options
       );
+      if (generation !== this.requestGeneration) return;
       this.totalResults = result.total;
       this.searchResults.push(...result.data);
-      await this.checkStatuses(result.data);
+      for (const subject of result.data) {
+        if (this.checkLocalSyncStatus(subject)) this.syncedSubjectIds.add(subject.id);
+      }
       this.statusEl.setText(
         tnFormat("searchModal", "resultsCount", { count: String(this.searchResults.length), total: String(this.totalResults) })
       );
       result.data.forEach((subject) => {
         this.renderResultItem(subject);
       });
+      void this.checkStatuses(result.data, generation);
       if (this.searchResults.length < this.totalResults) {
         this.loadMoreBtn.addClass("visible");
       } else {
         this.loadMoreBtn.removeClass("visible");
       }
     } catch (error) {
+      if (generation !== this.requestGeneration) return;
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.statusEl.setText(`${tn("searchModal", "searchFailed")}: ${errorMsg}`);
     } finally {
-      this.isLoading = false;
+      if (generation === this.requestGeneration) this.isLoading = false;
     }
   }
   /**
    * 检查条目的同步状态和收藏状态
    */
-  async checkStatuses(subjects) {
+  async checkStatuses(subjects, generation) {
     for (const subject of subjects) {
-      const localPath = this.checkLocalSyncStatus(subject);
-      if (localPath) {
-        this.syncedSubjectIds.add(subject.id);
-      }
-    }
-    for (const subject of subjects) {
+      if (generation !== this.requestGeneration) return;
       try {
         const collection = await this.client.getCollectionStatus(subject.id);
+        if (generation !== this.requestGeneration) return;
+        this.resolvedStatusIds.add(subject.id);
+        this.failedStatusIds.delete(subject.id);
         if (collection) {
           this.collectionStatuses.set(subject.id, collection);
         }
       } catch (e) {
+        if (generation !== this.requestGeneration) return;
+        this.failedStatusIds.add(subject.id);
       }
+      this.renderResultItem(subject);
     }
   }
   /**
@@ -13395,7 +13415,6 @@ var SearchModal = class extends import_obsidian16.Modal {
    * 加载更多
    */
   async loadMore() {
-    this.currentOffset += 20;
     await this.search(false);
   }
   /**
@@ -13403,7 +13422,12 @@ var SearchModal = class extends import_obsidian16.Modal {
    */
   renderResultItem(subject) {
     var _a, _b;
+    const previous = this.resultElements.get(subject.id);
     const itemEl = this.resultsContainer.createDiv({ cls: "bangumi-search-result-item" });
+    if (previous) previous.replaceWith(itemEl);
+    this.resultElements.set(subject.id, itemEl);
+    const resolved = this.resolvedStatusIds.has(subject.id);
+    const failed = this.failedStatusIds.has(subject.id);
     const imgContainer = itemEl.createDiv({ cls: "bangumi-search-result-cover" });
     if ((_a = subject.images) == null ? void 0 : _a.medium) {
       imgContainer.createEl("img", {
@@ -13434,7 +13458,7 @@ var SearchModal = class extends import_obsidian16.Modal {
     if (collection) {
       const collectionTypeLabel = getCollectionStatusLabel(collection.type, subject.type);
       metaEl.createSpan({ text: collectionTypeLabel, cls: "bangumi-status-badge bangumi-status-collected" });
-    } else {
+    } else if (resolved) {
       metaEl.createSpan({ text: tn("searchModal", "notCollected"), cls: "bangumi-status-badge bangumi-status-not-collected" });
     }
     const addBtn = metaRowEl.createEl("button", {
@@ -13446,7 +13470,18 @@ var SearchModal = class extends import_obsidian16.Modal {
       collection ? SEARCH_SHORT_LABELS.edit : SEARCH_SHORT_LABELS.add,
       collection ? tn("searchModal", "editCollection") : tn("searchModal", "addToCollection")
     );
+    if (!resolved) {
+      const label = failed ? tn("controlPanel", "refresh") : tn("searchModal", "searching");
+      addBtn.setText(label);
+      this.decorateMobileButton(addBtn, label, label);
+      addBtn.disabled = !failed;
+    }
     addBtn.addEventListener("click", () => {
+      if (!resolved) {
+        addBtn.disabled = true;
+        void this.checkStatuses([subject], this.requestGeneration);
+        return;
+      }
       this.openAddModal(subject, collection);
     });
   }
@@ -13475,6 +13510,7 @@ var SearchModal = class extends import_obsidian16.Modal {
     this.onComplete();
   }
   onClose() {
+    this.requestGeneration++;
     const { contentEl } = this;
     contentEl.empty();
   }
@@ -14089,6 +14125,7 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
       const rowDraft = (_a = this.draftValues.get(item.filePath)) != null ? _a : {};
       for (const property of this.selectedProperties) {
         const cell = row.createEl("td");
+        cell.createSpan({ text: property, cls: "bangumi-mobile-field-label" });
         const input = cell.createEl("input", {
           type: "text",
           value: (_b = rowDraft[property]) != null ? _b : "",
@@ -14721,8 +14758,8 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     const fieldDiff = this.getUserDecisionField(this.diffs[diffIndex], fieldKey);
     const row = tbody.createEl("tr");
     row.createEl("td", { text: fieldName, cls: "bangumi-field-name" });
-    row.createEl("td", { text: localValue, cls: "bangumi-local-value bangumi-sync-value" });
-    row.createEl("td", { text: cloudValue, cls: "bangumi-cloud-value bangumi-sync-value" });
+    row.createEl("td", { text: localValue, cls: "bangumi-local-value bangumi-sync-value", attr: { "data-label": tn("statusSyncModal", "local") } });
+    row.createEl("td", { text: cloudValue, cls: "bangumi-cloud-value bangumi-sync-value", attr: { "data-label": tn("statusSyncModal", "cloud") } });
     const decisionCell = row.createEl("td");
     const select = decisionCell.createEl("select", { cls: "bangumi-sync-decision-select" });
     select.createEl("option", { value: "skip", text: tn("statusSyncModal", "skip") });
@@ -14739,8 +14776,8 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
   renderPlatformFieldRow(tbody, field, diffIndex) {
     const row = tbody.createEl("tr");
     row.createEl("td", { text: field.label, cls: "bangumi-field-name" });
-    row.createEl("td", { text: field.localValue || tn("statusSyncModal", "empty"), cls: "bangumi-local-value bangumi-sync-value" });
-    row.createEl("td", { text: field.cloudValue || tn("statusSyncModal", "empty"), cls: "bangumi-cloud-value bangumi-sync-value" });
+    row.createEl("td", { text: field.localValue || tn("statusSyncModal", "empty"), cls: "bangumi-local-value bangumi-sync-value", attr: { "data-label": tn("statusSyncModal", "local") } });
+    row.createEl("td", { text: field.cloudValue || tn("statusSyncModal", "empty"), cls: "bangumi-cloud-value bangumi-sync-value", attr: { "data-label": tn("statusSyncModal", "cloud") } });
     const decisionCell = row.createEl("td");
     const select = decisionCell.createEl("select", { cls: "bangumi-sync-decision-select" });
     select.createEl("option", { value: "skip", text: tn("statusSyncModal", "skip") });
@@ -16054,11 +16091,11 @@ var ControlPanel = class extends import_obsidian24.Modal {
     this.mobileShortLabels = getLocale() === "zh-CN" ? {
       refresh: "\u5237\u65B0",
       syncSelected: "\u540C\u6B65",
-      forceSync: "\u5F3A\u540C",
+      forceSync: "\u5F3A\u5236\u540C\u6B65",
       deleteSelected: "\u5220\u9664",
-      batchEdit: "\u6279\u7F16",
-      syncStatus: "\u72B6\u6001",
-      syncCollections: "\u6536\u85CF",
+      batchEdit: "\u6279\u91CF\u7F16\u8F91",
+      syncStatus: "\u540C\u6B65\u72B6\u6001",
+      syncCollections: "\u540C\u6B65\u6536\u85CF",
       scanAndLinkRelated: "\u5173\u8054",
       batchDownloadCovers: "\u5C01\u9762",
       undo: "\u64A4\u9500",
@@ -16159,7 +16196,17 @@ var ControlPanel = class extends import_obsidian24.Modal {
   renderFilterBar() {
     this.filterBarEl.empty();
     this.filterBarEl.addClass("bangumi-panel-toolbar");
+    const filterToggle = this.filterBarEl.createEl("button", {
+      text: tn("controlPanel", "filterOptions"),
+      cls: "bangumi-filter-toggle",
+      attr: { "aria-expanded": "false" }
+    });
     const filterGroup = this.filterBarEl.createDiv({ cls: "bangumi-toolbar-group bangumi-toolbar-group-filters" });
+    filterToggle.addEventListener("click", () => {
+      const expanded = filterToggle.getAttribute("aria-expanded") !== "true";
+      filterToggle.setAttribute("aria-expanded", String(expanded));
+      this.filterBarEl.toggleClass("filters-expanded", expanded);
+    });
     const typeSelect = filterGroup.createEl("select", { cls: "bangumi-filter-select" });
     typeSelect.createEl("option", { value: "all", text: tn("controlPanel", "allTypes") });
     Object.values(SubjectType).forEach((type) => {
@@ -16231,10 +16278,11 @@ var ControlPanel = class extends import_obsidian24.Modal {
       this.onFiltersChange(this.filters);
       this.applyFilters();
     });
-    const searchInput = filterGroup.createEl("input", {
+    const searchInput = this.filterBarEl.createEl("input", {
       type: "text",
       placeholder: tn("controlPanel", "searchPlaceholder"),
-      cls: "bangumi-filter-search"
+      cls: "bangumi-filter-search",
+      attr: { "aria-label": tn("controlPanel", "searchPlaceholder") }
     });
     searchInput.value = this.filters.keyword;
     searchInput.addEventListener("input", () => {
@@ -16272,17 +16320,18 @@ var ControlPanel = class extends import_obsidian24.Modal {
     this.updateSelectedCount();
   }
   isActionBlocked(action) {
+    if (action.key === "more") return false;
     return isControlPanelActionBlocked(this.managerState, action.key === "refresh" ? "refresh" : "write-action");
   }
   getToolbarActions(hasSelection) {
     const actionMap = new Map(this.getActionDescriptors().map((action) => [action.key, action]));
-    const keys = hasSelection ? ["search", "refresh", "syncSelected", "forceSync", "batchEdit", "deleteSelected", "undo", "more"] : ["search", "refresh", "syncStatus", "syncCollections", "scanAndLinkRelated", "batchDownloadCovers", "undo", "more"];
+    const keys = hasSelection ? ["syncSelected", "batchEdit", "undo", "more"] : ["search", "syncStatus", "syncCollections", "more"];
     return keys.map((key) => actionMap.get(key)).filter((action) => action !== void 0);
   }
   getMoreMenuActions(hasSelection) {
     const toolbarKeys = new Set(this.getToolbarActions(hasSelection).map((action) => action.key));
     return this.getActionDescriptors().filter(
-      (action) => action.showInMoreMenu && !toolbarKeys.has(action.key)
+      (action) => action.key !== "more" && !toolbarKeys.has(action.key)
     );
   }
   getActionDescriptors() {
@@ -16451,9 +16500,10 @@ var ControlPanel = class extends import_obsidian24.Modal {
         menu.addSeparator();
       }
       for (const action of sectionActions) {
-        const disabled = this.isActionBlocked(action) || !!action.requiresSelection && !hasSelection;
+        const needsSelection = !!action.requiresSelection && !hasSelection;
+        const disabled = this.isActionBlocked(action) || needsSelection || action.key === "undo" && !this.frontmatterEditor.canUndo();
         menu.addItem((item) => {
-          item.setTitle(disabled ? `${action.label} (${tn("controlPanel", "selectFirst")})` : action.label).setDisabled(disabled).onClick(() => action.run());
+          item.setTitle(needsSelection ? `${action.label} (${tn("controlPanel", "selectFirst")})` : action.label).setDisabled(disabled).onClick(() => action.run());
         });
       }
       hasRenderedAnyItem = true;
@@ -16518,6 +16568,9 @@ var ControlPanel = class extends import_obsidian24.Modal {
    * 应用筛选
    */
   applyFilters() {
+    var _a;
+    const activeCount = Number(this.filters.subjectType !== "all") + Number(this.filters.collectionType !== "all") + Number(this.filters.syncStatus !== "all") + Number(this.filters.sortBy !== "default");
+    (_a = this.filterBarEl.querySelector("button")) == null ? void 0 : _a.setText(`${tn("controlPanel", "filterOptions")}${activeCount ? ` (${activeCount})` : ""}`);
     this.currentPage = 1;
     this.renderTable();
     this.renderPagination();
@@ -16664,7 +16717,10 @@ var ControlPanel = class extends import_obsidian24.Modal {
       this.tableRows.push(row);
       const isSynced = this.state.localSubjects.has(collection.subject_id);
       const localInfo = this.state.localSubjects.get(collection.subject_id);
-      row.createEl("td").createEl("input", { type: "checkbox" }, (checkbox) => {
+      row.createEl("td").createEl("label", { cls: "bangumi-row-selection" }).createEl("input", {
+        type: "checkbox",
+        attr: { "aria-label": collection.subject.name_cn || collection.subject.name || String(collection.subject_id) }
+      }, (checkbox) => {
         checkbox.checked = this.state.selectedIds.has(collection.subject_id);
         checkbox.addEventListener("change", () => {
           if (checkbox.checked) {
@@ -17231,6 +17287,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
    * 处理键盘导航
    */
   handleKeyDown(event) {
+    if (event.target !== this.tableEl) return;
     const filteredCollections = this.getFilteredCollections();
     const startIndex = (this.currentPage - 1) * this.pageSize;
     const pageCollections = filteredCollections.slice(startIndex, startIndex + this.pageSize);
@@ -17302,7 +17359,8 @@ var ControlPanel = class extends import_obsidian24.Modal {
     if (!isMobile()) return;
     this.touchStartHandler = (e) => {
       this.touchStartY = e.touches[0].clientY;
-      this.swipeEnabled = this.tableEl.scrollTop === 0;
+      this.touchCurrentY = this.touchStartY;
+      this.swipeEnabled = e.target === this.contentEl.querySelector("h2") && this.tableEl.scrollTop === 0;
     };
     this.touchMoveHandler = (e) => {
       if (!this.swipeEnabled) return;
@@ -18936,10 +18994,12 @@ var ImportCompareModal = class extends import_obsidian27.Modal {
         const importText = diff.importValue != null && diff.importValue !== "" ? formatDisplayValue(diff.importValue) : tn("statusSyncModal", "empty");
         tr.createEl("td", {
           text: localText,
+          attr: { "data-label": tn("userData", "localValue") },
           cls: "bangumi-import-compare-value"
         });
         tr.createEl("td", {
           text: importText,
+          attr: { "data-label": tn("userData", "importValue") },
           cls: "bangumi-import-compare-value"
         });
         const selectCell = tr.createEl("td");
@@ -20439,6 +20499,7 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
   render() {
     var _a, _b, _c, _d, _e, _f, _g;
     this.contentEl.empty();
+    this.contentEl.addClass("bangumi-recovery-center");
     new import_obsidian31.Setting(this.contentEl).setName(tn("recoveryCenter", "title")).setHeading();
     const recovery = this.handlers.getRecovery();
     if (!recovery) {
@@ -20451,18 +20512,23 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
       this.addCloseButton();
       return;
     }
-    this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "cause")}: ${recovery.reason}` });
-    this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "detectedAt")}: ${new Date(recovery.detectedAt).toLocaleString()}` });
-    this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "affectedSubjects")}: ${recovery.affectedSubjectIds.join(", ")}` });
-    if (recovery.orphanTemporaryPaths.length > 0) {
-      this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "orphanPaths")}: ${recovery.orphanTemporaryPaths.join(", ")}` });
-    }
-    if (recovery.legacyMigration) this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "legacyMigrationSource")}: ${recovery.legacyMigration.sourcePath}` });
+    this.contentEl.createEl("p", { text: tn("recoveryCenter", "writeBlocked") });
+    this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "affectedSubjects")}: ${recovery.affectedSubjectIds.length}` });
     const policy = getRecoveryActionPolicy(recovery);
     if (policy.requiresUnverifiableRiskAcceptance) {
       this.contentEl.createEl("p", { text: tn("recoveryCenter", "factsInsufficient"), cls: "bangumi-sync-error" });
     }
-    const expectations = this.contentEl.createEl("details", { attr: { open: "" } });
+    const actions = this.contentEl.createDiv({ cls: "bangumi-sync-actions" });
+    const technical = this.contentEl.createEl("details");
+    technical.createEl("summary", { text: tn("recoveryCenter", "diagnostics") });
+    technical.createEl("p", { text: `${tn("recoveryCenter", "cause")}: ${recovery.reason}` });
+    this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "detectedAt")}: ${new Date(recovery.detectedAt).toLocaleString()}` });
+    technical.createEl("p", { text: `${tn("recoveryCenter", "affectedSubjects")}: ${recovery.affectedSubjectIds.join(", ")}` });
+    if (recovery.orphanTemporaryPaths.length > 0) {
+      this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "orphanPaths")}: ${recovery.orphanTemporaryPaths.join(", ")}` });
+    }
+    if (recovery.legacyMigration) this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "legacyMigrationSource")}: ${recovery.legacyMigration.sourcePath}` });
+    const expectations = this.contentEl.createEl("details");
     expectations.createEl("summary", { text: `${tn("recoveryCenter", "expectations")} (${recovery.subjectExpectations.length})` });
     const expectationList = expectations.createEl("ul");
     for (const item of recovery.subjectExpectations) {
@@ -20485,7 +20551,6 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
     }
     if (this.actionError) this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "actionFailed")}: ${this.actionError}`, cls: "bangumi-sync-error" });
     if (this.working) this.contentEl.createEl("p", { text: tn("recoveryCenter", "working") });
-    const actions = this.contentEl.createDiv({ cls: "bangumi-sync-actions" });
     for (const action of getVisibleRecoveryActions(policy)) {
       const label = action === "retry-rollback" ? tn("recoveryCenter", "retryRollback") : action === "retry-cleanup" ? tn("recoveryCenter", "retryCleanup") : action === "retry-migration" ? tn("recoveryCenter", "retryMigration") : action === "confirm-manual" ? tn("recoveryCenter", "confirmManual") : tn("recoveryCenter", "rescan");
       const cls = action === "retry-rollback" || action === "retry-cleanup" ? "mod-warning" : action === "confirm-manual" ? "mod-cta" : "";

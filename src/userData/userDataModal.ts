@@ -757,10 +757,12 @@ export class ImportCompareModal extends Modal {
                     : tn('statusSyncModal', 'empty');
                 tr.createEl('td', {
                     text: localText,
+                    attr: { 'data-label': tn('userData', 'localValue') },
                     cls: 'bangumi-import-compare-value',
                 });
                 tr.createEl('td', {
                     text: importText,
+                    attr: { 'data-label': tn('userData', 'importValue') },
                     cls: 'bangumi-import-compare-value',
                 });
 

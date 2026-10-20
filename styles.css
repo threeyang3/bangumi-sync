@@ -2465,6 +2465,9 @@
 }
 
 .bangumi-settings-tab-header {
+	background: transparent;
+	box-shadow: none;
+	height: auto;
 	padding: 6px 16px;
 	cursor: pointer;
 	font-size: 14px;
@@ -2580,13 +2583,13 @@
 		--bangumi-mobile-action-height: 80px;
 	}
 
-	.modal {
+	.modal:has([class*="bangumi-"]) {
 		width: 95vw !important;
 		max-width: none !important;
 		max-height: 90vh !important;
 	}
 
-	.modal-content {
+	.modal:has([class*="bangumi-"]) .modal-content {
 		padding: 10px;
 	}
 
@@ -2654,7 +2657,7 @@
 		flex-wrap: wrap;
 		gap: 6px;
 		padding: 6px 8px;
-		position: sticky;
+		position: relative;
 		top: var(--bangumi-mobile-sticky-top);
 		z-index: 3;
 	}
@@ -2675,14 +2678,14 @@
 		grid-template-columns: repeat(4, 1fr);
 		gap: 4px;
 		padding: 6px 8px;
-		position: sticky;
-		top: calc(var(--bangumi-mobile-sticky-top) + var(--bangumi-mobile-filter-height));
+		position: relative;
+		top: auto;
 		z-index: 2;
 	}
 
 	.bangumi-action-btn {
 		width: 100%;
-		min-height: 32px;
+		min-height: 44px;
 		padding: 4px 6px;
 		font-size: 12px;
 		line-height: 1.2;
@@ -2902,10 +2905,10 @@
 
 	.bangumi-collection-table .bangumi-action-cell .bangumi-action-btn-small {
 		display: block;
-		width: 36px;
-		min-width: 36px;
-		min-height: 30px;
-		height: 30px;
+		width: 44px;
+		min-width: 44px;
+		min-height: 44px;
+		height: 44px;
 		padding: 4px;
 		font-size: 11px;
 		line-height: 1;
@@ -2969,7 +2972,7 @@
 
 	.bangumi-pagination-btn {
 		min-width: 48px;
-		min-height: 24px;
+		min-height: 44px;
 		padding: 3px 8px;
 		font-size: 11px;
 	}
@@ -3237,6 +3240,10 @@
 		display: none;
 	}
 
+	.bangumi-batch-edit-table {
+		min-width: 0;
+	}
+
 	.bangumi-batch-edit-table tr {
 		padding: 8px 0;
 		border-bottom: 1px solid var(--background-modifier-border);
@@ -3484,5 +3491,106 @@
 	.bangumi-batch-edit-table th:first-child {
 		width: 100% !important;
 		max-width: none !important;
+	}
+}
+.bangumi-mobile-field-label,
+.bangumi-filter-toggle {
+	display: none;
+}
+.bangumi-settings-tab-header:focus-visible,
+.bangumi-filter-toggle:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+.bangumi-panel-toolbar > .bangumi-filter-search {
+	flex: none;
+	width: 100%;
+	order: -1;
+}
+@media (max-width: 767px) {
+	.bangumi-mobile-field-label,
+	.bangumi-import-compare-table td[data-label]::before {
+		display: block;
+		margin-bottom: var(--size-4-1);
+		color: var(--text-muted);
+		font-weight: var(--font-medium);
+	}
+	.bangumi-import-compare-table td[data-label]::before {
+		content: attr(data-label);
+	}
+	.bangumi-filter-toggle { display: block; }
+	.bangumi-panel-toolbar .bangumi-toolbar-group-filters { display: none; }
+	.bangumi-panel-toolbar.filters-expanded .bangumi-toolbar-group-filters { display: flex; }
+	.modal:has(.bangumi-control-panel),
+	.modal:has(.bangumi-batch-editor) {
+		height: 100dvh !important;
+		max-height: 100dvh !important;
+	}
+	.bangumi-control-panel {
+		padding-bottom: max(var(--size-4-2), env(safe-area-inset-bottom, 0px));
+	}
+	.bangumi-panel-action-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.bangumi-control-panel button,
+	.bangumi-search-modal button,
+	.bangumi-settings-tab-header,
+	.bangumi-batch-editor button {
+		min-height: 44px;
+	}
+	.bangumi-filter-search { min-height: 44px; font-size: 16px; }
+}
+@media (max-width: 767px) {
+	.bangumi-status-sync-modal .bangumi-detail-table,
+	.bangumi-status-sync-modal .bangumi-detail-table tbody,
+	.bangumi-status-sync-modal .bangumi-detail-table tr,
+	.bangumi-status-sync-modal .bangumi-detail-table td {
+		display: block;
+		width: 100%;
+		min-width: 0;
+	}
+	.bangumi-status-sync-modal .bangumi-detail-table thead { display: none; }
+	.bangumi-status-sync-modal .bangumi-detail-table td[data-label]::before {
+		content: attr(data-label);
+		display: block;
+		color: var(--text-muted);
+	}
+	.bangumi-status-sync-modal select,
+	.bangumi-status-sync-modal button,
+	.bangumi-recovery-center button { min-height: 44px; }
+	.bangumi-recovery-center { overflow-wrap: anywhere; }
+}
+@media (max-width: 767px) {
+	.bangumi-status-sync-table > table,
+	.bangumi-status-sync-table > table > tbody,
+	.bangumi-status-sync-table > table > tbody > tr,
+	.bangumi-status-sync-table > table > tbody > tr > td {
+		display: block;
+		width: 100% !important;
+		max-width: none !important;
+		min-width: 0;
+	}
+	.bangumi-status-sync-table > table > thead { display: none; }
+	.bangumi-status-sync-table .bangumi-name-cell {
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+}
+@media (max-width: 767px) {
+	.bangumi-row-selection {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 44px;
+		min-height: 44px;
+		cursor: pointer;
+	}
+}
+@media (max-width: 767px) {
+	.modal:has([class*="bangumi-"]) button,
+	.modal:has([class*="bangumi-"]) select {
+		min-height: 44px;
+	}
+	.modal:has(.bangumi-status-sync-modal) .bangumi-name-cell,
+	.modal:has(.bangumi-status-sync-modal) .bangumi-fields-cell {
+		width: 100% !important;
 	}
 }
