@@ -12,12 +12,16 @@ Date: 2026-10-20. Branch: `codex/ui-usability`, based on `origin/adv` (`dc37924`
 - Show search results before collection-status requests complete. Block add/edit until status is known, offer per-item retry, discard stale search/status responses, and derive pagination offsets from accepted results.
 - Limit swipe dismissal to the panel heading and reset gesture coordinates; use dynamic viewport height and bottom safe-area padding for the control panel.
 - Show recovery impact and actions before collapsed diagnostic details. Recovery policy, confirmation requirements, and execution remain unchanged.
+- Refresh the saved cloud collection before another edit; discard stale cached values on refresh failure and retain the retry path.
+- Copy tags into the editor draft and initialize the rating label from the actual rating.
+- Restart search pagination when type or sort changes.
+- Keep responsive metadata, original titles and complete comments in the DOM so resizing preserves information, selection and pagination.
 
 ## Automated validation
 
 Node 22.23.3 used for the final checks. Dependency installation, ESLint, TypeScript/production build, documentation links and whitespace checks passed.
 
-47 test files / 397 tests passed, including four new tests of the actual search controller: progressive rendering, discarded stale results, duplicate/failed pagination, and late collection-status responses.
+47 test files / 403 tests passed, including ten UI regression cases: progressive rendering, discarded stale results, duplicate/failed pagination, late collection-status responses, cancelled tag drafts, refreshed edit snapshots, refresh failure, local-only saves, and type/sort pagination resets.
 
 ## Production Sandbox
 
@@ -36,6 +40,8 @@ Used an isolated fixture vault, with production `release/main.js`, `release/mani
 - Recovery diagnostics start collapsed while policy-selected actions remain available; no recovery action executed in the fixture UI test.
 - An unrelated Modal does not match the plugin-scoped mobile selector.
 - Plugin reload succeeded. `obsidian dev:errors` and error-level console capture reported no errors after the final run.
+- Second-pass production checks confirmed rating label/slider both start at 8, cancelled tags leave the cached original intact, and reopening after a simulated successful cloud save displays 9.
+- Resizing the same open panel from 1280px to 390px and back preserved page 2 and selection; mobile metadata appeared at narrow width and original titles returned at desktop width. No captured runtime errors occurred.
 
 Local screenshots and fixture drivers: `E:/cctry/bangumi-ui-usability-sandbox/` (not repository artifacts).
 

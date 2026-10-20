@@ -12984,7 +12984,7 @@ var AddToCollectionModal = class extends import_obsidian15.Modal {
       this.collectionType = existingCollection.type || 3;
       this.rate = existingCollection.rate || 0;
       this.comment = existingCollection.comment || "";
-      this.tags = existingCollection.tags || [];
+      this.tags = [...existingCollection.tags || []];
       this.isPrivate = existingCollection.private || false;
     }
   }
@@ -13016,7 +13016,7 @@ var AddToCollectionModal = class extends import_obsidian15.Modal {
         rateValueEl.setText(String(value));
       });
     });
-    const rateValueEl = rateSetting.controlEl.createSpan({ cls: "bangumi-add-collection-rate-value", text: "0" });
+    const rateValueEl = rateSetting.controlEl.createSpan({ cls: "bangumi-add-collection-rate-value", text: String(this.rate) });
     const tagsSetting = new import_obsidian15.Setting(contentEl).setName(tn("addToCollection", "tags")).addText((text) => {
       text.setPlaceholder(tn("addToCollection", "tagsPlaceholder"));
       this.tagInputEl = text.inputEl;
@@ -13308,11 +13308,16 @@ var SearchModal = class extends import_obsidian16.Modal {
       this.loadMoreBtn.removeClass("visible");
     });
     typeSelect.addEventListener("change", () => {
-      this.currentType = Number(typeSelect.value);
+      void this.changeSearchOptions(Number(typeSelect.value), this.currentSort);
     });
     sortSelect.addEventListener("change", () => {
-      this.currentSort = sortSelect.value;
+      void this.changeSearchOptions(this.currentType, sortSelect.value);
     });
+  }
+  async changeSearchOptions(type, sort) {
+    this.currentType = type;
+    this.currentSort = sort;
+    if (this.currentKeyword) await this.search(true);
   }
   /**
    * 执行搜索
@@ -13321,6 +13326,7 @@ var SearchModal = class extends import_obsidian16.Modal {
     if (this.isLoading && !isNew) return;
     const generation = isNew ? ++this.requestGeneration : this.requestGeneration;
     if (isNew) {
+      this.loadMoreBtn.removeClass("visible");
       this.searchResults = [];
       this.resultsContainer.empty();
       this.syncedSubjectIds.clear();
@@ -13505,8 +13511,21 @@ var SearchModal = class extends import_obsidian16.Modal {
   /**
    * 处理添加完成
    */
-  handleAddComplete(input) {
+  async handleAddComplete(input) {
     new import_obsidian16.Notice(tnFormat("searchModal", "addedSuccess", { name: input.subjectName }));
+    const subject = this.searchResults.find((subject2) => subject2.id === input.subjectId);
+    if (subject && this.contentEl.isConnected) {
+      if (this.checkLocalSyncStatus(subject)) this.syncedSubjectIds.add(subject.id);
+      if (input.syncToCloud) {
+        this.collectionStatuses.delete(subject.id);
+        this.resolvedStatusIds.delete(subject.id);
+        this.failedStatusIds.delete(subject.id);
+        this.renderResultItem(subject);
+        await this.checkStatuses([subject], this.requestGeneration);
+      } else {
+        this.renderResultItem(subject);
+      }
+    }
     this.onComplete();
   }
   onClose() {
@@ -16733,8 +16752,8 @@ var ControlPanel = class extends import_obsidian24.Modal {
       });
       const nameCell = row.createEl("td", { cls: "bangumi-name-cell" });
       nameCell.createSpan({ text: collection.subject.name_cn || collection.subject.name || tn("controlPanel", "unknown") });
-      if (!isMobile() && collection.subject.name && collection.subject.name_cn && collection.subject.name !== collection.subject.name_cn) {
-        nameCell.createEl("br");
+      if (collection.subject.name && collection.subject.name_cn && collection.subject.name !== collection.subject.name_cn) {
+        nameCell.createEl("br", { cls: "bangumi-name-original" });
         nameCell.createSpan({ cls: "bangumi-name-original", text: collection.subject.name });
       }
       row.createEl("td", { text: getTypeLabel(collection.subject_type) });
@@ -16748,12 +16767,8 @@ var ControlPanel = class extends import_obsidian24.Modal {
       }
       const commentCell = row.createEl("td", { cls: "bangumi-comment-cell" });
       if (collection.comment) {
-        const maxLen = isMobile() ? collection.comment.length : 20;
-        const displayComment = !isMobile() && collection.comment.length > maxLen ? collection.comment.substring(0, maxLen) + "..." : collection.comment;
-        commentCell.setText(displayComment);
-        if (!isMobile()) {
-          commentCell.setAttribute("title", collection.comment);
-        }
+        commentCell.setText(collection.comment);
+        commentCell.setAttribute("title", collection.comment);
       }
       const tagsCell = row.createEl("td", { cls: "bangumi-tags-cell" });
       if (collection.tags && collection.tags.length > 0) {
@@ -16769,7 +16784,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
       } else {
         syncCell.createSpan({ text: `\u2717 ${tn("controlPanel", "unsynced")}`, cls: "unsynced" });
       }
-      if (isMobile()) {
+      {
         const metaCell = row.createEl("td", { cls: "bangumi-mobile-meta" });
         metaCell.createSpan({ cls: "bangumi-mobile-meta-item", text: getTypeLabel(collection.subject_type) });
         metaCell.createSpan({ cls: "bangumi-mobile-meta-item", text: getCollectionStatusLabel(collection.type, collection.subject_type) });
@@ -17356,11 +17371,10 @@ var ControlPanel = class extends import_obsidian24.Modal {
    * 只在从顶部下拉时触发，避免与表格滚动冲突
    */
   setupSwipeToClose() {
-    if (!isMobile()) return;
     this.touchStartHandler = (e) => {
       this.touchStartY = e.touches[0].clientY;
       this.touchCurrentY = this.touchStartY;
-      this.swipeEnabled = e.target === this.contentEl.querySelector("h2") && this.tableEl.scrollTop === 0;
+      this.swipeEnabled = isMobile() && e.target === this.contentEl.querySelector("h2") && this.tableEl.scrollTop === 0;
     };
     this.touchMoveHandler = (e) => {
       if (!this.swipeEnabled) return;

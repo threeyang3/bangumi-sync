@@ -186,12 +186,18 @@ export class SearchModal extends Modal {
 		});
 
 		typeSelect.addEventListener('change', () => {
-			this.currentType = Number(typeSelect.value);
+			void this.changeSearchOptions(Number(typeSelect.value), this.currentSort);
 		});
 
 		sortSelect.addEventListener('change', () => {
-			this.currentSort = sortSelect.value as 'match' | 'heat' | 'rank' | 'score';
+			void this.changeSearchOptions(this.currentType, sortSelect.value as 'match' | 'heat' | 'rank' | 'score');
 		});
+	}
+
+	private async changeSearchOptions(type: SubjectType | 0, sort: 'match' | 'heat' | 'rank' | 'score'): Promise<void> {
+		this.currentType = type;
+		this.currentSort = sort;
+		if (this.currentKeyword) await this.search(true);
 	}
 
 	/**
@@ -202,6 +208,7 @@ export class SearchModal extends Modal {
 		const generation = isNew ? ++this.requestGeneration : this.requestGeneration;
 
 		if (isNew) {
+			this.loadMoreBtn.removeClass('visible');
 			this.searchResults = [];
 			this.resultsContainer.empty();
 			this.syncedSubjectIds.clear();
@@ -429,8 +436,23 @@ export class SearchModal extends Modal {
 	/**
 	 * 处理添加完成
 	 */
-	private handleAddComplete(input: AddToCollectionInput): void {
+	private async handleAddComplete(input: AddToCollectionInput): Promise<void> {
 		new Notice(tnFormat('searchModal', 'addedSuccess', { name: input.subjectName }));
+		const subject = this.searchResults.find(subject => subject.id === input.subjectId);
+		if (subject && this.contentEl.isConnected) {
+			if (this.checkLocalSyncStatus(subject)) this.syncedSubjectIds.add(subject.id);
+			if (input.syncToCloud) {
+				// A successful write invalidates the old edit snapshot. Do not allow
+				// another edit until the saved server state is known.
+				this.collectionStatuses.delete(subject.id);
+				this.resolvedStatusIds.delete(subject.id);
+				this.failedStatusIds.delete(subject.id);
+				this.renderResultItem(subject);
+				await this.checkStatuses([subject], this.requestGeneration);
+			} else {
+				this.renderResultItem(subject);
+			}
+		}
 		this.onComplete();
 	}
 

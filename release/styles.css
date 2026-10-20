@@ -519,6 +519,15 @@
 	color: var(--text-muted);
 }
 
+@media (min-width: 768px) {
+	.bangumi-collection-table .bangumi-comment-cell {
+		max-width: 20em;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+}
+
 .bangumi-my-rate {
 	color: var(--text-success);
 	font-size: 11px;
@@ -2824,7 +2833,8 @@
 		white-space: nowrap;
 	}
 
-	.bangumi-name-original {
+	.bangumi-name-original,
+	.bangumi-name-cell > .bangumi-name-original {
 		display: none;
 	}
 

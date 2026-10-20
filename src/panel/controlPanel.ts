@@ -945,8 +945,8 @@ export class ControlPanel extends Modal {
 			// 名称
 			const nameCell = row.createEl('td', { cls: 'bangumi-name-cell' });
 			nameCell.createSpan({ text: collection.subject.name_cn || collection.subject.name || tn('controlPanel', 'unknown') });
-			if (!isMobile() && collection.subject.name && collection.subject.name_cn && collection.subject.name !== collection.subject.name_cn) {
-				nameCell.createEl('br');
+			if (collection.subject.name && collection.subject.name_cn && collection.subject.name !== collection.subject.name_cn) {
+				nameCell.createEl('br', { cls: 'bangumi-name-original' });
 				nameCell.createSpan({ cls: 'bangumi-name-original', text: collection.subject.name });
 			}
 
@@ -969,14 +969,8 @@ export class ControlPanel extends Modal {
 			const commentCell = row.createEl('td', { cls: 'bangumi-comment-cell' });
 			if (collection.comment) {
 				// 桌面端截断显示，移动端通过 CSS 在行末截断
-				const maxLen = isMobile() ? collection.comment.length : 20;
-				const displayComment = !isMobile() && collection.comment.length > maxLen
-					? collection.comment.substring(0, maxLen) + '...'
-					: collection.comment;
-				commentCell.setText(displayComment);
-				if (!isMobile()) {
-					commentCell.setAttribute('title', collection.comment);
-				}
+				commentCell.setText(collection.comment);
+				commentCell.setAttribute('title', collection.comment);
 			}
 
 			// 标签
@@ -997,8 +991,8 @@ export class ControlPanel extends Modal {
 				syncCell.createSpan({ text: `✗ ${tn('controlPanel', 'unsynced')}`, cls: 'unsynced' });
 			}
 
-			// 移动端：添加元数据行（类型 · 状态 · 评分 · 同步状态）
-			if (isMobile()) {
+			// 始终创建元数据，由 CSS 随窗口宽度切换，避免缩放丢失信息。
+			{
 				const metaCell = row.createEl('td', { cls: 'bangumi-mobile-meta' });
 
 				// 类型
@@ -1699,13 +1693,11 @@ export class ControlPanel extends Modal {
 	 * 只在从顶部下拉时触发，避免与表格滚动冲突
 	 */
 	private setupSwipeToClose(): void {
-		if (!isMobile()) return;
-
 		this.touchStartHandler = (e) => {
 			this.touchStartY = e.touches[0].clientY;
 			this.touchCurrentY = this.touchStartY;
 			// 只有当表格在顶部时才允许滑动关闭
-			this.swipeEnabled = e.target === this.contentEl.querySelector('h2') && this.tableEl.scrollTop === 0;
+			this.swipeEnabled = isMobile() && e.target === this.contentEl.querySelector('h2') && this.tableEl.scrollTop === 0;
 		};
 
 		this.touchMoveHandler = (e) => {
