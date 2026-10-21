@@ -97,7 +97,7 @@ export class BangumiSettingTab extends PluginSettingTab {
 		const tabContents = tabContainer.createDiv({ cls: 'bangumi-settings-tab-contents' });
 
 		tabs.forEach((tab, index) => {
-			const tabHeader = tabHeaders.createDiv({ cls: 'bangumi-settings-tab-header', text: tab.name });
+			const tabHeader = tabHeaders.createEl('button', { cls: 'bangumi-settings-tab-header', text: tab.name, attr: { type: 'button', 'aria-pressed': String(index === 0) } });
 			const tabContent = tabContents.createDiv({ cls: 'bangumi-settings-tab-content' });
 
 			if (index === 0) {
@@ -110,9 +110,13 @@ export class BangumiSettingTab extends PluginSettingTab {
 
 			// 切换事件
 			tabHeader.addEventListener('click', () => {
-				tabHeaders.querySelectorAll('.bangumi-settings-tab-header').forEach(h => h.removeClass('active'));
+				tabHeaders.querySelectorAll('.bangumi-settings-tab-header').forEach(h => {
+					h.removeClass('active');
+					h.setAttribute('aria-pressed', 'false');
+				});
 				tabContents.querySelectorAll('.bangumi-settings-tab-content').forEach(c => c.removeClass('active'));
 				tabHeader.addClass('active');
+				tabHeader.setAttribute('aria-pressed', 'true');
 				tabContent.addClass('active');
 			});
 		});

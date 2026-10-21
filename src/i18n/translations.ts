@@ -318,6 +318,7 @@ export interface TranslationStrings {
 		noSyncedItemsTag: string;
 		noSyncedItemsStatus: string;
 		selectFirst: string;
+		filterOptions: string;
 		confirmDelete: string;
 		deleteConfirm: string;
 		open: string;
@@ -1000,6 +1001,7 @@ const en: TranslationStrings = {
 		noSyncedItemsTag: 'No synced items to compare tags',
 		noSyncedItemsStatus: 'No synced items to compare status',
 		selectFirst: 'Please select items first',
+		filterOptions: 'Filters and sorting',
 		confirmDelete: 'Confirm delete',
 		deleteConfirm: 'Move selected files to trash?',
 		open: 'Open',
@@ -1667,6 +1669,7 @@ const zhCN: TranslationStrings = {
 		noSyncedItemsTag: '没有已同步的条目，无法对比标签',
 		noSyncedItemsStatus: '没有已同步的条目，无法对比状态',
 		selectFirst: '请先选择条目',
+		filterOptions: '筛选与排序',
 		confirmDelete: '确认删除',
 		deleteConfirm: '将选中的文件移动到回收站？',
 		open: '打开',
