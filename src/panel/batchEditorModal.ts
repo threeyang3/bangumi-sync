@@ -524,6 +524,7 @@ export class BatchEditorModal extends Modal {
 			const rowDraft = this.draftValues.get(item.filePath) ?? {};
 			for (const property of this.selectedProperties) {
 				const cell = row.createEl('td');
+				cell.createSpan({ text: property, cls: 'bangumi-mobile-field-label' });
 				const input = cell.createEl('input', {
 					type: 'text',
 					value: rowDraft[property] ?? '',

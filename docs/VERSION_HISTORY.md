@@ -2,6 +2,12 @@
 
 [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases) 是已发布版本的最终对外事实；`docs/history/release-notes/{version}.md` 是 Release notes 源文件。本文只提供简洁索引，不复制完整变更日志。
 
+## 6.13.1
+
+重点：桌面与手机端操作改进、连续编辑与搜索状态修复、响应式布局和局部渲染优化。
+
+[GitHub Release](https://github.com/threeyang3/bangumi-sync/releases/tag/6.13.1) · [Release notes source](history/release-notes/6.13.1.md)
+
 ## 6.13.0
 
 重点：预览详情复用、模板资料按需加载、共享 HTTP 并发预算、批量关联补链、阶段进度与惰性诊断日志。

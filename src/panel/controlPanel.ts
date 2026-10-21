@@ -171,11 +171,11 @@ export class ControlPanel extends Modal {
 		? {
 			refresh: '刷新',
                         syncSelected: '同步',
-                        forceSync: '强同',
+                        forceSync: '强制同步',
                         deleteSelected: '删除',
-                        batchEdit: '批编',
-                        syncStatus: '状态',
-                        syncCollections: '收藏',
+                        batchEdit: '批量编辑',
+                        syncStatus: '同步状态',
+                        syncCollections: '同步收藏',
                         scanAndLinkRelated: '关联',
                         batchDownloadCovers: '封面',
                         undo: '撤销',
@@ -321,7 +321,16 @@ export class ControlPanel extends Modal {
 		this.filterBarEl.empty();
 		this.filterBarEl.addClass('bangumi-panel-toolbar');
 
+		const filterToggle = this.filterBarEl.createEl('button', {
+			text: tn('controlPanel', 'filterOptions'), cls: 'bangumi-filter-toggle',
+			attr: { 'aria-expanded': 'false' },
+		});
 		const filterGroup = this.filterBarEl.createDiv({ cls: 'bangumi-toolbar-group bangumi-toolbar-group-filters' });
+		filterToggle.addEventListener('click', () => {
+			const expanded = filterToggle.getAttribute('aria-expanded') !== 'true';
+			filterToggle.setAttribute('aria-expanded', String(expanded));
+			this.filterBarEl.toggleClass('filters-expanded', expanded);
+		});
 
 		// 类型筛选
 		const typeSelect = filterGroup.createEl('select', { cls: 'bangumi-filter-select' });
@@ -405,10 +414,11 @@ export class ControlPanel extends Modal {
 		});
 
 		// 搜索框
-		const searchInput = filterGroup.createEl('input', {
+		const searchInput = this.filterBarEl.createEl('input', {
 			type: 'text',
 			placeholder: tn('controlPanel', 'searchPlaceholder'),
-			cls: 'bangumi-filter-search'
+			cls: 'bangumi-filter-search',
+			attr: { 'aria-label': tn('controlPanel', 'searchPlaceholder') },
 		});
 		searchInput.value = this.filters.keyword;
 		searchInput.addEventListener('input', () => {
@@ -450,14 +460,16 @@ export class ControlPanel extends Modal {
 	}
 
 	private isActionBlocked(action: ControlPanelActionDescriptor): boolean {
+		// Opening the menu must remain possible so read-only refresh stays reachable.
+		if (action.key === 'more') return false;
 		return isControlPanelActionBlocked(this.managerState, action.key === 'refresh' ? 'refresh' : 'write-action');
 	}
 
         private getToolbarActions(hasSelection: boolean): ControlPanelActionDescriptor[] {
                 const actionMap = new Map(this.getActionDescriptors().map(action => [action.key, action]));
                 const keys: ControlPanelActionKey[] = hasSelection
-                        ? ['search', 'refresh', 'syncSelected', 'forceSync', 'batchEdit', 'deleteSelected', 'undo', 'more']
-                        : ['search', 'refresh', 'syncStatus', 'syncCollections', 'scanAndLinkRelated', 'batchDownloadCovers', 'undo', 'more'];
+                        ? ['syncSelected', 'batchEdit', 'undo', 'more']
+                        : ['search', 'syncStatus', 'syncCollections', 'more'];
 
 		return keys
 			.map(key => actionMap.get(key))
@@ -467,7 +479,7 @@ export class ControlPanel extends Modal {
 	private getMoreMenuActions(hasSelection: boolean): ControlPanelActionDescriptor[] {
 		const toolbarKeys = new Set(this.getToolbarActions(hasSelection).map(action => action.key));
 		return this.getActionDescriptors().filter(action =>
-			action.showInMoreMenu && !toolbarKeys.has(action.key)
+			action.key !== 'more' && !toolbarKeys.has(action.key)
 		);
 	}
 
@@ -634,10 +646,11 @@ export class ControlPanel extends Modal {
                         }
 
                         for (const action of sectionActions) {
-						const disabled = this.isActionBlocked(action) || (!!action.requiresSelection && !hasSelection);
+						const needsSelection = !!action.requiresSelection && !hasSelection;
+						const disabled = this.isActionBlocked(action) || needsSelection || (action.key === 'undo' && !this.frontmatterEditor.canUndo());
                                 menu.addItem((item) => {
                                         item
-                                                .setTitle(disabled ? `${action.label} (${tn('controlPanel', 'selectFirst')})` : action.label)
+                                                .setTitle(needsSelection ? `${action.label} (${tn('controlPanel', 'selectFirst')})` : action.label)
                                                 .setDisabled(disabled)
                                                 .onClick(() => action.run());
                                 });
@@ -723,6 +736,10 @@ export class ControlPanel extends Modal {
 	 * 应用筛选
 	 */
 	private applyFilters(): void {
+		const activeCount = Number(this.filters.subjectType !== 'all')
+			+ Number(this.filters.collectionType !== 'all') + Number(this.filters.syncStatus !== 'all')
+			+ Number(this.filters.sortBy !== 'default');
+		this.filterBarEl.querySelector('button')?.setText(`${tn('controlPanel', 'filterOptions')}${activeCount ? ` (${activeCount})` : ''}`);
 		this.currentPage = 1;
 		this.renderTable();
 		this.renderPagination();
@@ -866,7 +883,11 @@ export class ControlPanel extends Modal {
 		}
 
 		// 创建表格
-		const table = this.tableEl.createEl('table', { cls: 'bangumi-collection-table' });
+		// Build off-document and attach once, including responsive metadata.
+		const table = createEl('table', {
+			cls: 'bangumi-collection-table',
+			parent: this.tableEl.ownerDocument.createDocumentFragment(),
+		});
 
 		// 表头
 		const thead = table.createEl('thead');
@@ -911,7 +932,9 @@ export class ControlPanel extends Modal {
 			const localInfo = this.state.localSubjects.get(collection.subject_id);
 
 			// 复选框
-			row.createEl('td').createEl('input', { type: 'checkbox' }, checkbox => {
+			row.createEl('td').createEl('label', { cls: 'bangumi-row-selection' }).createEl('input', {
+				type: 'checkbox', attr: { 'aria-label': collection.subject.name_cn || collection.subject.name || String(collection.subject_id) },
+			}, checkbox => {
 				checkbox.checked = this.state.selectedIds.has(collection.subject_id);
 				checkbox.addEventListener('change', () => {
 					if (checkbox.checked) {
@@ -926,8 +949,8 @@ export class ControlPanel extends Modal {
 			// 名称
 			const nameCell = row.createEl('td', { cls: 'bangumi-name-cell' });
 			nameCell.createSpan({ text: collection.subject.name_cn || collection.subject.name || tn('controlPanel', 'unknown') });
-			if (!isMobile() && collection.subject.name && collection.subject.name_cn && collection.subject.name !== collection.subject.name_cn) {
-				nameCell.createEl('br');
+			if (collection.subject.name && collection.subject.name_cn && collection.subject.name !== collection.subject.name_cn) {
+				nameCell.createEl('br', { cls: 'bangumi-name-original' });
 				nameCell.createSpan({ cls: 'bangumi-name-original', text: collection.subject.name });
 			}
 
@@ -950,14 +973,8 @@ export class ControlPanel extends Modal {
 			const commentCell = row.createEl('td', { cls: 'bangumi-comment-cell' });
 			if (collection.comment) {
 				// 桌面端截断显示，移动端通过 CSS 在行末截断
-				const maxLen = isMobile() ? collection.comment.length : 20;
-				const displayComment = !isMobile() && collection.comment.length > maxLen
-					? collection.comment.substring(0, maxLen) + '...'
-					: collection.comment;
-				commentCell.setText(displayComment);
-				if (!isMobile()) {
-					commentCell.setAttribute('title', collection.comment);
-				}
+				commentCell.setText(collection.comment);
+				commentCell.setAttribute('title', collection.comment);
 			}
 
 			// 标签
@@ -978,8 +995,8 @@ export class ControlPanel extends Modal {
 				syncCell.createSpan({ text: `✗ ${tn('controlPanel', 'unsynced')}`, cls: 'unsynced' });
 			}
 
-			// 移动端：添加元数据行（类型 · 状态 · 评分 · 同步状态）
-			if (isMobile()) {
+			// 始终创建元数据，由 CSS 随窗口宽度切换，避免缩放丢失信息。
+			{
 				const metaCell = row.createEl('td', { cls: 'bangumi-mobile-meta' });
 
 				// 类型
@@ -989,10 +1006,10 @@ export class ControlPanel extends Modal {
 				metaCell.createSpan({ cls: 'bangumi-mobile-meta-item', text: getCollectionStatusLabel(collection.type, collection.subject_type) });
 
 				// 评分
-				const ratingSpan = metaCell.createSpan({ cls: 'bangumi-mobile-meta-item' });
-				if (collection.subject.score) {
-					ratingSpan.createSpan({ text: `★${collection.subject.score.toFixed(1)}` });
-				}
+				const ratingSpan = metaCell.createSpan({
+					cls: 'bangumi-mobile-meta-item',
+					text: collection.subject.score ? `★${collection.subject.score.toFixed(1)}` : '',
+				});
 				if (collection.rate) {
 					ratingSpan.createSpan({ cls: 'bangumi-my-rate', text: ` [${collection.rate}]` });
 				}
@@ -1001,12 +1018,10 @@ export class ControlPanel extends Modal {
 				}
 
 				// 同步状态
-				const syncSpan = metaCell.createSpan({ cls: 'bangumi-mobile-meta-item' });
-				if (isSynced) {
-					syncSpan.createSpan({ text: `✓ ${tn('controlPanel', 'synced')}`, cls: 'synced' });
-				} else {
-					syncSpan.createSpan({ text: `✗ ${tn('controlPanel', 'unsynced')}`, cls: 'unsynced' });
-				}
+				metaCell.createSpan({
+					cls: `bangumi-mobile-meta-item ${isSynced ? 'synced' : 'unsynced'}`,
+					text: isSynced ? `✓ ${tn('controlPanel', 'synced')}` : `✗ ${tn('controlPanel', 'unsynced')}`,
+				});
 			}
 
 			// 操作
@@ -1022,6 +1037,7 @@ export class ControlPanel extends Modal {
 				});
 			}
 		});
+		this.tableEl.appendChild(table);
 	}
 
 	private async openOrCreateNote(path: string): Promise<void> {
@@ -1601,6 +1617,8 @@ export class ControlPanel extends Modal {
 	 * 处理键盘导航
 	 */
 	private handleKeyDown(event: KeyboardEvent): void {
+		// Native controls own their keyboard events, including checkbox Space.
+		if (event.target !== this.tableEl) return;
 		const filteredCollections = this.getFilteredCollections();
 		const startIndex = (this.currentPage - 1) * this.pageSize;
 		const pageCollections = filteredCollections.slice(startIndex, startIndex + this.pageSize);
@@ -1678,12 +1696,11 @@ export class ControlPanel extends Modal {
 	 * 只在从顶部下拉时触发，避免与表格滚动冲突
 	 */
 	private setupSwipeToClose(): void {
-		if (!isMobile()) return;
-
 		this.touchStartHandler = (e) => {
 			this.touchStartY = e.touches[0].clientY;
+			this.touchCurrentY = this.touchStartY;
 			// 只有当表格在顶部时才允许滑动关闭
-			this.swipeEnabled = this.tableEl.scrollTop === 0;
+			this.swipeEnabled = isMobile() && e.target === this.contentEl.querySelector('h2') && this.tableEl.scrollTop === 0;
 		};
 
 		this.touchMoveHandler = (e) => {

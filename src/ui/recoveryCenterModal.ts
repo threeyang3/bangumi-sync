@@ -43,6 +43,7 @@ export class RecoveryCenterModal extends Modal {
 
 	private render(): void {
 		this.contentEl.empty();
+		this.contentEl.addClass('bangumi-recovery-center');
 		new Setting(this.contentEl).setName(tn('recoveryCenter', 'title')).setHeading();
 		const recovery = this.handlers.getRecovery();
 		if (!recovery) {
@@ -56,19 +57,24 @@ export class RecoveryCenterModal extends Modal {
 			return;
 		}
 
-		this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'cause')}: ${recovery.reason}` });
-		this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'detectedAt')}: ${new Date(recovery.detectedAt).toLocaleString()}` });
-		this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'affectedSubjects')}: ${recovery.affectedSubjectIds.join(', ')}` });
-		if (recovery.orphanTemporaryPaths.length > 0) {
-			this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'orphanPaths')}: ${recovery.orphanTemporaryPaths.join(', ')}` });
-		}
-		if (recovery.legacyMigration) this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'legacyMigrationSource')}: ${recovery.legacyMigration.sourcePath}` });
+		this.contentEl.createEl('p', { text: tn('recoveryCenter', 'writeBlocked') });
+		this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'affectedSubjects')}: ${recovery.affectedSubjectIds.length}` });
 		const policy = getRecoveryActionPolicy(recovery);
 		if (policy.requiresUnverifiableRiskAcceptance) {
 			this.contentEl.createEl('p', { text: tn('recoveryCenter', 'factsInsufficient'), cls: 'bangumi-sync-error' });
 		}
+		const actions = this.contentEl.createDiv({ cls: 'bangumi-sync-actions' });
+		const technical = this.contentEl.createEl('details');
+		technical.createEl('summary', { text: tn('recoveryCenter', 'diagnostics') });
+		technical.createEl('p', { text: `${tn('recoveryCenter', 'cause')}: ${recovery.reason}` });
+		this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'detectedAt')}: ${new Date(recovery.detectedAt).toLocaleString()}` });
+		technical.createEl('p', { text: `${tn('recoveryCenter', 'affectedSubjects')}: ${recovery.affectedSubjectIds.join(', ')}` });
+		if (recovery.orphanTemporaryPaths.length > 0) {
+			this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'orphanPaths')}: ${recovery.orphanTemporaryPaths.join(', ')}` });
+		}
+		if (recovery.legacyMigration) this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'legacyMigrationSource')}: ${recovery.legacyMigration.sourcePath}` });
 
-		const expectations = this.contentEl.createEl('details', { attr: { open: '' } });
+		const expectations = this.contentEl.createEl('details');
 		expectations.createEl('summary', { text: `${tn('recoveryCenter', 'expectations')} (${recovery.subjectExpectations.length})` });
 		const expectationList = expectations.createEl('ul');
 		for (const item of recovery.subjectExpectations) {
@@ -94,7 +100,6 @@ export class RecoveryCenterModal extends Modal {
 		if (this.actionError) this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'actionFailed')}: ${this.actionError}`, cls: 'bangumi-sync-error' });
 		if (this.working) this.contentEl.createEl('p', { text: tn('recoveryCenter', 'working') });
 
-		const actions = this.contentEl.createDiv({ cls: 'bangumi-sync-actions' });
 		for (const action of getVisibleRecoveryActions(policy)) {
 			const label = action === 'retry-rollback' ? tn('recoveryCenter', 'retryRollback')
 				: action === 'retry-cleanup' ? tn('recoveryCenter', 'retryCleanup')

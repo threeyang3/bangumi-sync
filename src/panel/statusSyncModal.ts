@@ -356,8 +356,8 @@ export class StatusSyncModal extends Modal {
                 const fieldDiff = this.getUserDecisionField(this.diffs[diffIndex], fieldKey);
                 const row = tbody.createEl('tr');
                 row.createEl('td', { text: fieldName, cls: 'bangumi-field-name' });
-                row.createEl('td', { text: localValue, cls: 'bangumi-local-value bangumi-sync-value' });
-                row.createEl('td', { text: cloudValue, cls: 'bangumi-cloud-value bangumi-sync-value' });
+                row.createEl('td', { text: localValue, cls: 'bangumi-local-value bangumi-sync-value', attr: { 'data-label': tn('statusSyncModal', 'local') } });
+                row.createEl('td', { text: cloudValue, cls: 'bangumi-cloud-value bangumi-sync-value', attr: { 'data-label': tn('statusSyncModal', 'cloud') } });
 
                 const decisionCell = row.createEl('td');
                 const select = decisionCell.createEl('select', { cls: 'bangumi-sync-decision-select' });
@@ -380,8 +380,8 @@ export class StatusSyncModal extends Modal {
         ): void {
                 const row = tbody.createEl('tr');
                 row.createEl('td', { text: field.label, cls: 'bangumi-field-name' });
-                row.createEl('td', { text: field.localValue || tn('statusSyncModal', 'empty'), cls: 'bangumi-local-value bangumi-sync-value' });
-                row.createEl('td', { text: field.cloudValue || tn('statusSyncModal', 'empty'), cls: 'bangumi-cloud-value bangumi-sync-value' });
+                row.createEl('td', { text: field.localValue || tn('statusSyncModal', 'empty'), cls: 'bangumi-local-value bangumi-sync-value', attr: { 'data-label': tn('statusSyncModal', 'local') } });
+                row.createEl('td', { text: field.cloudValue || tn('statusSyncModal', 'empty'), cls: 'bangumi-cloud-value bangumi-sync-value', attr: { 'data-label': tn('statusSyncModal', 'cloud') } });
 
                 const decisionCell = row.createEl('td');
                 const select = decisionCell.createEl('select', { cls: 'bangumi-sync-decision-select' });

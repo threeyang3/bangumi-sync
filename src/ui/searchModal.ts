@@ -62,10 +62,13 @@ export class SearchModal extends Modal {
 	private currentKeyword: string = '';
 	private currentType: SubjectType | 0 = 0;
 	private currentSort: 'match' | 'heat' | 'rank' | 'score' = 'match';
-	private currentOffset: number = 0;
 	private totalResults: number = 0;
 	private searchResults: Subject[] = [];
 	private isLoading: boolean = false;
+	private requestGeneration = 0;
+	private resolvedStatusIds = new Set<number>();
+	private failedStatusIds = new Set<number>();
+	private resultElements = new Map<number, HTMLElement>();
 
 	// 状态缓存
 	private syncedSubjectIds: Set<number> = new Set();
@@ -171,9 +174,11 @@ export class SearchModal extends Modal {
 		});
 
 		clearBtn.addEventListener('click', () => {
+			this.requestGeneration++;
+			this.isLoading = false;
 			inputEl.value = '';
 			this.currentKeyword = '';
-			this.searchResults = [];
+			this.clearResultState();
 			this.totalResults = 0;
 			this.resultsContainer.empty();
 			this.statusEl.setText('');
@@ -181,26 +186,32 @@ export class SearchModal extends Modal {
 		});
 
 		typeSelect.addEventListener('change', () => {
-			this.currentType = Number(typeSelect.value);
+			void this.changeSearchOptions(Number(typeSelect.value), this.currentSort);
 		});
 
 		sortSelect.addEventListener('change', () => {
-			this.currentSort = sortSelect.value as 'match' | 'heat' | 'rank' | 'score';
+			void this.changeSearchOptions(this.currentType, sortSelect.value as 'match' | 'heat' | 'rank' | 'score');
 		});
+	}
+
+	private async changeSearchOptions(type: SubjectType | 0, sort: 'match' | 'heat' | 'rank' | 'score'): Promise<void> {
+		if (type === this.currentType && sort === this.currentSort) return;
+		this.currentType = type;
+		this.currentSort = sort;
+		if (this.currentKeyword) await this.search(true);
 	}
 
 	/**
 	 * 执行搜索
 	 */
 	private async search(isNew: boolean): Promise<void> {
-		if (this.isLoading) return;
+		if (this.isLoading && !isNew) return;
+		const generation = isNew ? ++this.requestGeneration : this.requestGeneration;
 
 		if (isNew) {
-			this.currentOffset = 0;
-			this.searchResults = [];
+			this.loadMoreBtn.removeClass('visible');
 			this.resultsContainer.empty();
-			this.syncedSubjectIds.clear();
-			this.collectionStatuses.clear();
+			this.clearResultState();
 		}
 
 		this.isLoading = true;
@@ -215,7 +226,7 @@ export class SearchModal extends Modal {
 			} = {
 				sort: this.currentSort,
 				limit: 20,
-				offset: this.currentOffset,
+				offset: this.searchResults.length,
 			};
 
 			if (this.currentType !== 0) {
@@ -227,11 +238,14 @@ export class SearchModal extends Modal {
 				options
 			);
 
+			if (generation !== this.requestGeneration) return;
 			this.totalResults = result.total;
 			this.searchResults.push(...result.data);
 
 			// 检查同步状态和收藏状态
-			await this.checkStatuses(result.data);
+			for (const subject of result.data) {
+				if (this.checkLocalSyncStatus(subject)) this.syncedSubjectIds.add(subject.id);
+			}
 
 			// 更新状态
 			this.statusEl.setText(
@@ -242,6 +256,7 @@ export class SearchModal extends Modal {
 			result.data.forEach(subject => {
 				this.renderResultItem(subject);
 			});
+			void this.checkStatuses(result.data, generation);
 
 			// 显示/隐藏加载更多按钮
 			if (this.searchResults.length < this.totalResults) {
@@ -251,35 +266,34 @@ export class SearchModal extends Modal {
 			}
 
 		} catch (error: unknown) {
+			if (generation !== this.requestGeneration) return;
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			this.statusEl.setText(`${tn('searchModal', 'searchFailed')}: ${errorMsg}`);
 		} finally {
-			this.isLoading = false;
+			if (generation === this.requestGeneration) this.isLoading = false;
 		}
 	}
 
 	/**
 	 * 检查条目的同步状态和收藏状态
 	 */
-	private async checkStatuses(subjects: Subject[]): Promise<void> {
-		// 检查本地同步状态
-		for (const subject of subjects) {
-			const localPath = this.checkLocalSyncStatus(subject);
-			if (localPath) {
-				this.syncedSubjectIds.add(subject.id);
-			}
-		}
-
+	private async checkStatuses(subjects: Subject[], generation: number): Promise<void> {
 		// 检查云端收藏状态（批量检查，每个条目单独请求）
 		for (const subject of subjects) {
+			if (generation !== this.requestGeneration) return;
 			try {
 				const collection = await this.client.getCollectionStatus(subject.id);
+				if (generation !== this.requestGeneration) return;
+				this.resolvedStatusIds.add(subject.id);
+				this.failedStatusIds.delete(subject.id);
 				if (collection) {
 					this.collectionStatuses.set(subject.id, collection);
 				}
 			} catch {
-				// 忽略错误，继续检查下一个
+				if (generation !== this.requestGeneration) return;
+				this.failedStatusIds.add(subject.id);
 			}
+			this.renderResultItem(subject);
 		}
 	}
 
@@ -309,7 +323,6 @@ export class SearchModal extends Modal {
 	 * 加载更多
 	 */
 	private async loadMore(): Promise<void> {
-		this.currentOffset += 20;
 		await this.search(false);
 	}
 
@@ -317,30 +330,16 @@ export class SearchModal extends Modal {
 	 * 渲染单个搜索结果
 	 */
 	private renderResultItem(subject: Subject): void {
-		const itemEl = this.resultsContainer.createDiv({ cls: 'bangumi-search-result-item' });
-
-		// 封面图片
-		const imgContainer = itemEl.createDiv({ cls: 'bangumi-search-result-cover' });
-		if (subject.images?.medium) {
-			imgContainer.createEl('img', {
-				attr: {
-					src: subject.images.medium,
-					alt: subject.name_cn || subject.name,
-				},
-			});
+		let itemEl = this.resultElements.get(subject.id);
+		if (!itemEl) {
+			itemEl = this.resultsContainer.createDiv({ cls: 'bangumi-search-result-item' });
+			this.resultElements.set(subject.id, itemEl);
+			this.renderResultContent(itemEl, subject);
 		}
-
-		// 信息区域
-		const infoEl = itemEl.createDiv({ cls: 'bangumi-search-result-info' });
-
-		// 名称
-		const nameEl = infoEl.createDiv({ cls: 'bangumi-search-result-name' });
-		nameEl.createSpan({ text: subject.name_cn || subject.name, cls: 'bangumi-search-result-name-cn' });
-		if (subject.name && subject.name_cn && subject.name !== subject.name_cn) {
-			nameEl.createSpan({ text: ` (${subject.name})`, cls: 'bangumi-search-result-name-original' });
-		}
-
-		const metaRowEl = infoEl.createDiv({ cls: 'bangumi-search-result-meta-row' });
+		const resolved = this.resolvedStatusIds.has(subject.id);
+		const failed = this.failedStatusIds.has(subject.id);
+		const metaRowEl = itemEl.querySelector<HTMLElement>('.bangumi-search-result-meta-row')!;
+		metaRowEl.empty();
 
 		// 类型、评分和收藏状态
 		const metaEl = metaRowEl.createDiv({ cls: 'bangumi-search-result-meta' });
@@ -362,7 +361,7 @@ export class SearchModal extends Modal {
 		if (collection) {
 			const collectionTypeLabel = getCollectionStatusLabel(collection.type, subject.type);
 			metaEl.createSpan({ text: collectionTypeLabel, cls: 'bangumi-status-badge bangumi-status-collected' });
-		} else {
+		} else if (resolved) {
 			metaEl.createSpan({ text: tn('searchModal', 'notCollected'), cls: 'bangumi-status-badge bangumi-status-not-collected' });
 		}
 
@@ -376,10 +375,38 @@ export class SearchModal extends Modal {
 			collection ? SEARCH_SHORT_LABELS.edit : SEARCH_SHORT_LABELS.add,
 			collection ? tn('searchModal', 'editCollection') : tn('searchModal', 'addToCollection')
 		);
+		if (!resolved) {
+			const label = failed ? tn('controlPanel', 'refresh') : tn('searchModal', 'searching');
+			addBtn.setText(label);
+			this.decorateMobileButton(addBtn, label, label);
+			addBtn.disabled = !failed;
+		}
 
 		addBtn.addEventListener('click', () => {
+			if (!resolved) {
+				addBtn.disabled = true;
+				void this.checkStatuses([subject], this.requestGeneration);
+				return;
+			}
 			this.openAddModal(subject, collection);
 		});
+	}
+
+	/** Create static content once; status updates must not recreate covers. */
+	private renderResultContent(itemEl: HTMLElement, subject: Subject): void {
+		const imgContainer = itemEl.createDiv({ cls: 'bangumi-search-result-cover' });
+		if (subject.images?.medium) {
+			imgContainer.createEl('img', {
+				attr: { src: subject.images.medium, alt: subject.name_cn || subject.name },
+			});
+		}
+		const infoEl = itemEl.createDiv({ cls: 'bangumi-search-result-info' });
+		const nameEl = infoEl.createDiv({ cls: 'bangumi-search-result-name' });
+		nameEl.createSpan({ text: subject.name_cn || subject.name, cls: 'bangumi-search-result-name-cn' });
+		if (subject.name && subject.name_cn && subject.name !== subject.name_cn) {
+			nameEl.createSpan({ text: ` (${subject.name})`, cls: 'bangumi-search-result-name-original' });
+		}
+		infoEl.createDiv({ cls: 'bangumi-search-result-meta-row' });
 	}
 
 	/**
@@ -403,12 +430,38 @@ export class SearchModal extends Modal {
 	/**
 	 * 处理添加完成
 	 */
-	private handleAddComplete(input: AddToCollectionInput): void {
+	private async handleAddComplete(input: AddToCollectionInput): Promise<void> {
 		new Notice(tnFormat('searchModal', 'addedSuccess', { name: input.subjectName }));
+		const subject = this.searchResults.find(subject => subject.id === input.subjectId);
+		if (subject && this.contentEl.isConnected) {
+			if (this.checkLocalSyncStatus(subject)) this.syncedSubjectIds.add(subject.id);
+			if (input.syncToCloud) {
+				// A successful write invalidates the old edit snapshot. Do not allow
+				// another edit until the saved server state is known.
+				this.collectionStatuses.delete(subject.id);
+				this.resolvedStatusIds.delete(subject.id);
+				this.failedStatusIds.delete(subject.id);
+				this.renderResultItem(subject);
+				await this.checkStatuses([subject], this.requestGeneration);
+			} else {
+				this.renderResultItem(subject);
+			}
+		}
 		this.onComplete();
 	}
 
+	private clearResultState(): void {
+		this.resultElements.clear();
+		this.searchResults = [];
+		this.collectionStatuses.clear();
+		this.syncedSubjectIds.clear();
+		this.resolvedStatusIds.clear();
+		this.failedStatusIds.clear();
+	}
+
 	onClose(): void {
+		this.requestGeneration++;
+		this.clearResultState();
 		const { contentEl } = this;
 		contentEl.empty();
 	}

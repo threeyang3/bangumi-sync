@@ -88,7 +88,7 @@ export class AddToCollectionModal extends Modal {
 			this.collectionType = existingCollection.type || 3;
 			this.rate = existingCollection.rate || 0;
 			this.comment = existingCollection.comment || '';
-			this.tags = existingCollection.tags || [];
+			this.tags = [...(existingCollection.tags || [])];
 			this.isPrivate = existingCollection.private || false;
 		}
 	}
@@ -135,7 +135,7 @@ export class AddToCollectionModal extends Modal {
 						rateValueEl.setText(String(value));
 					});
 			});
-		const rateValueEl = rateSetting.controlEl.createSpan({ cls: 'bangumi-add-collection-rate-value', text: '0' });
+		const rateValueEl = rateSetting.controlEl.createSpan({ cls: 'bangumi-add-collection-rate-value', text: String(this.rate) });
 
 		// 标签输入
 		const tagsSetting = new Setting(contentEl)
