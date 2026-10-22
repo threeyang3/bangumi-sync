@@ -46,6 +46,7 @@ export class SyncOptionsModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 
 		new Setting(contentEl).setName(tn('syncOptions', 'title')).setHeading();

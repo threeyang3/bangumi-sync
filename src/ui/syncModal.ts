@@ -44,6 +44,7 @@ export class SyncModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 
 		new Setting(contentEl).setName(tn('syncModal', 'title')).setHeading();
@@ -438,6 +439,7 @@ class PendingSyncDecisionModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		new Setting(this.contentEl).setName(tn('syncModal', 'pendingDecision')).setHeading();
 		const actions = this.contentEl.createDiv({ cls: 'bangumi-sync-actions' });
 		for (const [decision, label, cls] of [

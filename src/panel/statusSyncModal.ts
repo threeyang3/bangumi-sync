@@ -48,6 +48,7 @@ export class StatusSyncModal extends Modal {
         }
 
         onOpen(): void {
+            this.modalEl.addClass('bangumi-modal');
                 const { contentEl } = this;
                 this.isDisposedFlag = false;
                 contentEl.empty();
