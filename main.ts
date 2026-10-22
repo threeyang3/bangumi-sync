@@ -762,7 +762,8 @@ export default class BangumiPlugin extends Plugin {
                         () => { void this.scanAndLinkRelated(); },
                         this.subjectNoteManager,
                         this.episodeStatusManager,
-                        options?.autoSyncSelection ?? null
+                        options?.autoSyncSelection ?? null,
+			() => this.openRecoveryCenter()
                 );
 		this.controlPanel.open();
 	}

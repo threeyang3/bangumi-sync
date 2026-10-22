@@ -211,7 +211,8 @@ export class ControlPanel extends Modal {
                 onScanAndLinkRelated: () => void,
                 subjectNoteManager?: SubjectNoteManager | null,
                 episodeStatusManager?: EpisodeStatusManager | null,
-                autoSyncSelection?: StatusSyncFieldSelection | 'prompt' | null
+                autoSyncSelection?: StatusSyncFieldSelection | 'prompt' | null,
+		private readonly onOpenRecoveryCenter?: () => void
         ) {
 		super(app);
 		this.settings = settings;
@@ -246,6 +247,7 @@ export class ControlPanel extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 
 		contentEl.addClass('bangumi-control-panel');
@@ -433,6 +435,12 @@ export class ControlPanel extends Modal {
 	 */
 	private renderActionBar(): void {
 		this.actionBarEl.empty();
+		if (this.managerState === 'recovery-required' && this.onOpenRecoveryCenter) {
+			const recoveryButton = this.actionBarEl.createEl('button', {
+				text: tn('commands', 'openRecoveryCenter'), cls: 'bangumi-open-recovery mod-warning',
+			});
+			recoveryButton.addEventListener('click', this.onOpenRecoveryCenter);
+		}
 		const hasSelection = this.state.selectedIds.size > 0;
 		const toolbarActions = this.getToolbarActions(hasSelection);
 
@@ -1773,6 +1781,7 @@ class ConfirmModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 
 		contentEl.createEl('p', { text: this.message });

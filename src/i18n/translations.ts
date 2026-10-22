@@ -557,6 +557,7 @@ export interface TranslationStrings {
 		sort_score: string;
 		searching: string;
 		resultsCount: string;
+		noProgress: string;
 		searchFailed: string;
 		loadMore: string;
 		addToCollection: string;
@@ -1231,6 +1232,7 @@ const en: TranslationStrings = {
 		sort_score: 'Score',
 		searching: 'Searching...',
 		resultsCount: 'Found {total} results, showing {count}',
+		noProgress: 'No new results were returned. Pagination stopped; search again to refresh.',
 		searchFailed: 'Search failed',
 		loadMore: 'Load more',
 		addToCollection: 'Add',
@@ -1899,6 +1901,7 @@ const zhCN: TranslationStrings = {
 		sort_score: '评分',
 		searching: '搜索中...',
 		resultsCount: '找到 {total} 个结果，已显示 {count} 个',
+		noProgress: '服务器未返回新结果，已停止加载。可重新搜索以刷新结果。',
 		searchFailed: '搜索失败',
 		loadMore: '加载更多',
 		addToCollection: '添加',

@@ -655,6 +655,7 @@ var en = {
     sort_score: "Score",
     searching: "Searching...",
     resultsCount: "Found {total} results, showing {count}",
+    noProgress: "No new results were returned. Pagination stopped; search again to refresh.",
     searchFailed: "Search failed",
     loadMore: "Load more",
     addToCollection: "Add",
@@ -1331,6 +1332,7 @@ var zhCN = {
     sort_score: "\u8BC4\u5206",
     searching: "\u641C\u7D22\u4E2D...",
     resultsCount: "\u627E\u5230 {total} \u4E2A\u7ED3\u679C\uFF0C\u5DF2\u663E\u793A {count} \u4E2A",
+    noProgress: "\u670D\u52A1\u5668\u672A\u8FD4\u56DE\u65B0\u7ED3\u679C\uFF0C\u5DF2\u505C\u6B62\u52A0\u8F7D\u3002\u53EF\u91CD\u65B0\u641C\u7D22\u4EE5\u5237\u65B0\u7ED3\u679C\u3002",
     searchFailed: "\u641C\u7D22\u5931\u8D25",
     loadMore: "\u52A0\u8F7D\u66F4\u591A",
     addToCollection: "\u6DFB\u52A0",
@@ -3680,6 +3682,7 @@ var TemplateEditorModal = class extends import_obsidian2.Modal {
     this.onSave = onSave;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     new import_obsidian2.Setting(contentEl).setName(tn("templateEditor", "editTemplate")).setHeading();
     const helpDiv = contentEl.createDiv({ cls: "bangumi-template-help" });
@@ -12325,6 +12328,7 @@ var SyncModal = class extends import_obsidian12.Modal {
     };
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     new import_obsidian12.Setting(contentEl).setName(tn("syncModal", "title")).setHeading();
     this.progressBar = contentEl.createDiv({ cls: "bangumi-progress-bar" });
@@ -12674,6 +12678,7 @@ var PendingSyncDecisionModal = class extends import_obsidian12.Modal {
     this.resolving = false;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     new import_obsidian12.Setting(this.contentEl).setName(tn("syncModal", "pendingDecision")).setHeading();
     const actions = this.contentEl.createDiv({ cls: "bangumi-sync-actions" });
     for (const [decision, label, cls] of [
@@ -12713,6 +12718,7 @@ var SyncOptionsModal = class extends import_obsidian13.Modal {
     this.forceValue = defaultOptions.force;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "title")).setHeading();
     new import_obsidian13.Setting(contentEl).setName(tn("syncOptions", "subjectTypes")).setHeading();
@@ -12844,6 +12850,7 @@ var SyncPreviewModal = class extends import_obsidian14.Modal {
     this.onConfirm = onConfirm;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     new import_obsidian14.Setting(contentEl).setName(tn("syncPreview", "title")).setHeading();
     contentEl.createEl("p", {
@@ -12971,6 +12978,7 @@ var AddToCollectionModal = class extends import_obsidian15.Modal {
     this.localPropertyValues = {};
     this.syncToCloud = true;
     this.createLocal = true;
+    this.submitting = false;
     this.customFields = [];
     this.client = client;
     this.settings = settings;
@@ -12989,6 +12997,7 @@ var AddToCollectionModal = class extends import_obsidian15.Modal {
     }
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-add-collection-modal");
     const title = `${tn("addToCollection", "title")} - ${this.subject.name_cn || this.subject.name}`;
@@ -13093,13 +13102,18 @@ var AddToCollectionModal = class extends import_obsidian15.Modal {
    * 确认添加
    */
   async confirm() {
+    if (this.submitting) return;
+    this.submitting = true;
+    this.contentEl.querySelectorAll("button").forEach((button) => {
+      button.disabled = true;
+    });
     const input = {
       subjectId: this.subject.id,
       subjectName: this.subject.name_cn || this.subject.name,
       type: this.collectionType,
       rate: this.rate,
       comment: this.comment,
-      tags: this.tags,
+      tags: [...this.tags],
       private: this.isPrivate,
       localPropertyValues: { ...this.localPropertyValues },
       syncToCloud: this.syncToCloud,
@@ -13125,6 +13139,11 @@ var AddToCollectionModal = class extends import_obsidian15.Modal {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       new import_obsidian15.Notice(`${tn("addToCollection", "addError")}: ${errorMsg}`);
+    } finally {
+      this.submitting = false;
+      this.contentEl.querySelectorAll("button").forEach((button) => {
+        button.disabled = false;
+      });
     }
   }
   onClose() {
@@ -13225,6 +13244,8 @@ var SearchModal = class extends import_obsidian16.Modal {
     this.totalResults = 0;
     this.searchResults = [];
     this.isLoading = false;
+    this.nextOffset = 0;
+    this.paginationEnded = false;
     this.requestGeneration = 0;
     this.resolvedStatusIds = /* @__PURE__ */ new Set();
     this.failedStatusIds = /* @__PURE__ */ new Set();
@@ -13238,6 +13259,7 @@ var SearchModal = class extends import_obsidian16.Modal {
     this.onComplete = onComplete;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-search-modal");
     new import_obsidian16.Setting(contentEl).setName(tn("searchModal", "title")).setHeading();
@@ -13324,7 +13346,7 @@ var SearchModal = class extends import_obsidian16.Modal {
    * 执行搜索
    */
   async search(isNew) {
-    if (this.isLoading && !isNew) return;
+    if (!isNew && (this.isLoading || this.paginationEnded)) return;
     const generation = isNew ? ++this.requestGeneration : this.requestGeneration;
     if (isNew) {
       this.loadMoreBtn.removeClass("visible");
@@ -13337,7 +13359,7 @@ var SearchModal = class extends import_obsidian16.Modal {
       const options = {
         sort: this.currentSort,
         limit: 20,
-        offset: this.searchResults.length
+        offset: this.nextOffset
       };
       if (this.currentType !== 0) {
         options.filter = { type: [this.currentType] };
@@ -13348,18 +13370,29 @@ var SearchModal = class extends import_obsidian16.Modal {
       );
       if (generation !== this.requestGeneration) return;
       this.totalResults = result.total;
-      this.searchResults.push(...result.data);
-      for (const subject of result.data) {
+      const acceptedIds = new Set(this.searchResults.map((subject) => subject.id));
+      const newSubjects = result.data.filter((subject) => {
+        if (acceptedIds.has(subject.id)) return false;
+        acceptedIds.add(subject.id);
+        return true;
+      });
+      this.nextOffset += result.data.length;
+      this.paginationEnded = newSubjects.length === 0 || this.nextOffset >= result.total;
+      this.searchResults.push(...newSubjects);
+      for (const subject of newSubjects) {
         if (this.checkLocalSyncStatus(subject)) this.syncedSubjectIds.add(subject.id);
       }
       this.statusEl.setText(
         tnFormat("searchModal", "resultsCount", { count: String(this.searchResults.length), total: String(this.totalResults) })
       );
-      result.data.forEach((subject) => {
+      if (newSubjects.length === 0 && this.nextOffset < result.total) {
+        this.statusEl.setText(tn("searchModal", "noProgress"));
+      }
+      newSubjects.forEach((subject) => {
         this.renderResultItem(subject);
       });
-      void this.checkStatuses(result.data, generation);
-      if (this.searchResults.length < this.totalResults) {
+      void this.checkStatuses(newSubjects, generation);
+      if (!this.paginationEnded) {
         this.loadMoreBtn.addClass("visible");
       } else {
         this.loadMoreBtn.removeClass("visible");
@@ -13530,6 +13563,8 @@ var SearchModal = class extends import_obsidian16.Modal {
     this.onComplete();
   }
   clearResultState() {
+    this.nextOffset = 0;
+    this.paginationEnded = false;
     this.resultElements.clear();
     this.searchResults = [];
     this.collectionStatuses.clear();
@@ -13568,6 +13603,7 @@ var LocalPropertyModal = class extends import_obsidian17.Modal {
     this.initializeDefaultValues();
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-local-property-modal");
     new import_obsidian17.Setting(contentEl).setName(tn("controlPanel", "localPropertyTitle")).setHeading();
@@ -13791,6 +13827,7 @@ var BatchEditorModal = class extends import_obsidian18.Modal {
     this.getCachedSnapshot = getCachedSnapshot != null ? getCachedSnapshot : null;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-batch-editor");
     const headerEl = contentEl.createDiv({ cls: "bangumi-batch-editor-header" });
@@ -14524,6 +14561,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     this.onComplete = onComplete;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     this.isDisposedFlag = false;
     contentEl.empty();
@@ -15040,6 +15078,7 @@ var StatusSyncScopeModal = class extends import_obsidian20.Modal {
     this.onConfirm = onConfirm;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     this.modalEl.addClass("bangumi-status-sync-scope-window");
     this.render();
   }
@@ -16100,8 +16139,9 @@ function isControlPanelActionBlocked(managerState, action) {
 
 // src/panel/controlPanel.ts
 var ControlPanel = class extends import_obsidian24.Modal {
-  constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, onOpenSyncOptions, onBatchDownloadCovers, onScanAndLinkRelated, subjectNoteManager, episodeStatusManager, autoSyncSelection) {
+  constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, onOpenSyncOptions, onBatchDownloadCovers, onScanAndLinkRelated, subjectNoteManager, episodeStatusManager, autoSyncSelection, onOpenRecoveryCenter) {
     super(app);
+    this.onOpenRecoveryCenter = onOpenRecoveryCenter;
     this.managerState = "idle";
     this.unsubscribeManagerState = null;
     // 分页
@@ -16174,6 +16214,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
     };
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-control-panel");
     contentEl.createEl("h2", { text: tn("controlPanel", "title") });
@@ -16325,6 +16366,13 @@ var ControlPanel = class extends import_obsidian24.Modal {
    */
   renderActionBar() {
     this.actionBarEl.empty();
+    if (this.managerState === "recovery-required" && this.onOpenRecoveryCenter) {
+      const recoveryButton = this.actionBarEl.createEl("button", {
+        text: tn("commands", "openRecoveryCenter"),
+        cls: "bangumi-open-recovery mod-warning"
+      });
+      recoveryButton.addEventListener("click", this.onOpenRecoveryCenter);
+    }
     const hasSelection = this.state.selectedIds.size > 0;
     const toolbarActions = this.getToolbarActions(hasSelection);
     for (const action of toolbarActions) {
@@ -17440,6 +17488,7 @@ var ConfirmModal = class extends import_obsidian24.Modal {
     this.onConfirm = onConfirm;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.createEl("p", { text: this.message });
     const buttonDiv = contentEl.createDiv({ cls: "modal-button-container" });
@@ -18535,6 +18584,7 @@ var UserDataExportModal = class extends import_obsidian27.Modal {
     this.onExport = onExport;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-user-data-export");
     contentEl.createEl("h2", { text: tn("userData", "exportTitle") });
@@ -18612,6 +18662,7 @@ var UserDataImportModal = class extends import_obsidian27.Modal {
     this.onImport = onImport;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-user-data-import");
     contentEl.createEl("h2", { text: tn("userData", "importTitle") });
@@ -18769,6 +18820,7 @@ var MissingFieldModal = class extends import_obsidian27.Modal {
     this.onResolve = onResolve;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-missing-field");
     contentEl.createEl("h2", { text: tn("userData", "missingFieldTitle") });
@@ -18874,6 +18926,7 @@ var PropertyManageModal = class extends import_obsidian27.Modal {
     this.onConfirm = onConfirm;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-property-manage-modal");
     contentEl.createEl("h2", { text: tn("userData", "propertyManageTitle") });
@@ -18946,6 +18999,7 @@ var ImportCompareModal = class extends import_obsidian27.Modal {
     this.onConfirm = onConfirm;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-import-compare-modal");
     contentEl.createEl("h2", { text: tn("userData", "compareTitle") });
@@ -19064,6 +19118,7 @@ var PropertyImportReviewModal = class extends import_obsidian27.Modal {
     this.onConfirm = onConfirm;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     this.render();
   }
   render() {
@@ -19217,6 +19272,7 @@ var ImportResultModal = class extends import_obsidian27.Modal {
     this.importer = new UserDataImporter(app, scanRoot);
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-import-result");
     contentEl.createEl("h2", { text: tn("userData", "importResultTitle") });
@@ -20415,6 +20471,7 @@ var PathDiagnosticModal = class extends import_obsidian30.Modal {
   }
   onOpen() {
     var _a;
+    this.modalEl.addClass("bangumi-modal");
     new import_obsidian30.Setting(this.contentEl).setName(tn("pathTools", "diagnosticTitle")).setHeading();
     this.contentEl.createEl("p", {
       text: tnFormat("pathTools", "diagnosticSummary", {
@@ -20449,6 +20506,7 @@ var PathMigrationPreviewModal = class extends import_obsidian30.Modal {
     this.preview = preview;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     this.render();
   }
   render() {
@@ -20514,6 +20572,7 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
     this.unsubscribe = null;
   }
   onOpen() {
+    this.modalEl.addClass("bangumi-modal");
     this.unsubscribe = this.handlers.subscribe(() => this.render());
     this.render();
   }
@@ -20548,12 +20607,12 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
     const technical = this.contentEl.createEl("details");
     technical.createEl("summary", { text: tn("recoveryCenter", "diagnostics") });
     technical.createEl("p", { text: `${tn("recoveryCenter", "cause")}: ${recovery.reason}` });
-    this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "detectedAt")}: ${new Date(recovery.detectedAt).toLocaleString()}` });
+    technical.createEl("p", { text: `${tn("recoveryCenter", "detectedAt")}: ${new Date(recovery.detectedAt).toLocaleString()}` });
     technical.createEl("p", { text: `${tn("recoveryCenter", "affectedSubjects")}: ${recovery.affectedSubjectIds.join(", ")}` });
     if (recovery.orphanTemporaryPaths.length > 0) {
-      this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "orphanPaths")}: ${recovery.orphanTemporaryPaths.join(", ")}` });
+      technical.createEl("p", { text: `${tn("recoveryCenter", "orphanPaths")}: ${recovery.orphanTemporaryPaths.join(", ")}` });
     }
-    if (recovery.legacyMigration) this.contentEl.createEl("p", { text: `${tn("recoveryCenter", "legacyMigrationSource")}: ${recovery.legacyMigration.sourcePath}` });
+    if (recovery.legacyMigration) technical.createEl("p", { text: `${tn("recoveryCenter", "legacyMigrationSource")}: ${recovery.legacyMigration.sourcePath}` });
     const expectations = this.contentEl.createEl("details");
     expectations.createEl("summary", { text: `${tn("recoveryCenter", "expectations")} (${recovery.subjectExpectations.length})` });
     const expectationList = expectations.createEl("ul");
@@ -20620,7 +20679,7 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
     }
   }
   renderDiagnostics(diagnostics) {
-    const details = this.contentEl.createEl("details", { cls: "bangumi-sync-error-details", attr: { open: "" } });
+    const details = this.contentEl.createEl("details", { cls: "bangumi-sync-error-details" });
     details.createEl("summary", { text: `${tn("recoveryCenter", "diagnostics")} (${diagnostics.length})` });
     const list = details.createEl("ul", { cls: "bangumi-sync-error-list" });
     for (const diagnostic of diagnostics) list.createEl("li", { text: this.formatDiagnostic(diagnostic) });
@@ -21279,7 +21338,8 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       },
       this.subjectNoteManager,
       this.episodeStatusManager,
-      (_a = options == null ? void 0 : options.autoSyncSelection) != null ? _a : null
+      (_a = options == null ? void 0 : options.autoSyncSelection) != null ? _a : null,
+      () => this.openRecoveryCenter()
     );
     this.controlPanel.open();
   }

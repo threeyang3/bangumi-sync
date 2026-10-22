@@ -32,6 +32,7 @@ export class RecoveryCenterModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		this.unsubscribe = this.handlers.subscribe(() => this.render());
 		this.render();
 	}
@@ -67,12 +68,12 @@ export class RecoveryCenterModal extends Modal {
 		const technical = this.contentEl.createEl('details');
 		technical.createEl('summary', { text: tn('recoveryCenter', 'diagnostics') });
 		technical.createEl('p', { text: `${tn('recoveryCenter', 'cause')}: ${recovery.reason}` });
-		this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'detectedAt')}: ${new Date(recovery.detectedAt).toLocaleString()}` });
+		technical.createEl('p', { text: `${tn('recoveryCenter', 'detectedAt')}: ${new Date(recovery.detectedAt).toLocaleString()}` });
 		technical.createEl('p', { text: `${tn('recoveryCenter', 'affectedSubjects')}: ${recovery.affectedSubjectIds.join(', ')}` });
 		if (recovery.orphanTemporaryPaths.length > 0) {
-			this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'orphanPaths')}: ${recovery.orphanTemporaryPaths.join(', ')}` });
+			technical.createEl('p', { text: `${tn('recoveryCenter', 'orphanPaths')}: ${recovery.orphanTemporaryPaths.join(', ')}` });
 		}
-		if (recovery.legacyMigration) this.contentEl.createEl('p', { text: `${tn('recoveryCenter', 'legacyMigrationSource')}: ${recovery.legacyMigration.sourcePath}` });
+		if (recovery.legacyMigration) technical.createEl('p', { text: `${tn('recoveryCenter', 'legacyMigrationSource')}: ${recovery.legacyMigration.sourcePath}` });
 
 		const expectations = this.contentEl.createEl('details');
 		expectations.createEl('summary', { text: `${tn('recoveryCenter', 'expectations')} (${recovery.subjectExpectations.length})` });
@@ -161,7 +162,7 @@ export class RecoveryCenterModal extends Modal {
 	}
 
 	private renderDiagnostics(diagnostics: readonly RecoveryDiagnostic[]): void {
-		const details = this.contentEl.createEl('details', { cls: 'bangumi-sync-error-details', attr: { open: '' } });
+		const details = this.contentEl.createEl('details', { cls: 'bangumi-sync-error-details' });
 		details.createEl('summary', { text: `${tn('recoveryCenter', 'diagnostics')} (${diagnostics.length})` });
 		const list = details.createEl('ul', { cls: 'bangumi-sync-error-list' });
 		for (const diagnostic of diagnostics) list.createEl('li', { text: this.formatDiagnostic(diagnostic) });
