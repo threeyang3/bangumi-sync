@@ -203,6 +203,7 @@ export class SyncTransaction {
 	): Promise<FileWriteResult> {
 		this.assertActive();
 		const existing = await this.fileManager.assertPathOwnership(path, options.subjectId);
+		const alreadyRecorded = existing !== null && this.updatedContents.has(existing);
 		if (existing && !this.updatedContents.has(existing)) {
 			this.updatedContents.set(existing, {
 				content: await this.app.vault.read(existing),
@@ -220,7 +221,7 @@ export class SyncTransaction {
 			if (planned) this.plannedCreatedFiles.splice(this.plannedCreatedFiles.indexOf(planned), 1);
 		}
 		if (result.status === 'created') this.createdFiles.push({ file: result.file, subjectId: options.subjectId, createdPath: normalizePath(path) });
-		if (result.status !== 'updated' && existing) this.updatedContents.delete(existing);
+		if (result.status !== 'updated' && existing && !alreadyRecorded) this.updatedContents.delete(existing);
 		return result;
 	}
 

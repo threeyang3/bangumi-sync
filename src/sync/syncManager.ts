@@ -1,3 +1,4 @@
+import { assertWriteLeaseAvailable, hasActiveWriteLease, withWriteOperation, WriteOperationLease } from './writeOperationGate';
 import { debugLog, reportSyncSummary } from '../../common/logging';
 import type { SubjectDetailSession } from '../api/subjectDetailSession';
 /**
@@ -514,7 +515,8 @@ export class SyncManager {
 		return this.resolvePendingBatch('commit');
 	}
 
-	ensureCanStartSync(): void {
+	ensureCanStartSync(lease?: WriteOperationLease): void {
+		assertWriteLeaseAvailable(lease);
 		if (this.shuttingDown) throw new ManagerShuttingDownError();
 		if (this.configurationUpdateState !== 'idle') throw new ConfigurationUpdateInProgressError();
 		if (this.recoveryRequired) throw new RecoveryRequiredError(this.recoveryRequired);
@@ -526,7 +528,7 @@ export class SyncManager {
 	}
 
 	hasActiveTransactionState(): boolean {
-		return this.vaultOperationActive
+		return hasActiveWriteLease() || this.vaultOperationActive
 			|| this.batchTransactionState === 'active'
 			|| this.pendingTransaction !== null
 			|| this.pendingDecisionPromise !== null
@@ -2737,7 +2739,7 @@ export class SyncManager {
 			return { episodes, userStatus };
 		} catch (error) {
 			console.error(`[Bangumi Sync] 获取章节信息失败:`, error);
-			return null;
+			throw error;
 		}
 	}
 
@@ -2842,9 +2844,10 @@ export class SyncManager {
 			concurrency?: number;
 			onPhaseProgress?: (progress: SyncProgress) => void;
 		},
-		onProgress?: (current: number, total: number, message: string) => void
+		onProgress?: (current: number, total: number, message: string) => void,
+		lease?: WriteOperationLease
 	): Promise<SyncResultWithRollback> {
-		this.ensureCanStartSync();
+		this.ensureCanStartSync(lease);
 		const startTime = Date.now();
 		let wasCancelled = false;
 		const result = this.createSyncResult(collections.length);
@@ -2860,7 +2863,7 @@ export class SyncManager {
 			debugLog(() => `[Bangumi Sync] 开始按收藏列表同步 ${collections.length} 个条目，覆盖模式: ${overwrite}，并发数: ${concurrency}`);
 
 			// 开始批次同步
-			this.assertNoPendingTransaction();
+			this.ensureCanStartSync(lease);
 			this.beginVaultOperation();
 			this.incrementalSync.startBatch();
 			const batch = await this.prepareCollectionBatch(collections, concurrency);
@@ -3232,77 +3235,81 @@ export class SyncManager {
 			syncToCloud: boolean;
 			createLocal: boolean;
 		}
-	): Promise<{ success: boolean; filePath?: string; writeStatus?: FileWriteStatus; error?: string }> {
+	): Promise<{ success: boolean; filePath?: string; writeStatus?: FileWriteStatus; cloudUpdated?: boolean; error?: string }> {
 		this.ensureCanStartSync();
-		try {
-			// 1. 同步到云端
-			if (input.syncToCloud) {
-				await this.client.createOrUpdateCollection(subjectId, {
-					type: input.type,
-					rate: input.rate,
-					comment: input.comment,
-					tags: input.tags,
-					private: input.private,
-				});
-				debugLog(() => `[Bangumi Sync] 已同步到云端: ${subjectId}`);
-			}
-
-			// 2. 创建本地文件
-			if (input.createLocal) {
-				const subject = await this.client.getSubject(subjectId);
-				const collection: UserCollection = {
-					subject_id: subject.id,
-					subject_type: subject.type,
-					type: input.type,
-					rate: input.rate,
-					comment: input.comment,
-					tags: input.tags,
-					private: input.private,
-					ep_status: 0,
-					vol_status: 0,
-					updated_at: new Date().toISOString(),
-					subject: {
-						id: subject.id,
-						type: subject.type,
-						name: subject.name,
-						name_cn: subject.name_cn,
-						short_summary: subject.summary?.substring(0, 100) || '',
-						date: subject.date,
-						images: subject.images,
-						volumes: subject.volumes,
-						eps: subject.eps,
-						collection_total: subject.collection?.collect || 0,
-						score: subject.rating?.score || 0,
-						rank: subject.rating?.rank || 0,
-						tags: subject.tags,
-					},
-				};
-				const localProperties = input.localPropertyValues
-					? new Map([[subjectId, input.localPropertyValues]])
-					: undefined;
-				const result = await this.syncByCollections([collection], {
-					overwrite: false,
-					localPropertyValuesBySubjectId: localProperties,
-					concurrency: 1,
-				});
-				const outcome = result.outcomes.find(item => item.subjectId === subjectId);
-				if (!outcome || !['created', 'updated', 'unchanged'].includes(outcome.writeAction)) {
-					return { success: false, error: outcome?.error ?? result.errorDetails[0] ?? 'Local sync failed.' };
+		return withWriteOperation('single-subject-sync', async lease => {
+			let cloudUpdated = false;
+			try {
+				// 1. 同步到云端
+				if (input.syncToCloud) {
+					await this.client.createOrUpdateCollection(subjectId, {
+						type: input.type,
+						rate: input.rate,
+						comment: input.comment,
+						tags: input.tags,
+						private: input.private,
+					});
+					cloudUpdated = true;
+					debugLog(() => `[Bangumi Sync] 已同步到云端: ${subjectId}`);
 				}
-				return {
-					success: true,
-					filePath: outcome.actualPath,
-					writeStatus: outcome.writeAction as FileWriteStatus,
-				};
+
+				// 2. 创建本地文件
+				if (input.createLocal) {
+					const subject = await this.client.getSubject(subjectId);
+					const collection: UserCollection = {
+						subject_id: subject.id,
+						subject_type: subject.type,
+						type: input.type,
+						rate: input.rate,
+						comment: input.comment,
+						tags: input.tags,
+						private: input.private,
+						ep_status: 0,
+						vol_status: 0,
+						updated_at: new Date().toISOString(),
+						subject: {
+							id: subject.id,
+							type: subject.type,
+							name: subject.name,
+							name_cn: subject.name_cn,
+							short_summary: subject.summary?.substring(0, 100) || '',
+							date: subject.date,
+							images: subject.images,
+							volumes: subject.volumes,
+							eps: subject.eps,
+							collection_total: subject.collection?.collect || 0,
+							score: subject.rating?.score || 0,
+							rank: subject.rating?.rank || 0,
+							tags: subject.tags,
+						},
+					};
+					const localProperties = input.localPropertyValues
+						? new Map([[subjectId, input.localPropertyValues]])
+						: undefined;
+					const result = await this.syncByCollections([collection], {
+						overwrite: false,
+						localPropertyValuesBySubjectId: localProperties,
+						concurrency: 1,
+					}, undefined, lease);
+					const outcome = result.outcomes.find(item => item.subjectId === subjectId);
+					if (!outcome || !['created', 'updated', 'unchanged'].includes(outcome.writeAction)) {
+						return { success: false, cloudUpdated, error: (cloudUpdated ? '云端已保存，但本地同步失败：' : '') + (outcome?.error ?? result.errorDetails[0] ?? 'Local sync failed.') };
+					}
+					return {
+						success: true,
+						filePath: outcome.actualPath,
+						writeStatus: outcome.writeAction as FileWriteStatus,
+					};
+				}
+
+				return { success: true };
+
+			} catch (error) {
+				const errorMsg = error instanceof Error ? error.message : String(error);
+				console.error(`[Bangumi Sync] 同步单个条目失败:`, error);
+				return { success: false, cloudUpdated, error: (cloudUpdated ? '云端已保存，但本地同步失败：' : '') + errorMsg };
 			}
-
-			return { success: true };
-
-		} catch (error) {
-			const errorMsg = error instanceof Error ? error.message : String(error);
-			console.error(`[Bangumi Sync] 同步单个条目失败:`, error);
-			return { success: false, error: errorMsg };
-		}
+		});
 	}
 
 	/**

@@ -14,7 +14,7 @@ import {
 	SUBJECT_TYPE_LABELS,
 	UserDataType,
 } from './types';
-import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
+import { withWriteOperation } from '../sync/writeOperationGate';
 
 /**
  * 用户数据导出器
@@ -37,35 +37,36 @@ export class UserDataExporter {
 		dataTypes: UserDataType[] = [UserDataType.ALL],
 		onProgress?: (current: number, total: number) => void
 	): Promise<{ success: boolean; files: string[]; error?: string }> {
-		assertWriteOperationAllowed('user-data-export');
-        try {
-            // 提取所有可回导用户数据
-            const userDataMap = await this.extractor.extractForExportFromFolder(folderPath, dataTypes, onProgress);
+		return withWriteOperation('user-data-export', async () => {
+	        try {
+	            // 提取所有可回导用户数据
+	            const userDataMap = await this.extractor.extractForExportFromFolder(folderPath, dataTypes, onProgress);
 
-			if (userDataMap.size === 0) {
-				return { success: false, files: [], error: 'No user data found' };
+				if (userDataMap.size === 0) {
+					return { success: false, files: [], error: 'No user data found' };
+				}
+
+				// 按条目 category 分组
+				const groupedData = this.groupByCategory(userDataMap);
+
+				// 确保输出目录存在
+				await this.ensureDirectory(outputDir);
+
+				const exportData: UserDataCombinedExport = {
+					version: '3.0',
+					exportTime: new Date().toISOString(),
+					totalCount: userDataMap.size,
+					categories: groupedData,
+				};
+				const filePath = normalizePath(`${outputDir}/bangumi-user-data.json`);
+
+				await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
+
+				return { success: true, files: [filePath] };
+			} catch (error) {
+				return { success: false, files: [], error: String(error) };
 			}
-
-			// 按条目 category 分组
-			const groupedData = this.groupByCategory(userDataMap);
-
-			// 确保输出目录存在
-			await this.ensureDirectory(outputDir);
-
-			const exportData: UserDataCombinedExport = {
-				version: '3.0',
-				exportTime: new Date().toISOString(),
-				totalCount: userDataMap.size,
-				categories: groupedData,
-			};
-			const filePath = normalizePath(`${outputDir}/bangumi-user-data.json`);
-
-			await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
-
-			return { success: true, files: [filePath] };
-		} catch (error) {
-			return { success: false, files: [], error: String(error) };
-		}
+		});
 	}
 
 	/**

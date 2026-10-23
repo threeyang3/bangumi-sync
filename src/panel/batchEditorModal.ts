@@ -11,7 +11,7 @@ import {
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 import { LocalSubjectSnapshot } from '../document/types';
 import { tn, tnFormat } from '../i18n';
-import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
+import { assertWriteOperationAllowed, withWriteOperation } from '../sync/writeOperationGate';
 
 type BatchEditMode = 'uniform' | 'per_item';
 
@@ -694,73 +694,76 @@ export class FrontmatterEditor {
 		operations: BatchEditOperation[],
 		expectedSubjectIds: ReadonlyMap<string, number> = new Map(),
 	): Promise<{ success: number; failed: number }> {
-		assertWriteOperationAllowed('batch-edit');
-		const originalContents = await this.captureOriginalContents(filePaths);
-		const affectedFiles: string[] = [];
-		let success = 0;
-		let failed = 0;
+		return withWriteOperation('batch-edit', async () => {
+			const originalContents = await this.captureOriginalContents(filePaths);
+			const affectedFiles: string[] = [];
+			let success = 0;
+			let failed = 0;
 
-		for (const path of filePaths) {
-			const result = await this.applyUniformOperations(path, operations, expectedSubjectIds.get(path));
-			if (result) {
-				success++;
-				affectedFiles.push(path);
-			} else {
-				failed++;
+			for (const path of filePaths) {
+				const result = await this.applyUniformOperations(path, operations, expectedSubjectIds.get(path));
+				if (result) {
+					success++;
+					affectedFiles.push(path);
+				} else {
+					failed++;
+				}
 			}
-		}
 
-		this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
-		return { success, failed };
+			this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
+			return { success, failed };
+		});
 	}
 
 	async batchApplyPerItemUpdates(
 		updates: BatchPerItemUpdate[]
 	): Promise<{ success: number; failed: number }> {
-		assertWriteOperationAllowed('batch-edit');
-		const filePaths = updates.map(update => update.filePath);
-		const originalContents = await this.captureOriginalContents(filePaths);
-		const affectedFiles: string[] = [];
-		let success = 0;
-		let failed = 0;
+		return withWriteOperation('batch-edit', async () => {
+			const filePaths = updates.map(update => update.filePath);
+			const originalContents = await this.captureOriginalContents(filePaths);
+			const affectedFiles: string[] = [];
+			let success = 0;
+			let failed = 0;
 
-		for (const update of updates) {
-			const result = await this.applyPerItemUpdate(update);
-			if (result) {
-				success++;
-				affectedFiles.push(update.filePath);
-			} else {
-				failed++;
+			for (const update of updates) {
+				const result = await this.applyPerItemUpdate(update);
+				if (result) {
+					success++;
+					affectedFiles.push(update.filePath);
+				} else {
+					failed++;
+				}
 			}
-		}
 
-		this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
-		return { success, failed };
+			this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
+			return { success, failed };
+		});
 	}
 
 	async undo(): Promise<boolean> {
-		assertWriteOperationAllowed('batch-edit');
-		if (this.history.length === 0) {
-			return false;
-		}
-
-		const lastOperation = this.history.pop();
-		if (!lastOperation) {
-			return false;
-		}
-
-		let restored = 0;
-		for (const [path, content] of lastOperation.originalContent) {
-			const file = this.app.vault.getAbstractFileByPath(path);
-			if (file instanceof TFile && lastOperation.affectedFiles.includes(path)) {
-				const identity = this.documentService.getSubjectIdentityFromContent(content);
-				if (identity.subjectId === null || identity.conflicts?.length) continue;
-				await this.documentService.processSubjectFile(file, identity.subjectId, () => content);
-				restored++;
+		return withWriteOperation('batch-edit', async () => {
+			if (this.history.length === 0) {
+				return false;
 			}
-		}
 
-		return restored > 0;
+			const lastOperation = this.history.pop();
+			if (!lastOperation) {
+				return false;
+			}
+
+			let restored = 0;
+			for (const [path, content] of lastOperation.originalContent) {
+				const file = this.app.vault.getAbstractFileByPath(path);
+				if (file instanceof TFile && lastOperation.affectedFiles.includes(path)) {
+					const identity = this.documentService.getSubjectIdentityFromContent(content);
+					if (identity.subjectId === null || identity.conflicts?.length) continue;
+					await this.documentService.processSubjectFile(file, identity.subjectId, () => content);
+					restored++;
+				}
+			}
+
+			return restored > 0;
+		});
 	}
 
 	canUndo(): boolean {

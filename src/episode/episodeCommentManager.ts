@@ -4,7 +4,7 @@
  */
 
 import { App, TFile } from 'obsidian';
-import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
+import { withWriteOperation } from '../sync/writeOperationGate';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 
 /**
@@ -36,42 +36,46 @@ export class EpisodeCommentManager {
 		file: TFile,
 		epNumber: number
 	): Promise<InsertResult> {
-		assertWriteOperationAllowed('episode-comment');
-		const content = await this.app.vault.read(file);
-		const identity = this.documentService.getSubjectIdentityFromContent(content);
-		if (identity.subjectId === null || identity.conflicts?.length) throw new Error(`Cannot safely write an episode comment to ${file.path}: subject ID is missing or conflicting.`);
+		return withWriteOperation('episode-comment', async () => {
+			const content = await this.app.vault.read(file);
+			const identity = this.documentService.getSubjectIdentityFromContent(content);
+			if (identity.subjectId === null || identity.conflicts?.length) throw new Error(`Cannot safely write an episode comment to ${file.path}: subject ID is missing or conflicting.`);
 
-		// 查找"记录"部分
-		const recordMatch = this.findRecordSection(content);
+			// 查找"记录"部分
+			const recordMatch = this.findRecordSection(content);
 
-		// 构建 callout 内容
-		const callout = this.buildEpisodeCommentCallout(epNumber);
+			// 构建 callout 内容
+			const callout = this.buildEpisodeCommentCallout(epNumber);
 
-		let newContent: string;
-		let calloutStart: number;
+			let newContent: string;
+			let calloutStart: number;
 
-		if (recordMatch) {
-			// 在"记录"部分末尾插入
-			const insertPosition = this.findInsertPosition(content, recordMatch);
-			newContent = this.insertAtPosition(content, callout, insertPosition);
-			calloutStart = insertPosition;
-		} else {
-			// "记录"部分不存在，创建新的
-			const created = this.createRecordSection(content, callout);
-			newContent = created.content;
-			calloutStart = created.calloutStart;
-		}
+			if (recordMatch) {
+				// 在"记录"部分末尾插入
+				const insertPosition = this.findInsertPosition(content, recordMatch);
+				newContent = this.insertAtPosition(content, callout, insertPosition);
+				calloutStart = insertPosition;
+			} else {
+				// "记录"部分不存在，创建新的
+				const created = this.createRecordSection(content, callout);
+				newContent = created.content;
+				calloutStart = created.calloutStart;
+			}
 
-		const cursorPosition = this.calculateCursorPosition(newContent, calloutStart, callout);
+			const cursorPosition = this.calculateCursorPosition(newContent, calloutStart, callout);
 
-		// 写入文件
-		await this.documentService.processSubjectFile(file, identity.subjectId, () => newContent);
+			// 写入文件
+			await this.documentService.processSubjectFile(file, identity.subjectId, current => {
+				if (current !== content) throw new Error('Note changed while preparing the comment. Retry.');
+				return newContent;
+			});
 
-		return {
-			success: true,
-			insertLine: cursorPosition.line,
-			insertColumn: cursorPosition.column,
-		};
+			return {
+				success: true,
+				insertLine: cursorPosition.line,
+				insertColumn: cursorPosition.column,
+			};
+		});
 	}
 
 	/**

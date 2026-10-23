@@ -130,6 +130,7 @@ export interface StatusSyncDiff {
 	name_cn: string;
 	name: string;
 	localPath: string;
+	localContentSnapshot?: string;
 	collection: UserCollection;
 	statusFieldName: string;
 	rate: FieldDiff<number>;
