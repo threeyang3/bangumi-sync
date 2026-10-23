@@ -29,10 +29,10 @@ async function sync(template: string, value: Subject, links = false, failStatus 
 		else if (url.pathname.endsWith('/characters')) json = [{ name: 'Hero', relation: '主角', actors: [{ name: 'Actor' }], images: { grid: 'hero.png' } }];
 		else if (url.pathname.endsWith('/persons')) json = [{ id: 3, name: 'Fallback Studio', relation: '动画制作' }];
 		else if (url.pathname.endsWith('/subjects')) json = [{ id: 2, type: 3, name: 'Related', name_cn: 'Related', relation: '关联' }];
-		else if (url.pathname === '/v0/episodes') json = { data: emptyEpisodes ? [] : [{ id: 10, ep: 1, sort: 1, type: 0, name: 'Episode', name_cn: 'Episode', airdate: '2026-01-01', duration: '24m' }] };
+		else if (url.pathname === '/v0/episodes') json = { total: emptyEpisodes ? 0 : 1, data: emptyEpisodes ? [] : [{ id: 10, ep: 1, sort: 1, type: 0, name: 'Episode', name_cn: 'Episode', airdate: '2026-01-01', duration: '24m' }] };
 		else if (url.pathname.endsWith('/episodes')) {
 			if (failStatus) return Promise.resolve({ status: 401, arrayBuffer: new ArrayBuffer(0), json: { title: 'Unauthorized' } });
-			json = { data: [{ episode: { id: 10 }, type: 2 }] };
+			json = { total: 1, data: [{ episode: { id: 10 }, type: 2 }] };
 		} else throw new Error(`Unexpected synthetic request ${url.pathname}`);
 		return Promise.resolve({ status: 200, arrayBuffer: new ArrayBuffer(0), json });
 	});

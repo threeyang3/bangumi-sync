@@ -1694,3 +1694,18 @@ describe('SyncManager path transaction integration', () => {
 		expect(await adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(false);
 	});
 });
+it('reports cloud success separately when the subsequent local sync fails', async () => {
+ const vault=new InMemoryVault(), subject=makeSubject(991,'','Fixture');
+ const manager=createManager(vault,[subject],{failures:new Set([991])});
+ const write=vi.spyOn(manager.client,'createOrUpdateCollection');
+ const result=await manager.syncSingleSubject(991,{type:2,rate:0,comment:'',tags:[],private:false,syncToCloud:true,createLocal:true});
+ expect(write).toHaveBeenCalledTimes(1);expect(result).toMatchObject({success:false,cloudUpdated:true});
+ expect(result.error).toContain('云端已保存');
+});
+it('blocks another manager operation for the duration of a cloud-only write', async () => {
+ const vault=new InMemoryVault(),manager=createManager(vault,[]);const gate=progressGate();
+ vi.spyOn(manager.client,'createOrUpdateCollection').mockImplementation(()=>gate.promise);
+ const running=manager.syncSingleSubject(991,{type:2,rate:0,comment:'',tags:[],private:false,syncToCloud:true,createLocal:false});
+ expect(()=>manager.ensureCanStartSync()).toThrow('in progress');
+ gate.release();expect((await running).success).toBe(true);expect(()=>manager.ensureCanStartSync()).not.toThrow();
+});
