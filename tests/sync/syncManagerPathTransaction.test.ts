@@ -422,7 +422,7 @@ describe('SyncManager path transaction integration', () => {
 		const manager = createManager(vault, [subject], { initialPathStates: {
 			'20': { subjectId: 20, currentPath: 'ACGN/music/迁移日志.md', lastManagedPath: 'ACGN/music/迁移日志.md', namingState: 'managed' },
 		} });
-		manager.updateConfig({ pathTemplate: 'Archive/{{name_cn}}.md' }, ['pathTemplate']);
+		manager.updateConfig({ pathTemplate: 'Archive/{{name_cn}}.md', scanFolderPath: '/' }, ['pathTemplate', 'scanFolderPath']);
 		const preview = await manager.previewPathMigration();
 		const originalRename = vault.app.fileManager.renameFile.bind(vault.app.fileManager);
 		let journalBeforeRename: string | null = null;
@@ -449,7 +449,7 @@ describe('SyncManager path transaction integration', () => {
 		const manager = createManager(vault, [subject], { initialPathStates: {
 			'20': { subjectId: 20, currentPath: 'ACGN/music/日志失败.md', lastManagedPath: 'ACGN/music/日志失败.md', namingState: 'managed' },
 		} });
-		manager.updateConfig({ pathTemplate: 'Archive/{{name_cn}}.md' }, ['pathTemplate']);
+		manager.updateConfig({ pathTemplate: 'Archive/{{name_cn}}.md', scanFolderPath: '/' }, ['pathTemplate', 'scanFolderPath']);
 		const preview = await manager.previewPathMigration();
 		const adapter = vault.app.vault.adapter;
 		const originalWrite = adapter.write.bind(adapter);
@@ -472,7 +472,7 @@ describe('SyncManager path transaction integration', () => {
 		const manager = createManager(vault, [subject], { initialPathStates: {
 			'20': { subjectId: 20, currentPath: 'ACGN/music/迁移失败.md', lastManagedPath: 'ACGN/music/迁移失败.md', namingState: 'managed' },
 		} });
-		manager.updateConfig({ pathTemplate: 'Archive/{{name_cn}}.md' }, ['pathTemplate']);
+		manager.updateConfig({ pathTemplate: 'Archive/{{name_cn}}.md', scanFolderPath: '/' }, ['pathTemplate', 'scanFolderPath']);
 		const preview = await manager.previewPathMigration();
 		const originalRename = vault.app.fileManager.renameFile.bind(vault.app.fileManager);
 		let renameCalls = 0;
@@ -578,21 +578,39 @@ describe('SyncManager path transaction integration', () => {
 		const first = makeSubject(30, '2024-01-01', '根外文件');
 		const failed = makeSubject(31, '2024-01-02', '失败项');
 		const manager = createManager(vault, [first, failed], { failures: new Set([31]) });
-		manager.updateConfig({ pathTemplate: 'Notes/{{name_cn}}.md' }, ['pathTemplate']);
+		manager.updateConfig({ pathTemplate: 'Notes/{{name_cn}}.md', scanFolderPath: 'Notes' }, ['pathTemplate', 'scanFolderPath']);
 		const originalTrash = vault.app.fileManager.trashFile.bind(vault.app.fileManager);
 		vault.app.fileManager.trashFile = () => Promise.reject(new Error('injected delete failure'));
 
 		await manager.syncByCollections([makeCollection(first), makeCollection(failed)], { concurrency: 1 });
 		expect(await manager.rollbackBatch()).toMatchObject({ status: 'rollback-failed' });
 		vault.app.fileManager.trashFile = originalTrash;
-		const blocked = await manager.confirmManualRecovery();
+		// A journal produced by an older version may capture a narrower root.
+		const legacy = JSON.parse(await vault.app.vault.adapter.read(RECOVERY_JOURNAL_PATH)) as PersistentRecoveryJournal;
+		legacy.scanRoot = 'ACGN';
+		vault.addFolder('ACGN');
+		await vault.app.vault.adapter.write(RECOVERY_JOURNAL_PATH, JSON.stringify(legacy));
+		const reloaded = createManager(vault, [first, failed]);
+		await reloaded.initializeRecovery();
+		const blocked = await reloaded.confirmManualRecovery();
 
 		expect(blocked).toMatchObject({ status: 'blocked', recovered: false });
 		expect(blocked.diagnostics).toEqual(expect.arrayContaining([
 			expect.objectContaining({ code: 'unexpected-created-path', path: 'Notes/根外文件.md' }),
 		]));
 		await originalTrash(vault.files.get('Notes/根外文件.md')!);
-		expect(await manager.confirmManualRecovery()).toMatchObject({ status: 'recovered', recovered: true });
+		expect(await reloaded.confirmManualRecovery()).toMatchObject({ status: 'recovered', recovered: true });
+	});
+
+	it('still installs recovery blocking when current scan configuration is incompatible', async () => {
+		const vault = new InMemoryVault(); vault.addFile(RECOVERY_JOURNAL_PATH, '{broken');
+		const manager = createManager(vault, []);
+		manager.updateConfig({ pathTemplate: 'Media/{{id}}.md' }, ['pathTemplate']);
+		await manager.initializeRecovery();
+		expect(manager.getRecoveryRequired()).toMatchObject({ reason: 'journal-corrupt', scanRoot: '' });
+		expect(() => manager.ensureCanStartSync()).toThrow(RecoveryRequiredError);
+		expect(await manager.confirmManualRecovery()).toMatchObject({ status: 'blocked', recovered: false });
+		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(true);
 	});
 
 	it('blocks startup on a corrupt journal and preserves a diagnostic backup', async () => {

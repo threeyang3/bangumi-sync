@@ -19,6 +19,7 @@ export interface TranslationStrings {
 		choices: string; result: string; created: string; updated: string; skipped: string;
 		pending: string; rolledBack: string; importDecision: string; boundary: string;
 		localAdditionConflict: string; collectionUnavailable: string;
+		previewExpired: string;
 	};
 	// 命令
         commands: {
@@ -95,6 +96,8 @@ export interface TranslationStrings {
 		pathTemplateByTypeDesc: string;
 		scanFolderPath: string;
 		scanFolderPathDesc: string;
+		scanScopeMismatch: string;
+		scanRootUnavailable: string;
 		downloadCoverImages: string;
 		downloadCoverImagesDesc: string;
 		imageQuality: string;
@@ -728,6 +731,7 @@ const en: TranslationStrings = {
 		result: 'Sync result', created: 'Created', updated: 'Updated', skipped: 'Skipped', pending: 'Awaiting import decision', rolledBack: 'Rolled back',
 		importDecision: 'Review import result and recovery', boundary: 'Local import rollback does not undo saved cloud changes or prior status updates. Failures can include changes already saved; refresh before retrying.',
 		localAdditionConflict: 'Subject {id} now exists locally or has an identity conflict. No writes were started. Resolve the conflict and refresh the preview.',
+		previewExpired: 'This preview has expired. Refresh the comparison before confirming again.',
 		collectionUnavailable: 'Cloud collection {id} could not be verified. It may have been removed or be inaccessible, including due to NSFW visibility settings. No writes were started. Check account visibility and refresh the preview.',
 	},
         commands: {
@@ -800,7 +804,9 @@ const en: TranslationStrings = {
 		pathTemplateByType: 'Per-type path templates',
 		pathTemplateByTypeDesc: 'Optional overrides; empty falls back to the default template above',
 		scanFolderPath: 'Scan folder path',
-		scanFolderPathDesc: 'Folder path for detecting synced items (leave empty to use base path from file path template)',
+		scanFolderPathDesc: 'Folder for detecting synced items. Leave empty to use the common static directory of all path templates; disjoint or dynamic roots scan the vault. An explicit folder must cover every template.',
+		scanScopeMismatch: 'Scan folder "{root}" does not cover all path templates. Clear the scan folder to infer a common root, or choose a parent covering every template.',
+		scanRootUnavailable: 'Scan folder "{root}" is unavailable or contains a file instead of a folder. Existing subject notes may be outside the scan range. Check the folder and refresh before syncing.',
 		downloadCoverImages: 'Download cover images',
 		downloadCoverImagesDesc: 'Download cover images to local storage',
 		imageQuality: 'Image quality',
@@ -1411,6 +1417,7 @@ const zhCN: TranslationStrings = {
 		result: '同步结果', created: '已新增', updated: '已更新', skipped: '已跳过', pending: '等待导入保留或回滚', rolledBack: '已回滚',
 		importDecision: '查看导入结果与恢复操作', boundary: '本地导入回滚不会撤销已保存的云端修改或此前的状态更新。失败也可能包含已保存的修改；重试前请刷新比较。',
 		localAdditionConflict: '条目 {id} 已在本地出现或存在身份冲突，尚未开始任何写入。请处理冲突后刷新比较。',
+		previewExpired: '此预览已失效，请刷新比较后再确认执行。',
 		collectionUnavailable: '无法复核云端收藏 {id}：可能已取消收藏，或因 NSFW 等可见性设置而无法访问。尚未开始任何写入。请检查账号可见性并刷新比较。',
 	},
         commands: {
@@ -1483,7 +1490,9 @@ const zhCN: TranslationStrings = {
 		pathTemplateByType: '各类型路径模板',
 		pathTemplateByTypeDesc: '可选覆盖，为空则使用上方默认模板',
 		scanFolderPath: '扫描文件夹路径',
-		scanFolderPathDesc: '用于检测已同步条目的文件夹路径（留空则使用文件路径模板的基础路径）',
+		scanFolderPathDesc: '检测已同步条目的目录。留空使用所有路径模板的共同静态目录；无共同目录或根目录动态时扫描整个 Vault。显式目录必须覆盖所有模板。',
+		scanScopeMismatch: '扫描目录“{root}”无法覆盖所有路径模板。请留空以推导共同根目录，或选择覆盖所有模板的上级目录。',
+		scanRootUnavailable: '扫描目录“{root}”不可用，或该路径实际是文件。已有条目可能在扫描范围之外；请检查目录后重新比较再同步。',
 		downloadCoverImages: '下载封面图片',
 		downloadCoverImagesDesc: '是否下载条目封面到本地',
 		imageQuality: '图片质量',

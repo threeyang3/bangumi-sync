@@ -45,6 +45,10 @@ export class ComprehensiveSyncService {
 
 	constructor(private readonly manager: SyncManager, readonly statusService: StatusSyncService, private readonly concurrency = 3) {}
 
+	isPlanUsable(plan: ComprehensiveSyncPlan): boolean {
+		return !this.consumed.has(plan) && this.contexts.get(plan)?.() === true;
+	}
+
 	async prepare(selection: StatusSyncFieldSelection, cancelled = () => false, onProgress?: (current: number, total: number) => void): Promise<ComprehensiveSyncPlan> {
 		return withWriteOperation('comprehensive-sync', async lease => {
 			const contextIsValid = this.manager.createSyncContextValidator();

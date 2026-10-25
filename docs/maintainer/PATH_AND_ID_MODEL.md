@@ -27,6 +27,16 @@ Bangumi Subject ID 是本地条目的唯一身份；Markdown 路径只是当前�
 
 固定 scan root 用于发现主条目；事务中的 concrete path、rename、content 和 binary facts 按 Vault 全局路径验证。
 
+## Scan scope contract
+
+`scanScope.ts` 统一推导一个保守的根目录，Manager、控制面板、用户数据导入／导出入口及新事务 journal 使用同一定义。`scanFolderPath` 留空时，取全局模板与非空各类型模板的最长共同静态目录；根目录含变量或无共同目录时取 Vault 根目录（内部为空字符串）。根目录通过 `Vault.getRoot()` 获取。目录段遵循路径模板的清理规则，并考虑长路径可能折叠到第一段的情况。
+
+显式扫描目录必须包含所有模板可能的输出范围；`/` 明确表示 Vault 根目录。配置不一致时阻止比较／执行，不能默默扫描默认 ACGN。修改模板以跨目录迁移时，扫描范围应先覆盖源目录与目标目录的共同上级，再显式预览迁移。
+
+已有目录只读取该目录内的 Markdown。目录不存在时才额外检查其他 Markdown 的身份：若存在可识别 ID（包括冲突来源），应报目录不可用，不能当作空身份索引；若库内确实没有条目，则允许首次导入创建目录。被文件占据的目录路径始终报错。扫描错误不能提供部分比较计划或进入写入。
+
+恢复使用 journal 已捕获的 scan root，不能用新配置改写旧事实；具体路径校验仍覆盖根目录外的事务路径。缺失恢复目录导致的扫描错误保持阻断，不能静默清理 journal。
+
 ## Path state
 
 插件在自身 `data.json` 保存 `currentPath`、`lastManagedPath` 和 `namingState`，不把内部状态写入用户 Markdown。

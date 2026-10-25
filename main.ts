@@ -637,9 +637,10 @@ export default class BangumiPlugin extends Plugin {
 	 */
 	openExportModal() {
 		if (!this.ensureWriteCanStart('user-data-export')) return;
+		const scanRoot = this.resolveUserDataScanRoot(); if (scanRoot === null) return;
 		const modal = new UserDataExportModal(
 			this.app,
-			this.settings.scanFolderPath,
+			scanRoot,
 			(files: string[]) => {
 				new Notice(tnFormat('userData', 'exportSuccess', { count: files.length }));
 			}
@@ -652,6 +653,7 @@ export default class BangumiPlugin extends Plugin {
 	 */
 	openImportModal() {
 		if (!this.ensureWriteCanStart('user-data-import')) return;
+		const scanRoot = this.resolveUserDataScanRoot(); if (scanRoot === null) return;
 		// 创建文件选择器
 		const input = activeDocument.createElement('input');
 		input.type = 'file';
@@ -679,15 +681,20 @@ export default class BangumiPlugin extends Plugin {
 				this.app,
 				importFiles,
 				(result) => {
-					const resultModal = new ImportResultModal(this.app, result, this.settings.scanFolderPath);
+					const resultModal = new ImportResultModal(this.app, result, scanRoot);
 					resultModal.open();
 				},
-				this.settings.scanFolderPath,
+				scanRoot,
 			);
 			modal.open();
 		})();
 
 		input.click();
+	}
+
+	private resolveUserDataScanRoot(): string | null {
+		try { return this.syncManager?.getScanRoot() ?? null; }
+		catch (error) { new Notice(error instanceof Error ? error.message : String(error)); return null; }
 	}
 
 	/**

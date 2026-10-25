@@ -110,7 +110,7 @@ export class UserDataExtractor {
 	): Promise<Map<number, SubjectUserData>> {
 		const result = new Map<number, SubjectUserData>();
 		const normalizedPath = normalizePath(folderPath);
-		const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
+		const folder = normalizedPath ? this.app.vault.getAbstractFileByPath(normalizedPath) : this.app.vault.getRoot();
 
 		if (!(folder instanceof TFolder)) {
 			debugLog(() => `[Bangumi Sync] 文件夹不存在: ${folderPath}`);
@@ -145,7 +145,7 @@ export class UserDataExtractor {
 	): Promise<Map<number, SubjectUserData>> {
 		const result = new Map<number, SubjectUserData>();
 		const normalizedPath = normalizePath(folderPath);
-		const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
+		const folder = normalizedPath ? this.app.vault.getAbstractFileByPath(normalizedPath) : this.app.vault.getRoot();
 
 		if (!(folder instanceof TFolder)) {
 			debugLog(() => `[Bangumi Sync] 文件夹不存在: ${folderPath}`);

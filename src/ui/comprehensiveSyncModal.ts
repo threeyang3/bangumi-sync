@@ -24,6 +24,7 @@ export class ComprehensiveSyncModal extends Modal {
 	private disposed = false;
 	private busy = false;
 	private executing = false;
+	private previewExpired = false;
 	private error: string | null = null;
 	private pages = new Map<string, number>();
 	private progressEl?: HTMLElement;
@@ -87,6 +88,12 @@ export class ComprehensiveSyncModal extends Modal {
 		if (this.error) el.createEl('p', { text: this.error, attr: { role: 'alert' } });
 		if (this.busy) this.progressEl = el.createEl('p', { text: this.executing ? tn('statusSyncModal', 'syncProgress') : tn('comprehensiveSync', 'loading'), attr: { role: 'status', 'aria-live': 'polite' } });
 		if (this.result) { this.renderResult(el); return; }
+		if (this.previewExpired) {
+			el.createEl('p', { text: tn('comprehensiveSync', 'previewExpired'), attr: { role: 'status' } });
+			this.button(el, tn('comprehensiveSync', 'refresh'), () => { void this.prepare(); }, true);
+			this.button(el, tn('comprehensiveSync', 'close'), () => this.close());
+			return;
+		}
 		if (!this.plan) {
 			this.button(el, tn('comprehensiveSync', 'compare'), () => this.chooseScope(), true);
 		} else {
@@ -136,7 +143,7 @@ export class ComprehensiveSyncModal extends Modal {
 
 	private async prepare(): Promise<void> {
 		if (this.busy) return;
-		this.busy = true; this.error = null; this.plan = undefined; this.pages.clear(); this.render();
+		this.busy = true; this.error = null; this.plan = undefined; this.previewExpired = false; this.pages.clear(); this.render();
 		try {
 			const plan = await this.service.prepare(this.selection, () => this.disposed, (current, total) => {
 				if (!this.disposed) this.progressEl?.setText(`${tn('comprehensiveSync', 'loading')} ${current}/${total}`);
@@ -164,7 +171,7 @@ export class ComprehensiveSyncModal extends Modal {
 	}
 
 	private async execute(): Promise<void> {
-		if (this.busy || !this.plan) return;
+		if (this.busy || !this.plan || this.previewExpired) return;
 		this.busy = true; this.executing = true; this.error = null; this.render();
 		const details = new SubjectDetailSession(this.manager.client, this.concurrency);
 		try {
@@ -173,7 +180,10 @@ export class ComprehensiveSyncModal extends Modal {
 			this.result = await this.service.execute(this.plan, this.selected, properties.propertyValuesBySubjectId);
 			this.pages.clear();
 			this.onComplete();
-		} catch (error) { this.error = error instanceof Error ? error.message : String(error); new Notice(this.error); }
+		} catch (error) {
+			this.previewExpired = !this.service.isPlanUsable(this.plan);
+			this.error = error instanceof Error ? error.message : String(error); new Notice(this.error);
+		}
 		finally { details.dispose(); this.busy = false; this.executing = false; this.render(); }
 	}
 

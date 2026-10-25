@@ -19,6 +19,7 @@ import { Subject, UserCollection, Episode, UserEpisodeCollection, SubjectType, R
 import { FileManager, FileWriteStatus } from '../../common/file/fileManager';
 import { ImageHandler, ImageMutationUncertainError, ImageQuality } from '../../common/file/imageHandler';
 import { IncrementalSync } from './incrementalSync';
+import { resolveScanRoot } from './scanScope';
 import { determineSyncCompletion, SyncOptions, SyncResult, SyncProgress, SyncPhase, SyncCancellationSignal, SyncResultWithRollback, SyncWarning } from './syncStatus';
 import { parseCharacters } from '../../common/parser/characterParser';
 import { generateFilePath, extractPathVars } from '../../common/template/pathTemplate';
@@ -433,7 +434,7 @@ export class SyncManager {
 		const now = Date.now();
 		return {
 			schemaVersion: 1, journalId: `recovery-${now}`, pluginVersion: this.config.pluginVersion ?? 'unknown', state,
-			createdAt: now, updatedAt: now, scanRoot: normalizePath(this.config.scanFolderPath || 'ACGN'),
+			createdAt: now, updatedAt: now, scanRoot: state === 'active' ? this.getScanRoot() : this.getUncertainRecoveryScanRoot(),
 			affectedSubjectIds: [], originalPathStates: this.clonePathStates(this.config.subjectPathStates ?? {}),
 			subjectExpectations: [], contentExpectations: [], createdPathExpectations: [], renameExpectations: [], createdResourcePaths: [],
 			updatedResourceExpectations: [], orphanTemporaryPaths: [],
@@ -827,7 +828,7 @@ export class SyncManager {
 			state: 'active',
 			createdAt: now,
 			updatedAt: now,
-			scanRoot: normalizePath(this.config.scanFolderPath || 'ACGN'),
+			scanRoot: this.getScanRoot(),
 			affectedSubjectIds: [subjectId],
 			originalPathStates: this.clonePathStates(this.config.subjectPathStates ?? {}),
 			subjectExpectations: [{ subjectId, expectedToExist: true, expectedPath: file.path, expectedSubjectId: subjectId }],
@@ -885,7 +886,7 @@ export class SyncManager {
 		this.recoveryRequired = {
 			reason: 'legacy-journal-migration-failed', rollback: this.emptyRollbackResult(), affectedSubjectIds: [],
 			originalPathStates: this.clonePathStates(this.config.subjectPathStates ?? {}), subjectExpectations: [],
-			scanRoot: normalizePath(this.config.scanFolderPath || 'ACGN'), contentExpectations: [], forbiddenPathsAfterRollback: [],
+			scanRoot: this.getUncertainRecoveryScanRoot(), contentExpectations: [], forbiddenPathsAfterRollback: [],
 			resourcePathsAfterRollback: [], updatedResourceExpectations: [], orphanTemporaryPaths: [], renameExpectations: [],
 			attempts: [], detectedAt: Date.now(), journalIssue: errorMessage(message), legacyMigration: { sourcePath },
 		};
@@ -1620,7 +1621,7 @@ export class SyncManager {
 	}
 
 	async diagnoseLocalSubjects(): Promise<LocalSubjectDiagnosticReport> {
-		const scanRoot = this.config.scanFolderPath || 'ACGN';
+		const scanRoot = this.getScanRoot();
 		await this.incrementalSync.scanLocalFolder(scanRoot);
 		const registry = this.incrementalSync.getRegistry();
 		const issues: PathDiagnosticIssue[] = registry.invalidFiles.map(problem => ({ ...problem }));
@@ -1689,7 +1690,7 @@ export class SyncManager {
 		this.ensureCanStartSync();
 		this.beginVaultOperation();
 		try {
-		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
+		await this.incrementalSync.scanLocalFolder(this.getScanRoot());
 		const registry = this.incrementalSync.getRegistry();
 		const selected = Array.from(registry.idToRecord.values()).filter(record =>
 			record.namingState === 'managed'
@@ -1774,8 +1775,8 @@ export class SyncManager {
 			.map(entry => ({ subjectId: entry.subjectId, from: entry.from, to: entry.to }));
 		if (renames.length === 0) return { renamed: 0, failed: 0 };
 
+		const scanRootAtBatchStart = this.getScanRoot();
 		this.beginVaultOperation();
-		const scanRootAtBatchStart = normalizePath(this.config.scanFolderPath || 'ACGN');
 		const previousPathStates = this.clonePathStates(this.config.subjectPathStates ?? {});
 		const registry = this.incrementalSync.getRegistry();
 		const originalRecords = new Map(Array.from(registry.idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
@@ -2034,7 +2035,7 @@ export class SyncManager {
 		if (this.batchTransactionState !== 'active') {
 			throw new Error('Prepared collection execution requires an active Vault operation lease.');
 		}
-		const scanRootAtBatchStart = normalizePath(this.config.scanFolderPath || 'ACGN');
+		const scanRootAtBatchStart = this.getScanRoot();
 		const previousPathStates = this.clonePathStates(this.config.subjectPathStates ?? {});
 		const originalRecords = new Map(Array.from(this.incrementalSync.getRegistry().idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
 		const plannedSubjectIds = new Set([
@@ -2412,7 +2413,7 @@ export class SyncManager {
 		onlyCreateMissing = false,
 	): Promise<PreparedCollectionBatch> {
 		this.reportPhase('planning');
-		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
+		await this.incrementalSync.scanLocalFolder(this.getScanRoot());
 		const registry = this.incrementalSync.getRegistry();
 		const details = new Map<number, FullSubjectInfo>();
 		const failures: PreparationFailure[] = [];
@@ -2618,7 +2619,7 @@ export class SyncManager {
 		// 3. 扫描本地文件夹
 		this.reportProgress({ status: 'scanning', message: tn('syncModal', 'scanningLocal') });
 
-		const scanPath = this.config.scanFolderPath || 'ACGN';
+		const scanPath = this.getScanRoot();
 		debugLog(() => `[Bangumi Sync] 扫描路径: ${scanPath}`);
 
 		await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
@@ -2829,7 +2830,7 @@ export class SyncManager {
 		}
 
 		// 使用优化的 metadataCache 查找方法
-		const scanRoot = this.config.scanFolderPath || '';
+		const scanRoot = this.getScanRoot();
 		return this.incrementalSync.resolvePathByMetadataCache(subjectId, scanRoot);
 	}
 
@@ -2930,6 +2931,14 @@ export class SyncManager {
 		this.incrementalSync.clear();
 	}
 
+	/** Resolve the same identity scope for preview, execution, panel and journals. */
+	getScanRoot(): string { return resolveScanRoot(this.config); }
+
+	private getUncertainRecoveryScanRoot(): string {
+		try { return this.getScanRoot(); }
+		catch { return ''; } // Invalid settings must not prevent a blocking recovery gate.
+	}
+
 	/** Capture settings/account without exposing credentials to a preview model. */
 	createSyncContextValidator(): () => boolean {
 		const captured = JSON.stringify(cloneSyncManagerConfig(this.config));
@@ -2944,7 +2953,7 @@ export class SyncManager {
 	async assertSubjectsMissingLocally(subjectIds: ReadonlySet<number>, lease: WriteOperationLease): Promise<void> {
 		this.ensureCanStartSync(lease);
 		if (subjectIds.size === 0) return;
-		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
+		await this.incrementalSync.scanLocalFolder(this.getScanRoot());
 		const registry = this.incrementalSync.getRegistry();
 		const blockedIds = new Set([
 			...registry.duplicateIds.keys(),
@@ -3378,8 +3387,8 @@ export class SyncManager {
 	 */
 	async batchDownloadCovers(): Promise<{ downloaded: number; skipped: number; failed: number }> {
 		this.ensureCanStartSync();
+		const scanPath = this.getScanRoot();
 		this.beginVaultOperation();
-		const scanPath = this.config.scanFolderPath || 'ACGN';
 		try {
 			await this.incrementalSync.scanLocalFolder(scanPath);
 
@@ -3508,7 +3517,7 @@ export class SyncManager {
 		this.ensureCanStartSync();
 		this.beginVaultOperation();
 		try {
-		const scanPath = this.config.scanFolderPath || 'ACGN';
+		const scanPath = this.getScanRoot();
 		debugLog(() => `[Bangumi Sync] 扫描关联条目，scanFolderPath: "${this.config.scanFolderPath}"，实际扫描路径: "${scanPath}"，pathTemplate: "${this.config.pathTemplate}"`);
 		await this.incrementalSync.scanLocalFolder(scanPath);
 

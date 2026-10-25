@@ -46,6 +46,42 @@ function setup() {
 }
 
 describe('comprehensive sync invariants', () => {
+	it('finds renamed existing notes under an inferred custom template root and creates no duplicate', async () => {
+		const { vault, manager, service, selection, one, two } = setup();
+		vault.addFolder('Media/Music');
+		await vault.app.fileManager.renameFile(one, 'Media/Music/renamed-one.md');
+		await vault.app.fileManager.renameFile(two, 'Media/Music/renamed-two.md');
+		manager.updateConfig({ scanFolderPath: '', pathTemplate: 'Media/{{type}}/{{id}}.md' });
+		const plan = await service.prepare(selection);
+		expect(manager.getScanRoot()).toBe('Media');
+		expect(plan.additions.map(item => item.subject_id)).toEqual([3]);
+		expect(plan.diffs.map(item => item.subjectId)).toEqual([2]);
+		expect(plan.unchanged.map(item => item.subject_id)).toEqual([1]);
+		plan.diffs[0].rate.decision = 'cloud'; await service.execute(plan, new Set());
+		expect(vault.contents.get(two.path)).toContain('评分: 8');
+		expect(vault.files.has('Media/音乐/2.md')).toBe(false);
+	});
+
+	it('refuses missing scan roots instead of misclassifying existing notes as additions', async () => {
+		const { vault, manager, service, selection } = setup();
+		manager.updateConfig({ scanFolderPath: '', pathTemplate: 'Moved/{{id}}.md' });
+		const before = new Map(vault.contents);
+		await expect(service.prepare(selection)).rejects.toThrow('unavailable');
+		expect(vault.contents).toEqual(before); expect(manager.getManagerState()).toBe('idle');
+	});
+
+	it('aborts before writes if the scanned folder is moved after preview', async () => {
+		const { vault, manager, service, selection, one, two } = setup();
+		const plan = await service.prepare(selection);
+		await vault.app.fileManager.renameFile(one, 'Moved/one.md');
+		await vault.app.fileManager.renameFile(two, 'Moved/two.md');
+		const localOnly = vault.files.get('ACGN/local-only.md')!;
+		await vault.app.fileManager.renameFile(localOnly, 'Moved/local-only.md'); vault.folders.delete('ACGN');
+		const before = new Map(vault.contents);
+		await expect(service.execute(plan, new Set([3]))).rejects.toThrow('unavailable');
+		expect(vault.contents).toEqual(before); expect(manager.getManagerState()).toBe('idle');
+	});
+
 	it('partitions one shared account/local snapshot and preserves local-only data', async () => {
 		const { vault, service, selection, readCloud, readSelected } = setup();
 		const plan = await service.prepare(selection);
@@ -78,8 +114,10 @@ describe('comprehensive sync invariants', () => {
 
 	it('rejects stale settings before any selected status or import writes', async () => {
 		const { manager, service, selection, vault } = setup(); const plan = await service.prepare(selection);
+		expect(service.isPlanUsable(plan)).toBe(true);
 		plan.diffs[0].rate.decision = 'cloud'; const before = new Map(vault.contents);
 		manager.updateConfig({ pathTemplate: 'different/{{id}}.md' });
+		expect(service.isPlanUsable(plan)).toBe(false);
 		await expect(service.execute(plan, new Set([3]))).rejects.toThrow('expired');
 		expect(vault.contents).toEqual(before);
 	});

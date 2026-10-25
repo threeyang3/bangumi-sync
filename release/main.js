@@ -173,6 +173,7 @@ var en = {
     importDecision: "Review import result and recovery",
     boundary: "Local import rollback does not undo saved cloud changes or prior status updates. Failures can include changes already saved; refresh before retrying.",
     localAdditionConflict: "Subject {id} now exists locally or has an identity conflict. No writes were started. Resolve the conflict and refresh the preview.",
+    previewExpired: "This preview has expired. Refresh the comparison before confirming again.",
     collectionUnavailable: "Cloud collection {id} could not be verified. It may have been removed or be inaccessible, including due to NSFW visibility settings. No writes were started. Check account visibility and refresh the preview."
   },
   commands: {
@@ -242,7 +243,9 @@ var en = {
     pathTemplateByType: "Per-type path templates",
     pathTemplateByTypeDesc: "Optional overrides; empty falls back to the default template above",
     scanFolderPath: "Scan folder path",
-    scanFolderPathDesc: "Folder path for detecting synced items (leave empty to use base path from file path template)",
+    scanFolderPathDesc: "Folder for detecting synced items. Leave empty to use the common static directory of all path templates; disjoint or dynamic roots scan the vault. An explicit folder must cover every template.",
+    scanScopeMismatch: 'Scan folder "{root}" does not cover all path templates. Clear the scan folder to infer a common root, or choose a parent covering every template.',
+    scanRootUnavailable: 'Scan folder "{root}" is unavailable or contains a file instead of a folder. Existing subject notes may be outside the scan range. Check the folder and refresh before syncing.',
     downloadCoverImages: "Download cover images",
     downloadCoverImagesDesc: "Download cover images to local storage",
     imageQuality: "Image quality",
@@ -884,6 +887,7 @@ var zhCN = {
     importDecision: "\u67E5\u770B\u5BFC\u5165\u7ED3\u679C\u4E0E\u6062\u590D\u64CD\u4F5C",
     boundary: "\u672C\u5730\u5BFC\u5165\u56DE\u6EDA\u4E0D\u4F1A\u64A4\u9500\u5DF2\u4FDD\u5B58\u7684\u4E91\u7AEF\u4FEE\u6539\u6216\u6B64\u524D\u7684\u72B6\u6001\u66F4\u65B0\u3002\u5931\u8D25\u4E5F\u53EF\u80FD\u5305\u542B\u5DF2\u4FDD\u5B58\u7684\u4FEE\u6539\uFF1B\u91CD\u8BD5\u524D\u8BF7\u5237\u65B0\u6BD4\u8F83\u3002",
     localAdditionConflict: "\u6761\u76EE {id} \u5DF2\u5728\u672C\u5730\u51FA\u73B0\u6216\u5B58\u5728\u8EAB\u4EFD\u51B2\u7A81\uFF0C\u5C1A\u672A\u5F00\u59CB\u4EFB\u4F55\u5199\u5165\u3002\u8BF7\u5904\u7406\u51B2\u7A81\u540E\u5237\u65B0\u6BD4\u8F83\u3002",
+    previewExpired: "\u6B64\u9884\u89C8\u5DF2\u5931\u6548\uFF0C\u8BF7\u5237\u65B0\u6BD4\u8F83\u540E\u518D\u786E\u8BA4\u6267\u884C\u3002",
     collectionUnavailable: "\u65E0\u6CD5\u590D\u6838\u4E91\u7AEF\u6536\u85CF {id}\uFF1A\u53EF\u80FD\u5DF2\u53D6\u6D88\u6536\u85CF\uFF0C\u6216\u56E0 NSFW \u7B49\u53EF\u89C1\u6027\u8BBE\u7F6E\u800C\u65E0\u6CD5\u8BBF\u95EE\u3002\u5C1A\u672A\u5F00\u59CB\u4EFB\u4F55\u5199\u5165\u3002\u8BF7\u68C0\u67E5\u8D26\u53F7\u53EF\u89C1\u6027\u5E76\u5237\u65B0\u6BD4\u8F83\u3002"
   },
   commands: {
@@ -953,7 +957,9 @@ var zhCN = {
     pathTemplateByType: "\u5404\u7C7B\u578B\u8DEF\u5F84\u6A21\u677F",
     pathTemplateByTypeDesc: "\u53EF\u9009\u8986\u76D6\uFF0C\u4E3A\u7A7A\u5219\u4F7F\u7528\u4E0A\u65B9\u9ED8\u8BA4\u6A21\u677F",
     scanFolderPath: "\u626B\u63CF\u6587\u4EF6\u5939\u8DEF\u5F84",
-    scanFolderPathDesc: "\u7528\u4E8E\u68C0\u6D4B\u5DF2\u540C\u6B65\u6761\u76EE\u7684\u6587\u4EF6\u5939\u8DEF\u5F84\uFF08\u7559\u7A7A\u5219\u4F7F\u7528\u6587\u4EF6\u8DEF\u5F84\u6A21\u677F\u7684\u57FA\u7840\u8DEF\u5F84\uFF09",
+    scanFolderPathDesc: "\u68C0\u6D4B\u5DF2\u540C\u6B65\u6761\u76EE\u7684\u76EE\u5F55\u3002\u7559\u7A7A\u4F7F\u7528\u6240\u6709\u8DEF\u5F84\u6A21\u677F\u7684\u5171\u540C\u9759\u6001\u76EE\u5F55\uFF1B\u65E0\u5171\u540C\u76EE\u5F55\u6216\u6839\u76EE\u5F55\u52A8\u6001\u65F6\u626B\u63CF\u6574\u4E2A Vault\u3002\u663E\u5F0F\u76EE\u5F55\u5FC5\u987B\u8986\u76D6\u6240\u6709\u6A21\u677F\u3002",
+    scanScopeMismatch: "\u626B\u63CF\u76EE\u5F55\u201C{root}\u201D\u65E0\u6CD5\u8986\u76D6\u6240\u6709\u8DEF\u5F84\u6A21\u677F\u3002\u8BF7\u7559\u7A7A\u4EE5\u63A8\u5BFC\u5171\u540C\u6839\u76EE\u5F55\uFF0C\u6216\u9009\u62E9\u8986\u76D6\u6240\u6709\u6A21\u677F\u7684\u4E0A\u7EA7\u76EE\u5F55\u3002",
+    scanRootUnavailable: "\u626B\u63CF\u76EE\u5F55\u201C{root}\u201D\u4E0D\u53EF\u7528\uFF0C\u6216\u8BE5\u8DEF\u5F84\u5B9E\u9645\u662F\u6587\u4EF6\u3002\u5DF2\u6709\u6761\u76EE\u53EF\u80FD\u5728\u626B\u63CF\u8303\u56F4\u4E4B\u5916\uFF1B\u8BF7\u68C0\u67E5\u76EE\u5F55\u540E\u91CD\u65B0\u6BD4\u8F83\u518D\u540C\u6B65\u3002",
     downloadCoverImages: "\u4E0B\u8F7D\u5C01\u9762\u56FE\u7247",
     downloadCoverImagesDesc: "\u662F\u5426\u4E0B\u8F7D\u6761\u76EE\u5C01\u9762\u5230\u672C\u5730",
     imageQuality: "\u56FE\u7247\u8D28\u91CF",
@@ -5908,8 +5914,13 @@ var LocalSubjectRegistry = class {
   async scan(folderPath, onProgress) {
     this.clear();
     const normalizedRoot = (0, import_obsidian7.normalizePath)(folderPath);
-    const folder = this.app.vault.getAbstractFileByPath(normalizedRoot);
+    const folder = normalizedRoot ? this.app.vault.getAbstractFileByPath(normalizedRoot) : this.app.vault.getRoot();
     if (!(folder instanceof import_obsidian7.TFolder)) {
+      if (folder) throw new Error(tnFormat("settings", "scanRootUnavailable", { root: normalizedRoot }));
+      for (const file of this.app.vault.getMarkdownFiles()) {
+        const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(file));
+        if (identity.subjectId !== null) throw new Error(tnFormat("settings", "scanRootUnavailable", { root: normalizedRoot }));
+      }
       return 0;
     }
     const files = this.app.vault.getMarkdownFiles().filter((file) => isDescendantPath(file.path, normalizedRoot));
@@ -6509,6 +6520,41 @@ ${allLinks.map((l) => `  - "${l}"`).join("\n")}` : "\u76F8\u5173:";
     return this.documentService.updateEpisodeSection(content, renderedEpisodes);
   }
 };
+
+// src/sync/scanScope.ts
+function templateRoot(template) {
+  var _a;
+  const root = [];
+  const directories = template.split("/").slice(0, -1);
+  for (const segment of directories) {
+    if (segment.includes("{{")) break;
+    const safe = sanitizeFileName(segment, "");
+    if (safe) root.push(safe);
+  }
+  const maxDirectoryLength = directories.reduce((size, segment) => size + (segment.includes("{{") ? 120 : sanitizeFileName(segment, "").length) + 1, 0);
+  if (maxDirectoryLength >= 220) return (_a = root[0]) != null ? _a : "";
+  return root.join("/");
+}
+function resolveScanRoot(config) {
+  var _a;
+  if (config.scanFolderPath.trim() === "/") return "";
+  const roots = [config.pathTemplate, ...Object.values((_a = config.pathTemplateByType) != null ? _a : {}).filter((template) => template.trim())].map(templateRoot);
+  const explicit = normalizePathValue(config.scanFolderPath.trim());
+  if (explicit && explicit !== "/") {
+    if (explicit.split("/").some((segment) => segment === ".." || segment === ".") || roots.some((root) => !isDescendantPath(root, explicit))) {
+      throw new Error(tnFormat("settings", "scanScopeMismatch", { root: explicit }));
+    }
+    return explicit;
+  }
+  const common = roots[0].split("/").filter(Boolean);
+  for (const root of roots.slice(1)) {
+    const parts = root.split("/");
+    let length = 0;
+    while (length < common.length && common[length] === parts[length]) length++;
+    common.length = length;
+  }
+  return common.join("/");
+}
 
 // src/sync/syncStatus.ts
 function determineSyncCompletion(succeeded, failed, cancelled) {
@@ -7424,7 +7470,7 @@ var UserDataExtractor = class {
   async extractFromFolder(folderPath, onProgress) {
     const result = /* @__PURE__ */ new Map();
     const normalizedPath = (0, import_obsidian9.normalizePath)(folderPath);
-    const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
+    const folder = normalizedPath ? this.app.vault.getAbstractFileByPath(normalizedPath) : this.app.vault.getRoot();
     if (!(folder instanceof import_obsidian9.TFolder)) {
       debugLog(() => `[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return result;
@@ -7449,7 +7495,7 @@ var UserDataExtractor = class {
   async extractForExportFromFolder(folderPath, dataTypes = ["all" /* ALL */], onProgress) {
     const result = /* @__PURE__ */ new Map();
     const normalizedPath = (0, import_obsidian9.normalizePath)(folderPath);
-    const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
+    const folder = normalizedPath ? this.app.vault.getAbstractFileByPath(normalizedPath) : this.app.vault.getRoot();
     if (!(folder instanceof import_obsidian9.TFolder)) {
       debugLog(() => `[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return result;
@@ -9394,7 +9440,7 @@ var SyncManager = class {
       state,
       createdAt: now,
       updatedAt: now,
-      scanRoot: (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN"),
+      scanRoot: state === "active" ? this.getScanRoot() : this.getUncertainRecoveryScanRoot(),
       affectedSubjectIds: [],
       originalPathStates: this.clonePathStates((_b = this.config.subjectPathStates) != null ? _b : {}),
       subjectExpectations: [],
@@ -9768,7 +9814,7 @@ var SyncManager = class {
       state: "active",
       createdAt: now,
       updatedAt: now,
-      scanRoot: (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN"),
+      scanRoot: this.getScanRoot(),
       affectedSubjectIds: [subjectId],
       originalPathStates: this.clonePathStates((_b = this.config.subjectPathStates) != null ? _b : {}),
       subjectExpectations: [{ subjectId, expectedToExist: true, expectedPath: file.path, expectedSubjectId: subjectId }],
@@ -9833,7 +9879,7 @@ var SyncManager = class {
       affectedSubjectIds: [],
       originalPathStates: this.clonePathStates((_a = this.config.subjectPathStates) != null ? _a : {}),
       subjectExpectations: [],
-      scanRoot: (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN"),
+      scanRoot: this.getUncertainRecoveryScanRoot(),
       contentExpectations: [],
       forbiddenPathsAfterRollback: [],
       resourcePathsAfterRollback: [],
@@ -10600,7 +10646,7 @@ var SyncManager = class {
     });
   }
   async diagnoseLocalSubjects() {
-    const scanRoot = this.config.scanFolderPath || "ACGN";
+    const scanRoot = this.getScanRoot();
     await this.incrementalSync.scanLocalFolder(scanRoot);
     const registry = this.incrementalSync.getRegistry();
     const issues = registry.invalidFiles.map((problem) => ({ ...problem }));
@@ -10663,7 +10709,7 @@ var SyncManager = class {
     this.ensureCanStartSync();
     this.beginVaultOperation();
     try {
-      await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+      await this.incrementalSync.scanLocalFolder(this.getScanRoot());
       const registry = this.incrementalSync.getRegistry();
       const selected = Array.from(registry.idToRecord.values()).filter(
         (record) => record.namingState === "managed" || record.namingState === "unknown" && options.includeUnknown || record.namingState === "user-renamed" && options.includeUserRenamed
@@ -10742,8 +10788,8 @@ var SyncManager = class {
     this.ensureCanStartSync();
     const renames = preview.entries.filter((entry) => entry.status === "rename").map((entry) => ({ subjectId: entry.subjectId, from: entry.from, to: entry.to }));
     if (renames.length === 0) return { renamed: 0, failed: 0 };
+    const scanRootAtBatchStart = this.getScanRoot();
     this.beginVaultOperation();
-    const scanRootAtBatchStart = (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN");
     const previousPathStates = this.clonePathStates((_a = this.config.subjectPathStates) != null ? _a : {});
     const registry = this.incrementalSync.getRegistry();
     const originalRecords = new Map(Array.from(registry.idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
@@ -10976,7 +11022,7 @@ var SyncManager = class {
     if (this.batchTransactionState !== "active") {
       throw new Error("Prepared collection execution requires an active Vault operation lease.");
     }
-    const scanRootAtBatchStart = (0, import_obsidian11.normalizePath)(this.config.scanFolderPath || "ACGN");
+    const scanRootAtBatchStart = this.getScanRoot();
     const previousPathStates = this.clonePathStates((_a = this.config.subjectPathStates) != null ? _a : {});
     const originalRecords = new Map(Array.from(this.incrementalSync.getRegistry().idToRecord, ([subjectId, record]) => [subjectId, { path: record.path }]));
     const plannedSubjectIds = /* @__PURE__ */ new Set([
@@ -11369,7 +11415,7 @@ var SyncManager = class {
   }
   async prepareCollectionBatch(collections, concurrency, subjectDetails, onlyCreateMissing = false) {
     this.reportPhase("planning");
-    await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+    await this.incrementalSync.scanLocalFolder(this.getScanRoot());
     const registry = this.incrementalSync.getRegistry();
     const details = /* @__PURE__ */ new Map();
     const failures = [];
@@ -11560,7 +11606,7 @@ var SyncManager = class {
     assertNotCancelled();
     debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
     this.reportProgress({ status: "scanning", message: tn("syncModal", "scanningLocal") });
-    const scanPath = this.config.scanFolderPath || "ACGN";
+    const scanPath = this.getScanRoot();
     debugLog(() => `[Bangumi Sync] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
     await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
       assertNotCancelled();
@@ -11726,7 +11772,7 @@ var SyncManager = class {
     if (indexedPath) {
       return indexedPath;
     }
-    const scanRoot = this.config.scanFolderPath || "";
+    const scanRoot = this.getScanRoot();
     return this.incrementalSync.resolvePathByMetadataCache(subjectId, scanRoot);
   }
   /**
@@ -11803,6 +11849,17 @@ var SyncManager = class {
   resetSyncState() {
     this.incrementalSync.clear();
   }
+  /** Resolve the same identity scope for preview, execution, panel and journals. */
+  getScanRoot() {
+    return resolveScanRoot(this.config);
+  }
+  getUncertainRecoveryScanRoot() {
+    try {
+      return this.getScanRoot();
+    } catch (e) {
+      return "";
+    }
+  }
   /** Capture settings/account without exposing credentials to a preview model. */
   createSyncContextValidator() {
     const captured = JSON.stringify(cloneSyncManagerConfig(this.config));
@@ -11814,7 +11871,7 @@ var SyncManager = class {
   async assertSubjectsMissingLocally(subjectIds, lease) {
     this.ensureCanStartSync(lease);
     if (subjectIds.size === 0) return;
-    await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+    await this.incrementalSync.scanLocalFolder(this.getScanRoot());
     const registry = this.incrementalSync.getRegistry();
     const blockedIds = /* @__PURE__ */ new Set([
       ...registry.duplicateIds.keys(),
@@ -12161,8 +12218,8 @@ var SyncManager = class {
    */
   async batchDownloadCovers() {
     this.ensureCanStartSync();
+    const scanPath = this.getScanRoot();
     this.beginVaultOperation();
-    const scanPath = this.config.scanFolderPath || "ACGN";
     try {
       await this.incrementalSync.scanLocalFolder(scanPath);
       const localSubjects = this.incrementalSync.getLocalSubjects();
@@ -12276,7 +12333,7 @@ var SyncManager = class {
     this.ensureCanStartSync();
     this.beginVaultOperation();
     try {
-      const scanPath = this.config.scanFolderPath || "ACGN";
+      const scanPath = this.getScanRoot();
       debugLog(() => `[Bangumi Sync] \u626B\u63CF\u5173\u8054\u6761\u76EE\uFF0CscanFolderPath: "${this.config.scanFolderPath}"\uFF0C\u5B9E\u9645\u626B\u63CF\u8DEF\u5F84: "${scanPath}"\uFF0CpathTemplate: "${this.config.pathTemplate}"`);
       await this.incrementalSync.scanLocalFolder(scanPath);
       const localSubjects = this.incrementalSync.getLocalSubjects();
@@ -16890,7 +16947,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
       });
       this.state.collections = collections;
       this.renderStatus(tn("controlPanel", "scanningLocal"));
-      const scanPath = this.settings.scanFolderPath || "ACGN";
+      const scanPath = this.syncManager.getScanRoot();
       await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
         this.renderStatus(`${tn("controlPanel", "scanningFiles")} (${current}/${total})`);
       });
@@ -17259,7 +17316,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
       if (result.completion === "success" || result.completion === "partial-success") {
         const completionText = result.completion === "partial-success" ? tn("syncModal", "partialSuccess") : tn("controlPanel", "syncComplete");
         new import_obsidian24.Notice(`${completionText}: ${result.added}, ${result.errors}`);
-        const scanPath = this.settings.scanFolderPath || "ACGN";
+        const scanPath = this.syncManager.getScanRoot();
         await this.incrementalSync.scanLocalFolder(scanPath);
         this.state.localSubjects = /* @__PURE__ */ new Map();
         const syncedIds = this.incrementalSync.getSyncedIds();
@@ -21020,6 +21077,10 @@ var ComprehensiveSyncService = class {
     this.consumed = /* @__PURE__ */ new WeakSet();
     this.cloudBaselines = /* @__PURE__ */ new WeakMap();
   }
+  isPlanUsable(plan) {
+    var _a;
+    return !this.consumed.has(plan) && ((_a = this.contexts.get(plan)) == null ? void 0 : _a()) === true;
+  }
   async prepare(selection, cancelled = () => false, onProgress) {
     return withWriteOperation("comprehensive-sync", async (lease) => {
       var _a;
@@ -21231,6 +21292,7 @@ var ComprehensiveSyncModal = class extends import_obsidian32.Modal {
     this.disposed = false;
     this.busy = false;
     this.executing = false;
+    this.previewExpired = false;
     this.error = null;
     this.pages = /* @__PURE__ */ new Map();
     const episodeManager = episodes != null ? episodes : new EpisodeStatusManager(app, manager.client);
@@ -21296,6 +21358,14 @@ var ComprehensiveSyncModal = class extends import_obsidian32.Modal {
     if (this.busy) this.progressEl = el.createEl("p", { text: this.executing ? tn("statusSyncModal", "syncProgress") : tn("comprehensiveSync", "loading"), attr: { role: "status", "aria-live": "polite" } });
     if (this.result) {
       this.renderResult(el);
+      return;
+    }
+    if (this.previewExpired) {
+      el.createEl("p", { text: tn("comprehensiveSync", "previewExpired"), attr: { role: "status" } });
+      this.button(el, tn("comprehensiveSync", "refresh"), () => {
+        void this.prepare();
+      }, true);
+      this.button(el, tn("comprehensiveSync", "close"), () => this.close());
       return;
     }
     if (!this.plan) {
@@ -21391,6 +21461,7 @@ var ComprehensiveSyncModal = class extends import_obsidian32.Modal {
     this.busy = true;
     this.error = null;
     this.plan = void 0;
+    this.previewExpired = false;
     this.pages.clear();
     this.render();
     try {
@@ -21429,7 +21500,7 @@ var ComprehensiveSyncModal = class extends import_obsidian32.Modal {
     });
   }
   async execute() {
-    if (this.busy || !this.plan) return;
+    if (this.busy || !this.plan || this.previewExpired) return;
     this.busy = true;
     this.executing = true;
     this.error = null;
@@ -21442,6 +21513,7 @@ var ComprehensiveSyncModal = class extends import_obsidian32.Modal {
       this.pages.clear();
       this.onComplete();
     } catch (error) {
+      this.previewExpired = !this.service.isPlanUsable(this.plan);
       this.error = error instanceof Error ? error.message : String(error);
       new import_obsidian32.Notice(this.error);
     } finally {
@@ -22015,9 +22087,11 @@ var BangumiPlugin = class extends import_obsidian33.Plugin {
    */
   openExportModal() {
     if (!this.ensureWriteCanStart("user-data-export")) return;
+    const scanRoot = this.resolveUserDataScanRoot();
+    if (scanRoot === null) return;
     const modal = new UserDataExportModal(
       this.app,
-      this.settings.scanFolderPath,
+      scanRoot,
       (files) => {
         new import_obsidian33.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
       }
@@ -22029,6 +22103,8 @@ var BangumiPlugin = class extends import_obsidian33.Plugin {
    */
   openImportModal() {
     if (!this.ensureWriteCanStart("user-data-import")) return;
+    const scanRoot = this.resolveUserDataScanRoot();
+    if (scanRoot === null) return;
     const input = activeDocument.createElement("input");
     input.type = "file";
     input.accept = ".json";
@@ -22052,14 +22128,23 @@ var BangumiPlugin = class extends import_obsidian33.Plugin {
         this.app,
         importFiles,
         (result) => {
-          const resultModal = new ImportResultModal(this.app, result, this.settings.scanFolderPath);
+          const resultModal = new ImportResultModal(this.app, result, scanRoot);
           resultModal.open();
         },
-        this.settings.scanFolderPath
+        scanRoot
       );
       modal.open();
     })();
     input.click();
+  }
+  resolveUserDataScanRoot() {
+    var _a, _b;
+    try {
+      return (_b = (_a = this.syncManager) == null ? void 0 : _a.getScanRoot()) != null ? _b : null;
+    } catch (error) {
+      new import_obsidian33.Notice(error instanceof Error ? error.message : String(error));
+      return null;
+    }
   }
   /**
    * 打开搜索弹窗

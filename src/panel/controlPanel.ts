@@ -711,7 +711,7 @@ export class ControlPanel extends Modal {
 
 			// 3. 扫描本地文件夹
 			this.renderStatus(tn('controlPanel', 'scanningLocal'));
-			const scanPath = this.settings.scanFolderPath || 'ACGN';
+			const scanPath = this.syncManager.getScanRoot();
 			await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
 				this.renderStatus(`${tn('controlPanel', 'scanningFiles')} (${current}/${total})`);
 			});
@@ -1185,7 +1185,7 @@ export class ControlPanel extends Modal {
 				new Notice(`${completionText}: ${result.added}, ${result.errors}`);
 
 				// 重新扫描本地文件夹以更新同步状态
-				const scanPath = this.settings.scanFolderPath || 'ACGN';
+				const scanPath = this.syncManager.getScanRoot();
 				await this.incrementalSync.scanLocalFolder(scanPath);
 
 				// 更新本地条目映射
