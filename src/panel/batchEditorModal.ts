@@ -770,24 +770,22 @@ export class FrontmatterEditor {
 					throw new Error(tn('controlPanel', 'undoChanged'));
 				}
 			}
-			let restored = 0;
-			for (const [path, content] of lastOperation.originalContent) {
+			for (const path of lastOperation.affectedFiles) {
+				const content = lastOperation.originalContent.get(path);
 				const file = this.app.vault.getAbstractFileByPath(path);
-				if (file instanceof TFile && lastOperation.affectedFiles.includes(path)) {
-					const identity = this.documentService.getSubjectIdentityFromContent(content);
-					if (identity.subjectId === null || identity.conflicts?.length) throw new Error(tn('controlPanel', 'undoChanged'));
-					await this.documentService.processSubjectFile(file, identity.subjectId, current => {
-						if (current !== lastOperation.updatedContent.get(path)) throw new Error(tn('controlPanel', 'undoChanged'));
-						return content;
-					});
-					// A later restore may fail; retain a retryable history of completed restores.
-					lastOperation.updatedContent.set(path, content);
-					restored++;
-				}
+				if (!(file instanceof TFile) || content === undefined) throw new Error(tn('controlPanel', 'undoChanged'));
+				const identity = this.documentService.getSubjectIdentityFromContent(content);
+				if (identity.subjectId === null || identity.conflicts?.length) throw new Error(tn('controlPanel', 'undoChanged'));
+				await this.documentService.processSubjectFile(file, identity.subjectId, current => {
+					if (current !== lastOperation.updatedContent.get(path)) throw new Error(tn('controlPanel', 'undoChanged'));
+					return content;
+				});
+				// A later restore may fail; retain a retryable history of completed restores.
+				lastOperation.updatedContent.set(path, content);
 			}
 
-			if (restored === lastOperation.affectedFiles.length) this.history.pop();
-			return restored > 0;
+			this.history.pop();
+			return true;
 		});
 	}
 

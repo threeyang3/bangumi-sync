@@ -455,7 +455,7 @@ var en = {
     noUndo: "No operation to undo",
     undoSuccess: "Undo successful",
     undoFailed: "Undo failed",
-    undoChanged: "A file changed after the batch edit. Undo stopped to preserve newer edits; history is retained.",
+    undoChanged: "Undo did not complete: a file changed, moved or disappeared. Some files may already be restored; history is retained. Restore the expected files before retrying.",
     noSyncedItems: "No synced items",
     noSyncedItemsComment: "No synced items to compare comments",
     noSyncedItemsTag: "No synced items to compare tags",
@@ -1164,7 +1164,7 @@ var zhCN = {
     noUndo: "\u6CA1\u6709\u53EF\u64A4\u9500\u7684\u64CD\u4F5C",
     undoSuccess: "\u64A4\u9500\u6210\u529F",
     undoFailed: "\u64A4\u9500\u5931\u8D25",
-    undoChanged: "\u6587\u4EF6\u5728\u6279\u91CF\u7F16\u8F91\u540E\u53D1\u751F\u53D8\u5316\uFF0C\u5DF2\u505C\u6B62\u64A4\u9500\u4EE5\u4FDD\u7559\u65B0\u5185\u5BB9\uFF1B\u5386\u53F2\u8BB0\u5F55\u4ECD\u4FDD\u7559\u3002",
+    undoChanged: "\u64A4\u9500\u672A\u5B8C\u6210\uFF1A\u6587\u4EF6\u5DF2\u53D8\u5316\u3001\u79FB\u52A8\u6216\u6D88\u5931\u3002\u90E8\u5206\u6587\u4EF6\u53EF\u80FD\u5DF2\u6062\u590D\uFF1B\u5386\u53F2\u8BB0\u5F55\u4ECD\u4FDD\u7559\u3002\u8BF7\u6062\u590D\u9884\u671F\u6587\u4EF6\u540E\u91CD\u8BD5\u3002",
     noSyncedItems: "\u6CA1\u6709\u5DF2\u540C\u6B65\u7684\u6761\u76EE",
     noSyncedItemsComment: "\u6CA1\u6709\u5DF2\u540C\u6B65\u7684\u6761\u76EE\uFF0C\u65E0\u6CD5\u5BF9\u6BD4\u77ED\u8BC4",
     noSyncedItemsTag: "\u6CA1\u6709\u5DF2\u540C\u6B65\u7684\u6761\u76EE\uFF0C\u65E0\u6CD5\u5BF9\u6BD4\u6807\u7B7E",
@@ -14544,22 +14544,20 @@ var FrontmatterEditor = class {
           throw new Error(tn("controlPanel", "undoChanged"));
         }
       }
-      let restored = 0;
-      for (const [path, content] of lastOperation.originalContent) {
+      for (const path of lastOperation.affectedFiles) {
+        const content = lastOperation.originalContent.get(path);
         const file = this.app.vault.getAbstractFileByPath(path);
-        if (file instanceof import_obsidian18.TFile && lastOperation.affectedFiles.includes(path)) {
-          const identity = this.documentService.getSubjectIdentityFromContent(content);
-          if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length)) throw new Error(tn("controlPanel", "undoChanged"));
-          await this.documentService.processSubjectFile(file, identity.subjectId, (current) => {
-            if (current !== lastOperation.updatedContent.get(path)) throw new Error(tn("controlPanel", "undoChanged"));
-            return content;
-          });
-          lastOperation.updatedContent.set(path, content);
-          restored++;
-        }
+        if (!(file instanceof import_obsidian18.TFile) || content === void 0) throw new Error(tn("controlPanel", "undoChanged"));
+        const identity = this.documentService.getSubjectIdentityFromContent(content);
+        if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length)) throw new Error(tn("controlPanel", "undoChanged"));
+        await this.documentService.processSubjectFile(file, identity.subjectId, (current) => {
+          if (current !== lastOperation.updatedContent.get(path)) throw new Error(tn("controlPanel", "undoChanged"));
+          return content;
+        });
+        lastOperation.updatedContent.set(path, content);
       }
-      if (restored === lastOperation.affectedFiles.length) this.history.pop();
-      return restored > 0;
+      this.history.pop();
+      return true;
     });
   }
   canUndo() {
