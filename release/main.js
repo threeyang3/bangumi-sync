@@ -455,6 +455,7 @@ var en = {
     noUndo: "No operation to undo",
     undoSuccess: "Undo successful",
     undoFailed: "Undo failed",
+    undoChanged: "A file changed after the batch edit. Undo stopped to preserve newer edits; history is retained.",
     noSyncedItems: "No synced items",
     noSyncedItemsComment: "No synced items to compare comments",
     noSyncedItemsTag: "No synced items to compare tags",
@@ -1162,6 +1163,7 @@ var zhCN = {
     noUndo: "\u6CA1\u6709\u53EF\u64A4\u9500\u7684\u64CD\u4F5C",
     undoSuccess: "\u64A4\u9500\u6210\u529F",
     undoFailed: "\u64A4\u9500\u5931\u8D25",
+    undoChanged: "\u6587\u4EF6\u5728\u6279\u91CF\u7F16\u8F91\u540E\u53D1\u751F\u53D8\u5316\uFF0C\u5DF2\u505C\u6B62\u64A4\u9500\u4EE5\u4FDD\u7559\u65B0\u5185\u5BB9\uFF1B\u5386\u53F2\u8BB0\u5F55\u4ECD\u4FDD\u7559\u3002",
     noSyncedItems: "\u6CA1\u6709\u5DF2\u540C\u6B65\u7684\u6761\u76EE",
     noSyncedItemsComment: "\u6CA1\u6709\u5DF2\u540C\u6B65\u7684\u6761\u76EE\uFF0C\u65E0\u6CD5\u5BF9\u6BD4\u77ED\u8BC4",
     noSyncedItemsTag: "\u6CA1\u6709\u5DF2\u540C\u6B65\u7684\u6761\u76EE\uFF0C\u65E0\u6CD5\u5BF9\u6BD4\u6807\u7B7E",
@@ -4448,6 +4450,7 @@ var BangumiClient = class {
     do {
       const separator = endpoint.includes("?") ? "&" : "?";
       const page = await this.request("GET", `${endpoint}${separator}limit=100&offset=${data.length}`);
+      if ((page == null ? void 0 : page.total) === 0 && page.data === null) page.data = [];
       if (!page || !Array.isArray(page.data) || !Number.isSafeInteger(page.total) || page.total < 0 || expectedTotal !== void 0 && page.total !== expectedTotal) {
         throw new Error("Incomplete episode snapshot: invalid or changing total. Retry the operation.");
       }
@@ -14442,40 +14445,48 @@ var FrontmatterEditor = class {
   }
   async batchModify(filePaths, operations, expectedSubjectIds = /* @__PURE__ */ new Map()) {
     return withWriteOperation("batch-edit", async () => {
-      const originalContents = await this.captureOriginalContents(filePaths);
+      if (new Set(filePaths).size !== filePaths.length) throw new Error("Duplicate batch targets");
+      const originalContents = /* @__PURE__ */ new Map();
+      const updatedContents = /* @__PURE__ */ new Map();
       const affectedFiles = [];
       let success = 0;
       let failed = 0;
       for (const path of filePaths) {
         const result = await this.applyUniformOperations(path, operations, expectedSubjectIds.get(path));
         if (result) {
+          originalContents.set(path, result.original);
+          updatedContents.set(path, result.updated);
           success++;
           affectedFiles.push(path);
         } else {
           failed++;
         }
       }
-      this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
+      this.pushHistoryIfNeeded(success, affectedFiles, originalContents, updatedContents);
       return { success, failed };
     });
   }
   async batchApplyPerItemUpdates(updates) {
     return withWriteOperation("batch-edit", async () => {
       const filePaths = updates.map((update) => update.filePath);
-      const originalContents = await this.captureOriginalContents(filePaths);
+      if (new Set(filePaths).size !== filePaths.length) throw new Error("Duplicate batch targets");
+      const originalContents = /* @__PURE__ */ new Map();
+      const updatedContents = /* @__PURE__ */ new Map();
       const affectedFiles = [];
       let success = 0;
       let failed = 0;
       for (const update of updates) {
         const result = await this.applyPerItemUpdate(update);
         if (result) {
+          originalContents.set(update.filePath, result.original);
+          updatedContents.set(update.filePath, result.updated);
           success++;
           affectedFiles.push(update.filePath);
         } else {
           failed++;
         }
       }
-      this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
+      this.pushHistoryIfNeeded(success, affectedFiles, originalContents, updatedContents);
       return { success, failed };
     });
   }
@@ -14485,20 +14496,31 @@ var FrontmatterEditor = class {
       if (this.history.length === 0) {
         return false;
       }
-      const lastOperation = this.history.pop();
+      const lastOperation = this.history[this.history.length - 1];
       if (!lastOperation) {
         return false;
+      }
+      for (const path of lastOperation.affectedFiles) {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (!(file instanceof import_obsidian18.TFile) || await this.app.vault.read(file) !== lastOperation.updatedContent.get(path)) {
+          throw new Error(tn("controlPanel", "undoChanged"));
+        }
       }
       let restored = 0;
       for (const [path, content] of lastOperation.originalContent) {
         const file = this.app.vault.getAbstractFileByPath(path);
         if (file instanceof import_obsidian18.TFile && lastOperation.affectedFiles.includes(path)) {
           const identity = this.documentService.getSubjectIdentityFromContent(content);
-          if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length)) continue;
-          await this.documentService.processSubjectFile(file, identity.subjectId, () => content);
+          if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length)) throw new Error(tn("controlPanel", "undoChanged"));
+          await this.documentService.processSubjectFile(file, identity.subjectId, (current) => {
+            if (current !== lastOperation.updatedContent.get(path)) throw new Error(tn("controlPanel", "undoChanged"));
+            return content;
+          });
+          lastOperation.updatedContent.set(path, content);
           restored++;
         }
       }
+      if (restored === lastOperation.affectedFiles.length) this.history.pop();
       return restored > 0;
     });
   }
@@ -14509,12 +14531,13 @@ var FrontmatterEditor = class {
     var _a;
     const file = this.app.vault.getAbstractFileByPath(filePath);
     if (!(file instanceof import_obsidian18.TFile)) {
-      return false;
+      return null;
     }
     try {
       const identity = await this.documentService.getSubjectIdentity(file);
       const subjectId = expectedSubjectId != null ? expectedSubjectId : identity.subjectId;
-      if (subjectId === null || identity.subjectId !== subjectId || ((_a = identity.conflicts) == null ? void 0 : _a.length)) return false;
+      if (subjectId === null || identity.subjectId !== subjectId || ((_a = identity.conflicts) == null ? void 0 : _a.length)) return null;
+      let snapshot = null;
       await this.documentService.processSubjectFile(file, subjectId, (content) => {
         var _a2;
         let updated = content;
@@ -14525,52 +14548,45 @@ var FrontmatterEditor = class {
           }
           updated = this.documentService.updateFrontmatterField(updated, operation.property, (_a2 = operation.value) != null ? _a2 : "");
         }
+        snapshot = { original: content, updated };
         return updated;
       });
-      return true;
+      return snapshot;
     } catch (error) {
       console.error(`[Bangumi Sync] Failed to batch modify frontmatter: ${filePath}`, error);
-      return false;
+      return null;
     }
   }
   async applyPerItemUpdate(update) {
     const file = this.app.vault.getAbstractFileByPath(update.filePath);
     if (!(file instanceof import_obsidian18.TFile)) {
-      return false;
+      return null;
     }
     try {
-      if (update.subjectId === void 0) return false;
+      if (update.subjectId === void 0) return null;
+      let snapshot = null;
       await this.documentService.processSubjectFile(file, update.subjectId, (content) => {
         let updated = content;
         for (const [property, value] of Object.entries(update.properties)) {
           updated = this.documentService.updateFrontmatterField(updated, property, value);
         }
+        snapshot = { original: content, updated };
         return updated;
       });
-      return true;
+      return snapshot;
     } catch (error) {
       console.error(`[Bangumi Sync] Failed to apply per-item batch update: ${update.filePath}`, error);
-      return false;
+      return null;
     }
   }
-  async captureOriginalContents(filePaths) {
-    const originalContents = /* @__PURE__ */ new Map();
-    for (const path of filePaths) {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian18.TFile) {
-        const content = await this.app.vault.read(file);
-        originalContents.set(path, content);
-      }
-    }
-    return originalContents;
-  }
-  pushHistoryIfNeeded(success, affectedFiles, originalContents) {
+  pushHistoryIfNeeded(success, affectedFiles, originalContents, updatedContents) {
     if (success <= 0) {
       return;
     }
     this.history.push({
       affectedFiles,
       originalContent: originalContents,
+      updatedContent: updatedContents,
       timestamp: Date.now()
     });
     if (this.history.length > this.maxHistory) {
@@ -17311,7 +17327,13 @@ var ControlPanel = class extends import_obsidian24.Modal {
       new import_obsidian24.Notice(tn("controlPanel", "noUndo"));
       return;
     }
-    const success = await this.frontmatterEditor.undo();
+    let success;
+    try {
+      success = await this.frontmatterEditor.undo();
+    } catch (error) {
+      new import_obsidian24.Notice(`${tn("controlPanel", "undoFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
     if (success) {
       new import_obsidian24.Notice(tn("controlPanel", "undoSuccess"));
       this.renderActionBar();
@@ -18122,7 +18144,8 @@ var UserDataImporter = class {
       for (const [subjectId, fieldDecisions] of grouped) {
         const localFile = await this.findLocalFile(subjectId);
         if (!localFile) continue;
-        let content = await this.app.vault.read(localFile);
+        const originalContent = await this.app.vault.read(localFile);
+        let content = originalContent;
         for (const decision of fieldDecisions) {
           if (decision.decision === "add") {
             content = this.merger.addFrontmatterField(
@@ -18132,7 +18155,10 @@ var UserDataImporter = class {
             );
           }
         }
-        await this.documentService.processSubjectFile(localFile, subjectId, () => content);
+        await this.documentService.processSubjectFile(localFile, subjectId, (current) => {
+          if (current !== originalContent) throw new Error("Note changed during import. Compare again before retrying.");
+          return content;
+        });
       }
     });
   }
@@ -18146,7 +18172,8 @@ var UserDataImporter = class {
       for (const item of diffs) {
         const localFile = await this.findLocalFile(item.subjectId);
         if (!localFile) continue;
-        let content = await this.app.vault.read(localFile);
+        const originalContent = await this.app.vault.read(localFile);
+        let content = originalContent;
         let changed = false;
         for (const diff of item.diffs) {
           const decision = (_a = diff.decision) != null ? _a : "skip";
@@ -18172,7 +18199,10 @@ var UserDataImporter = class {
           }
         }
         if (changed) {
-          await this.documentService.processSubjectFile(localFile, item.subjectId, () => content);
+          await this.documentService.processSubjectFile(localFile, item.subjectId, (current) => {
+            if (current !== originalContent) throw new Error("Note changed during import. Compare again before retrying.");
+            return content;
+          });
           applied++;
         }
       }
@@ -18465,7 +18495,10 @@ var UserDataImporter = class {
       );
     }
     if (changed || updatedContent !== originalContent) {
-      await this.documentService.processSubjectFile(localFile, subjectId, () => updatedContent);
+      await this.documentService.processSubjectFile(localFile, subjectId, (current) => {
+        if (current !== originalContent) throw new Error("Note changed during import. Compare again before retrying.");
+        return updatedContent;
+      });
       return true;
     }
     return false;

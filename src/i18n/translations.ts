@@ -321,6 +321,7 @@ export interface TranslationStrings {
 		noUndo: string;
 		undoSuccess: string;
 		undoFailed: string;
+		undoChanged: string;
 		noSyncedItems: string;
 		noSyncedItemsComment: string;
 		noSyncedItemsTag: string;
@@ -1015,6 +1016,7 @@ const en: TranslationStrings = {
 		noUndo: 'No operation to undo',
 		undoSuccess: 'Undo successful',
 		undoFailed: 'Undo failed',
+		undoChanged: 'A file changed after the batch edit. Undo stopped to preserve newer edits; history is retained.',
 		noSyncedItems: 'No synced items',
 		noSyncedItemsComment: 'No synced items to compare comments',
 		noSyncedItemsTag: 'No synced items to compare tags',
@@ -1694,6 +1696,7 @@ const zhCN: TranslationStrings = {
 		noUndo: '没有可撤销的操作',
 		undoSuccess: '撤销成功',
 		undoFailed: '撤销失败',
+		undoChanged: '文件在批量编辑后发生变化，已停止撤销以保留新内容；历史记录仍保留。',
 		noSyncedItems: '没有已同步的条目',
 		noSyncedItemsComment: '没有已同步的条目，无法对比短评',
 		noSyncedItemsTag: '没有已同步的条目，无法对比标签',

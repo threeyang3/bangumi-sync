@@ -1404,7 +1404,9 @@ export class ControlPanel extends Modal {
 			return;
 		}
 
-		const success = await this.frontmatterEditor.undo();
+		let success: boolean;
+		try { success = await this.frontmatterEditor.undo(); }
+		catch (error) { new Notice(`${tn('controlPanel', 'undoFailed')}: ${error instanceof Error ? error.message : String(error)}`); return; }
 		if (success) {
 			new Notice(tn('controlPanel', 'undoSuccess'));
 			this.renderActionBar();
