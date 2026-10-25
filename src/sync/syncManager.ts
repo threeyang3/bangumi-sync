@@ -2934,7 +2934,9 @@ export class SyncManager {
 	createSyncContextValidator(): () => boolean {
 		const captured = JSON.stringify(cloneSyncManagerConfig(this.config));
 		const client = this.client;
+		const revision = client.subjectDetailRevision;
 		return () => !this.shuttingDown && this.client === client
+			&& client.subjectDetailRevision === revision
 			&& JSON.stringify(cloneSyncManagerConfig(this.config)) === captured;
 	}
 

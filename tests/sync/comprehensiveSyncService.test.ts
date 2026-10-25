@@ -7,6 +7,8 @@ import { SyncManager } from '../../src/sync/syncManager';
 import { createDefaultStatusSyncFieldSelection } from '../../src/sync/statusSyncTypes';
 import { withWriteOperation } from '../../src/sync/writeOperationGate';
 import { InMemoryVault } from '../mocks/inMemoryVault';
+import { EpisodeStatusManager } from '../../src/episode/episodeStatusManager';
+import { LocalEpisodeStatus } from '../../src/episode/types';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -32,18 +34,20 @@ function setup() {
 		customTemplates: { musicTemplateConfig: '---\nid: {{id}}\n---\n{{summary}}' } });
 	vi.spyOn(manager.client, 'validateToken').mockResolvedValue({ valid: true, username: 'fixture' });
 	const readCloud = vi.spyOn(manager.client, 'getAllUserCollections').mockResolvedValue([collection(1), collection(2, 8), collection(3)]);
+	const remote = new Map([collection(1), collection(2, 8), collection(3), collection(4)].map(item => [item.subject_id, item]));
+	const readSelected = vi.spyOn(manager.client, 'getCollectionStatus').mockImplementation(id => Promise.resolve(remote.get(id) ?? null));
 	vi.spyOn(manager.client, 'getSubject').mockImplementation(id => Promise.resolve(subject(id)));
 	vi.spyOn(manager.client, 'getFullSubjectInfo').mockImplementation(id => Promise.resolve({ subject: subject(id), characters: [], persons: [], relations: [] }));
 	const status = new StatusSyncService(vault.app, manager.client, new SubjectDocumentService(vault.app));
 	const service = new ComprehensiveSyncService(manager, status);
 	const selection = createDefaultStatusSyncFieldSelection();
 	selection.user.comment = selection.user.tags = selection.user.status = selection.user.episodeStatus = false;
-	return { vault, one, two, manager, status, service, selection, readCloud };
+	return { vault, one, two, manager, status, service, selection, readCloud, remote, readSelected };
 }
 
 describe('comprehensive sync invariants', () => {
 	it('partitions one shared account/local snapshot and preserves local-only data', async () => {
-		const { vault, service, selection, readCloud } = setup();
+		const { vault, service, selection, readCloud, readSelected } = setup();
 		const plan = await service.prepare(selection);
 		expect(plan.additions.map(item => item.subject_id)).toEqual([3]);
 		expect(plan.diffs.map(item => item.subjectId)).toEqual([2]);
@@ -57,6 +61,7 @@ describe('comprehensive sync invariants', () => {
 			expect.objectContaining({ subjectId: 3, status: 'created' }),
 		]));
 		expect(readCloud).toHaveBeenCalledTimes(1);
+		expect(readSelected.mock.calls.map(([id]) => id).sort()).toEqual([2, 3]);
 		expect(vault.contents.get('ACGN/local-only.md')).toContain('Local-only body');
 		expect(vault.contents.get('ACGN/two.md')).toContain('评分: 8');
 		const again = await service.prepare(selection);
@@ -99,13 +104,91 @@ describe('comprehensive sync invariants', () => {
 		expect(result.outcomes.find(item => item.subjectId === 3)?.status).toBe('skipped');
 	});
 
-	it('preserves preview edits and reports their failure while importing independent items', async () => {
+	it('rejects preview edits before importing independent items', async () => {
 		const { vault, two, service, selection } = setup(); const plan = await service.prepare(selection);
 		plan.diffs[0].rate.decision = 'cloud'; const edited = (vault.contents.get(two.path) ?? '') + '\nNew edit'; vault.contents.set(two.path, edited);
-		const result = await service.execute(plan, new Set([3]));
-		expect(result.outcomes.find(item => item.subjectId === 2)?.status).toBe('failed');
-		expect(result.outcomes.find(item => item.subjectId === 3)?.status).toBe('created');
+		await expect(service.execute(plan, new Set([3]))).rejects.toThrow('Note changed');
+		expect(vault.files.has('ACGN/3.md')).toBe(false);
 		expect(vault.contents.get(two.path)).toBe(edited);
+	});
+
+	it.each(['cloud', 'local'] as const)('rejects a stale cloud rating before any %s decision or import writes', async decision => {
+		const { vault, manager, service, selection, remote } = setup();
+		const plan = await service.prepare(selection); plan.diffs[0].rate.decision = decision;
+		const before = new Map(vault.contents);
+		const write = vi.spyOn(manager.client, 'updateCollection');
+		remote.set(2, collection(2, 9));
+		await expect(service.execute(plan, new Set([3]))).rejects.toThrow('Cloud collection changed');
+		expect(vault.contents).toEqual(before); expect(write).not.toHaveBeenCalled();
+	});
+
+	it('rejects a removed import target before applying an earlier existing-note decision', async () => {
+		const { vault, service, selection, remote } = setup();
+		const plan = await service.prepare(selection); plan.diffs[0].rate.decision = 'cloud';
+		const before = new Map(vault.contents); remote.delete(3);
+		await expect(service.execute(plan, new Set([3]))).rejects.toThrow('Cloud collection changed');
+		expect(vault.contents).toEqual(before);
+	});
+
+	it.each(['401', '429', 'Incomplete response'])('fails closed on a selected cloud read error: %s', async message => {
+		const { vault, service, selection, readSelected } = setup();
+		const plan = await service.prepare(selection); plan.diffs[0].rate.decision = 'cloud';
+		const before = new Map(vault.contents);
+		readSelected.mockImplementation(id => id === 3 ? Promise.reject(new Error(message)) : Promise.resolve(collection(id, 8)));
+		await expect(service.execute(plan, new Set([3]))).rejects.toThrow();
+		expect(vault.contents).toEqual(before);
+	});
+
+	it('detects private/tag changes without relying on updated_at', async () => {
+		const { vault, service, selection, remote } = setup();
+		const plan = await service.prepare(selection); plan.diffs[0].rate.decision = 'cloud';
+		const before = new Map(vault.contents);
+		remote.set(2, { ...collection(2, 8), private: true, tags: ['new'] });
+		await expect(service.execute(plan, new Set())).rejects.toThrow('Cloud collection changed');
+		expect(vault.contents).toEqual(before);
+	});
+
+	it('only revalidates selected targets and rejects token revisions', async () => {
+		const { service, selection, readSelected, manager } = setup();
+		const plan = await service.prepare(selection);
+		await service.execute(plan, new Set()); expect(readSelected).not.toHaveBeenCalled();
+		const again = await service.prepare(selection); manager.client.setAccessToken('different-fixture');
+		await expect(service.execute(again, new Set([3]))).rejects.toThrow('expired');
+		expect(readSelected).not.toHaveBeenCalled();
+	});
+
+	it('detects episode changes beyond the visible summary before writing another selected field', async () => {
+		const { vault, manager, selection, remote, readCloud } = setup();
+		const anime = { ...collection(2, 8), subject_type: SubjectType.Anime };
+		remote.set(2, anime); readCloud.mockResolvedValue([anime]); selection.user.episodeStatus = true;
+		const episodes = new EpisodeStatusManager(vault.app, manager.client);
+		const status = new StatusSyncService(vault.app, manager.client, new SubjectDocumentService(vault.app, episodes), episodes);
+		const service = new ComprehensiveSyncService(manager, status);
+		const cloudMap = new Map<number, LocalEpisodeStatus>(Array.from({ length: 12 }, (_, i) => [i + 1, { episodeId: i + 1, epNumber: i + 1, status: 2, updatedAt: 0 }]));
+		vi.spyOn(episodes, 'getCloudEpisodeStatusMap').mockImplementation(() => Promise.resolve(new Map(cloudMap)));
+		const plan = await service.prepare(selection); plan.diffs[0].rate.decision = 'cloud';
+		const before = new Map(vault.contents);
+		cloudMap.set(12, { episodeId: 12, epNumber: 12, status: 1, updatedAt: 0 });
+		// Review normalization may omit display-only snapshot properties.
+		delete plan.diffs[0].episodeStatus.cloudSnapshot;
+		await expect(service.execute(plan, new Set())).rejects.toThrow('Cloud episode or platform');
+		expect(vault.contents).toEqual(before);
+	});
+
+	it('detects a same-count chapter catalog change before replacing episode markup', async () => {
+		const { vault, manager, selection, remote, readCloud } = setup();
+		const anime = { ...collection(2, 8), subject_type: SubjectType.Anime };
+		remote.set(2, anime); readCloud.mockResolvedValue([anime]); selection.platform.episodeCount = true;
+		vi.spyOn(manager.client, 'getSubject').mockResolvedValue({ ...subject(2), type: SubjectType.Anime, eps: 2, total_episodes: 2 });
+		const episode = { id: 11, type: 0, name: 'Original', name_cn: '', ep: 1, sort: 1, duration: '', airdate: '', comment: 0, desc: '', disc: 0 };
+		const catalog = vi.spyOn(manager.client, 'getEpisodes').mockResolvedValue({ total: 1, limit: 100, offset: 0, data: [episode] });
+		const service = new ComprehensiveSyncService(manager, new StatusSyncService(vault.app, manager.client, new SubjectDocumentService(vault.app)));
+		const plan = await service.prepare(selection); plan.diffs[0].rate.decision = 'cloud';
+		const before = new Map(vault.contents);
+		// Same platform episode count, different catalog content.
+		catalog.mockResolvedValue({ total: 1, limit: 100, offset: 0, data: [{ ...episode, name: 'Changed' }] });
+		await expect(service.execute(plan, new Set())).rejects.toThrow('Cloud episode or platform');
+		expect(vault.contents).toEqual(before);
 	});
 
 	it('does not treat duplicate IDs as missing imports', async () => {

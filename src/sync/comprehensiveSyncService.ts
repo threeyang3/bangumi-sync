@@ -1,11 +1,11 @@
 import { UserCollection } from '../../common/api/types';
-import { SubjectDetailSession } from '../api/subjectDetailSession';
 import { LocalPropertyValueMap } from '../ui/localPropertyModal';
 import { StatusSyncService } from './statusSyncService';
 import { SyncManager } from './syncManager';
 import { SyncResultWithRollback } from './syncStatus';
 import { StatusSyncDiff, StatusSyncFieldSelection, hasSelectedStatusChanges } from './statusSyncTypes';
 import { withWriteOperation } from './writeOperationGate';
+import { cloudSnapshot, collectionSnapshot } from './cloudSnapshots';
 
 export interface ComprehensiveSyncFailure {
 	subjectId: number;
@@ -38,6 +38,9 @@ export interface ComprehensiveSyncResult {
 export class ComprehensiveSyncService {
 	private readonly contexts = new WeakMap<ComprehensiveSyncPlan, () => boolean>();
 	private readonly consumed = new WeakSet<ComprehensiveSyncPlan>();
+	private readonly cloudBaselines = new WeakMap<ComprehensiveSyncPlan, {
+		collections: Map<number, string>; fields: Map<number, string>;
+	}>();
 
 	constructor(private readonly manager: SyncManager, readonly statusService: StatusSyncService, private readonly concurrency = 3) {}
 
@@ -94,7 +97,7 @@ export class ComprehensiveSyncService {
 				isDisposed: cancelled,
 				updateBackgroundProgress: (current, total) => onProgress?.(current, total),
 				updateDiff: (id, patch) => { const diff = byId.get(id); if (diff) Object.assign(diff, patch); },
-			}, undefined, this.concurrency);
+			}, undefined, this.concurrency, true);
 			assertCurrent();
 			const collectionsById = new Map(existing.map(item => [item.subject_id, item]));
 			for (const diff of diffs) {
@@ -109,15 +112,22 @@ export class ComprehensiveSyncService {
 				else plan.unchanged.push(collectionsById.get(diff.subjectId)!);
 			}
 			this.contexts.set(plan, contextIsValid);
+			this.cloudBaselines.set(plan, {
+				collections: new Map(data.collections.map(item => [item.subject_id, collectionSnapshot(item)])),
+				fields: new Map(diffs.map(diff => [diff.subjectId, this.fieldSnapshot(diff)])),
+			});
 			return plan;
 		});
 	}
 
-	async execute(plan: ComprehensiveSyncPlan, selectedAdditions: ReadonlySet<number>, properties?: Map<number, LocalPropertyValueMap>, subjectDetails?: SubjectDetailSession): Promise<ComprehensiveSyncResult> {
+	async execute(plan: ComprehensiveSyncPlan, selectedAdditions: ReadonlySet<number>, properties?: Map<number, LocalPropertyValueMap>): Promise<ComprehensiveSyncResult> {
 		return withWriteOperation('comprehensive-sync', async lease => {
 			if (!this.contexts.get(plan)?.() || this.consumed.has(plan)) throw new Error('Preview expired or already executed. Refresh and retry.');
 			this.manager.ensureCanStartSync(lease);
 			this.consumed.add(plan);
+			// Read every selected cloud target before allowing either engine to mutate.
+			await this.validateCloud(plan, plan.diffs.filter(hasSelectedStatusChanges), plan.additions.filter(item => selectedAdditions.has(item.subject_id)));
+			if (!this.contexts.get(plan)?.()) throw new Error('Preview expired. Refresh and retry.');
 			const outcomes: ComprehensiveSyncOutcome[] = [
 				...plan.unchanged.map(item => ({ subjectId: item.subject_id, name: item.subject.name_cn || item.subject.name, status: 'unchanged' as const })),
 				...plan.failures.map(item => ({ ...item, status: 'failed' as const })),
@@ -138,7 +148,7 @@ export class ComprehensiveSyncService {
 			if (additions.length === 0) return { outcomes };
 			try {
 				const importResult = await this.manager.syncByCollections(additions, {
-					localPropertyValuesBySubjectId: properties, onlyCreateMissing: true, subjectDetails, concurrency: this.concurrency,
+					localPropertyValuesBySubjectId: properties, onlyCreateMissing: true, concurrency: this.concurrency,
 				}, undefined, lease);
 				const importedById = new Map(importResult.outcomes.map(row => [row.subjectId, row]));
 				for (const item of additions) {
@@ -156,5 +166,50 @@ export class ComprehensiveSyncService {
 				return { outcomes };
 			}
 		});
+	}
+
+	private fieldSnapshot(diff: StatusSyncDiff): string {
+		return cloudSnapshot({ episode: diff.episodeStatus.cloudSnapshot, platform: diff.cloudPlatformSnapshot, catalog: diff.cloudEpisodesSnapshot });
+	}
+
+	private async validateCloud(plan: ComprehensiveSyncPlan, diffs: StatusSyncDiff[], additions: UserCollection[]): Promise<void> {
+		const baseline = this.cloudBaselines.get(plan);
+		if (!baseline) throw new Error('Preview expired. Refresh and retry.');
+		const targets = [...diffs.map(diff => diff.collection), ...additions];
+		const fresh = new Map<number, UserCollection>();
+		let next = 0;
+		let error: Error | undefined;
+		await Promise.all(Array.from({ length: Math.min(this.concurrency, targets.length) }, async () => {
+			while (next < targets.length && !error) {
+				const target = targets[next++];
+				try {
+					const collection = await this.manager.client.getCollectionStatus(target.subject_id);
+					if (!collection || collectionSnapshot(collection) !== baseline.collections.get(target.subject_id)) throw new Error('Cloud collection changed since preview. Compare again before syncing.');
+					fresh.set(target.subject_id, collection);
+				} catch (cause) { error = cause instanceof Error ? cause : new Error('Cloud collection could not be verified. Compare again before syncing.'); }
+			}
+		}));
+		if (error) throw error;
+		if (diffs.length === 0) return;
+		const { snapshots, diffs: freshDiffs } = await this.statusService.buildDiffSession({
+			selection: plan.selection, collections: diffs.map(diff => fresh.get(diff.subjectId)!), includeUnchanged: true, concurrency: this.concurrency,
+			localSubjects: new Map(diffs.map(diff => [diff.subjectId, { id: diff.subjectId, path: diff.localPath, name_cn: diff.name_cn }])),
+		});
+		if (snapshots.length !== diffs.length) throw new Error('Local preview changed. Compare again before syncing.');
+		const originals = new Map(diffs.map(diff => [diff.subjectId, diff]));
+		for (const snapshot of snapshots) {
+			if (snapshot.localSnapshot.content !== originals.get(snapshot.subjectId)?.localContentSnapshot) throw new Error('Note changed since preview. Compare again before syncing.');
+		}
+		const freshById = new Map(freshDiffs.map(diff => [diff.subjectId, diff]));
+		await this.statusService.loadBackgroundDiffs(plan.selection, snapshots, {
+			isDisposed: () => false, updateBackgroundProgress: () => undefined,
+			updateDiff: (id, patch) => { const diff = freshById.get(id); if (diff) Object.assign(diff, patch); },
+		}, undefined, this.concurrency, true);
+		for (const diff of freshDiffs) {
+			if (diff.backgroundError || diff.episodeStatusLoadState !== 'ready' || diff.platformLoadState !== 'ready'
+				|| this.fieldSnapshot(diff) !== baseline.fields.get(diff.subjectId)) {
+				throw new Error('Cloud episode or platform data changed or could not be verified. Compare again before syncing.');
+			}
+		}
 	}
 }

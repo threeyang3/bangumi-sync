@@ -170,7 +170,7 @@ export class ComprehensiveSyncModal extends Modal {
 		try {
 			const properties = await this.collectProperties(details);
 			if (!properties) return;
-			this.result = await this.service.execute(this.plan, this.selected, properties.propertyValuesBySubjectId, details);
+			this.result = await this.service.execute(this.plan, this.selected, properties.propertyValuesBySubjectId);
 			this.pages.clear();
 			this.onComplete();
 		} catch (error) { this.error = error instanceof Error ? error.message : String(error); new Notice(this.error); }

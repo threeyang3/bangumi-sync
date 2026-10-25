@@ -44,8 +44,9 @@ export class StatusSyncService {
 		callbacks: BackgroundUpdateCallbacks,
 		onProgress?: (completed: number, total: number) => void,
 		concurrency = 4,
+		captureCloudSnapshots = false,
 	): Promise<void> {
-		await this.backgroundLoader.loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency);
+		await this.backgroundLoader.loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency, captureCloudSnapshots);
 	}
 
 	applyDecisionPreset(diffs: StatusSyncDiff[], decision: FieldDecision | 'smart'): void {
