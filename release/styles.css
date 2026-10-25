@@ -287,76 +287,76 @@
 
 /* ==================== Modal Sizing ==================== */
 
-.modal:has(.bangumi-control-panel) {
+.modal.bangumi-modal:has(.bangumi-control-panel) {
 	width: 1440px !important;
 	max-width: 95vw !important;
 	height: 90vh !important;
 }
 
-.modal:has(.bangumi-control-panel) .modal-content {
+.modal.bangumi-modal:has(.bangumi-control-panel) .modal-content {
 	overflow: hidden !important;
 }
 
-.modal:has(.bangumi-search-modal) {
+.modal.bangumi-modal:has(.bangumi-search-modal) {
 	width: 800px !important;
 	max-width: 95vw !important;
 }
 
-.modal:has(.bangumi-add-collection-modal) {
+.modal.bangumi-modal:has(.bangumi-add-collection-modal) {
 	width: 900px !important;
 	max-width: 95vw !important;
 }
 
-.modal:has(.bangumi-add-collection-modal) .modal-content {
+.modal.bangumi-modal:has(.bangumi-add-collection-modal) .modal-content {
 	width: 100% !important;
 	max-width: none !important;
 }
 
-.modal:has(.bangumi-local-property-modal) {
+.modal.bangumi-modal:has(.bangumi-local-property-modal) {
 	width: 980px !important;
 	max-width: 96vw !important;
 }
 
-.modal:has(.bangumi-local-property-modal) .modal-content {
+.modal.bangumi-modal:has(.bangumi-local-property-modal) .modal-content {
 	width: 100% !important;
 	max-width: none !important;
 }
 
-.modal:has(.bangumi-status-sync-modal) {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) {
 	width: 1280px !important;
 	max-width: 96vw !important;
 	height: 88vh !important;
 }
 
-.modal:has(.bangumi-status-sync-modal) .modal-content,
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .modal-content,
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
 	height: 100% !important;
 	min-height: 0 !important;
 }
 
-.modal:has(.bangumi-import-compare-modal),
-.modal:has(.bangumi-property-import-review) {
+.modal.bangumi-modal:has(.bangumi-import-compare-modal),
+.modal.bangumi-modal:has(.bangumi-property-import-review) {
 	width: 1180px !important;
 	max-width: 96vw !important;
 	height: 86vh !important;
 }
 
-.modal:has(.bangumi-batch-editor) {
+.modal.bangumi-modal:has(.bangumi-batch-editor) {
 	width: min(1180px, 94vw) !important;
 	max-width: min(1180px, 94vw) !important;
 	height: 88vh !important;
 }
 
-.modal:has(.bangumi-batch-editor) .modal-content,
-.modal:has(.bangumi-batch-editor) .bangumi-batch-editor {
+.modal.bangumi-modal:has(.bangumi-batch-editor) .modal-content,
+.modal.bangumi-modal:has(.bangumi-batch-editor) .bangumi-batch-editor {
 	height: 100% !important;
 	min-height: 0 !important;
 }
 
-.modal:has(.bangumi-import-compare-modal) .modal-content,
-.modal:has(.bangumi-property-import-review) .modal-content,
-.modal:has(.bangumi-import-compare-modal) .bangumi-import-compare-modal,
-.modal:has(.bangumi-property-import-review) .bangumi-property-import-review {
+.modal.bangumi-modal:has(.bangumi-import-compare-modal) .modal-content,
+.modal.bangumi-modal:has(.bangumi-property-import-review) .modal-content,
+.modal.bangumi-modal:has(.bangumi-import-compare-modal) .bangumi-import-compare-modal,
+.modal.bangumi-modal:has(.bangumi-property-import-review) .bangumi-property-import-review {
 	height: 100% !important;
 	min-height: 0 !important;
 }
@@ -2230,13 +2230,13 @@
 
 /* ==================== Status Sync Modal ==================== */
 
-.modal:has(.bangumi-status-sync-modal) .modal-content,
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .modal-content,
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
 	height: 100% !important;
 	min-height: 0 !important;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-modal {
 	display: flex !important;
 	flex-direction: column !important;
 	gap: 12px;
@@ -2244,20 +2244,20 @@
 	box-sizing: border-box;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-actions,
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-footer {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-actions,
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-footer {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
 	align-items: center;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-status {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-status {
 	padding: 8px 12px;
 	color: var(--text-muted);
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table {
 	flex: 1 1 auto;
 	min-height: 0;
 	overflow: auto;
@@ -2265,57 +2265,57 @@
 	border-radius: 4px;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table table,
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table .bangumi-detail-table {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table table,
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table .bangumi-detail-table {
 	width: 100%;
 	border-collapse: collapse;
 	table-layout: fixed;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table th,
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table td {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table th,
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table td {
 	padding: 10px 12px;
 	border-bottom: 1px solid var(--background-modifier-border);
 	vertical-align: top;
 	text-align: left;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table thead th {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-status-sync-table thead th {
 	position: sticky;
 	top: 0;
 	z-index: 1;
 	background: var(--background-secondary);
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-name-cell {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-name-cell {
 	width: 28%;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-fields-cell {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-fields-cell {
 	width: 44%;
 	color: var(--text-muted);
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-action-cell {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-action-cell {
 	width: 28%;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-detail-row td {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-detail-row td {
 	background: color-mix(in srgb, var(--background-secondary) 45%, transparent);
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-sync-value {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-sync-value {
 	white-space: pre-wrap;
 	word-break: break-word;
 	line-height: 1.55;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-sync-decision-select {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-sync-decision-select {
 	width: 100%;
 	min-width: 120px;
 }
 
-.modal:has(.bangumi-status-sync-modal) .bangumi-expand-btn {
+.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-expand-btn {
 	width: 100%;
 }
 
@@ -2637,13 +2637,13 @@
 		--bangumi-mobile-action-height: 80px;
 	}
 
-	.modal:has([class*="bangumi-"]) {
+	.modal.bangumi-modal {
 		width: 95vw !important;
 		max-width: none !important;
 		max-height: 90vh !important;
 	}
 
-	.modal:has([class*="bangumi-"]) .modal-content {
+	.modal.bangumi-modal .modal-content {
 		padding: 10px;
 	}
 
@@ -2689,14 +2689,14 @@
 	}
 
 	/* Control Panel */
-	.modal:has(.bangumi-control-panel) {
+	.modal.bangumi-modal:has(.bangumi-control-panel) {
 		width: 100vw !important;
 		height: 100vh !important;
 		max-width: none !important;
 		max-height: none !important;
 	}
 
-	.modal:has(.bangumi-control-panel) .modal-close-button {
+	.modal.bangumi-modal:has(.bangumi-control-panel) .modal-close-button {
 		top: calc(env(safe-area-inset-top, 0px) + 16px) !important;
 		right: 16px !important;
 		z-index: 10;
@@ -3045,7 +3045,7 @@
 	}
 
 	/* Search Modal */
-	.modal:has(.bangumi-search-modal) {
+	.modal.bangumi-modal:has(.bangumi-search-modal) {
 		width: 95vw !important;
 		max-width: none !important;
 	}
@@ -3155,7 +3155,7 @@
 	}
 
 	/* Add Collection Modal */
-	.modal:has(.bangumi-add-collection-modal) {
+	.modal.bangumi-modal:has(.bangumi-add-collection-modal) {
 		width: 95vw !important;
 		max-width: none !important;
 	}
@@ -3178,7 +3178,7 @@
 	}
 
 	/* Local Property Modal */
-	.modal:has(.bangumi-local-property-modal) {
+	.modal.bangumi-modal:has(.bangumi-local-property-modal) {
 		width: 95vw !important;
 		max-width: none !important;
 	}
@@ -3211,15 +3211,15 @@
 	}
 
 	/* Status Sync Modal */
-	.modal:has(.bangumi-status-sync-modal) {
+	.modal.bangumi-modal:has(.bangumi-status-sync-modal) {
 		width: 100vw !important;
 		height: 100vh !important;
 		max-width: none !important;
 		max-height: none !important;
 	}
 
-	.modal:has(.bangumi-import-compare-modal),
-	.modal:has(.bangumi-property-import-review) {
+	.modal.bangumi-modal:has(.bangumi-import-compare-modal),
+	.modal.bangumi-modal:has(.bangumi-property-import-review) {
 		width: 95vw !important;
 		height: 90vh !important;
 		max-width: none !important;
@@ -3245,15 +3245,15 @@
 		font-size: 12px;
 	}
 
-	.modal:has(.bangumi-status-sync-modal) .bangumi-name-cell {
+	.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-name-cell {
 		width: 40% !important;
 	}
 
-	.modal:has(.bangumi-status-sync-modal) .bangumi-fields-cell {
+	.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-fields-cell {
 		width: 60% !important;
 	}
 
-	.modal:has(.bangumi-status-sync-modal) .bangumi-action-cell {
+	.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-action-cell {
 		width: 100% !important;
 		display: flex;
 		flex-wrap: wrap;
@@ -3478,7 +3478,7 @@
 	}
 
 	/* Batch Editor */
-	.modal:has(.bangumi-batch-editor) {
+	.modal.bangumi-modal:has(.bangumi-batch-editor) {
 		width: 95vw !important;
 		height: 90vh !important;
 		max-width: none !important;
@@ -3576,8 +3576,8 @@
 	.bangumi-filter-toggle { display: block; }
 	.bangumi-panel-toolbar .bangumi-toolbar-group-filters { display: none; }
 	.bangumi-panel-toolbar.filters-expanded .bangumi-toolbar-group-filters { display: flex; }
-	.modal:has(.bangumi-control-panel),
-	.modal:has(.bangumi-batch-editor) {
+	.modal.bangumi-modal:has(.bangumi-control-panel),
+	.modal.bangumi-modal:has(.bangumi-batch-editor) {
 		height: 100dvh !important;
 		max-height: 100dvh !important;
 	}
@@ -3640,12 +3640,12 @@
 	}
 }
 @media (max-width: 767px) {
-	.modal:has([class*="bangumi-"]) button,
-	.modal:has([class*="bangumi-"]) select {
+	.modal.bangumi-modal button,
+	.modal.bangumi-modal select {
 		min-height: 44px;
 	}
-	.modal:has(.bangumi-status-sync-modal) .bangumi-name-cell,
-	.modal:has(.bangumi-status-sync-modal) .bangumi-fields-cell {
+	.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-name-cell,
+	.modal.bangumi-modal:has(.bangumi-status-sync-modal) .bangumi-fields-cell {
 		width: 100% !important;
 	}
 }

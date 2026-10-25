@@ -213,7 +213,7 @@ export class ControlPanel extends Modal {
                 subjectNoteManager?: SubjectNoteManager | null,
                 episodeStatusManager?: EpisodeStatusManager | null,
                 autoSyncSelection?: StatusSyncFieldSelection | 'prompt' | null,
-		private readonly onComprehensiveSync?: () => void,
+		private readonly actions: { openRecoveryCenter?: () => void; openComprehensiveSync?: () => void } = {},
         ) {
 		super(app);
 		this.settings = settings;
@@ -248,6 +248,7 @@ export class ControlPanel extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 
 		contentEl.addClass('bangumi-control-panel');
@@ -435,6 +436,12 @@ export class ControlPanel extends Modal {
 	 */
 	private renderActionBar(): void {
 		this.actionBarEl.empty();
+		if (this.managerState === 'recovery-required' && this.actions.openRecoveryCenter) {
+			const recoveryButton = this.actionBarEl.createEl('button', {
+				text: tn('commands', 'openRecoveryCenter'), cls: 'bangumi-open-recovery mod-warning',
+			});
+			recoveryButton.addEventListener('click', this.actions.openRecoveryCenter);
+		}
 		const hasSelection = this.state.selectedIds.size > 0;
 		const toolbarActions = this.getToolbarActions(hasSelection);
 
@@ -490,7 +497,7 @@ export class ControlPanel extends Modal {
 			{
 				key: 'comprehensiveSync', label: tn('comprehensiveSync', 'title'), mobileLabel: tn('comprehensiveSync', 'title'),
 				className: 'bangumi-action-btn-sync', showInDefaultToolbar: true, showInSelectionToolbar: false,
-				showInMoreMenu: true, menuSection: 'sync', run: () => this.onComprehensiveSync?.(),
+				showInMoreMenu: true, menuSection: 'sync', run: () => this.actions.openComprehensiveSync?.(),
 			},
                         {
                                 key: 'search',
@@ -1782,6 +1789,7 @@ class ConfirmModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 
 		contentEl.createEl('p', { text: this.message });

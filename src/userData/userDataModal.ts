@@ -51,6 +51,7 @@ export class UserDataExportModal extends Modal {
     }
 
     onOpen(): void {
+        this.modalEl.addClass('bangumi-modal');
         const { contentEl } = this;
         contentEl.addClass('bangumi-user-data-export');
 
@@ -178,6 +179,7 @@ export class UserDataImportModal extends Modal {
     }
 
     onOpen(): void {
+        this.modalEl.addClass('bangumi-modal');
         const { contentEl } = this;
         contentEl.addClass('bangumi-user-data-import');
 
@@ -413,6 +415,7 @@ export class MissingFieldModal extends Modal {
     }
 
     onOpen(): void {
+        this.modalEl.addClass('bangumi-modal');
         const { contentEl } = this;
         contentEl.addClass('bangumi-missing-field');
 
@@ -558,6 +561,7 @@ export class PropertyManageModal extends Modal {
     }
 
     onOpen(): void {
+        this.modalEl.addClass('bangumi-modal');
         const { contentEl } = this;
         contentEl.addClass('bangumi-property-manage-modal');
 
@@ -658,6 +662,7 @@ export class ImportCompareModal extends Modal {
     }
 
     onOpen(): void {
+        this.modalEl.addClass('bangumi-modal');
         const { contentEl } = this;
         contentEl.addClass('bangumi-import-compare-modal');
 
@@ -817,6 +822,7 @@ export class PropertyImportReviewModal extends Modal {
     }
 
     onOpen(): void {
+        this.modalEl.addClass('bangumi-modal');
         this.render();
     }
 
@@ -990,6 +996,7 @@ export class ImportResultModal extends Modal {
     }
 
     onOpen(): void {
+        this.modalEl.addClass('bangumi-modal');
         const { contentEl } = this;
         contentEl.addClass('bangumi-import-result');
 

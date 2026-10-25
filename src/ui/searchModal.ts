@@ -65,6 +65,8 @@ export class SearchModal extends Modal {
 	private totalResults: number = 0;
 	private searchResults: Subject[] = [];
 	private isLoading: boolean = false;
+	private nextOffset = 0;
+	private paginationEnded = false;
 	private requestGeneration = 0;
 	private resolvedStatusIds = new Set<number>();
 	private failedStatusIds = new Set<number>();
@@ -94,6 +96,7 @@ export class SearchModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 		contentEl.addClass('bangumi-search-modal');
 
@@ -205,7 +208,7 @@ export class SearchModal extends Modal {
 	 * 执行搜索
 	 */
 	private async search(isNew: boolean): Promise<void> {
-		if (this.isLoading && !isNew) return;
+		if (!isNew && (this.isLoading || this.paginationEnded)) return;
 		const generation = isNew ? ++this.requestGeneration : this.requestGeneration;
 
 		if (isNew) {
@@ -226,7 +229,7 @@ export class SearchModal extends Modal {
 			} = {
 				sort: this.currentSort,
 				limit: 20,
-				offset: this.searchResults.length,
+				offset: this.nextOffset,
 			};
 
 			if (this.currentType !== 0) {
@@ -240,10 +243,18 @@ export class SearchModal extends Modal {
 
 			if (generation !== this.requestGeneration) return;
 			this.totalResults = result.total;
-			this.searchResults.push(...result.data);
+			const acceptedIds = new Set(this.searchResults.map(subject => subject.id));
+			const newSubjects = result.data.filter(subject => {
+				if (acceptedIds.has(subject.id)) return false;
+				acceptedIds.add(subject.id);
+				return true;
+			});
+			this.nextOffset += result.data.length;
+			this.paginationEnded = newSubjects.length === 0 || this.nextOffset >= result.total;
+			this.searchResults.push(...newSubjects);
 
 			// 检查同步状态和收藏状态
-			for (const subject of result.data) {
+			for (const subject of newSubjects) {
 				if (this.checkLocalSyncStatus(subject)) this.syncedSubjectIds.add(subject.id);
 			}
 
@@ -251,15 +262,18 @@ export class SearchModal extends Modal {
 			this.statusEl.setText(
 				tnFormat('searchModal', 'resultsCount', { count: String(this.searchResults.length), total: String(this.totalResults) })
 			);
+			if (newSubjects.length === 0 && this.nextOffset < result.total) {
+				this.statusEl.setText(tn('searchModal', 'noProgress'));
+			}
 
 			// 渲染新结果
-			result.data.forEach(subject => {
+			newSubjects.forEach(subject => {
 				this.renderResultItem(subject);
 			});
-			void this.checkStatuses(result.data, generation);
+			void this.checkStatuses(newSubjects, generation);
 
 			// 显示/隐藏加载更多按钮
-			if (this.searchResults.length < this.totalResults) {
+			if (!this.paginationEnded) {
 				this.loadMoreBtn.addClass('visible');
 			} else {
 				this.loadMoreBtn.removeClass('visible');
@@ -451,6 +465,8 @@ export class SearchModal extends Modal {
 	}
 
 	private clearResultState(): void {
+		this.nextOffset = 0;
+		this.paginationEnded = false;
 		this.resultElements.clear();
 		this.searchResults = [];
 		this.collectionStatuses.clear();

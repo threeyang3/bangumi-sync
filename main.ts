@@ -765,7 +765,7 @@ export default class BangumiPlugin extends Plugin {
                         this.subjectNoteManager,
                         this.episodeStatusManager,
                         options?.autoSyncSelection ?? null,
-			() => this.openComprehensiveSync(),
+			{ openRecoveryCenter: () => this.openRecoveryCenter(), openComprehensiveSync: () => this.openComprehensiveSync() },
                 );
 		this.controlPanel.open();
 	}

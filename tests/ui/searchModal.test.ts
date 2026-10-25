@@ -1,21 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('obsidian', async importOriginal => ({
 	...await importOriginal<Record<string, unknown>>(),
-	Modal: class { contentEl = { empty: vi.fn() }; },
+	Modal: class {
+		contentEl = { empty: vi.fn(), querySelectorAll: () => [] };
+		close = vi.fn();
+	},
 }));
 import { SearchModal } from '../../src/ui/searchModal';
 import { AddToCollectionModal, type AddToCollectionInput } from '../../src/ui/addToCollectionModal';
 
 function deferred<T>() {
 	let resolve!: (value: T) => void;
-	const promise = new Promise<T>(done => { resolve = done; });
-	return { promise, resolve };
+	let reject!: (reason: Error) => void;
+	const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+	return { promise, resolve, reject };
 }
 
 function fixture() {
 	const modal = Object.assign(Object.create(SearchModal.prototype), {
 		requestGeneration: 0, isLoading: false, currentKeyword: 'fixture', currentType: 0,
-		currentSort: 'match', searchResults: [],
+		currentSort: 'match', searchResults: [], nextOffset: 0, paginationEnded: false,
 		syncedSubjectIds: new Set(), collectionStatuses: new Map(), resolvedStatusIds: new Set(),
 		failedStatusIds: new Set(), resultElements: new Map(),
 		resultsContainer: { empty: vi.fn() }, statusEl: { setText: vi.fn() },
@@ -32,6 +36,7 @@ function fixture() {
 		handleAddComplete(input: AddToCollectionInput): Promise<void>;
 		onClose(): void;
 		resultElements: Map<number, unknown>;
+		nextOffset: number; paginationEnded: boolean; currentKeyword: string;
 		requestGeneration: number; isLoading: boolean; searchResults: { id: number }[];
 		resolvedStatusIds: Set<number>; renderResultItem: ReturnType<typeof vi.fn>;
 		collectionStatuses: Map<number, { rate: number }>;
@@ -63,10 +68,11 @@ describe('search presentation concurrency', () => {
 	it('does not skip a page after duplicate clicks or a failed request', async () => {
 		const modal = fixture(); const result = deferred<unknown>();
 		modal.searchResults = [{ id: 1 }];
-		modal.client.searchSubjects.mockReturnValueOnce(result.promise).mockRejectedValueOnce(new Error('offline'));
+		modal.nextOffset = 1;
+		modal.client.searchSubjects.mockReturnValueOnce(result.promise).mockResolvedValueOnce({ data: [{ id: 2 }], total: 2 });
 		const first = modal.loadMore(); await modal.loadMore();
 		expect(modal.client.searchSubjects).toHaveBeenCalledTimes(1);
-		result.resolve({ data: [], total: 5 }); await first; await modal.loadMore();
+		result.reject(new Error('offline')); await first; await modal.loadMore();
 		expect(modal.client.searchSubjects).toHaveBeenNthCalledWith(1, 'fixture', expect.objectContaining({ offset: 1 }));
 		expect(modal.client.searchSubjects).toHaveBeenNthCalledWith(2, 'fixture', expect.objectContaining({ offset: 1 }));
 	});
@@ -166,4 +172,61 @@ describe('search edit snapshots and query changes', () => {
 		}));
 		expect(modal.searchResults).toEqual([{ id: 99 }]);
 	});
+});
+
+describe('pagination progress and request ordering', () => {
+ it('stops an empty page even if total claims more results', async () => {
+  const m=fixture(); m.client.searchSubjects.mockResolvedValue({data:[],total:100});
+  await m.search(true); await m.loadMore(); await m.loadMore();
+  expect(m.paginationEnded).toBe(true); expect(m.client.searchSubjects).toHaveBeenCalledTimes(1);
+ });
+ it('advances short pages by raw rows and deduplicates IDs', async () => {
+  const m=fixture();m.client.getCollectionStatus.mockResolvedValue(null);
+  m.client.searchSubjects.mockResolvedValueOnce({data:[{id:1},{id:1}],total:5})
+   .mockResolvedValueOnce({data:[{id:1},{id:2}],total:5})
+   .mockResolvedValueOnce({data:[{id:2}],total:20});
+  await m.search(true);await m.loadMore();await m.loadMore();await m.loadMore();
+  [0,2,4].forEach((offset,index)=>expect(m.client.searchSubjects).toHaveBeenNthCalledWith(index+1,'fixture',expect.objectContaining({offset})));
+  expect(m.client.searchSubjects).toHaveBeenCalledTimes(3);
+  expect(m.searchResults).toEqual([{id:1},{id:2}]);expect(m.paginationEnded).toBe(true);
+  expect(m.client.getCollectionStatus).toHaveBeenCalledTimes(2);
+ });
+ it('honors a shrinking total and resets termination on a new search', async () => {
+  const m=fixture();m.client.getCollectionStatus.mockResolvedValue(null);
+  m.client.searchSubjects.mockResolvedValueOnce({data:[{id:1}],total:20})
+   .mockResolvedValueOnce({data:[{id:2}],total:2}).mockResolvedValueOnce({data:[{id:3}],total:10});
+  await m.search(true);await m.loadMore();expect(m.paginationEnded).toBe(true);
+  await m.search(true);expect(m.paginationEnded).toBe(false);expect(m.nextOffset).toBe(1);
+ });
+ it('keeps B when B finishes before A using actual search entry points', async () => {
+  const m=fixture(),a=deferred<unknown>(),b=deferred<unknown>();
+  m.client.searchSubjects.mockReturnValueOnce(a.promise).mockReturnValueOnce(b.promise);
+  m.client.getCollectionStatus.mockResolvedValue(null);
+  m.currentKeyword='A';const first=m.search(true);m.currentKeyword='B';const second=m.search(true);
+  b.resolve({data:[{id:2}],total:1});await second;
+  a.resolve({data:[{id:1}],total:100});await first;
+  expect(m.searchResults).toEqual([{id:2}]);expect(m.nextOffset).toBe(1);expect(m.paginationEnded).toBe(true);
+  expect(m.client.getCollectionStatus).toHaveBeenCalledTimes(1);
+ });
+});
+
+describe('collection submission guard', () => {
+ it.each(['timeout','401','403','429'])('does not report %s as success and allows deliberate retry', async error => {
+  type Args = ConstructorParameters<typeof AddToCollectionModal>;
+  const pending=deferred<{success:boolean;error?:string}>();
+  const syncSingleSubject=vi.fn().mockReturnValueOnce(pending.promise).mockResolvedValueOnce({success:true});
+  const complete=vi.fn();
+  const editor=new AddToCollectionModal({} as Args[0],{} as Args[1],{} as Args[2],
+   {getCustomTemplates:()=>[],syncSingleSubject} as unknown as Args[3],
+   {id:1,type:2,name:'fixture'} as Args[4],complete);
+  const controller=editor as unknown as {confirm():Promise<void>};
+  Object.assign(editor, { tagInputEl: { value: 'pending-tag' } });
+  const close=vi.fn();editor.close=close;
+  const first=controller.confirm();await controller.confirm();
+  expect(syncSingleSubject).toHaveBeenCalledTimes(1);
+  expect(syncSingleSubject).toHaveBeenCalledWith(1, expect.objectContaining({ tags: ['pending-tag'] }));
+  if(error==='timeout')pending.reject(new Error(error));else pending.resolve({success:false,error});
+  await first;expect(complete).not.toHaveBeenCalled();expect(close).not.toHaveBeenCalled();
+  await controller.confirm();expect(syncSingleSubject).toHaveBeenCalledTimes(2);expect(complete).toHaveBeenCalledOnce();
+ });
 });

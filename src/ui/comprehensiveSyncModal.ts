@@ -40,7 +40,7 @@ export class ComprehensiveSyncModal extends Modal {
 
 	onOpen(): void {
 		this.disposed = false;
-		this.modalEl.addClass('bangumi-comprehensive-window');
+		this.modalEl.addClass('bangumi-modal', 'bangumi-comprehensive-window');
 		this.contentEl.addClass('bangumi-comprehensive-sync');
 		this.render();
 	}
