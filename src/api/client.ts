@@ -639,6 +639,8 @@ export class BangumiClient {
 		do {
 			const separator = endpoint.includes('?') ? '&' : '?';
 			const page = await this.request<PagedResult<T>>('GET', `${endpoint}${separator}limit=100&offset=${data.length}`);
+			// The server may serialize an uninitialized empty Go slice as null.
+			if (page?.total === 0 && page.data === null) page.data = [];
 			if (!page || !Array.isArray(page.data) || !Number.isSafeInteger(page.total) || page.total < 0
 				|| (expectedTotal !== undefined && page.total !== expectedTotal)) {
 				throw new Error('Incomplete episode snapshot: invalid or changing total. Retry the operation.');
