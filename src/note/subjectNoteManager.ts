@@ -7,7 +7,7 @@ import { renderContentTemplate } from '../template/contentTemplate';
 import { tn } from '../i18n/translations';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 import { limitPathLength } from '../../common/file/pathUtils';
-import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
+import { withWriteOperation } from '../sync/writeOperationGate';
 
 interface SubjectNoteContext {
 	subject: Subject;
@@ -42,31 +42,32 @@ export class SubjectNoteManager {
 	}
 
 	async createOrAppendForLocalFile(localFile: TFile): Promise<void> {
-		assertWriteOperationAllowed('subject-note');
-		if (!this.settings.notePathTemplate.trim()) {
-			new Notice(tn('subjectNote', 'configureNotePath'));
-			return;
-		}
+		return withWriteOperation('subject-note', async () => {
+			if (!this.settings.notePathTemplate.trim()) {
+				new Notice(tn('subjectNote', 'configureNotePath'));
+				return;
+			}
 
-		const context = await this.resolveContext(localFile);
-		if (!context) {
-			new Notice(tn('subjectNote', 'missingSubjectId'));
-			return;
-		}
+			const context = await this.resolveContext(localFile);
+			if (!context) {
+				new Notice(tn('subjectNote', 'missingSubjectId'));
+				return;
+			}
 
-		const candidateIds = await this.buildCandidateIds(context.subject, localFile);
-		const match = await this.findExistingNote(context.subject.id, candidateIds);
-		const targetFile = match
-			? await this.updateExistingNote(match, candidateIds, context.heading)
-			: await this.createNewNote(context, candidateIds);
+			const candidateIds = await this.buildCandidateIds(context.subject, localFile);
+			const match = await this.findExistingNote(context.subject.id, candidateIds);
+			const targetFile = match
+				? await this.updateExistingNote(match, candidateIds, context.heading)
+				: await this.createNewNote(context, candidateIds);
 
-		await this.updateLocalNoteLink(localFile, context.subject.id, targetFile.path, context.heading);
-		await this.app.workspace.openLinkText(
-			`${targetFile.path.replace(/\.md$/i, '')}#${context.heading}`,
-			localFile.path,
-			true
-		);
-		new Notice(tn('subjectNote', match ? 'appendedToNote' : 'createdNote'));
+			await this.updateLocalNoteLink(localFile, context.subject.id, targetFile.path, context.heading);
+			await this.app.workspace.openLinkText(
+				`${targetFile.path.replace(/\.md$/i, '')}#${context.heading}`,
+				localFile.path,
+				true
+			);
+			new Notice(tn('subjectNote', match ? 'appendedToNote' : 'createdNote'));
+		});
 	}
 
 	private async resolveContext(localFile: TFile): Promise<SubjectNoteContext | null> {

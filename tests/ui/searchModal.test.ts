@@ -220,9 +220,11 @@ describe('collection submission guard', () => {
    {getCustomTemplates:()=>[],syncSingleSubject} as unknown as Args[3],
    {id:1,type:2,name:'fixture'} as Args[4],complete);
   const controller=editor as unknown as {confirm():Promise<void>};
+  Object.assign(editor, { tagInputEl: { value: 'pending-tag' } });
   const close=vi.fn();editor.close=close;
   const first=controller.confirm();await controller.confirm();
   expect(syncSingleSubject).toHaveBeenCalledTimes(1);
+  expect(syncSingleSubject).toHaveBeenCalledWith(1, expect.objectContaining({ tags: ['pending-tag'] }));
   if(error==='timeout')pending.reject(new Error(error));else pending.resolve({success:false,error});
   await first;expect(complete).not.toHaveBeenCalled();expect(close).not.toHaveBeenCalled();
   await controller.confirm();expect(syncSingleSubject).toHaveBeenCalledTimes(2);expect(complete).toHaveBeenCalledOnce();

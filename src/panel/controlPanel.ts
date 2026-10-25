@@ -212,7 +212,7 @@ export class ControlPanel extends Modal {
                 subjectNoteManager?: SubjectNoteManager | null,
                 episodeStatusManager?: EpisodeStatusManager | null,
                 autoSyncSelection?: StatusSyncFieldSelection | 'prompt' | null,
-		private readonly onOpenRecoveryCenter?: () => void
+		private readonly actions: { openRecoveryCenter?: () => void; openComprehensiveSync?: () => void } = {},
         ) {
 		super(app);
 		this.settings = settings;
@@ -435,11 +435,11 @@ export class ControlPanel extends Modal {
 	 */
 	private renderActionBar(): void {
 		this.actionBarEl.empty();
-		if (this.managerState === 'recovery-required' && this.onOpenRecoveryCenter) {
+		if (this.managerState === 'recovery-required' && this.actions.openRecoveryCenter) {
 			const recoveryButton = this.actionBarEl.createEl('button', {
 				text: tn('commands', 'openRecoveryCenter'), cls: 'bangumi-open-recovery mod-warning',
 			});
-			recoveryButton.addEventListener('click', this.onOpenRecoveryCenter);
+			recoveryButton.addEventListener('click', this.actions.openRecoveryCenter);
 		}
 		const hasSelection = this.state.selectedIds.size > 0;
 		const toolbarActions = this.getToolbarActions(hasSelection);

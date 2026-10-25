@@ -513,7 +513,7 @@ export default class BangumiPlugin extends Plugin {
 		this.appliedSyncConfig = cloneSyncManagerConfig(config);
 		this.lastSavedSettings = this.cloneSettings(this.settings);
 		const manager = this.syncManager;
-		setWriteOperationGuard(() => manager.ensureCanStartSync());
+		setWriteOperationGuard((_, lease) => manager.ensureCanStartSync(lease));
 		this.refreshDependentServices(manager);
 	}
 
@@ -763,7 +763,7 @@ export default class BangumiPlugin extends Plugin {
                         this.subjectNoteManager,
                         this.episodeStatusManager,
                         options?.autoSyncSelection ?? null,
-			() => this.openRecoveryCenter()
+			{ openRecoveryCenter: () => this.openRecoveryCenter() },
                 );
 		this.controlPanel.open();
 	}

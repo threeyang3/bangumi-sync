@@ -122,8 +122,14 @@ describe('frontmatterAccess', () => {
 
 		const updated = upsertFrontmatterField(content, '感想', '第一段\n第二段');
 
-		expect(updated).toContain('感想: |-');
-		expect(updated).toContain('  第一段\n  第二段');
+		expect(readTextField(updated, '感想')).toBe('第一段\n第二段');
+
 		expect(readTextField(updated, '标题')).toBe('进击的巨人');
 	});
+});
+it.each(['true','null','2026-10-23','C:\\folder\\file','first\nsecond','"quoted"','', ' leading'])('round trips scalar %j without changing its type or text', value => {
+ const updated=upsertFrontmatterField('---\nid: 1\n---\nBody', 'field', value);
+ const encoded=updated.match(/^field: (.*)$/m)![1];
+ expect(JSON.parse(encoded)).toBe(value);
+ expect(updated.endsWith('\nBody')).toBe(true);
 });

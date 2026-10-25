@@ -32,7 +32,7 @@ import {
 	mergeSectionValues as mergeImportedSectionValues,
 	smartMergeImportValues,
 } from './importLogic';
-import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
+import { assertWriteOperationAllowed, withWriteOperation } from '../sync/writeOperationGate';
 
 interface NormalizedImportItem {
 	identifier: SubjectIdentifier;
@@ -255,34 +255,35 @@ export class UserDataImporter {
 	}
 
 	async applyMissingFieldDecisions(decisions: MissingFieldDecision[]): Promise<void> {
-		assertWriteOperationAllowed('user-data-import');
-		const grouped = new Map<number, MissingFieldDecision[]>();
+		return withWriteOperation('user-data-import', async () => {
+			const grouped = new Map<number, MissingFieldDecision[]>();
 
-		for (const decision of decisions) {
-			if (decision.decision === null) continue;
-			const existing = grouped.get(decision.subjectId) || [];
-			existing.push(decision);
-			grouped.set(decision.subjectId, existing);
-		}
-
-		for (const [subjectId, fieldDecisions] of grouped) {
-			const localFile = await this.findLocalFile(subjectId);
-			if (!localFile) continue;
-
-			let content = await this.app.vault.read(localFile);
-
-			for (const decision of fieldDecisions) {
-				if (decision.decision === 'add') {
-					content = this.merger.addFrontmatterField(
-						content,
-						decision.fieldName,
-						decision.fieldValue
-					);
-				}
+			for (const decision of decisions) {
+				if (decision.decision === null) continue;
+				const existing = grouped.get(decision.subjectId) || [];
+				existing.push(decision);
+				grouped.set(decision.subjectId, existing);
 			}
 
-			await this.documentService.processSubjectFile(localFile, subjectId, () => content);
-		}
+			for (const [subjectId, fieldDecisions] of grouped) {
+				const localFile = await this.findLocalFile(subjectId);
+				if (!localFile) continue;
+
+				let content = await this.app.vault.read(localFile);
+
+				for (const decision of fieldDecisions) {
+					if (decision.decision === 'add') {
+						content = this.merger.addFrontmatterField(
+							content,
+							decision.fieldName,
+							decision.fieldValue
+						);
+					}
+				}
+
+				await this.documentService.processSubjectFile(localFile, subjectId, () => content);
+			}
+		});
 	}
 
 	async applyImportDecisions(
@@ -292,58 +293,59 @@ export class UserDataImporter {
 			dataTypes: [],
 		}
 	): Promise<number> {
-		assertWriteOperationAllowed('user-data-import');
-		let applied = 0;
+		return withWriteOperation('user-data-import', async () => {
+			let applied = 0;
 
-		for (const item of diffs) {
-			const localFile = await this.findLocalFile(item.subjectId);
-			if (!localFile) continue;
+			for (const item of diffs) {
+				const localFile = await this.findLocalFile(item.subjectId);
+				if (!localFile) continue;
 
-			let content = await this.app.vault.read(localFile);
-			let changed = false;
+				let content = await this.app.vault.read(localFile);
+				let changed = false;
 
-			for (const diff of item.diffs) {
-				const decision = diff.decision ?? 'skip';
-				if (decision === 'local' || decision === 'skip') continue;
+				for (const diff of item.diffs) {
+					const decision = diff.decision ?? 'skip';
+					if (decision === 'local' || decision === 'skip') continue;
 
-				if (diff.fieldType === 'section') {
-					const sectionName = diff.fieldName;
-					const localValue = sectionName === '短评'
-						? this.documentService.extractComment(content)
-						: this.documentService.extractSection(content, sectionName);
+					if (diff.fieldType === 'section') {
+						const sectionName = diff.fieldName;
+						const localValue = sectionName === '短评'
+							? this.documentService.extractComment(content)
+							: this.documentService.extractSection(content, sectionName);
+						const nextValue = decision === 'merge'
+							? this.mergeSectionValues(localValue, asString(diff.importValue))
+							: asString(diff.importValue);
+						if (nextValue && nextValue !== localValue) {
+							content = sectionName === '短评'
+								? this.documentService.updateComment(content, nextValue)
+								: this.documentService.updateSection(content, sectionName, nextValue);
+							changed = true;
+						}
+						continue;
+					}
+
 					const nextValue = decision === 'merge'
-						? this.mergeSectionValues(localValue, asString(diff.importValue))
-						: asString(diff.importValue);
-					if (nextValue && nextValue !== localValue) {
-						content = sectionName === '短评'
-							? this.documentService.updateComment(content, nextValue)
-							: this.documentService.updateSection(content, sectionName, nextValue);
+						? smartMergeImportValues(
+							this.getFrontmatterValueRaw(localFile, diff.fieldName),
+							diff.importValue,
+							diff.fieldName
+						)
+						: diff.importValue;
+					if (nextValue !== undefined) {
+						content = this.merger.updateFrontmatterField(content, diff.fieldName, nextValue);
 						changed = true;
 					}
-					continue;
 				}
 
-				const nextValue = decision === 'merge'
-					? smartMergeImportValues(
-						this.getFrontmatterValueRaw(localFile, diff.fieldName),
-						diff.importValue,
-						diff.fieldName
-					)
-					: diff.importValue;
-				if (nextValue !== undefined) {
-					content = this.merger.updateFrontmatterField(content, diff.fieldName, nextValue);
-					changed = true;
+				if (changed) {
+					await this.documentService.processSubjectFile(localFile, item.subjectId, () => content);
+					applied++;
 				}
 			}
 
-			if (changed) {
-				await this.documentService.processSubjectFile(localFile, item.subjectId, () => content);
-				applied++;
-			}
-		}
-
-		void options;
-		return applied;
+			void options;
+			return applied;
+		});
 	}
 
 	async applyImportPlan(
@@ -353,71 +355,72 @@ export class UserDataImporter {
 		missingFieldDecisions: MissingFieldDecision[] = [],
 		onProgress?: (current: number, total: number) => void
 	): Promise<ImportResult> {
-		assertWriteOperationAllowed('user-data-import');
-		const parsedFiles = this.parseImportFiles(files);
-		const diffDecisionMap = this.buildDiffDecisionMap(diffs);
-		const missingDecisionMap = this.buildMissingFieldDecisionMap(missingFieldDecisions);
-		const result: ImportResult = {
-			success: 0,
-			skipped: 0,
-			autoImported: 0,
-			errors: parsedFiles.errors,
-			missingFields: [],
-		};
+		return withWriteOperation('user-data-import', async () => {
+			const parsedFiles = this.parseImportFiles(files);
+			const diffDecisionMap = this.buildDiffDecisionMap(diffs);
+			const missingDecisionMap = this.buildMissingFieldDecisionMap(missingFieldDecisions);
+			const result: ImportResult = {
+				success: 0,
+				skipped: 0,
+				autoImported: 0,
+				errors: parsedFiles.errors,
+				missingFields: [],
+			};
 
-		let totalItems = 0;
-		for (const parsedFile of parsedFiles.files) {
-			totalItems += Object.keys(parsedFile.data.items ?? {}).length;
-		}
+			let totalItems = 0;
+			for (const parsedFile of parsedFiles.files) {
+				totalItems += Object.keys(parsedFile.data.items ?? {}).length;
+			}
 
-		let processed = 0;
-		for (const parsedFile of parsedFiles.files) {
-			for (const [id, rawUserData] of Object.entries(parsedFile.data.items ?? {})) {
-				processed++;
-				onProgress?.(processed, totalItems);
+			let processed = 0;
+			for (const parsedFile of parsedFiles.files) {
+				for (const [id, rawUserData] of Object.entries(parsedFile.data.items ?? {})) {
+					processed++;
+					onProgress?.(processed, totalItems);
 
-				const subjectId = parseInt(id, 10);
-				if (Number.isNaN(subjectId)) {
-					result.errors.push({
-						id: 0,
-						name_cn: rawUserData.identifier?.name_cn || id,
-						error: 'Invalid subject id',
-					});
-					continue;
-				}
-
-				const localFile = await this.findLocalFile(subjectId);
-				if (!localFile) {
-					result.skipped++;
-					continue;
-				}
-
-				try {
-					const normalized = this.normalizeImportItem(rawUserData, options);
-					const changed = await this.applySingleItem(
-						localFile,
-						subjectId,
-						normalized,
-						options,
-						diffDecisionMap.get(subjectId) ?? new Map<string, PropertyDiff['decision']>(),
-						missingDecisionMap.get(subjectId) ?? new Map<string, MissingFieldDecision['decision']>()
-					);
-					if (changed) {
-						result.success++;
-					} else {
-						result.skipped++;
+					const subjectId = parseInt(id, 10);
+					if (Number.isNaN(subjectId)) {
+						result.errors.push({
+							id: 0,
+							name_cn: rawUserData.identifier?.name_cn || id,
+							error: 'Invalid subject id',
+						});
+						continue;
 					}
-				} catch (error) {
-					result.errors.push({
-						id: subjectId,
-						name_cn: rawUserData.identifier?.name_cn || String(subjectId),
-						error: String(error),
-					});
+
+					const localFile = await this.findLocalFile(subjectId);
+					if (!localFile) {
+						result.skipped++;
+						continue;
+					}
+
+					try {
+						const normalized = this.normalizeImportItem(rawUserData, options);
+						const changed = await this.applySingleItem(
+							localFile,
+							subjectId,
+							normalized,
+							options,
+							diffDecisionMap.get(subjectId) ?? new Map<string, PropertyDiff['decision']>(),
+							missingDecisionMap.get(subjectId) ?? new Map<string, MissingFieldDecision['decision']>()
+						);
+						if (changed) {
+							result.success++;
+						} else {
+							result.skipped++;
+						}
+					} catch (error) {
+						result.errors.push({
+							id: subjectId,
+							name_cn: rawUserData.identifier?.name_cn || String(subjectId),
+							error: String(error),
+						});
+					}
 				}
 			}
-		}
 
-		return result;
+			return result;
+		});
 	}
 
 	private parseImportFiles(files: Array<{ name: string; content: string }>): {

@@ -165,6 +165,7 @@ export class StatusSyncSnapshotBuilder {
 			name_cn: collection.subject.name_cn || '',
 			name: collection.subject.name || '',
 			localPath: localInfo.path,
+			localContentSnapshot: snapshot.localSnapshot.content,
 			collection,
 			statusFieldName: snapshot.localSnapshot.user.statusFieldName,
 			rate: rateDiff,
