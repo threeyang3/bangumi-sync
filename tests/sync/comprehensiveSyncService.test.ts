@@ -87,9 +87,41 @@ describe('comprehensive sync invariants', () => {
 	it('does not overwrite a note created after preview', async () => {
 		const { vault, service, selection } = setup(); const plan = await service.prepare(selection);
 		const manual = '---\nid: 3\n---\nCreated manually after preview'; vault.addFile('ACGN/manual.md', manual);
-		const result = await service.execute(plan, new Set([3]));
-		expect(result.outcomes.find(item => item.subjectId === 3)?.status).toBe('failed');
+		await expect(service.execute(plan, new Set([3]))).rejects.toThrow('now exists locally');
 		expect(vault.contents.get('ACGN/manual.md')).toBe(manual); expect(vault.files.has('ACGN/3.md')).toBe(false);
+	});
+
+	it.each(['existing', 'duplicate', 'conflicting'] as const)('aborts all writes for a new %s addition identity before a cloud update', async kind => {
+		const { vault, service, selection, manager } = setup();
+		const plan = await service.prepare(selection); plan.diffs[0].rate.decision = 'local';
+		const write = vi.spyOn(manager.client, 'updateCollection').mockResolvedValue(undefined);
+		vault.addFile('ACGN/manual.md', kind === 'conflicting' ? '---\nid: 4\nBangumiID: 3\n---\nManual' : '---\nid: 3\n---\nManual');
+		if (kind === 'duplicate') vault.addFile('ACGN/duplicate.md', '---\nid: 3\n---\nDuplicate');
+		const before = new Map(vault.contents);
+		await expect(service.execute(plan, new Set([3]))).rejects.toThrow('identity conflict');
+		expect(write).not.toHaveBeenCalled(); expect(vault.contents).toEqual(before);
+		expect(manager.getManagerState()).toBe('idle');
+	});
+
+	it('rechecks addition identities after cloud reads and before an existing-note update', async () => {
+		const { vault, service, selection, readSelected } = setup();
+		const plan = await service.prepare(selection); plan.diffs[0].rate.decision = 'cloud';
+		const before = vault.contents.get('ACGN/two.md');
+		readSelected.mockImplementation(id => {
+			if (id === 3) vault.addFile('ACGN/manual.md', '---\nid: 3\n---\nCreated during cloud check');
+			return Promise.resolve(collection(id, id === 2 ? 8 : 5));
+		});
+		await expect(service.execute(plan, new Set([3]))).rejects.toThrow('now exists locally');
+		expect(vault.contents.get('ACGN/two.md')).toBe(before);
+	});
+
+	it('does not block an existing-note update for an unselected new-note conflict', async () => {
+		const { vault, service, selection } = setup();
+		const plan = await service.prepare(selection); plan.diffs[0].rate.decision = 'cloud';
+		const manual = '---\nid: 3\n---\nUnselected'; vault.addFile('ACGN/manual.md', manual);
+		const result = await service.execute(plan, new Set());
+		expect(result.outcomes.find(item => item.subjectId === 2)?.status).toBe('updated');
+		expect(vault.contents.get('ACGN/manual.md')).toBe(manual);
 	});
 
 	it('preserves a note appearing at the target while import details are loading', async () => {
@@ -126,8 +158,20 @@ describe('comprehensive sync invariants', () => {
 		const { vault, service, selection, remote } = setup();
 		const plan = await service.prepare(selection); plan.diffs[0].rate.decision = 'cloud';
 		const before = new Map(vault.contents); remote.delete(3);
-		await expect(service.execute(plan, new Set([3]))).rejects.toThrow('Cloud collection changed');
+		await expect(service.execute(plan, new Set([3]))).rejects.toThrow('could not be verified');
 		expect(vault.contents).toEqual(before);
+	});
+
+	it('explains an inaccessible NSFW collection without bypassing verification', async () => {
+		const { vault, service, selection, manager, readCloud, remote, readSelected } = setup();
+		const restricted = { ...collection(3), subject: { ...collection(3).subject, nsfw: true } };
+		readCloud.mockResolvedValue([collection(2, 8), restricted]); remote.delete(3);
+		const plan = await service.prepare(selection); plan.diffs[0].rate.decision = 'local';
+		const write = vi.spyOn(manager.client, 'updateCollection').mockResolvedValue(undefined);
+		const importNotes = vi.spyOn(manager, 'syncByCollections'); const before = new Map(vault.contents);
+		await expect(service.execute(plan, new Set([3]))).rejects.toThrow(/could not be verified.*NSFW visibility/);
+		expect(readSelected).toHaveBeenCalledWith(3); expect(write).not.toHaveBeenCalled();
+		expect(importNotes).not.toHaveBeenCalled(); expect(vault.contents).toEqual(before);
 	});
 
 	it.each(['401', '429', 'Incomplete response'])('fails closed on a selected cloud read error: %s', async message => {

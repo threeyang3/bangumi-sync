@@ -18,6 +18,7 @@ export interface TranslationStrings {
 		all: string; none: string; previous: string; next: string; page: string;
 		choices: string; result: string; created: string; updated: string; skipped: string;
 		pending: string; rolledBack: string; importDecision: string; boundary: string;
+		localAdditionConflict: string; collectionUnavailable: string;
 	};
 	// 命令
         commands: {
@@ -726,6 +727,8 @@ const en: TranslationStrings = {
 		choices: '{count} existing notes selected for update. Existing differences default to skip; review choices before confirming.',
 		result: 'Sync result', created: 'Created', updated: 'Updated', skipped: 'Skipped', pending: 'Awaiting import decision', rolledBack: 'Rolled back',
 		importDecision: 'Review import result and recovery', boundary: 'Local import rollback does not undo saved cloud changes or prior status updates. Failures can include changes already saved; refresh before retrying.',
+		localAdditionConflict: 'Subject {id} now exists locally or has an identity conflict. No writes were started. Resolve the conflict and refresh the preview.',
+		collectionUnavailable: 'Cloud collection {id} could not be verified. It may have been removed or be inaccessible, including due to NSFW visibility settings. No writes were started. Check account visibility and refresh the preview.',
 	},
         commands: {
                 openControlPanel: 'Open collection manager',
@@ -1407,6 +1410,8 @@ const zhCN: TranslationStrings = {
 		choices: '已选择更新 {count} 个已有条目。已有差异默认跳过，请审阅后再确认。',
 		result: '同步结果', created: '已新增', updated: '已更新', skipped: '已跳过', pending: '等待导入保留或回滚', rolledBack: '已回滚',
 		importDecision: '查看导入结果与恢复操作', boundary: '本地导入回滚不会撤销已保存的云端修改或此前的状态更新。失败也可能包含已保存的修改；重试前请刷新比较。',
+		localAdditionConflict: '条目 {id} 已在本地出现或存在身份冲突，尚未开始任何写入。请处理冲突后刷新比较。',
+		collectionUnavailable: '无法复核云端收藏 {id}：可能已取消收藏，或因 NSFW 等可见性设置而无法访问。尚未开始任何写入。请检查账号可见性并刷新比较。',
 	},
         commands: {
                 openControlPanel: '打开收藏管理面板',

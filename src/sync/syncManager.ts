@@ -2940,6 +2940,21 @@ export class SyncManager {
 			&& JSON.stringify(cloneSyncManagerConfig(this.config)) === captured;
 	}
 
+	/** Recheck selected additions before any comprehensive writes; path planning stays in the import phase. */
+	async assertSubjectsMissingLocally(subjectIds: ReadonlySet<number>, lease: WriteOperationLease): Promise<void> {
+		this.ensureCanStartSync(lease);
+		if (subjectIds.size === 0) return;
+		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
+		const registry = this.incrementalSync.getRegistry();
+		const blockedIds = new Set([
+			...registry.duplicateIds.keys(),
+			...registry.invalidFiles.flatMap(problem => problem.relatedSubjectIds ?? (problem.subjectId === undefined ? [] : [problem.subjectId])),
+		]);
+		for (const id of subjectIds) {
+			if (registry.getById(id) || blockedIds.has(id)) throw new Error(tnFormat('comprehensiveSync', 'localAdditionConflict', { id }));
+		}
+	}
+
 	/** One account read and one local scan shared by both preview branches. */
 	async prepareComprehensiveSync(lease: WriteOperationLease, cancelled?: () => boolean): Promise<{
 		collections: UserCollection[];

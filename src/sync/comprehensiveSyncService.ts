@@ -6,6 +6,7 @@ import { SyncResultWithRollback } from './syncStatus';
 import { StatusSyncDiff, StatusSyncFieldSelection, hasSelectedStatusChanges } from './statusSyncTypes';
 import { withWriteOperation } from './writeOperationGate';
 import { cloudSnapshot, collectionSnapshot } from './cloudSnapshots';
+import { tnFormat } from '../i18n';
 
 export interface ComprehensiveSyncFailure {
 	subjectId: number;
@@ -127,6 +128,7 @@ export class ComprehensiveSyncService {
 			this.consumed.add(plan);
 			// Read every selected cloud target before allowing either engine to mutate.
 			await this.validateCloud(plan, plan.diffs.filter(hasSelectedStatusChanges), plan.additions.filter(item => selectedAdditions.has(item.subject_id)));
+			await this.manager.assertSubjectsMissingLocally(new Set(plan.additions.filter(item => selectedAdditions.has(item.subject_id)).map(item => item.subject_id)), lease);
 			if (!this.contexts.get(plan)?.()) throw new Error('Preview expired. Refresh and retry.');
 			const outcomes: ComprehensiveSyncOutcome[] = [
 				...plan.unchanged.map(item => ({ subjectId: item.subject_id, name: item.subject.name_cn || item.subject.name, status: 'unchanged' as const })),
@@ -184,7 +186,8 @@ export class ComprehensiveSyncService {
 				const target = targets[next++];
 				try {
 					const collection = await this.manager.client.getCollectionStatus(target.subject_id);
-					if (!collection || collectionSnapshot(collection) !== baseline.collections.get(target.subject_id)) throw new Error('Cloud collection changed since preview. Compare again before syncing.');
+					if (!collection) throw new Error(tnFormat('comprehensiveSync', 'collectionUnavailable', { id: target.subject_id }));
+					if (collectionSnapshot(collection) !== baseline.collections.get(target.subject_id)) throw new Error('Cloud collection changed since preview. Compare again before syncing.');
 					fresh.set(target.subject_id, collection);
 				} catch (cause) { error = cause instanceof Error ? cause : new Error('Cloud collection could not be verified. Compare again before syncing.'); }
 			}

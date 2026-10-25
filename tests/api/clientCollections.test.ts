@@ -19,3 +19,17 @@ it.each(['empty', 'duplicate', 'total'])('rejects %s collection pages instead of
 	const result = expect(new BangumiClient().getAllUserCollections('fixture')).rejects.toThrow('Incomplete collection snapshot');
 	await vi.runAllTimersAsync(); await result; expect(requestUrl).toHaveBeenCalledTimes(2);
 });
+
+it('keeps a listed NSFW collection and a single-collection 404 as distinct observations', async () => {
+	const item = { subject_id: 31, subject_type: 2, subject: { id: 31, nsfw: true } };
+	requestUrl.mockImplementation((options: { url: string }) => Promise.resolve(options.url.includes('/collections/31')
+		? { status: 404, json: { title: 'Not Found' } }
+		: { status: 200, json: { total: 1, data: [item] } }));
+	const client = new BangumiClient('synthetic');
+	vi.spyOn(client, 'validateToken').mockResolvedValue({ valid: true, username: 'fixture' });
+	expect(await client.getAllUserCollections('fixture')).toEqual([item]);
+	expect(await client.getCollectionStatus(31)).toBeNull();
+	expect(requestUrl).toHaveBeenCalledTimes(2);
+	expect(requestUrl).toHaveBeenNthCalledWith(1, expect.objectContaining({ method: 'GET' }));
+	expect(requestUrl).toHaveBeenNthCalledWith(2, expect.objectContaining({ method: 'GET' }));
+});

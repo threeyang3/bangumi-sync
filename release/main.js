@@ -171,7 +171,9 @@ var en = {
     pending: "Awaiting import decision",
     rolledBack: "Rolled back",
     importDecision: "Review import result and recovery",
-    boundary: "Local import rollback does not undo saved cloud changes or prior status updates. Failures can include changes already saved; refresh before retrying."
+    boundary: "Local import rollback does not undo saved cloud changes or prior status updates. Failures can include changes already saved; refresh before retrying.",
+    localAdditionConflict: "Subject {id} now exists locally or has an identity conflict. No writes were started. Resolve the conflict and refresh the preview.",
+    collectionUnavailable: "Cloud collection {id} could not be verified. It may have been removed or be inaccessible, including due to NSFW visibility settings. No writes were started. Check account visibility and refresh the preview."
   },
   commands: {
     openControlPanel: "Open collection manager",
@@ -880,7 +882,9 @@ var zhCN = {
     pending: "\u7B49\u5F85\u5BFC\u5165\u4FDD\u7559\u6216\u56DE\u6EDA",
     rolledBack: "\u5DF2\u56DE\u6EDA",
     importDecision: "\u67E5\u770B\u5BFC\u5165\u7ED3\u679C\u4E0E\u6062\u590D\u64CD\u4F5C",
-    boundary: "\u672C\u5730\u5BFC\u5165\u56DE\u6EDA\u4E0D\u4F1A\u64A4\u9500\u5DF2\u4FDD\u5B58\u7684\u4E91\u7AEF\u4FEE\u6539\u6216\u6B64\u524D\u7684\u72B6\u6001\u66F4\u65B0\u3002\u5931\u8D25\u4E5F\u53EF\u80FD\u5305\u542B\u5DF2\u4FDD\u5B58\u7684\u4FEE\u6539\uFF1B\u91CD\u8BD5\u524D\u8BF7\u5237\u65B0\u6BD4\u8F83\u3002"
+    boundary: "\u672C\u5730\u5BFC\u5165\u56DE\u6EDA\u4E0D\u4F1A\u64A4\u9500\u5DF2\u4FDD\u5B58\u7684\u4E91\u7AEF\u4FEE\u6539\u6216\u6B64\u524D\u7684\u72B6\u6001\u66F4\u65B0\u3002\u5931\u8D25\u4E5F\u53EF\u80FD\u5305\u542B\u5DF2\u4FDD\u5B58\u7684\u4FEE\u6539\uFF1B\u91CD\u8BD5\u524D\u8BF7\u5237\u65B0\u6BD4\u8F83\u3002",
+    localAdditionConflict: "\u6761\u76EE {id} \u5DF2\u5728\u672C\u5730\u51FA\u73B0\u6216\u5B58\u5728\u8EAB\u4EFD\u51B2\u7A81\uFF0C\u5C1A\u672A\u5F00\u59CB\u4EFB\u4F55\u5199\u5165\u3002\u8BF7\u5904\u7406\u51B2\u7A81\u540E\u5237\u65B0\u6BD4\u8F83\u3002",
+    collectionUnavailable: "\u65E0\u6CD5\u590D\u6838\u4E91\u7AEF\u6536\u85CF {id}\uFF1A\u53EF\u80FD\u5DF2\u53D6\u6D88\u6536\u85CF\uFF0C\u6216\u56E0 NSFW \u7B49\u53EF\u89C1\u6027\u8BBE\u7F6E\u800C\u65E0\u6CD5\u8BBF\u95EE\u3002\u5C1A\u672A\u5F00\u59CB\u4EFB\u4F55\u5199\u5165\u3002\u8BF7\u68C0\u67E5\u8D26\u53F7\u53EF\u89C1\u6027\u5E76\u5237\u65B0\u6BD4\u8F83\u3002"
   },
   commands: {
     openControlPanel: "\u6253\u5F00\u6536\u85CF\u7BA1\u7406\u9762\u677F",
@@ -11806,6 +11810,23 @@ var SyncManager = class {
     const revision = client.subjectDetailRevision;
     return () => !this.shuttingDown && this.client === client && client.subjectDetailRevision === revision && JSON.stringify(cloneSyncManagerConfig(this.config)) === captured;
   }
+  /** Recheck selected additions before any comprehensive writes; path planning stays in the import phase. */
+  async assertSubjectsMissingLocally(subjectIds, lease) {
+    this.ensureCanStartSync(lease);
+    if (subjectIds.size === 0) return;
+    await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
+    const registry = this.incrementalSync.getRegistry();
+    const blockedIds = /* @__PURE__ */ new Set([
+      ...registry.duplicateIds.keys(),
+      ...registry.invalidFiles.flatMap((problem) => {
+        var _a;
+        return (_a = problem.relatedSubjectIds) != null ? _a : problem.subjectId === void 0 ? [] : [problem.subjectId];
+      })
+    ]);
+    for (const id of subjectIds) {
+      if (registry.getById(id) || blockedIds.has(id)) throw new Error(tnFormat("comprehensiveSync", "localAdditionConflict", { id }));
+    }
+  }
   /** One account read and one local scan shared by both preview branches. */
   async prepareComprehensiveSync(lease, cancelled) {
     this.ensureCanStartSync(lease);
@@ -21092,6 +21113,7 @@ var ComprehensiveSyncService = class {
       this.manager.ensureCanStartSync(lease);
       this.consumed.add(plan);
       await this.validateCloud(plan, plan.diffs.filter(hasSelectedStatusChanges), plan.additions.filter((item) => selectedAdditions.has(item.subject_id)));
+      await this.manager.assertSubjectsMissingLocally(new Set(plan.additions.filter((item) => selectedAdditions.has(item.subject_id)).map((item) => item.subject_id)), lease);
       if (!((_b = this.contexts.get(plan)) == null ? void 0 : _b())) throw new Error("Preview expired. Refresh and retry.");
       const outcomes = [
         ...plan.unchanged.map((item) => ({ subjectId: item.subject_id, name: item.subject.name_cn || item.subject.name, status: "unchanged" })),
@@ -21156,7 +21178,8 @@ var ComprehensiveSyncService = class {
         const target = targets[next++];
         try {
           const collection = await this.manager.client.getCollectionStatus(target.subject_id);
-          if (!collection || collectionSnapshot(collection) !== baseline.collections.get(target.subject_id)) throw new Error("Cloud collection changed since preview. Compare again before syncing.");
+          if (!collection) throw new Error(tnFormat("comprehensiveSync", "collectionUnavailable", { id: target.subject_id }));
+          if (collectionSnapshot(collection) !== baseline.collections.get(target.subject_id)) throw new Error("Cloud collection changed since preview. Compare again before syncing.");
           fresh.set(target.subject_id, collection);
         } catch (cause) {
           error = cause instanceof Error ? cause : new Error("Cloud collection could not be verified. Compare again before syncing.");
