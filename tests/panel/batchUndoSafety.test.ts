@@ -10,6 +10,32 @@ function setup() {
 }
 
 describe('batch undo snapshot safety', () => {
+	it.each(['delete', 'move'] as const)('does not report success when a later file disappears by %s after preflight', async mode => {
+		const { vault, file, editor } = setup();
+		const otherOriginal = original.replace('id: 1', 'id: 2');
+		const other = vault.addFile('ACGN/two.md', otherOriginal);
+		const otherPath = other.path;
+		await editor.batchModify([file.path, otherPath], [{ type: 'modify', property: '评分', value: '8' }]);
+		const otherAfter = vault.contents.get(otherPath)!;
+		const process = vault.app.vault.process.bind(vault.app.vault);
+		const spy = vi.spyOn(vault.app.vault, 'process').mockImplementationOnce(async (target, updater) => {
+			const result = await process(target, updater);
+			if (mode === 'delete') await vault.app.fileManager.trashFile(other);
+			else await vault.app.fileManager.renameFile(other, 'ACGN/moved.md');
+			return result;
+		});
+		await expect(editor.undo()).rejects.toThrow('Undo did not complete');
+		expect(editor.canUndo()).toBe(true);
+		expect(vault.contents.get(file.path)).toBe(original);
+		if (mode === 'move') {
+			expect(vault.contents.get(other.path)).toBe(otherAfter);
+			await vault.app.fileManager.renameFile(other, otherPath);
+		} else vault.addFile(otherPath, otherAfter);
+		spy.mockRestore();
+		expect(await editor.undo()).toBe(true); expect(editor.canUndo()).toBe(false);
+		expect(vault.contents.get(otherPath)).toBe(otherOriginal);
+	});
+
 	it('refuses to erase post-edit text and retains history for retry', async () => {
 		const { vault, file, editor } = setup();
 		await editor.batchModify([file.path], [{ type: 'modify', property: '评分', value: '8' }]);
