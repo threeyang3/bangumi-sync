@@ -3779,6 +3779,34 @@ async function persistStableManagerSettings(update) {
   }
 }
 
+// src/sync/writeOperationGate.ts
+var activeGuard = null;
+function setWriteOperationGuard(guard) {
+  activeGuard = guard;
+}
+var activeLease;
+function assertWriteLeaseAvailable(lease) {
+  if (activeLease !== lease) throw new Error("Another write operation is in progress.");
+}
+function hasActiveWriteLease() {
+  return activeLease !== void 0;
+}
+function assertWriteOperationAllowed(operation, lease) {
+  assertWriteLeaseAvailable(lease);
+  activeGuard == null ? void 0 : activeGuard(operation, lease);
+}
+async function withWriteOperation(operation, action, lease) {
+  assertWriteOperationAllowed(operation, lease);
+  if (lease) return action(lease);
+  const owned = { token: Symbol(operation) };
+  activeLease = owned;
+  try {
+    return await action(owned);
+  } finally {
+    if (activeLease === owned) activeLease = void 0;
+  }
+}
+
 // src/sync/syncManager.ts
 var import_obsidian11 = require("obsidian");
 
@@ -4272,8 +4300,8 @@ var BangumiClient = class {
   async updateCollection(subjectId, data) {
     const payload = this.sanitizeCollectionUpdateData(data);
     const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
-    debugLog(() => `[Bangumi Sync] \u66F4\u65B0\u6536\u85CF: POST ${endpoint}`);
-    await this.request("POST", endpoint, payload);
+    debugLog(() => `[Bangumi Sync] \u66F4\u65B0\u6536\u85CF: PATCH ${endpoint}`);
+    await this.request("PATCH", endpoint, payload);
     debugLog(() => `[Bangumi Sync] \u6536\u85CF\u66F4\u65B0\u6210\u529F: ${subjectId}`);
   }
   sanitizeCollectionUpdateData(data) {
@@ -4281,14 +4309,12 @@ var BangumiClient = class {
     if (data.type !== void 0 && data.type >= 1 && data.type <= 5) {
       payload.type = data.type;
     }
-    if (data.rate !== void 0 && data.rate >= 1 && data.rate <= 10) {
+    if (data.rate !== void 0 && data.rate >= 0 && data.rate <= 10) {
       payload.rate = data.rate;
     }
     if (data.comment !== void 0) {
       const comment = data.comment.trim();
-      if (comment.length > 0) {
-        payload.comment = comment;
-      }
+      payload.comment = comment;
     }
     if (data.tags !== void 0) {
       const tags = Array.from(new Set(
@@ -4319,28 +4345,46 @@ var BangumiClient = class {
    * @param subjectId 条目 ID
    */
   async getEpisodes(subjectId) {
-    var _a;
     const endpoint = `${ENDPOINTS.EPISODES}?subject_id=${subjectId}`;
     debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282: ${endpoint}`);
-    const result = await this.request("GET", endpoint);
-    const data = (_a = result == null ? void 0 : result.data) != null ? _a : [];
-    debugLog(() => {
-      var _a2;
-      return `[Bangumi Sync] \u83B7\u53D6\u5230 ${data.length}/${(_a2 = result == null ? void 0 : result.total) != null ? _a2 : 0} \u4E2A\u7AE0\u8282`;
-    });
-    return result;
+    const data = await this.getCompletePages(endpoint, (episode) => episode.id);
+    return { data, total: data.length, offset: 0, limit: data.length };
   }
   /**
    * 获取用户章节收藏状态
    * @param subjectId 条目 ID
    */
   async getUserEpisodeStatus(subjectId) {
-    var _a;
     const endpoint = ENDPOINTS.USER_SUBJECT_EPISODES(subjectId);
     debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u7528\u6237\u7AE0\u8282\u72B6\u6001: ${endpoint}`);
-    const result = await this.request("GET", endpoint);
-    const data = (_a = result == null ? void 0 : result.data) != null ? _a : [];
-    debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u5230 ${data.length} \u4E2A\u7AE0\u8282\u72B6\u6001`);
+    const entries = await this.getCompletePages(endpoint, (entry) => {
+      var _a;
+      return (_a = entry.episode) == null ? void 0 : _a.id;
+    });
+    if (entries.some((entry) => ![0, 1, 2, 3].includes(entry.type))) throw new Error("Incomplete episode snapshot: invalid status.");
+    return entries;
+  }
+  /** Never present a partial or shifting response as a complete replacement snapshot. */
+  async getCompletePages(endpoint, getId) {
+    const data = [];
+    const ids = /* @__PURE__ */ new Set();
+    let expectedTotal;
+    do {
+      const separator = endpoint.includes("?") ? "&" : "?";
+      const page = await this.request("GET", `${endpoint}${separator}limit=100&offset=${data.length}`);
+      if (!page || !Array.isArray(page.data) || !Number.isSafeInteger(page.total) || page.total < 0 || expectedTotal !== void 0 && page.total !== expectedTotal) {
+        throw new Error("Incomplete episode snapshot: invalid or changing total. Retry the operation.");
+      }
+      expectedTotal = page.total;
+      if (page.data.length === 0 && data.length < expectedTotal) throw new Error("Incomplete episode snapshot: empty page.");
+      for (const item of page.data) {
+        const id = getId(item);
+        if (!Number.isSafeInteger(id) || id <= 0 || ids.has(id)) throw new Error("Incomplete episode snapshot: invalid or duplicate episode ID.");
+        ids.add(id);
+        data.push(item);
+      }
+      if (data.length > expectedTotal) throw new Error("Incomplete episode snapshot: inconsistent total.");
+    } while (data.length < expectedTotal);
     return data;
   }
   /**
@@ -4631,7 +4675,13 @@ function escapeRegExp(value) {
 }
 function stripQuotedValue(value) {
   if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
-    return value.slice(1, -1);
+    if (value.startsWith('"')) {
+      try {
+        return JSON.parse(value);
+      } catch (e) {
+      }
+    }
+    return value.slice(1, -1).replace(/''/g, "'");
   }
   return value;
 }
@@ -4640,13 +4690,7 @@ function isTopLevelFrontmatterLine(line) {
 }
 function formatFrontmatterValue(value) {
   if (typeof value === "string") {
-    if (value.includes("\n")) {
-      return `|-
-${value.split("\n").map((line) => `  ${line}`).join("\n")}`;
-    }
-    if (value.includes(":") || value.includes("#") || value.includes('"') || value.includes("'") || value.includes("[") || value.includes("{")) {
-      return `"${value.replace(/"/g, '\\"')}"`;
-    }
+    if (!value || /[:#"'\[\]{}\\\r\n\t]|^[-?!&*|>@%`]|^\s|\s$/.test(value) || /^(?:true|false|null|~|yes|no|on|off|[-+]?\d.*)$/i.test(value)) return JSON.stringify(value);
     return value;
   }
   if (typeof value === "boolean") {
@@ -4656,8 +4700,8 @@ ${value.split("\n").map((line) => `  ${line}`).join("\n")}`;
     return String(value);
   }
   if (Array.isArray(value)) {
-    return `
-${value.map((item) => `  - ${formatFrontmatterValue(item)}`).join("\n")}`;
+    return value.length ? `
+${value.map((item) => `  - ${formatFrontmatterValue(item)}`).join("\n")}` : "[]";
   }
   if (typeof value === "object" && value !== null) {
     return JSON.stringify(value);
@@ -4676,13 +4720,13 @@ function serializeFrontmatterField(field, value) {
   return [`${field}: ${formattedValue}`];
 }
 function parseFrontmatterBlock(content) {
-  const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+  const frontmatterMatch = content.match(/^(---\r?\n)([\s\S]*?)(\r?\n---)([\s\S]*)$/);
   if (!frontmatterMatch) {
     return null;
   }
   return {
     prefix: frontmatterMatch[1],
-    frontmatter: frontmatterMatch[2],
+    frontmatter: frontmatterMatch[2].replace(/\r\n/g, "\n"),
     suffix: frontmatterMatch[3],
     rest: frontmatterMatch[4],
     match: frontmatterMatch[0]
@@ -4710,8 +4754,8 @@ ${fieldLines.join("\n")}`;
   ].join("\n");
 }
 function extractFrontmatter(content) {
-  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-  return frontmatterMatch ? frontmatterMatch[1] : null;
+  const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  return frontmatterMatch ? frontmatterMatch[1].replace(/\r\n/g, "\n") : null;
 }
 function extractFrontmatterRecord(content) {
   const frontmatter = extractFrontmatter(content);
@@ -4839,13 +4883,13 @@ ${entry}`;
 }
 function removeFrontmatterField(content, field) {
   const block = parseFrontmatterBlock(content);
-  if (!block) {
-    return content;
-  }
-  const escapedName = escapeRegExp(field);
-  const fieldRegex = new RegExp(`^${escapedName}:.*$`, "m");
-  const updatedFrontmatter = block.frontmatter.replace(fieldRegex, "").replace(/\n{3,}/g, "\n\n").trim();
-  return block.prefix + updatedFrontmatter + block.suffix + block.rest;
+  if (!block) return content;
+  const lines = block.frontmatter.split("\n");
+  const start = lines.findIndex((line) => line.startsWith(field + ":"));
+  if (start < 0) return content;
+  let end = start + 1;
+  while (end < lines.length && !isTopLevelFrontmatterLine(lines[end])) end++;
+  return block.prefix + [...lines.slice(0, start), ...lines.slice(end)].join("\n") + block.suffix + block.rest;
 }
 function readTextField(content, fieldNames) {
   const frontmatter = extractFrontmatter(content);
@@ -4864,7 +4908,7 @@ function readTextField(content, fieldNames) {
     if (!rawValue) {
       return null;
     }
-    const unquoted = rawValue.replace(/^["']|["']$/g, "").trim();
+    const unquoted = stripQuotedValue(rawValue).trim();
     return unquoted.length > 0 ? unquoted : null;
   }
   return null;
@@ -4882,25 +4926,12 @@ function readNumberField(content, fieldNames) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 function upsertQuotedTextField(content, fieldName, value) {
+  if (value === null || value === void 0 || String(value).trim() === "") return removeFrontmatterField(content, fieldName);
   const block = parseFrontmatterBlock(content);
-  if (!block) {
-    return content;
-  }
-  const escapedName = escapeRegExp(fieldName);
-  const fieldRegex = new RegExp(`^${escapedName}:.*$`, "m");
-  let frontmatter = block.frontmatter;
-  if (value === null || value === void 0 || String(value).trim() === "") {
-    frontmatter = frontmatter.replace(fieldRegex, "").replace(/\n{3,}/g, "\n\n").trim();
-    return block.prefix + frontmatter + block.suffix + block.rest;
-  }
-  const nextLine = `${fieldName}: "${String(value).replace(/"/g, '\\"')}"`;
-  if (fieldRegex.test(frontmatter)) {
-    frontmatter = frontmatter.replace(fieldRegex, nextLine);
-  } else {
-    frontmatter = `${frontmatter}
-${nextLine}`;
-  }
-  return block.prefix + frontmatter + block.suffix + block.rest;
+  if (!block) return content;
+  const removed = removeFrontmatterField(content, fieldName);
+  const remaining = parseFrontmatterBlock(removed);
+  return remaining.prefix + remaining.frontmatter + "\n" + fieldName + ": " + JSON.stringify(String(value)) + remaining.suffix + remaining.rest;
 }
 function findYamlListBlock(lines, key) {
   const start = lines.findIndex((line) => new RegExp(`^${escapeRegExp(key)}:\\s*$`).test(line));
@@ -4940,7 +4971,7 @@ function upsertYamlListField(content, field, values) {
   if (!block) {
     return content;
   }
-  const newTagLines = [`${field}:`, ...values.map((value) => `  - ${value}`)];
+  const newTagLines = [`${field}:`, ...values.map((value) => `  - ${formatFrontmatterValue(value)}`)];
   const updatedFrontmatter = replaceYamlBlock(block.frontmatter.split("\n"), field, newTagLines).join("\n");
   return block.prefix + updatedFrontmatter + block.suffix + block.rest;
 }
@@ -8138,6 +8169,7 @@ var SyncTransaction = class {
     var _a;
     this.assertActive();
     const existing = await this.fileManager.assertPathOwnership(path, options.subjectId);
+    const alreadyRecorded = existing !== null && this.updatedContents.has(existing);
     if (existing && !this.updatedContents.has(existing)) {
       this.updatedContents.set(existing, {
         content: await this.app.vault.read(existing),
@@ -8155,7 +8187,7 @@ var SyncTransaction = class {
       if (planned) this.plannedCreatedFiles.splice(this.plannedCreatedFiles.indexOf(planned), 1);
     }
     if (result.status === "created") this.createdFiles.push({ file: result.file, subjectId: options.subjectId, createdPath: (0, import_obsidian10.normalizePath)(path) });
-    if (result.status !== "updated" && existing) this.updatedContents.delete(existing);
+    if (result.status !== "updated" && existing && !alreadyRecorded) this.updatedContents.delete(existing);
     return result;
   }
   async rollback() {
@@ -9373,8 +9405,9 @@ var SyncManager = class {
   commitPendingBatch() {
     return this.resolvePendingBatch("commit");
   }
-  ensureCanStartSync() {
+  ensureCanStartSync(lease) {
     var _a, _b;
+    assertWriteLeaseAvailable(lease);
     if (this.shuttingDown) throw new ManagerShuttingDownError();
     if (this.configurationUpdateState !== "idle") throw new ConfigurationUpdateInProgressError();
     if (this.recoveryRequired) throw new RecoveryRequiredError(this.recoveryRequired);
@@ -9385,7 +9418,7 @@ var SyncManager = class {
     if (this.pendingTransaction) throw new PendingSyncTransactionError();
   }
   hasActiveTransactionState() {
-    return this.vaultOperationActive || this.batchTransactionState === "active" || this.pendingTransaction !== null || this.pendingDecisionPromise !== null || this.recoveryRequired !== null || this.recoveryActionPromise !== null || this.configurationUpdateState !== "idle";
+    return hasActiveWriteLease() || this.vaultOperationActive || this.batchTransactionState === "active" || this.pendingTransaction !== null || this.pendingDecisionPromise !== null || this.recoveryRequired !== null || this.recoveryActionPromise !== null || this.configurationUpdateState !== "idle";
   }
   assertConfigurationChangeAllowed(changedFields) {
     var _a, _b;
@@ -11520,7 +11553,7 @@ var SyncManager = class {
       return { episodes, userStatus };
     } catch (error) {
       console.error(`[Bangumi Sync] \u83B7\u53D6\u7AE0\u8282\u4FE1\u606F\u5931\u8D25:`, error);
-      return null;
+      throw error;
     }
   }
   /**
@@ -11605,9 +11638,9 @@ var SyncManager = class {
    * 按 UserCollection 列表同步条目
    * 用于控制面板选中同步功能，保留用户数据（评分、状态、短评等）
    */
-  async syncByCollections(collections, options, onProgress) {
+  async syncByCollections(collections, options, onProgress, lease) {
     var _a, _b, _c, _d, _e, _f;
-    this.ensureCanStartSync();
+    this.ensureCanStartSync(lease);
     const startTime = Date.now();
     let wasCancelled = false;
     const result = this.createSyncResult(collections.length);
@@ -11619,7 +11652,7 @@ var SyncManager = class {
     this.operationProgress = options == null ? void 0 : options.onPhaseProgress;
     try {
       debugLog(() => `[Bangumi Sync] \u5F00\u59CB\u6309\u6536\u85CF\u5217\u8868\u540C\u6B65 ${collections.length} \u4E2A\u6761\u76EE\uFF0C\u8986\u76D6\u6A21\u5F0F: ${overwrite}\uFF0C\u5E76\u53D1\u6570: ${concurrency}`);
-      this.assertNoPendingTransaction();
+      this.ensureCanStartSync(lease);
       this.beginVaultOperation();
       this.incrementalSync.startBatch();
       const batch = await this.prepareCollectionBatch(collections, concurrency);
@@ -11905,70 +11938,74 @@ var SyncManager = class {
    * @returns 是否成功
    */
   async syncSingleSubject(subjectId, input) {
-    var _a, _b, _c, _d, _e, _f;
     this.ensureCanStartSync();
-    try {
-      if (input.syncToCloud) {
-        await this.client.createOrUpdateCollection(subjectId, {
-          type: input.type,
-          rate: input.rate,
-          comment: input.comment,
-          tags: input.tags,
-          private: input.private
-        });
-        debugLog(() => `[Bangumi Sync] \u5DF2\u540C\u6B65\u5230\u4E91\u7AEF: ${subjectId}`);
-      }
-      if (input.createLocal) {
-        const subject = await this.client.getSubject(subjectId);
-        const collection = {
-          subject_id: subject.id,
-          subject_type: subject.type,
-          type: input.type,
-          rate: input.rate,
-          comment: input.comment,
-          tags: input.tags,
-          private: input.private,
-          ep_status: 0,
-          vol_status: 0,
-          updated_at: (/* @__PURE__ */ new Date()).toISOString(),
-          subject: {
-            id: subject.id,
-            type: subject.type,
-            name: subject.name,
-            name_cn: subject.name_cn,
-            short_summary: ((_a = subject.summary) == null ? void 0 : _a.substring(0, 100)) || "",
-            date: subject.date,
-            images: subject.images,
-            volumes: subject.volumes,
-            eps: subject.eps,
-            collection_total: ((_b = subject.collection) == null ? void 0 : _b.collect) || 0,
-            score: ((_c = subject.rating) == null ? void 0 : _c.score) || 0,
-            rank: ((_d = subject.rating) == null ? void 0 : _d.rank) || 0,
-            tags: subject.tags
-          }
-        };
-        const localProperties = input.localPropertyValues ? /* @__PURE__ */ new Map([[subjectId, input.localPropertyValues]]) : void 0;
-        const result = await this.syncByCollections([collection], {
-          overwrite: false,
-          localPropertyValuesBySubjectId: localProperties,
-          concurrency: 1
-        });
-        const outcome = result.outcomes.find((item) => item.subjectId === subjectId);
-        if (!outcome || !["created", "updated", "unchanged"].includes(outcome.writeAction)) {
-          return { success: false, error: (_f = (_e = outcome == null ? void 0 : outcome.error) != null ? _e : result.errorDetails[0]) != null ? _f : "Local sync failed." };
+    return withWriteOperation("single-subject-sync", async (lease) => {
+      var _a, _b, _c, _d, _e, _f;
+      let cloudUpdated = false;
+      try {
+        if (input.syncToCloud) {
+          await this.client.createOrUpdateCollection(subjectId, {
+            type: input.type,
+            rate: input.rate,
+            comment: input.comment,
+            tags: input.tags,
+            private: input.private
+          });
+          cloudUpdated = true;
+          debugLog(() => `[Bangumi Sync] \u5DF2\u540C\u6B65\u5230\u4E91\u7AEF: ${subjectId}`);
         }
-        return {
-          success: true,
-          filePath: outcome.actualPath,
-          writeStatus: outcome.writeAction
-        };
+        if (input.createLocal) {
+          const subject = await this.client.getSubject(subjectId);
+          const collection = {
+            subject_id: subject.id,
+            subject_type: subject.type,
+            type: input.type,
+            rate: input.rate,
+            comment: input.comment,
+            tags: input.tags,
+            private: input.private,
+            ep_status: 0,
+            vol_status: 0,
+            updated_at: (/* @__PURE__ */ new Date()).toISOString(),
+            subject: {
+              id: subject.id,
+              type: subject.type,
+              name: subject.name,
+              name_cn: subject.name_cn,
+              short_summary: ((_a = subject.summary) == null ? void 0 : _a.substring(0, 100)) || "",
+              date: subject.date,
+              images: subject.images,
+              volumes: subject.volumes,
+              eps: subject.eps,
+              collection_total: ((_b = subject.collection) == null ? void 0 : _b.collect) || 0,
+              score: ((_c = subject.rating) == null ? void 0 : _c.score) || 0,
+              rank: ((_d = subject.rating) == null ? void 0 : _d.rank) || 0,
+              tags: subject.tags
+            }
+          };
+          const localProperties = input.localPropertyValues ? /* @__PURE__ */ new Map([[subjectId, input.localPropertyValues]]) : void 0;
+          const result = await this.syncByCollections([collection], {
+            overwrite: false,
+            localPropertyValuesBySubjectId: localProperties,
+            concurrency: 1
+          }, void 0, lease);
+          const outcome = result.outcomes.find((item) => item.subjectId === subjectId);
+          if (!outcome || !["created", "updated", "unchanged"].includes(outcome.writeAction)) {
+            return { success: false, cloudUpdated, error: (cloudUpdated ? "\u4E91\u7AEF\u5DF2\u4FDD\u5B58\uFF0C\u4F46\u672C\u5730\u540C\u6B65\u5931\u8D25\uFF1A" : "") + ((_f = (_e = outcome == null ? void 0 : outcome.error) != null ? _e : result.errorDetails[0]) != null ? _f : "Local sync failed.") };
+          }
+          return {
+            success: true,
+            filePath: outcome.actualPath,
+            writeStatus: outcome.writeAction
+          };
+        }
+        return { success: true };
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[Bangumi Sync] \u540C\u6B65\u5355\u4E2A\u6761\u76EE\u5931\u8D25:`, error);
+        return { success: false, cloudUpdated, error: (cloudUpdated ? "\u4E91\u7AEF\u5DF2\u4FDD\u5B58\uFF0C\u4F46\u672C\u5730\u540C\u6B65\u5931\u8D25\uFF1A" : "") + errorMsg };
       }
-      return { success: true };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error(`[Bangumi Sync] \u540C\u6B65\u5355\u4E2A\u6761\u76EE\u5931\u8D25:`, error);
-      return { success: false, error: errorMsg };
-    }
+    });
   }
   /**
    * 批量下载封面图片并替换链接
@@ -13099,7 +13136,7 @@ var AddToCollectionModal = class extends import_obsidian15.Modal {
       type: this.collectionType,
       rate: this.rate,
       comment: this.comment,
-      tags: this.tags,
+      tags: Array.from(/* @__PURE__ */ new Set([...this.tags, ...this.tagInputEl.value.trim() ? [this.tagInputEl.value.trim()] : []])),
       private: this.isPrivate,
       localPropertyValues: { ...this.localPropertyValues },
       syncToCloud: this.syncToCloud,
@@ -13764,17 +13801,6 @@ var import_obsidian24 = require("obsidian");
 
 // src/panel/batchEditorModal.ts
 var import_obsidian18 = require("obsidian");
-
-// src/sync/writeOperationGate.ts
-var activeGuard = null;
-function setWriteOperationGuard(guard) {
-  activeGuard = guard;
-}
-function assertWriteOperationAllowed(operation) {
-  activeGuard == null ? void 0 : activeGuard(operation);
-}
-
-// src/panel/batchEditorModal.ts
 var BatchEditorModal = class extends import_obsidian18.Modal {
   constructor(app, items, onConfirm, documentService, getCachedSnapshot) {
     super(app);
@@ -14295,63 +14321,66 @@ var FrontmatterEditor = class {
     this.documentService = new SubjectDocumentService(app);
   }
   async batchModify(filePaths, operations, expectedSubjectIds = /* @__PURE__ */ new Map()) {
-    assertWriteOperationAllowed("batch-edit");
-    const originalContents = await this.captureOriginalContents(filePaths);
-    const affectedFiles = [];
-    let success = 0;
-    let failed = 0;
-    for (const path of filePaths) {
-      const result = await this.applyUniformOperations(path, operations, expectedSubjectIds.get(path));
-      if (result) {
-        success++;
-        affectedFiles.push(path);
-      } else {
-        failed++;
+    return withWriteOperation("batch-edit", async () => {
+      const originalContents = await this.captureOriginalContents(filePaths);
+      const affectedFiles = [];
+      let success = 0;
+      let failed = 0;
+      for (const path of filePaths) {
+        const result = await this.applyUniformOperations(path, operations, expectedSubjectIds.get(path));
+        if (result) {
+          success++;
+          affectedFiles.push(path);
+        } else {
+          failed++;
+        }
       }
-    }
-    this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
-    return { success, failed };
+      this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
+      return { success, failed };
+    });
   }
   async batchApplyPerItemUpdates(updates) {
-    assertWriteOperationAllowed("batch-edit");
-    const filePaths = updates.map((update) => update.filePath);
-    const originalContents = await this.captureOriginalContents(filePaths);
-    const affectedFiles = [];
-    let success = 0;
-    let failed = 0;
-    for (const update of updates) {
-      const result = await this.applyPerItemUpdate(update);
-      if (result) {
-        success++;
-        affectedFiles.push(update.filePath);
-      } else {
-        failed++;
+    return withWriteOperation("batch-edit", async () => {
+      const filePaths = updates.map((update) => update.filePath);
+      const originalContents = await this.captureOriginalContents(filePaths);
+      const affectedFiles = [];
+      let success = 0;
+      let failed = 0;
+      for (const update of updates) {
+        const result = await this.applyPerItemUpdate(update);
+        if (result) {
+          success++;
+          affectedFiles.push(update.filePath);
+        } else {
+          failed++;
+        }
       }
-    }
-    this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
-    return { success, failed };
+      this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
+      return { success, failed };
+    });
   }
   async undo() {
-    var _a;
-    assertWriteOperationAllowed("batch-edit");
-    if (this.history.length === 0) {
-      return false;
-    }
-    const lastOperation = this.history.pop();
-    if (!lastOperation) {
-      return false;
-    }
-    let restored = 0;
-    for (const [path, content] of lastOperation.originalContent) {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian18.TFile && lastOperation.affectedFiles.includes(path)) {
-        const identity = this.documentService.getSubjectIdentityFromContent(content);
-        if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length)) continue;
-        await this.documentService.processSubjectFile(file, identity.subjectId, () => content);
-        restored++;
+    return withWriteOperation("batch-edit", async () => {
+      var _a;
+      if (this.history.length === 0) {
+        return false;
       }
-    }
-    return restored > 0;
+      const lastOperation = this.history.pop();
+      if (!lastOperation) {
+        return false;
+      }
+      let restored = 0;
+      for (const [path, content] of lastOperation.originalContent) {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file instanceof import_obsidian18.TFile && lastOperation.affectedFiles.includes(path)) {
+          const identity = this.documentService.getSubjectIdentityFromContent(content);
+          if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length)) continue;
+          await this.documentService.processSubjectFile(file, identity.subjectId, () => content);
+          restored++;
+        }
+      }
+      return restored > 0;
+    });
   }
   canUndo() {
     return this.history.length > 0;
@@ -15706,13 +15735,15 @@ var StatusSyncExecutor = class {
     this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
   }
   async executeSync(diffs) {
-    assertWriteOperationAllowed("status-sync");
+    return withWriteOperation("status-sync", (lease) => this.executeWithLease(diffs, lease));
+  }
+  async executeWithLease(diffs, lease) {
     let successCount = 0;
     let failCount = 0;
     const actionableDiffs = diffs.filter((diff) => diff.hasAnyDiff);
     for (const diff of actionableDiffs) {
       try {
-        await this.syncItem(diff);
+        await this.syncItem(diff, lease);
         successCount++;
       } catch (error) {
         failCount++;
@@ -15721,18 +15752,28 @@ var StatusSyncExecutor = class {
     }
     return { successCount, failCount };
   }
-  async syncItem(diff) {
-    var _a, _b, _c, _d;
+  async syncItem(diff, lease) {
+    var _a, _b, _c;
     const file = this.app.vault.getAbstractFileByPath(diff.localPath);
     if (!(file instanceof import_obsidian22.TFile)) {
       throw new Error("File not found");
     }
     const originalContent = await this.app.vault.read(file);
+    this.documentService.assertContentSubjectId(originalContent, diff.subjectId, file.path);
+    if (diff.localContentSnapshot === void 0 || diff.localContentSnapshot !== originalContent) throw new Error("Note changed since preview. Refresh and retry.");
+    let baseline = originalContent;
+    const persist = async (next) => {
+      await this.documentService.processSubjectFile(file, diff.subjectId, (current) => {
+        if (current !== baseline) throw new Error("Note changed during synchronization. Refresh and retry.");
+        return next;
+      });
+      baseline = next;
+    };
     let content = originalContent;
     const cloudUpdates = {};
     if (diff.rate.hasDiff && diff.rate.decision !== "skip") {
       if (diff.rate.decision === "local") {
-        cloudUpdates.rate = diff.rate.localValue || void 0;
+        cloudUpdates.rate = (_a = diff.rate.localValue) != null ? _a : 0;
       } else if (diff.rate.decision === "cloud") {
         content = diff.rate.cloudValue ? this.documentService.updateRate(content, diff.rate.cloudValue) : this.documentService.removeRate(content);
       }
@@ -15751,8 +15792,8 @@ var StatusSyncExecutor = class {
         content = diff.tags.cloudValue && diff.tags.cloudValue.length > 0 ? this.documentService.updateTags(content, this.documentService.normalizeTags(diff.tags.cloudValue)) : this.documentService.removeTags(content);
       } else if (diff.tags.decision === "merge") {
         const mergedTags = /* @__PURE__ */ new Set();
-        (_a = diff.tags.localValue) == null ? void 0 : _a.forEach((tag) => mergedTags.add(tag));
-        (_b = diff.tags.cloudValue) == null ? void 0 : _b.forEach((tag) => mergedTags.add(tag));
+        (_b = diff.tags.localValue) == null ? void 0 : _b.forEach((tag) => mergedTags.add(tag));
+        (_c = diff.tags.cloudValue) == null ? void 0 : _c.forEach((tag) => mergedTags.add(tag));
         const mergedArray = this.documentService.normalizeTags(Array.from(mergedTags));
         content = this.documentService.updateTags(content, mergedArray);
         cloudUpdates.tags = mergedArray;
@@ -15769,36 +15810,28 @@ var StatusSyncExecutor = class {
       }
     }
     if (Object.keys(cloudUpdates).length > 0) {
-      const fallbackType = this.toValidCollectionType(diff.collection.type);
-      const finalUpdates = {
-        ...cloudUpdates,
-        type: (_d = (_c = cloudUpdates.type) != null ? _c : fallbackType) != null ? _d : void 0
-      };
-      await this.syncCloudUpdates(diff.subjectId, finalUpdates);
+      await this.syncCloudUpdates(diff.subjectId, cloudUpdates);
     }
-    if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== "skip" && this.episodeStatusManager) {
+    if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== "skip") {
+      if (!this.episodeStatusManager) throw new Error("Episode status service unavailable");
       if (content !== originalContent) {
-        await this.documentService.processSubjectFile(file, diff.subjectId, () => content);
-        content = await this.app.vault.read(file);
+        await persist(content);
       }
       if (diff.episodeStatus.decision === "local") {
-        const result = await this.episodeStatusManager.syncStatusToCloud(file);
-        if (result.failed > 0 && result.success === 0) {
-          throw new Error(`\u5355\u96C6\u72B6\u6001\u540C\u6B65\u5230\u4E91\u7AEF\u5168\u90E8\u5931\u8D25 (${result.failed}\u96C6)`);
+        const result = await this.episodeStatusManager.syncStatusToCloud(file, void 0, diff.subjectId, baseline, lease);
+        if (result.failed > 0) {
+          throw new Error(`\u5355\u96C6\u72B6\u6001\u540C\u6B65\u5230\u4E91\u7AEF\u672A\u5168\u90E8\u5B8C\u6210 (${result.failed}\u96C6)`);
         }
       } else if (diff.episodeStatus.decision === "cloud") {
-        const synced = await this.episodeStatusManager.syncStatusFromCloud(file, diff.subjectId);
-        if (!synced) {
-          throw new Error("\u5355\u96C6\u72B6\u6001\u4ECE\u4E91\u7AEF\u540C\u6B65\u5931\u8D25");
-        }
-        content = await this.app.vault.read(file);
+        content = await this.episodeStatusManager.pullStatusFromCloud(file, diff.subjectId, baseline, lease);
+        baseline = content;
       }
     }
     if (diff.hasPlatformDiff && diff.platformFields.some((field) => field.hasDiff && field.decision === "cloud")) {
       content = await this.applyPlatformSync(diff, file, content);
     }
-    if (content !== originalContent) {
-      await this.documentService.processSubjectFile(file, diff.subjectId, () => content);
+    if (content !== baseline) {
+      await persist(content);
     }
   }
   async applyPlatformSync(diff, file, content) {
@@ -15881,7 +15914,6 @@ var StatusSyncExecutor = class {
     } catch (error) {
       console.error("[Bangumi Sync] \u4E91\u7AEF\u5B57\u6BB5\u540C\u6B65\u5931\u8D25:", {
         subjectId,
-        payload: updates,
         error
       });
       throw new Error("\u4E91\u7AEF\u7528\u6237\u6570\u636E\u66F4\u65B0\u5931\u8D25");
@@ -15994,6 +16026,7 @@ var StatusSyncSnapshotBuilder = class {
       name_cn: collection.subject.name_cn || "",
       name: collection.subject.name || "",
       localPath: localInfo.path,
+      localContentSnapshot: snapshot.localSnapshot.content,
       collection,
       statusFieldName: snapshot.localSnapshot.user.statusFieldName,
       rate: rateDiff,
@@ -17470,26 +17503,27 @@ var UserDataExporter = class {
    * 按条目 category 导出用户数据到单个备份文件
    */
   async exportByCategory(folderPath, outputDir, dataTypes = ["all" /* ALL */], onProgress) {
-    assertWriteOperationAllowed("user-data-export");
-    try {
-      const userDataMap = await this.extractor.extractForExportFromFolder(folderPath, dataTypes, onProgress);
-      if (userDataMap.size === 0) {
-        return { success: false, files: [], error: "No user data found" };
+    return withWriteOperation("user-data-export", async () => {
+      try {
+        const userDataMap = await this.extractor.extractForExportFromFolder(folderPath, dataTypes, onProgress);
+        if (userDataMap.size === 0) {
+          return { success: false, files: [], error: "No user data found" };
+        }
+        const groupedData = this.groupByCategory(userDataMap);
+        await this.ensureDirectory(outputDir);
+        const exportData = {
+          version: "3.0",
+          exportTime: (/* @__PURE__ */ new Date()).toISOString(),
+          totalCount: userDataMap.size,
+          categories: groupedData
+        };
+        const filePath = (0, import_obsidian25.normalizePath)(`${outputDir}/bangumi-user-data.json`);
+        await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
+        return { success: true, files: [filePath] };
+      } catch (error) {
+        return { success: false, files: [], error: String(error) };
       }
-      const groupedData = this.groupByCategory(userDataMap);
-      await this.ensureDirectory(outputDir);
-      const exportData = {
-        version: "3.0",
-        exportTime: (/* @__PURE__ */ new Date()).toISOString(),
-        totalCount: userDataMap.size,
-        categories: groupedData
-      };
-      const filePath = (0, import_obsidian25.normalizePath)(`${outputDir}/bangumi-user-data.json`);
-      await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
-      return { success: true, files: [filePath] };
-    } catch (error) {
-      return { success: false, files: [], error: String(error) };
-    }
+    });
   }
   /**
    * 向后兼容旧接口
@@ -17920,134 +17954,137 @@ var UserDataImporter = class {
     return result;
   }
   async applyMissingFieldDecisions(decisions) {
-    assertWriteOperationAllowed("user-data-import");
-    const grouped = /* @__PURE__ */ new Map();
-    for (const decision of decisions) {
-      if (decision.decision === null) continue;
-      const existing = grouped.get(decision.subjectId) || [];
-      existing.push(decision);
-      grouped.set(decision.subjectId, existing);
-    }
-    for (const [subjectId, fieldDecisions] of grouped) {
-      const localFile = await this.findLocalFile(subjectId);
-      if (!localFile) continue;
-      let content = await this.app.vault.read(localFile);
-      for (const decision of fieldDecisions) {
-        if (decision.decision === "add") {
-          content = this.merger.addFrontmatterField(
-            content,
-            decision.fieldName,
-            decision.fieldValue
-          );
-        }
+    return withWriteOperation("user-data-import", async () => {
+      const grouped = /* @__PURE__ */ new Map();
+      for (const decision of decisions) {
+        if (decision.decision === null) continue;
+        const existing = grouped.get(decision.subjectId) || [];
+        existing.push(decision);
+        grouped.set(decision.subjectId, existing);
       }
-      await this.documentService.processSubjectFile(localFile, subjectId, () => content);
-    }
+      for (const [subjectId, fieldDecisions] of grouped) {
+        const localFile = await this.findLocalFile(subjectId);
+        if (!localFile) continue;
+        let content = await this.app.vault.read(localFile);
+        for (const decision of fieldDecisions) {
+          if (decision.decision === "add") {
+            content = this.merger.addFrontmatterField(
+              content,
+              decision.fieldName,
+              decision.fieldValue
+            );
+          }
+        }
+        await this.documentService.processSubjectFile(localFile, subjectId, () => content);
+      }
+    });
   }
   async applyImportDecisions(diffs, options = {
     mergeStrategy: "smart",
     dataTypes: []
   }) {
-    var _a;
-    assertWriteOperationAllowed("user-data-import");
-    let applied = 0;
-    for (const item of diffs) {
-      const localFile = await this.findLocalFile(item.subjectId);
-      if (!localFile) continue;
-      let content = await this.app.vault.read(localFile);
-      let changed = false;
-      for (const diff of item.diffs) {
-        const decision = (_a = diff.decision) != null ? _a : "skip";
-        if (decision === "local" || decision === "skip") continue;
-        if (diff.fieldType === "section") {
-          const sectionName = diff.fieldName;
-          const localValue = sectionName === "\u77ED\u8BC4" ? this.documentService.extractComment(content) : this.documentService.extractSection(content, sectionName);
-          const nextValue2 = decision === "merge" ? this.mergeSectionValues(localValue, asString(diff.importValue)) : asString(diff.importValue);
-          if (nextValue2 && nextValue2 !== localValue) {
-            content = sectionName === "\u77ED\u8BC4" ? this.documentService.updateComment(content, nextValue2) : this.documentService.updateSection(content, sectionName, nextValue2);
+    return withWriteOperation("user-data-import", async () => {
+      var _a;
+      let applied = 0;
+      for (const item of diffs) {
+        const localFile = await this.findLocalFile(item.subjectId);
+        if (!localFile) continue;
+        let content = await this.app.vault.read(localFile);
+        let changed = false;
+        for (const diff of item.diffs) {
+          const decision = (_a = diff.decision) != null ? _a : "skip";
+          if (decision === "local" || decision === "skip") continue;
+          if (diff.fieldType === "section") {
+            const sectionName = diff.fieldName;
+            const localValue = sectionName === "\u77ED\u8BC4" ? this.documentService.extractComment(content) : this.documentService.extractSection(content, sectionName);
+            const nextValue2 = decision === "merge" ? this.mergeSectionValues(localValue, asString(diff.importValue)) : asString(diff.importValue);
+            if (nextValue2 && nextValue2 !== localValue) {
+              content = sectionName === "\u77ED\u8BC4" ? this.documentService.updateComment(content, nextValue2) : this.documentService.updateSection(content, sectionName, nextValue2);
+              changed = true;
+            }
+            continue;
+          }
+          const nextValue = decision === "merge" ? smartMergeImportValues(
+            this.getFrontmatterValueRaw(localFile, diff.fieldName),
+            diff.importValue,
+            diff.fieldName
+          ) : diff.importValue;
+          if (nextValue !== void 0) {
+            content = this.merger.updateFrontmatterField(content, diff.fieldName, nextValue);
             changed = true;
           }
-          continue;
         }
-        const nextValue = decision === "merge" ? smartMergeImportValues(
-          this.getFrontmatterValueRaw(localFile, diff.fieldName),
-          diff.importValue,
-          diff.fieldName
-        ) : diff.importValue;
-        if (nextValue !== void 0) {
-          content = this.merger.updateFrontmatterField(content, diff.fieldName, nextValue);
-          changed = true;
+        if (changed) {
+          await this.documentService.processSubjectFile(localFile, item.subjectId, () => content);
+          applied++;
         }
       }
-      if (changed) {
-        await this.documentService.processSubjectFile(localFile, item.subjectId, () => content);
-        applied++;
-      }
-    }
-    void options;
-    return applied;
+      void options;
+      return applied;
+    });
   }
   async applyImportPlan(files, options, diffs = [], missingFieldDecisions = [], onProgress) {
-    var _a, _b, _c, _d, _e, _f;
-    assertWriteOperationAllowed("user-data-import");
-    const parsedFiles = this.parseImportFiles(files);
-    const diffDecisionMap = this.buildDiffDecisionMap(diffs);
-    const missingDecisionMap = this.buildMissingFieldDecisionMap(missingFieldDecisions);
-    const result = {
-      success: 0,
-      skipped: 0,
-      autoImported: 0,
-      errors: parsedFiles.errors,
-      missingFields: []
-    };
-    let totalItems = 0;
-    for (const parsedFile of parsedFiles.files) {
-      totalItems += Object.keys((_a = parsedFile.data.items) != null ? _a : {}).length;
-    }
-    let processed = 0;
-    for (const parsedFile of parsedFiles.files) {
-      for (const [id, rawUserData] of Object.entries((_b = parsedFile.data.items) != null ? _b : {})) {
-        processed++;
-        onProgress == null ? void 0 : onProgress(processed, totalItems);
-        const subjectId = parseInt(id, 10);
-        if (Number.isNaN(subjectId)) {
-          result.errors.push({
-            id: 0,
-            name_cn: ((_c = rawUserData.identifier) == null ? void 0 : _c.name_cn) || id,
-            error: "Invalid subject id"
-          });
-          continue;
-        }
-        const localFile = await this.findLocalFile(subjectId);
-        if (!localFile) {
-          result.skipped++;
-          continue;
-        }
-        try {
-          const normalized = this.normalizeImportItem(rawUserData, options);
-          const changed = await this.applySingleItem(
-            localFile,
-            subjectId,
-            normalized,
-            options,
-            (_d = diffDecisionMap.get(subjectId)) != null ? _d : /* @__PURE__ */ new Map(),
-            (_e = missingDecisionMap.get(subjectId)) != null ? _e : /* @__PURE__ */ new Map()
-          );
-          if (changed) {
-            result.success++;
-          } else {
-            result.skipped++;
+    return withWriteOperation("user-data-import", async () => {
+      var _a, _b, _c, _d, _e, _f;
+      const parsedFiles = this.parseImportFiles(files);
+      const diffDecisionMap = this.buildDiffDecisionMap(diffs);
+      const missingDecisionMap = this.buildMissingFieldDecisionMap(missingFieldDecisions);
+      const result = {
+        success: 0,
+        skipped: 0,
+        autoImported: 0,
+        errors: parsedFiles.errors,
+        missingFields: []
+      };
+      let totalItems = 0;
+      for (const parsedFile of parsedFiles.files) {
+        totalItems += Object.keys((_a = parsedFile.data.items) != null ? _a : {}).length;
+      }
+      let processed = 0;
+      for (const parsedFile of parsedFiles.files) {
+        for (const [id, rawUserData] of Object.entries((_b = parsedFile.data.items) != null ? _b : {})) {
+          processed++;
+          onProgress == null ? void 0 : onProgress(processed, totalItems);
+          const subjectId = parseInt(id, 10);
+          if (Number.isNaN(subjectId)) {
+            result.errors.push({
+              id: 0,
+              name_cn: ((_c = rawUserData.identifier) == null ? void 0 : _c.name_cn) || id,
+              error: "Invalid subject id"
+            });
+            continue;
           }
-        } catch (error) {
-          result.errors.push({
-            id: subjectId,
-            name_cn: ((_f = rawUserData.identifier) == null ? void 0 : _f.name_cn) || String(subjectId),
-            error: String(error)
-          });
+          const localFile = await this.findLocalFile(subjectId);
+          if (!localFile) {
+            result.skipped++;
+            continue;
+          }
+          try {
+            const normalized = this.normalizeImportItem(rawUserData, options);
+            const changed = await this.applySingleItem(
+              localFile,
+              subjectId,
+              normalized,
+              options,
+              (_d = diffDecisionMap.get(subjectId)) != null ? _d : /* @__PURE__ */ new Map(),
+              (_e = missingDecisionMap.get(subjectId)) != null ? _e : /* @__PURE__ */ new Map()
+            );
+            if (changed) {
+              result.success++;
+            } else {
+              result.skipped++;
+            }
+          } catch (error) {
+            result.errors.push({
+              id: subjectId,
+              name_cn: ((_f = rawUserData.identifier) == null ? void 0 : _f.name_cn) || String(subjectId),
+              error: String(error)
+            });
+          }
         }
       }
-    }
-    return result;
+      return result;
+    });
   }
   parseImportFiles(files) {
     var _a, _b, _c, _d;
@@ -19499,7 +19536,7 @@ var EpisodeContextMenu = class {
           episodesToUpdate.push({ episodeId, epNumber, epBox });
         }
       });
-      await this.statusManager.updateMultipleStatuses(file, episodesToUpdate.map((e) => ({
+      await this.statusManager.patchEpisodeStatuses(file, episodesToUpdate.map((e) => ({
         episodeId: e.episodeId,
         epNumber: e.epNumber,
         status: 2
@@ -19586,10 +19623,12 @@ var EpisodeStatusManager = class {
     this.documentService = new SubjectDocumentService(app);
   }
   async processKnownSubjectFile(file, updater) {
-    var _a;
-    const identity = await this.documentService.getSubjectIdentity(file);
-    if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length)) throw new Error(`Cannot safely write episode status to ${file.path}: subject ID is missing or conflicting.`);
-    await this.documentService.processSubjectFile(file, identity.subjectId, updater);
+    await withWriteOperation("episode-status", async () => {
+      var _a;
+      const identity = await this.documentService.getSubjectIdentity(file);
+      if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length)) throw new Error(`Cannot safely write episode status to ${file.path}: subject ID is missing or conflicting.`);
+      await this.documentService.processSubjectFile(file, identity.subjectId, updater);
+    });
   }
   /**
    * 从文件中读取单集状态映射
@@ -19651,69 +19690,37 @@ var EpisodeStatusManager = class {
    * 更新本地文件中的单集状态
    */
   async updateLocalStatus(file, episodeId, epNumber, status) {
+    await this.patchEpisodeStatuses(file, [{ episodeId, epNumber, status }]);
+  }
+  /** Partial updates preserve every unselected episode. */
+  async patchEpisodeStatuses(file, episodes) {
     assertWriteOperationAllowed("episode-status");
     await this.processKnownSubjectFile(file, (content) => {
-      return this.updateEpStatusInContent(content, episodeId, epNumber, status);
+      const merged = this.getEpisodeStatusMapFromContent(content);
+      for (const ep of episodes) merged.set(ep.episodeId, this.createLocalEpisodeStatus(ep.episodeId, ep.epNumber, ep.status));
+      return this.applyEpisodeStatusUpdates(content, Array.from(merged.values()));
     });
   }
-  /**
-   * 批量更新多个单集状态
-   */
   async updateMultipleStatuses(file, episodes) {
-    assertWriteOperationAllowed("episode-status");
-    await this.processKnownSubjectFile(file, (content) => {
-      return this.applyEpisodeStatusUpdates(content, episodes);
-    });
+    await this.patchEpisodeStatuses(file, episodes);
   }
-  /**
-   * 在内容中更新单集状态
-   */
-  updateEpStatusInContent(content, episodeId, epNumber, status) {
-    const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-    if (!frontmatterMatch) return content;
-    const prefix = frontmatterMatch[1];
-    let frontmatter = frontmatterMatch[2];
-    const suffix = frontmatterMatch[3];
-    const bodyContent = frontmatterMatch[4];
-    if (status === 0) {
-      const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+\\n?`, "m");
-      frontmatter = frontmatter.replace(statusLineRegex, "");
-      if (frontmatter.includes("ep_statuses:\n") && !frontmatter.match(/ep_statuses:\n\s+- /)) {
-        frontmatter = frontmatter.replace(/ep_statuses:\n/, "");
-      }
-    } else {
-      const statusEntry = `${episodeId}:${epNumber}:${status}`;
-      const existingStatusesMatch = frontmatter.match(/^ep_statuses:\s*\n((?:\s+- .+\n?)+)/m);
-      if (existingStatusesMatch) {
-        const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+$`, "m");
-        if (statusLineRegex.test(frontmatter)) {
-          frontmatter = frontmatter.replace(
-            new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+$`, "m"),
-            `  - ${statusEntry}`
-          );
-        } else {
-          frontmatter = frontmatter.replace(
-            /^ep_statuses:\s*\n/,
-            `ep_statuses:
-  - ${statusEntry}
-`
-          );
-        }
-      } else {
-        frontmatter += `
-ep_statuses:
-  - ${statusEntry}`;
-      }
-    }
-    const updatedContent = prefix + frontmatter + suffix + bodyContent;
-    return this.updateEpisodeBoxStatusInContent(updatedContent, episodeId, epNumber, status);
+  /** Only callers holding a complete snapshot may replace all statuses. */
+  async replaceAllEpisodeStatuses(file, expectedSubjectId, episodes, expectedContent) {
+    return withWriteOperation("episode-status", async () => {
+      await this.documentService.processSubjectFile(file, expectedSubjectId, (content) => {
+        if (content !== expectedContent) throw new Error("Note changed during synchronization. Refresh and retry.");
+        return this.applyEpisodeStatusUpdates(content, episodes);
+      });
+    });
   }
   applyEpisodeStatusUpdates(content, episodes) {
-    const withoutOldStatuses = this.clearEpisodeStatusArtifacts(content);
-    const withUpdatedBoxes = episodes.reduce(
-      (updatedContent, ep) => this.updateEpisodeBoxStatusInContent(updatedContent, ep.episodeId, ep.epNumber, ep.status),
-      withoutOldStatuses
-    );
+    const updates = new Map(episodes.map((ep) => [ep.episodeId, ep]));
+    const cleared = this.clearEpisodeStatusArtifacts(content);
+    const withUpdatedBoxes = cleared.replace(/<span\b[^>]*class="[^"]*\bep-box\b[^"]*"[^>]*>.*?<\/span>/g, (tag) => {
+      const attrs = this.parseEpisodeBox(tag);
+      const ep = attrs && updates.get(attrs.episodeId);
+      return ep ? this.updateEpisodeBoxStatusInContent(tag, ep.episodeId, ep.epNumber, ep.status) : tag;
+    });
     return this.writeEpisodeStatusesToFrontmatter(withUpdatedBoxes, episodes);
   }
   writeEpisodeStatusesToFrontmatter(content, episodes) {
@@ -19721,7 +19728,7 @@ ep_statuses:
     if (validEntries.length === 0) {
       return content;
     }
-    const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+    const frontmatterMatch = content.match(/^(---\r?\n)([\s\S]*?)(\r?\n---)([\s\S]*)$/);
     if (!frontmatterMatch) {
       return content;
     }
@@ -19745,11 +19752,11 @@ ${statusLines}`;
   }
   extractEpisodeStatusMapFromFrontmatter(content) {
     const statusMap = /* @__PURE__ */ new Map();
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (!frontmatterMatch) {
       return statusMap;
     }
-    const frontmatter = frontmatterMatch[1];
+    const frontmatter = frontmatterMatch[1].replace(/\r\n/g, "\n");
     const epStatusesMatch = frontmatter.match(/^ep_statuses:\s*\n((?:\s+- .+\n?)+)/m);
     if (!epStatusesMatch) {
       return statusMap;
@@ -19808,7 +19815,7 @@ ${statusLines}`;
     });
   }
   clearEpisodeStatusArtifacts(content) {
-    const withoutFrontmatterStatuses = content.replace(/^ep_statuses:\s*\n(?:\s+- .+\n?)+/m, "").replace(/\n{3,}/g, "\n\n");
+    const withoutFrontmatterStatuses = removeYamlListField(content, "ep_statuses");
     const episodeBoxRegex = /<span\b[^>]*class="[^"]*\bep-box\b[^"]*"[^>]*>.*?<\/span>/g;
     return withoutFrontmatterStatuses.replace(episodeBoxRegex, (fullMatch) => {
       const attrs = this.parseEpisodeBox(fullMatch);
@@ -19848,10 +19855,27 @@ ${statusLines}`;
   /**
    * 同步本地状态到云端
    */
-  async syncStatusToCloud(file, progressCallback) {
-    assertWriteOperationAllowed("episode-status");
-    const statusMap = await this.getEpisodeStatusMap(file);
-    const entries = Array.from(statusMap.values()).filter((s) => s.status !== 0);
+  async syncStatusToCloud(file, progressCallback, expectedSubjectId, expectedContent, lease) {
+    return withWriteOperation("episode-status", (owned) => this.syncStatusToCloudWithLease(file, progressCallback, expectedSubjectId, expectedContent, owned), lease);
+  }
+  async syncStatusToCloudWithLease(file, progressCallback, expectedSubjectId, expectedContent, lease) {
+    assertWriteOperationAllowed("episode-status", lease);
+    const baseline = expectedContent != null ? expectedContent : await this.app.vault.read(file);
+    const identity = this.documentService.getSubjectIdentityFromContent(baseline);
+    const subjectId = expectedSubjectId != null ? expectedSubjectId : identity.subjectId;
+    if (subjectId === null) throw new Error("Missing subject ID");
+    this.documentService.assertContentSubjectId(baseline, subjectId, file.path);
+    const statusMap = this.getEpisodeStatusMapFromContent(baseline);
+    const cloud = await this.client.getUserEpisodeStatus(subjectId);
+    const currentSnapshot = await this.app.vault.read(file);
+    this.documentService.assertContentSubjectId(currentSnapshot, subjectId, file.path);
+    if (currentSnapshot !== baseline) throw new Error("Note changed during synchronization. Refresh and retry.");
+    const cloudIds = new Set(cloud.map((entry) => entry.episode.id));
+    if (Array.from(statusMap.values()).some((entry) => entry.status !== 0 && !cloudIds.has(entry.episodeId))) throw new Error("Local episode is absent from the complete cloud snapshot.");
+    const entries = cloud.map((entry) => {
+      var _a, _b, _c;
+      return { episodeId: entry.episode.id, epNumber: (_a = entry.episode.ep) != null ? _a : entry.episode.sort, status: (_c = (_b = statusMap.get(entry.episode.id)) == null ? void 0 : _b.status) != null ? _c : 0, cloudStatus: entry.type };
+    }).filter((entry) => entry.status !== entry.cloudStatus);
     const ownerWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
     let success = 0;
     let failed = 0;
@@ -19860,6 +19884,9 @@ ${statusLines}`;
       if (progressCallback) {
         progressCallback(i + 1, entries.length, `\u6B63\u5728\u540C\u6B65\u7B2C${entry.epNumber}\u96C6...`);
       }
+      const current = await this.app.vault.read(file);
+      this.documentService.assertContentSubjectId(current, subjectId, file.path);
+      if (current !== baseline) throw new Error("Note changed during synchronization. Refresh and retry.");
       try {
         await this.client.updateEpisodeStatus(entry.episodeId, entry.status);
         success++;
@@ -19874,23 +19901,37 @@ ${statusLines}`;
   /**
    * 从云端拉取状态到本地
    */
-  async syncStatusFromCloud(file, subjectId) {
-    assertWriteOperationAllowed("episode-status");
+  async syncStatusFromCloud(file, subjectId, expectedContent, lease) {
     try {
-      const userEpisodes = await this.client.getUserEpisodeStatus(subjectId);
-      await this.processKnownSubjectFile(file, (content) => {
-        const episodes = userEpisodes.filter((userEp) => userEp.type !== 0 && userEp.episode).map((userEp) => ({
-          episodeId: userEp.episode.id,
-          epNumber: userEp.episode.ep || userEp.episode.sort || 0,
-          status: userEp.type
-        }));
-        return this.applyEpisodeStatusUpdates(content, episodes);
-      });
+      await this.pullStatusFromCloud(file, subjectId, expectedContent, lease);
       return true;
     } catch (error) {
       console.error("[Bangumi Sync] \u4ECE\u4E91\u7AEF\u540C\u6B65\u72B6\u6001\u5931\u8D25:", error);
       return false;
     }
+  }
+  /** Returns exactly the committed content, never a later user edit. */
+  async pullStatusFromCloud(file, subjectId, expectedContent, lease) {
+    return withWriteOperation("episode-status", async () => {
+      const baseline = expectedContent != null ? expectedContent : await this.app.vault.read(file);
+      this.documentService.assertContentSubjectId(baseline, subjectId, file.path);
+      const userEpisodes = await this.client.getUserEpisodeStatus(subjectId);
+      const episodes = userEpisodes.filter((ep) => ep.type !== 0).map((ep) => {
+        var _a, _b;
+        return {
+          episodeId: ep.episode.id,
+          epNumber: (_b = (_a = ep.episode.ep) != null ? _a : ep.episode.sort) != null ? _b : 0,
+          status: ep.type
+        };
+      });
+      let committed = baseline;
+      await this.documentService.processSubjectFile(file, subjectId, (content) => {
+        if (content !== baseline) throw new Error("Note changed during synchronization. Refresh and retry.");
+        committed = this.applyEpisodeStatusUpdates(content, episodes);
+        return committed;
+      });
+      return committed;
+    }, lease);
   }
   /**
    * 获取所有需要同步的单集状态
@@ -19904,13 +19945,7 @@ ${statusLines}`;
    */
   async clearAllStatuses(file) {
     assertWriteOperationAllowed("episode-status");
-    await this.processKnownSubjectFile(file, (content) => {
-      const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-      if (!frontmatterMatch) return content;
-      let frontmatter = frontmatterMatch[2];
-      frontmatter = frontmatter.replace(/^ep_statuses:\s*\n(?:\s+- .+\n?)+/m, "");
-      return frontmatterMatch[1] + frontmatter + frontmatterMatch[3] + frontmatterMatch[4];
-    });
+    await this.processKnownSubjectFile(file, (content) => this.clearEpisodeStatusArtifacts(content));
   }
 };
 
@@ -19925,31 +19960,35 @@ var EpisodeCommentManager = class {
    * 返回插入位置信息，用于光标定位
    */
   async insertEpisodeComment(file, epNumber) {
-    var _a;
-    assertWriteOperationAllowed("episode-comment");
-    const content = await this.app.vault.read(file);
-    const identity = this.documentService.getSubjectIdentityFromContent(content);
-    if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length)) throw new Error(`Cannot safely write an episode comment to ${file.path}: subject ID is missing or conflicting.`);
-    const recordMatch = this.findRecordSection(content);
-    const callout = this.buildEpisodeCommentCallout(epNumber);
-    let newContent;
-    let calloutStart;
-    if (recordMatch) {
-      const insertPosition = this.findInsertPosition(content, recordMatch);
-      newContent = this.insertAtPosition(content, callout, insertPosition);
-      calloutStart = insertPosition;
-    } else {
-      const created = this.createRecordSection(content, callout);
-      newContent = created.content;
-      calloutStart = created.calloutStart;
-    }
-    const cursorPosition = this.calculateCursorPosition(newContent, calloutStart, callout);
-    await this.documentService.processSubjectFile(file, identity.subjectId, () => newContent);
-    return {
-      success: true,
-      insertLine: cursorPosition.line,
-      insertColumn: cursorPosition.column
-    };
+    return withWriteOperation("episode-comment", async () => {
+      var _a;
+      const content = await this.app.vault.read(file);
+      const identity = this.documentService.getSubjectIdentityFromContent(content);
+      if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length)) throw new Error(`Cannot safely write an episode comment to ${file.path}: subject ID is missing or conflicting.`);
+      const recordMatch = this.findRecordSection(content);
+      const callout = this.buildEpisodeCommentCallout(epNumber);
+      let newContent;
+      let calloutStart;
+      if (recordMatch) {
+        const insertPosition = this.findInsertPosition(content, recordMatch);
+        newContent = this.insertAtPosition(content, callout, insertPosition);
+        calloutStart = insertPosition;
+      } else {
+        const created = this.createRecordSection(content, callout);
+        newContent = created.content;
+        calloutStart = created.calloutStart;
+      }
+      const cursorPosition = this.calculateCursorPosition(newContent, calloutStart, callout);
+      await this.documentService.processSubjectFile(file, identity.subjectId, (current) => {
+        if (current !== content) throw new Error("Note changed while preparing the comment. Retry.");
+        return newContent;
+      });
+      return {
+        success: true,
+        insertLine: cursorPosition.line,
+        insertColumn: cursorPosition.column
+      };
+    });
   }
   /**
    * 查找"记录"部分
@@ -20077,26 +20116,27 @@ var SubjectNoteManager = class {
     await this.createOrAppendForLocalFile(file);
   }
   async createOrAppendForLocalFile(localFile) {
-    assertWriteOperationAllowed("subject-note");
-    if (!this.settings.notePathTemplate.trim()) {
-      new import_obsidian29.Notice(tn("subjectNote", "configureNotePath"));
-      return;
-    }
-    const context = await this.resolveContext(localFile);
-    if (!context) {
-      new import_obsidian29.Notice(tn("subjectNote", "missingSubjectId"));
-      return;
-    }
-    const candidateIds = await this.buildCandidateIds(context.subject, localFile);
-    const match = await this.findExistingNote(context.subject.id, candidateIds);
-    const targetFile = match ? await this.updateExistingNote(match, candidateIds, context.heading) : await this.createNewNote(context, candidateIds);
-    await this.updateLocalNoteLink(localFile, context.subject.id, targetFile.path, context.heading);
-    await this.app.workspace.openLinkText(
-      `${targetFile.path.replace(/\.md$/i, "")}#${context.heading}`,
-      localFile.path,
-      true
-    );
-    new import_obsidian29.Notice(tn("subjectNote", match ? "appendedToNote" : "createdNote"));
+    return withWriteOperation("subject-note", async () => {
+      if (!this.settings.notePathTemplate.trim()) {
+        new import_obsidian29.Notice(tn("subjectNote", "configureNotePath"));
+        return;
+      }
+      const context = await this.resolveContext(localFile);
+      if (!context) {
+        new import_obsidian29.Notice(tn("subjectNote", "missingSubjectId"));
+        return;
+      }
+      const candidateIds = await this.buildCandidateIds(context.subject, localFile);
+      const match = await this.findExistingNote(context.subject.id, candidateIds);
+      const targetFile = match ? await this.updateExistingNote(match, candidateIds, context.heading) : await this.createNewNote(context, candidateIds);
+      await this.updateLocalNoteLink(localFile, context.subject.id, targetFile.path, context.heading);
+      await this.app.workspace.openLinkText(
+        `${targetFile.path.replace(/\.md$/i, "")}#${context.heading}`,
+        localFile.path,
+        true
+      );
+      new import_obsidian29.Notice(tn("subjectNote", match ? "appendedToNote" : "createdNote"));
+    });
   }
   async resolveContext(localFile) {
     var _a;
@@ -21060,7 +21100,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     this.appliedSyncConfig = cloneSyncManagerConfig(config);
     this.lastSavedSettings = this.cloneSettings(this.settings);
     const manager = this.syncManager;
-    setWriteOperationGuard(() => manager.ensureCanStartSync());
+    setWriteOperationGuard((_, lease) => manager.ensureCanStartSync(lease));
     this.refreshDependentServices(manager);
   }
   /**

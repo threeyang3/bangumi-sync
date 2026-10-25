@@ -248,7 +248,7 @@ export class AddToCollectionModal extends Modal {
 			type: this.collectionType,
 			rate: this.rate,
 			comment: this.comment,
-			tags: this.tags,
+			tags: Array.from(new Set([...this.tags, ...(this.tagInputEl.value.trim() ? [this.tagInputEl.value.trim()] : [])])),
 			private: this.isPrivate,
 			localPropertyValues: { ...this.localPropertyValues },
 			syncToCloud: this.syncToCloud,
