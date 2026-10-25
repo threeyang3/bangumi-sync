@@ -11,7 +11,9 @@ import {
 	StatusSyncExecutionSummary,
 	StatusSyncFieldSelection,
 	StatusSyncSnapshot,
+	StatusSyncOutcome,
 } from './statusSyncTypes';
+import { WriteOperationLease } from './writeOperationGate';
 
 export class StatusSyncService {
 	private snapshotBuilder: StatusSyncSnapshotBuilder;
@@ -64,8 +66,8 @@ export class StatusSyncService {
 		});
 	}
 
-	async executeSync(diffs: StatusSyncDiff[]): Promise<StatusSyncExecutionSummary> {
-		return await this.executor.executeSync(diffs);
+	async executeSync(diffs: StatusSyncDiff[], lease?: WriteOperationLease, onOutcome?: (outcome: StatusSyncOutcome) => void): Promise<StatusSyncExecutionSummary> {
+		return await this.executor.executeSync(diffs, lease, onOutcome);
 	}
 
 	private applySmartMerge(diffs: StatusSyncDiff[]): void {

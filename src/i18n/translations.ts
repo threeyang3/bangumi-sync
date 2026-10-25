@@ -11,6 +11,14 @@ export type Locale = 'en' | 'zh-CN';
  * 翻译文本类型
  */
 export interface TranslationStrings {
+	comprehensiveSync: {
+		title: string; description: string; compare: string; loading: string; summary: string;
+		additions: string; differences: string; unchanged: string; failed: string; localOnly: string;
+		review: string; saveChoices: string; execute: string; refresh: string; close: string;
+		all: string; none: string; previous: string; next: string; page: string;
+		choices: string; result: string; created: string; updated: string; skipped: string;
+		pending: string; rolledBack: string; importDecision: string; boundary: string;
+	};
 	// 命令
         commands: {
                 openControlPanel: string;
@@ -706,6 +714,17 @@ export interface TranslationStrings {
  * 英文翻译（默认）
  */
 const en: TranslationStrings = {
+	comprehensiveSync: {
+		title: 'Comprehensive sync', description: 'Compare all collections for the current account, across all types and statuses. Import missing notes and review selected user and platform fields in existing notes. Local-only notes are kept.',
+		compare: 'Choose fields and compare', loading: 'Comparing collections and local notes…',
+		summary: '{additions} to add · {differences} with differences · {unchanged} unchanged · {failed} comparison failures',
+		additions: 'New notes', differences: 'Existing note differences', unchanged: 'Unchanged', failed: 'Failed', localOnly: '{count} local-only notes kept',
+		review: 'Review this page', saveChoices: 'Save choices', execute: 'Confirm and sync', refresh: 'Refresh preview', close: 'Close',
+		all: 'Select all new notes', none: 'Clear new note selection', previous: 'Previous', next: 'Next', page: 'Page {page} / {total}',
+		choices: '{count} existing notes selected for update. Existing differences default to skip; review choices before confirming.',
+		result: 'Sync result', created: 'Created', updated: 'Updated', skipped: 'Skipped', pending: 'Awaiting import decision', rolledBack: 'Rolled back',
+		importDecision: 'Review import result and recovery', boundary: 'Local import rollback does not undo saved cloud changes or prior status updates. Failures can include changes already saved; refresh before retrying.',
+	},
         commands: {
                 openControlPanel: 'Open collection manager',
                 syncCollections: 'Sync Bangumi collections',
@@ -1374,6 +1393,17 @@ const en: TranslationStrings = {
  * 中文翻译
  */
 const zhCN: TranslationStrings = {
+	comprehensiveSync: {
+		title: '全面同步', description: '比较当前账号全部类型、全部收藏状态的条目。导入缺失笔记，并审阅已有笔记中选定的用户数据与平台数据。本地独有笔记会保留。',
+		compare: '选择字段并比较', loading: '正在比较云端收藏与本地笔记…',
+		summary: '待新增 {additions} · 存在差异 {differences} · 无差异 {unchanged} · 比较失败 {failed}',
+		additions: '新增笔记', differences: '已有笔记差异', unchanged: '无差异', failed: '失败', localOnly: '保留 {count} 个本地独有条目',
+		review: '审阅本页差异', saveChoices: '保存选择', execute: '确认并同步', refresh: '刷新预览', close: '关闭',
+		all: '全选新增笔记', none: '取消选择新增笔记', previous: '上一页', next: '下一页', page: '第 {page} / {total} 页',
+		choices: '已选择更新 {count} 个已有条目。已有差异默认跳过，请审阅后再确认。',
+		result: '同步结果', created: '已新增', updated: '已更新', skipped: '已跳过', pending: '等待导入保留或回滚', rolledBack: '已回滚',
+		importDecision: '查看导入结果与恢复操作', boundary: '本地导入回滚不会撤销已保存的云端修改或此前的状态更新。失败也可能包含已保存的修改；重试前请刷新比较。',
+	},
         commands: {
                 openControlPanel: '打开收藏管理面板',
                 syncCollections: '同步 Bangumi 收藏',

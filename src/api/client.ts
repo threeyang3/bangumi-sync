@@ -445,6 +445,22 @@ export class BangumiClient {
 		let total = 0;
 		let page = 0;
 		const allCollections: UserCollection[] = [];
+		const ids = new Set<number>();
+		const appendPage = (result: PagedResult<UserCollection>) => {
+			if (!result || !Array.isArray(result.data) || !Number.isSafeInteger(result.total) || result.total < 0
+				|| (page > 0 && result.total !== total)
+				|| (result.data.length === 0 && allCollections.length < result.total)) {
+				throw new Error('Incomplete collection snapshot. Refresh and retry.');
+			}
+			for (const item of result.data) {
+				if (!Number.isSafeInteger(item.subject_id) || item.subject_id <= 0 || ids.has(item.subject_id)) {
+					throw new Error('Incomplete collection snapshot: invalid or duplicate subject ID.');
+				}
+				ids.add(item.subject_id);
+				allCollections.push(item);
+			}
+			if (allCollections.length > result.total) throw new Error('Incomplete collection snapshot: inconsistent total.');
+		};
 
 		// 首次请求获取 total
 		const firstResult = await this.getUserCollections(username, {
@@ -453,7 +469,7 @@ export class BangumiClient {
 			offset,
 		});
 		total = firstResult.total;
-		allCollections.push(...firstResult.data);
+		appendPage(firstResult);
 		page++;
 
 		if (options?.onProgress) {
@@ -464,10 +480,10 @@ export class BangumiClient {
 		while (allCollections.length < total) {
 			if (options?.cancelled?.value) {
 				debugLog(() => '[Bangumi Sync] 分页获取已取消');
-				break;
+				throw new RequestCancelledError('Collection loading cancelled');
 			}
 
-			offset += limit;
+			offset = allCollections.length;
 			// 前 5 页 50ms，之后 100ms
 			const delay = page < 5 ? 50 : 100;
 			await new Promise(resolve => activeWindow.setTimeout(resolve, delay));
@@ -477,7 +493,7 @@ export class BangumiClient {
 				limit,
 				offset,
 			});
-			allCollections.push(...result.data);
+			appendPage(result);
 			page++;
 
 			if (options?.onProgress) {

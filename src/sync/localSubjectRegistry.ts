@@ -31,6 +31,7 @@ export interface LocalFileProblem {
 	code: 'missing-id' | 'identity-conflict' | 'duplicate-id' | 'path-collision';
 	message: string;
 	subjectId?: number;
+	relatedSubjectIds?: number[];
 }
 
 export class LocalSubjectRegistry {
@@ -90,6 +91,7 @@ export class LocalSubjectRegistry {
 			this.invalidFiles.push({
 				path: file.path,
 				subjectId: identity.subjectId,
+				relatedSubjectIds: [identity.subjectId, ...identity.conflicts.map(conflict => conflict.value)],
 				severity: 'blocking-error',
 				code: 'identity-conflict',
 				message: `Conflicting subject IDs: ${identity.conflicts.map(conflict => `${conflict.source}=${conflict.value}`).join(', ')}`,

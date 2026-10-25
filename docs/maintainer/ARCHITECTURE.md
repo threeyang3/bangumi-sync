@@ -1,5 +1,7 @@
 # Architecture
 
+全面同步使用 `ComprehensiveSyncService` 编排共享账号／本地比较、分区计划和最终结果。它复用 `StatusSyncService` 的字段差异和写回，以及 `SyncManager` 的身份安全导入与事务机制；`ComprehensiveSyncModal` 负责分页预览、新增勾选、复用字段审阅和结果展示。预览与确认执行分别持有短期 write lease，执行的两个阶段显式共享许可。现有状态同步弹窗的 review 模式仅保存决策，最终写入由协调层统一触发。
+
 本文描述当前系统结构、依赖方向和主数据流。业务判断见[逻辑参考](LOGIC_REFERENCE.md)，身份与路径见[身份与路径模型](PATH_AND_ID_MODEL.md)，恢复内部状态见[恢复模型](RECOVERY_MODEL.md)。
 
 ## System overview

@@ -67,6 +67,7 @@ type ControlPanelActionKey =
         | 'search'
         | 'refresh'
         | 'syncStatus'
+	| 'comprehensiveSync'
         | 'syncCollections'
         | 'scanAndLinkRelated'
         | 'batchDownloadCovers'
@@ -211,7 +212,8 @@ export class ControlPanel extends Modal {
                 onScanAndLinkRelated: () => void,
                 subjectNoteManager?: SubjectNoteManager | null,
                 episodeStatusManager?: EpisodeStatusManager | null,
-                autoSyncSelection?: StatusSyncFieldSelection | 'prompt' | null
+                autoSyncSelection?: StatusSyncFieldSelection | 'prompt' | null,
+		private readonly onComprehensiveSync?: () => void,
         ) {
 		super(app);
 		this.settings = settings;
@@ -469,7 +471,7 @@ export class ControlPanel extends Modal {
                 const actionMap = new Map(this.getActionDescriptors().map(action => [action.key, action]));
                 const keys: ControlPanelActionKey[] = hasSelection
                         ? ['syncSelected', 'batchEdit', 'undo', 'more']
-                        : ['search', 'syncStatus', 'syncCollections', 'more'];
+                        : ['search', 'comprehensiveSync', 'syncStatus', 'more'];
 
 		return keys
 			.map(key => actionMap.get(key))
@@ -485,6 +487,11 @@ export class ControlPanel extends Modal {
 
 	private getActionDescriptors(): ControlPanelActionDescriptor[] {
 		return [
+			{
+				key: 'comprehensiveSync', label: tn('comprehensiveSync', 'title'), mobileLabel: tn('comprehensiveSync', 'title'),
+				className: 'bangumi-action-btn-sync', showInDefaultToolbar: true, showInSelectionToolbar: false,
+				showInMoreMenu: true, menuSection: 'sync', run: () => this.onComprehensiveSync?.(),
+			},
                         {
                                 key: 'search',
                                 label: tn('searchModal', 'title'),

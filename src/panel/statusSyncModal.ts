@@ -38,6 +38,7 @@ export class StatusSyncModal extends Modal {
                 selection: StatusSyncFieldSelection,
                 diffs: StatusSyncDiff[],
                 onComplete: () => void,
+                private readonly onReview?: (diffs: StatusSyncDiff[]) => void,
         ) {
                 super(app);
                 this.statusSyncService = statusSyncService;
@@ -86,8 +87,9 @@ export class StatusSyncModal extends Modal {
                         this.renderTable();
 
                         const footer = contentEl.createDiv({ cls: 'bangumi-status-sync-footer' });
-                        footer.createEl('button', { text: tn('statusSyncModal', 'execute'), cls: 'mod-cta' }, button => {
+                        footer.createEl('button', { text: this.onReview ? tn('comprehensiveSync', 'saveChoices') : tn('statusSyncModal', 'execute'), cls: 'mod-cta' }, button => {
                                 button.addEventListener('click', () => {
+                                        if (this.onReview) { this.onReview(this.diffs); this.close(); return; }
                                         void this.executeSync();
                                 });
                         });
@@ -98,7 +100,6 @@ export class StatusSyncModal extends Modal {
                         console.error('[Bangumi Sync] 状态同步弹窗渲染失败:', error, {
                                 selection: this.selection,
                                 diffCount: this.diffs.length,
-                                sampleDiff: this.diffs[0],
                         });
                         this.renderErrorState(error);
                 }
@@ -485,7 +486,7 @@ export class StatusSyncModal extends Modal {
 						: summary;
 						this.statusEl.setText(message);
 
-						if (successCount > 0) {
+						if (successCount > 0 || failCount === 0) {
 								new Notice(message);
 								this.onComplete();
 								this.close();

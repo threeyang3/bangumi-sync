@@ -2409,6 +2409,7 @@ export class SyncManager {
 		collections: UserCollection[],
 		concurrency: number,
 		subjectDetails?: SubjectDetailSession,
+		onlyCreateMissing = false,
 	): Promise<PreparedCollectionBatch> {
 		this.reportPhase('planning');
 		await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || 'ACGN');
@@ -2417,8 +2418,15 @@ export class SyncManager {
 		const failures: PreparationFailure[] = [];
 		let loadedCount = 0;
 		this.reportPhase('details', 0, collections.length);
+		const invalidIds = new Set(registry.invalidFiles.flatMap(problem => problem.relatedSubjectIds ?? (problem.subjectId === undefined ? [] : [problem.subjectId])));
 
 		await this.processConcurrently(collections, concurrency, async collection => {
+			if (onlyCreateMissing && (registry.getById(collection.subject_id)
+				|| invalidIds.has(collection.subject_id))) {
+				failures.push({ collection, error: 'Subject now exists locally or has an identity conflict. Refresh the preview.' });
+				this.reportPhase('details', ++loadedCount, collections.length);
+				return;
+			}
 			if (registry.duplicateIds.has(collection.subject_id)) {
 				failures.push({
 					collection,
@@ -2560,11 +2568,13 @@ export class SyncManager {
 	 * 准备同步数据：验证 Token、获取收藏、扫描本地、计算差异
 	 * sync() 和 prepareSync() 的共享逻辑
 	 */
-	private async prepareSyncData(options: SyncOptions): Promise<{
+	private async prepareSyncData(options: SyncOptions, cancelled?: () => boolean): Promise<{
 		username: string;
 		collections: UserCollection[];
 		diff: { toAdd: UserCollection[]; toSkip: UserCollection[] };
 	}> {
+		const assertNotCancelled = () => { if (cancelled?.()) throw new Error('Comparison cancelled'); };
+		assertNotCancelled();
 		// 1. 验证 Access Token
 		if (!this.config.accessToken) {
 			throw new Error(tn('notices', 'configureTokenFirst'));
@@ -2573,6 +2583,7 @@ export class SyncManager {
 		this.reportProgress({ status: 'preparing', message: tn('syncModal', 'validatingToken') });
 
 		const tokenResult = await this.client.validateToken();
+		assertNotCancelled();
 		if (!tokenResult.valid) {
 			throw new Error(tnFormat('notices', 'tokenInvalid', { error: tokenResult.error || '' }));
 		}
@@ -2588,6 +2599,7 @@ export class SyncManager {
 		this.reportProgress({ status: 'fetching', message: tn('syncModal', 'fetchingCollections') });
 
 		const collections = await this.client.getAllUserCollections(username, {
+			cancelled: { get value() { return cancelled?.() ?? false; } },
 			subjectType: options.subjectTypes.length === 1 ? options.subjectTypes[0] : undefined,
 			collectionType: options.collectionTypes.length === 1 ? options.collectionTypes[0] : undefined,
 			onProgress: (current, total) => {
@@ -2600,6 +2612,7 @@ export class SyncManager {
 			},
 		});
 
+		assertNotCancelled();
 		debugLog(() => `[Bangumi Sync] 获取到 ${collections.length} 条收藏`);
 
 		// 3. 扫描本地文件夹
@@ -2609,6 +2622,7 @@ export class SyncManager {
 		debugLog(() => `[Bangumi Sync] 扫描路径: ${scanPath}`);
 
 		await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
+			assertNotCancelled();
 			this.reportProgress({
 				status: 'scanning',
 				current,
@@ -2843,6 +2857,8 @@ export class SyncManager {
 			localPropertyValuesBySubjectId?: Map<number, LocalPropertyValueMap>;
 			concurrency?: number;
 			onPhaseProgress?: (progress: SyncProgress) => void;
+			onlyCreateMissing?: boolean;
+			subjectDetails?: SubjectDetailSession;
 		},
 		onProgress?: (current: number, total: number, message: string) => void,
 		lease?: WriteOperationLease
@@ -2866,14 +2882,14 @@ export class SyncManager {
 			this.ensureCanStartSync(lease);
 			this.beginVaultOperation();
 			this.incrementalSync.startBatch();
-			const batch = await this.prepareCollectionBatch(collections, concurrency);
+			const batch = await this.prepareCollectionBatch(collections, concurrency, options?.subjectDetails, options?.onlyCreateMissing);
 			const execution = await this.executePreparedCollectionBatch(
 				batch,
 				concurrency,
 				result,
 				prepared => ({
 					overwrite,
-					preserveUserDataOnOverwrite: true,
+					preserveUserDataOnOverwrite: !options?.onlyCreateMissing,
 					localPropertyValues: localPropertyValuesBySubjectId?.get(prepared.collection.subject_id),
 				}),
 				(_prepared, index) => {
@@ -2912,6 +2928,33 @@ export class SyncManager {
 	 */
 	resetSyncState(): void {
 		this.incrementalSync.clear();
+	}
+
+	/** Capture settings/account without exposing credentials to a preview model. */
+	createSyncContextValidator(): () => boolean {
+		const captured = JSON.stringify(cloneSyncManagerConfig(this.config));
+		const client = this.client;
+		return () => !this.shuttingDown && this.client === client
+			&& JSON.stringify(cloneSyncManagerConfig(this.config)) === captured;
+	}
+
+	/** One account read and one local scan shared by both preview branches. */
+	async prepareComprehensiveSync(lease: WriteOperationLease, cancelled?: () => boolean): Promise<{
+		collections: UserCollection[];
+		localSubjects: ReturnType<IncrementalSync['getLocalSubjects']>;
+		blockedSubjectIds: Set<number>;
+	}> {
+		this.ensureCanStartSync(lease);
+		const { collections } = await this.prepareSyncData({ subjectTypes: [], collectionTypes: [], limit: 0, force: false }, cancelled);
+		const registry = this.incrementalSync.getRegistry();
+		return {
+			collections,
+			localSubjects: new Map(this.incrementalSync.getLocalSubjects()),
+			blockedSubjectIds: new Set([
+				...registry.duplicateIds.keys(),
+				...registry.invalidFiles.flatMap(problem => problem.relatedSubjectIds ?? (problem.subjectId === undefined ? [] : [problem.subjectId])),
+			]),
+		};
 	}
 
 	/**

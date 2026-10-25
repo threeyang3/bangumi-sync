@@ -1,5 +1,50 @@
 /* Bangumi Sync — Native Obsidian Style */
 
+/* Comprehensive sync only sizes its own modal. */
+.modal.bangumi-comprehensive-window {
+	width: min(860px, calc(100vw - var(--size-4-8)));
+	max-width: 100%;
+}
+.bangumi-comprehensive-sync {
+	overflow-wrap: anywhere;
+}
+.bangumi-comprehensive-sync section {
+	border-top: 1px solid var(--background-modifier-border);
+	margin-top: var(--size-4-4);
+	padding-top: var(--size-4-2);
+}
+.bangumi-comprehensive-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-4-2);
+	margin-block: var(--size-4-3);
+}
+.bangumi-comprehensive-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding-block: var(--size-4-2);
+}
+.bangumi-comprehensive-sync :is(button, input):focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: var(--size-2-1);
+}
+@media (max-width: 767px) {
+	.modal.bangumi-comprehensive-window {
+		width: 100%;
+		max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+	}
+	.bangumi-comprehensive-sync :is(button, .bangumi-comprehensive-row) {
+		min-height: 44px;
+	}
+	.bangumi-comprehensive-actions button {
+		flex: 1 1 auto;
+		white-space: normal;
+		height: auto;
+	}
+}
+
 /* ==================== Utilities ==================== */
 
 .bangumi-hidden {

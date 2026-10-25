@@ -142,6 +142,37 @@ var SubjectDetailSession = class {
 // src/i18n/translations.ts
 var import_obsidian = require("obsidian");
 var en = {
+  comprehensiveSync: {
+    title: "Comprehensive sync",
+    description: "Compare all collections for the current account, across all types and statuses. Import missing notes and review selected user and platform fields in existing notes. Local-only notes are kept.",
+    compare: "Choose fields and compare",
+    loading: "Comparing collections and local notes\u2026",
+    summary: "{additions} to add \xB7 {differences} with differences \xB7 {unchanged} unchanged \xB7 {failed} comparison failures",
+    additions: "New notes",
+    differences: "Existing note differences",
+    unchanged: "Unchanged",
+    failed: "Failed",
+    localOnly: "{count} local-only notes kept",
+    review: "Review this page",
+    saveChoices: "Save choices",
+    execute: "Confirm and sync",
+    refresh: "Refresh preview",
+    close: "Close",
+    all: "Select all new notes",
+    none: "Clear new note selection",
+    previous: "Previous",
+    next: "Next",
+    page: "Page {page} / {total}",
+    choices: "{count} existing notes selected for update. Existing differences default to skip; review choices before confirming.",
+    result: "Sync result",
+    created: "Created",
+    updated: "Updated",
+    skipped: "Skipped",
+    pending: "Awaiting import decision",
+    rolledBack: "Rolled back",
+    importDecision: "Review import result and recovery",
+    boundary: "Local import rollback does not undo saved cloud changes or prior status updates. Failures can include changes already saved; refresh before retrying."
+  },
   commands: {
     openControlPanel: "Open collection manager",
     syncCollections: "Sync Bangumi collections",
@@ -818,6 +849,37 @@ var en = {
   }
 };
 var zhCN = {
+  comprehensiveSync: {
+    title: "\u5168\u9762\u540C\u6B65",
+    description: "\u6BD4\u8F83\u5F53\u524D\u8D26\u53F7\u5168\u90E8\u7C7B\u578B\u3001\u5168\u90E8\u6536\u85CF\u72B6\u6001\u7684\u6761\u76EE\u3002\u5BFC\u5165\u7F3A\u5931\u7B14\u8BB0\uFF0C\u5E76\u5BA1\u9605\u5DF2\u6709\u7B14\u8BB0\u4E2D\u9009\u5B9A\u7684\u7528\u6237\u6570\u636E\u4E0E\u5E73\u53F0\u6570\u636E\u3002\u672C\u5730\u72EC\u6709\u7B14\u8BB0\u4F1A\u4FDD\u7559\u3002",
+    compare: "\u9009\u62E9\u5B57\u6BB5\u5E76\u6BD4\u8F83",
+    loading: "\u6B63\u5728\u6BD4\u8F83\u4E91\u7AEF\u6536\u85CF\u4E0E\u672C\u5730\u7B14\u8BB0\u2026",
+    summary: "\u5F85\u65B0\u589E {additions} \xB7 \u5B58\u5728\u5DEE\u5F02 {differences} \xB7 \u65E0\u5DEE\u5F02 {unchanged} \xB7 \u6BD4\u8F83\u5931\u8D25 {failed}",
+    additions: "\u65B0\u589E\u7B14\u8BB0",
+    differences: "\u5DF2\u6709\u7B14\u8BB0\u5DEE\u5F02",
+    unchanged: "\u65E0\u5DEE\u5F02",
+    failed: "\u5931\u8D25",
+    localOnly: "\u4FDD\u7559 {count} \u4E2A\u672C\u5730\u72EC\u6709\u6761\u76EE",
+    review: "\u5BA1\u9605\u672C\u9875\u5DEE\u5F02",
+    saveChoices: "\u4FDD\u5B58\u9009\u62E9",
+    execute: "\u786E\u8BA4\u5E76\u540C\u6B65",
+    refresh: "\u5237\u65B0\u9884\u89C8",
+    close: "\u5173\u95ED",
+    all: "\u5168\u9009\u65B0\u589E\u7B14\u8BB0",
+    none: "\u53D6\u6D88\u9009\u62E9\u65B0\u589E\u7B14\u8BB0",
+    previous: "\u4E0A\u4E00\u9875",
+    next: "\u4E0B\u4E00\u9875",
+    page: "\u7B2C {page} / {total} \u9875",
+    choices: "\u5DF2\u9009\u62E9\u66F4\u65B0 {count} \u4E2A\u5DF2\u6709\u6761\u76EE\u3002\u5DF2\u6709\u5DEE\u5F02\u9ED8\u8BA4\u8DF3\u8FC7\uFF0C\u8BF7\u5BA1\u9605\u540E\u518D\u786E\u8BA4\u3002",
+    result: "\u540C\u6B65\u7ED3\u679C",
+    created: "\u5DF2\u65B0\u589E",
+    updated: "\u5DF2\u66F4\u65B0",
+    skipped: "\u5DF2\u8DF3\u8FC7",
+    pending: "\u7B49\u5F85\u5BFC\u5165\u4FDD\u7559\u6216\u56DE\u6EDA",
+    rolledBack: "\u5DF2\u56DE\u6EDA",
+    importDecision: "\u67E5\u770B\u5BFC\u5165\u7ED3\u679C\u4E0E\u6062\u590D\u64CD\u4F5C",
+    boundary: "\u672C\u5730\u5BFC\u5165\u56DE\u6EDA\u4E0D\u4F1A\u64A4\u9500\u5DF2\u4FDD\u5B58\u7684\u4E91\u7AEF\u4FEE\u6539\u6216\u6B64\u524D\u7684\u72B6\u6001\u66F4\u65B0\u3002\u5931\u8D25\u4E5F\u53EF\u80FD\u5305\u542B\u5DF2\u4FDD\u5B58\u7684\u4FEE\u6539\uFF1B\u91CD\u8BD5\u524D\u8BF7\u5237\u65B0\u6BD4\u8F83\u3002"
+  },
   commands: {
     openControlPanel: "\u6253\u5F00\u6536\u85CF\u7BA1\u7406\u9762\u677F",
     syncCollections: "\u540C\u6B65 Bangumi \u6536\u85CF",
@@ -1557,7 +1619,7 @@ var SyncProgressThrottle = class {
 };
 
 // main.ts
-var import_obsidian32 = require("obsidian");
+var import_obsidian33 = require("obsidian");
 
 // common/api/types.ts
 var SubjectType = /* @__PURE__ */ ((SubjectType3) => {
@@ -4242,13 +4304,27 @@ var BangumiClient = class {
     let total = 0;
     let page = 0;
     const allCollections = [];
+    const ids = /* @__PURE__ */ new Set();
+    const appendPage = (result) => {
+      if (!result || !Array.isArray(result.data) || !Number.isSafeInteger(result.total) || result.total < 0 || page > 0 && result.total !== total || result.data.length === 0 && allCollections.length < result.total) {
+        throw new Error("Incomplete collection snapshot. Refresh and retry.");
+      }
+      for (const item of result.data) {
+        if (!Number.isSafeInteger(item.subject_id) || item.subject_id <= 0 || ids.has(item.subject_id)) {
+          throw new Error("Incomplete collection snapshot: invalid or duplicate subject ID.");
+        }
+        ids.add(item.subject_id);
+        allCollections.push(item);
+      }
+      if (allCollections.length > result.total) throw new Error("Incomplete collection snapshot: inconsistent total.");
+    };
     const firstResult = await this.getUserCollections(username, {
       ...options,
       limit,
       offset
     });
     total = firstResult.total;
-    allCollections.push(...firstResult.data);
+    appendPage(firstResult);
     page++;
     if (options == null ? void 0 : options.onProgress) {
       options.onProgress(allCollections.length, total);
@@ -4256,9 +4332,9 @@ var BangumiClient = class {
     while (allCollections.length < total) {
       if ((_a = options == null ? void 0 : options.cancelled) == null ? void 0 : _a.value) {
         debugLog(() => "[Bangumi Sync] \u5206\u9875\u83B7\u53D6\u5DF2\u53D6\u6D88");
-        break;
+        throw new RequestCancelledError("Collection loading cancelled");
       }
-      offset += limit;
+      offset = allCollections.length;
       const delay2 = page < 5 ? 50 : 100;
       await new Promise((resolve) => activeWindow.setTimeout(resolve, delay2));
       const result = await this.getUserCollections(username, {
@@ -4266,7 +4342,7 @@ var BangumiClient = class {
         limit,
         offset
       });
-      allCollections.push(...result.data);
+      appendPage(result);
       page++;
       if (options == null ? void 0 : options.onProgress) {
         options.onProgress(allCollections.length, total);
@@ -5852,6 +5928,7 @@ var LocalSubjectRegistry = class {
       this.invalidFiles.push({
         path: file.path,
         subjectId: identity.subjectId,
+        relatedSubjectIds: [identity.subjectId, ...identity.conflicts.map((conflict) => conflict.value)],
         severity: "blocking-error",
         code: "identity-conflict",
         message: `Conflicting subject IDs: ${identity.conflicts.map((conflict) => `${conflict.source}=${conflict.value}`).join(", ")}`
@@ -11280,7 +11357,7 @@ var SyncManager = class {
       await processor(task.item, task.index);
     }
   }
-  async prepareCollectionBatch(collections, concurrency, subjectDetails) {
+  async prepareCollectionBatch(collections, concurrency, subjectDetails, onlyCreateMissing = false) {
     this.reportPhase("planning");
     await this.incrementalSync.scanLocalFolder(this.config.scanFolderPath || "ACGN");
     const registry = this.incrementalSync.getRegistry();
@@ -11288,7 +11365,16 @@ var SyncManager = class {
     const failures = [];
     let loadedCount = 0;
     this.reportPhase("details", 0, collections.length);
+    const invalidIds = new Set(registry.invalidFiles.flatMap((problem) => {
+      var _a;
+      return (_a = problem.relatedSubjectIds) != null ? _a : problem.subjectId === void 0 ? [] : [problem.subjectId];
+    }));
     await this.processConcurrently(collections, concurrency, async (collection) => {
+      if (onlyCreateMissing && (registry.getById(collection.subject_id) || invalidIds.has(collection.subject_id))) {
+        failures.push({ collection, error: "Subject now exists locally or has an identity conflict. Refresh the preview." });
+        this.reportPhase("details", ++loadedCount, collections.length);
+        return;
+      }
       if (registry.duplicateIds.has(collection.subject_id)) {
         failures.push({
           collection,
@@ -11425,12 +11511,17 @@ var SyncManager = class {
    * 准备同步数据：验证 Token、获取收藏、扫描本地、计算差异
    * sync() 和 prepareSync() 的共享逻辑
    */
-  async prepareSyncData(options) {
+  async prepareSyncData(options, cancelled) {
+    const assertNotCancelled = () => {
+      if (cancelled == null ? void 0 : cancelled()) throw new Error("Comparison cancelled");
+    };
+    assertNotCancelled();
     if (!this.config.accessToken) {
       throw new Error(tn("notices", "configureTokenFirst"));
     }
     this.reportProgress({ status: "preparing", message: tn("syncModal", "validatingToken") });
     const tokenResult = await this.client.validateToken();
+    assertNotCancelled();
     if (!tokenResult.valid) {
       throw new Error(tnFormat("notices", "tokenInvalid", { error: tokenResult.error || "" }));
     }
@@ -11441,6 +11532,10 @@ var SyncManager = class {
     debugLog(() => `[Bangumi Sync] \u7528\u6237: ${username}`);
     this.reportProgress({ status: "fetching", message: tn("syncModal", "fetchingCollections") });
     const collections = await this.client.getAllUserCollections(username, {
+      cancelled: { get value() {
+        var _a;
+        return (_a = cancelled == null ? void 0 : cancelled()) != null ? _a : false;
+      } },
       subjectType: options.subjectTypes.length === 1 ? options.subjectTypes[0] : void 0,
       collectionType: options.collectionTypes.length === 1 ? options.collectionTypes[0] : void 0,
       onProgress: (current, total) => {
@@ -11452,11 +11547,13 @@ var SyncManager = class {
         });
       }
     });
+    assertNotCancelled();
     debugLog(() => `[Bangumi Sync] \u83B7\u53D6\u5230 ${collections.length} \u6761\u6536\u85CF`);
     this.reportProgress({ status: "scanning", message: tn("syncModal", "scanningLocal") });
     const scanPath = this.config.scanFolderPath || "ACGN";
     debugLog(() => `[Bangumi Sync] \u626B\u63CF\u8DEF\u5F84: ${scanPath}`);
     await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
+      assertNotCancelled();
       this.reportProgress({
         status: "scanning",
         current,
@@ -11655,14 +11752,14 @@ var SyncManager = class {
       this.ensureCanStartSync(lease);
       this.beginVaultOperation();
       this.incrementalSync.startBatch();
-      const batch = await this.prepareCollectionBatch(collections, concurrency);
+      const batch = await this.prepareCollectionBatch(collections, concurrency, options == null ? void 0 : options.subjectDetails, options == null ? void 0 : options.onlyCreateMissing);
       const execution = await this.executePreparedCollectionBatch(
         batch,
         concurrency,
         result,
         (prepared) => ({
           overwrite,
-          preserveUserDataOnOverwrite: true,
+          preserveUserDataOnOverwrite: !(options == null ? void 0 : options.onlyCreateMissing),
           localPropertyValues: localPropertyValuesBySubjectId == null ? void 0 : localPropertyValuesBySubjectId.get(prepared.collection.subject_id)
         }),
         (_prepared, index) => {
@@ -11695,6 +11792,29 @@ var SyncManager = class {
    */
   resetSyncState() {
     this.incrementalSync.clear();
+  }
+  /** Capture settings/account without exposing credentials to a preview model. */
+  createSyncContextValidator() {
+    const captured = JSON.stringify(cloneSyncManagerConfig(this.config));
+    const client = this.client;
+    return () => !this.shuttingDown && this.client === client && JSON.stringify(cloneSyncManagerConfig(this.config)) === captured;
+  }
+  /** One account read and one local scan shared by both preview branches. */
+  async prepareComprehensiveSync(lease, cancelled) {
+    this.ensureCanStartSync(lease);
+    const { collections } = await this.prepareSyncData({ subjectTypes: [], collectionTypes: [], limit: 0, force: false }, cancelled);
+    const registry = this.incrementalSync.getRegistry();
+    return {
+      collections,
+      localSubjects: new Map(this.incrementalSync.getLocalSubjects()),
+      blockedSubjectIds: /* @__PURE__ */ new Set([
+        ...registry.duplicateIds.keys(),
+        ...registry.invalidFiles.flatMap((problem) => {
+          var _a;
+          return (_a = problem.relatedSubjectIds) != null ? _a : problem.subjectId === void 0 ? [] : [problem.subjectId];
+        })
+      ])
+    };
   }
   /**
    * 准备同步：获取数据并计算差异，返回预览数据
@@ -14537,11 +14657,15 @@ function getStatusSyncScope(selection) {
   }
   return "user";
 }
+function hasSelectedStatusChanges(diff) {
+  return [diff.rate, diff.comment, diff.tags, diff.status, diff.episodeStatus].some((field) => field.hasDiff && field.decision !== "skip") || diff.platformFields.some((field) => field.hasDiff && field.decision === "cloud");
+}
 
 // src/panel/statusSyncModal.ts
 var StatusSyncModal = class extends import_obsidian19.Modal {
-  constructor(app, statusSyncService, selection, diffs, onComplete) {
+  constructor(app, statusSyncService, selection, diffs, onComplete, onReview) {
     super(app);
+    this.onReview = onReview;
     this.renderTimer = null;
     this.isDisposedFlag = false;
     this.backgroundCompleted = 0;
@@ -14586,8 +14710,13 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       this.tableEl = contentEl.createDiv({ cls: "bangumi-status-sync-table" });
       this.renderTable();
       const footer = contentEl.createDiv({ cls: "bangumi-status-sync-footer" });
-      footer.createEl("button", { text: tn("statusSyncModal", "execute"), cls: "mod-cta" }, (button) => {
+      footer.createEl("button", { text: this.onReview ? tn("comprehensiveSync", "saveChoices") : tn("statusSyncModal", "execute"), cls: "mod-cta" }, (button) => {
         button.addEventListener("click", () => {
+          if (this.onReview) {
+            this.onReview(this.diffs);
+            this.close();
+            return;
+          }
           void this.executeSync();
         });
       });
@@ -14597,8 +14726,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
     } catch (error) {
       console.error("[Bangumi Sync] \u72B6\u6001\u540C\u6B65\u5F39\u7A97\u6E32\u67D3\u5931\u8D25:", error, {
         selection: this.selection,
-        diffCount: this.diffs.length,
-        sampleDiff: this.diffs[0]
+        diffCount: this.diffs.length
       });
       this.renderErrorState(error);
     }
@@ -14925,7 +15053,7 @@ var StatusSyncModal = class extends import_obsidian19.Modal {
       const summary = tn("statusSyncModal", "syncComplete").replace("{success}", String(successCount)).replace("{failed}", String(failCount));
       const message = successCount > 0 && failCount > 0 ? `${tn("syncModal", "partialSuccess")}: ${summary}` : summary;
       this.statusEl.setText(message);
-      if (successCount > 0) {
+      if (successCount > 0 || failCount === 0) {
         new import_obsidian19.Notice(message);
         this.onComplete();
         this.close();
@@ -15734,19 +15862,25 @@ var StatusSyncExecutor = class {
     this.documentService = documentService;
     this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
   }
-  async executeSync(diffs) {
-    return withWriteOperation("status-sync", (lease) => this.executeWithLease(diffs, lease));
+  async executeSync(diffs, lease, onOutcome) {
+    return withWriteOperation("status-sync", (owned) => this.executeWithLease(diffs, owned, onOutcome), lease);
   }
-  async executeWithLease(diffs, lease) {
+  async executeWithLease(diffs, lease, onOutcome) {
     let successCount = 0;
     let failCount = 0;
     const actionableDiffs = diffs.filter((diff) => diff.hasAnyDiff);
     for (const diff of actionableDiffs) {
+      if (!hasSelectedStatusChanges(diff)) {
+        onOutcome == null ? void 0 : onOutcome({ subjectId: diff.subjectId, status: "skipped" });
+        continue;
+      }
       try {
         await this.syncItem(diff, lease);
         successCount++;
+        onOutcome == null ? void 0 : onOutcome({ subjectId: diff.subjectId, status: "updated" });
       } catch (error) {
         failCount++;
+        onOutcome == null ? void 0 : onOutcome({ subjectId: diff.subjectId, status: "failed", error: error instanceof Error ? error.message : String(error) });
         console.error(`[Bangumi Sync] \u540C\u6B65\u5931\u8D25: ${diff.name_cn}`, error);
       }
     }
@@ -15935,12 +16069,19 @@ var StatusSyncSnapshotBuilder = class {
       options.collections,
       (_a = options.concurrency) != null ? _a : 6,
       async (collection, index) => {
-        var _a2;
-        (_a2 = options.onProgress) == null ? void 0 : _a2.call(options, index + 1, options.collections.length);
-        return this.buildSnapshot(collection, options.localSubjects, options.getCachedSnapshot, options.onPrefetchHit, options.onPrefetchMiss);
+        var _a2, _b;
+        if ((_a2 = options.cancelled) == null ? void 0 : _a2.call(options)) return null;
+        (_b = options.onProgress) == null ? void 0 : _b.call(options, index + 1, options.collections.length);
+        try {
+          return await this.buildSnapshot(collection, options.localSubjects, options.getCachedSnapshot, options.onPrefetchHit, options.onPrefetchMiss);
+        } catch (error) {
+          if (!options.onError) throw error;
+          options.onError(collection.subject_id, error);
+          return null;
+        }
       }
     )).filter((snapshot) => snapshot !== null);
-    const diffs = snapshots.map((snapshot) => this.buildStatusSyncDiff(snapshot, options.selection)).filter((diff) => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
+    const diffs = snapshots.map((snapshot) => this.buildStatusSyncDiff(snapshot, options.selection)).filter((diff) => options.includeUnchanged || diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
     return { snapshots, diffs };
   }
   async buildSnapshot(collection, localSubjects, getCachedSnapshot, onPrefetchHit, onPrefetchMiss) {
@@ -15972,6 +16113,7 @@ var StatusSyncSnapshotBuilder = class {
     }
     onPrefetchMiss == null ? void 0 : onPrefetchMiss();
     const localSnapshot = await this.documentService.readSnapshot(file, collection.subject_type);
+    this.documentService.assertContentSubjectId(localSnapshot.content, collection.subject_id, file.path);
     return {
       subjectId: collection.subject_id,
       collection,
@@ -16091,8 +16233,8 @@ var StatusSyncService = class {
       });
     });
   }
-  async executeSync(diffs) {
-    return await this.executor.executeSync(diffs);
+  async executeSync(diffs, lease, onOutcome) {
+    return await this.executor.executeSync(diffs, lease, onOutcome);
   }
   applySmartMerge(diffs) {
     diffs.forEach((diff) => {
@@ -16133,8 +16275,9 @@ function isControlPanelActionBlocked(managerState, action) {
 
 // src/panel/controlPanel.ts
 var ControlPanel = class extends import_obsidian24.Modal {
-  constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, onOpenSyncOptions, onBatchDownloadCovers, onScanAndLinkRelated, subjectNoteManager, episodeStatusManager, autoSyncSelection) {
+  constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, onOpenSyncOptions, onBatchDownloadCovers, onScanAndLinkRelated, subjectNoteManager, episodeStatusManager, autoSyncSelection, onComprehensiveSync) {
     super(app);
+    this.onComprehensiveSync = onComprehensiveSync;
     this.managerState = "idle";
     this.unsubscribeManagerState = null;
     // 分页
@@ -16387,7 +16530,7 @@ var ControlPanel = class extends import_obsidian24.Modal {
   }
   getToolbarActions(hasSelection) {
     const actionMap = new Map(this.getActionDescriptors().map((action) => [action.key, action]));
-    const keys = hasSelection ? ["syncSelected", "batchEdit", "undo", "more"] : ["search", "syncStatus", "syncCollections", "more"];
+    const keys = hasSelection ? ["syncSelected", "batchEdit", "undo", "more"] : ["search", "comprehensiveSync", "syncStatus", "more"];
     return keys.map((key) => actionMap.get(key)).filter((action) => action !== void 0);
   }
   getMoreMenuActions(hasSelection) {
@@ -16398,6 +16541,20 @@ var ControlPanel = class extends import_obsidian24.Modal {
   }
   getActionDescriptors() {
     return [
+      {
+        key: "comprehensiveSync",
+        label: tn("comprehensiveSync", "title"),
+        mobileLabel: tn("comprehensiveSync", "title"),
+        className: "bangumi-action-btn-sync",
+        showInDefaultToolbar: true,
+        showInSelectionToolbar: false,
+        showInMoreMenu: true,
+        menuSection: "sync",
+        run: () => {
+          var _a;
+          return (_a = this.onComprehensiveSync) == null ? void 0 : _a.call(this);
+        }
+      },
       {
         key: "search",
         label: tn("searchModal", "title"),
@@ -20688,8 +20845,440 @@ var RecoveryCenterModal = class extends import_obsidian31.Modal {
   }
 };
 
+// src/ui/comprehensiveSyncModal.ts
+var import_obsidian32 = require("obsidian");
+
+// src/sync/comprehensiveSyncService.ts
+var ComprehensiveSyncService = class {
+  constructor(manager, statusService, concurrency = 3) {
+    this.manager = manager;
+    this.statusService = statusService;
+    this.concurrency = concurrency;
+    this.contexts = /* @__PURE__ */ new WeakMap();
+    this.consumed = /* @__PURE__ */ new WeakSet();
+  }
+  async prepare(selection, cancelled = () => false, onProgress) {
+    return withWriteOperation("comprehensive-sync", async (lease) => {
+      var _a;
+      const contextIsValid = this.manager.createSyncContextValidator();
+      const assertCurrent = () => {
+        if (cancelled() || !contextIsValid()) throw new Error("Preview cancelled or settings changed. Refresh and retry.");
+      };
+      assertCurrent();
+      const data = await this.manager.prepareComprehensiveSync(lease, cancelled);
+      assertCurrent();
+      const ids = /* @__PURE__ */ new Set();
+      for (const item of data.collections) {
+        if (!Number.isSafeInteger(item.subject_id) || item.subject_id <= 0 || ids.has(item.subject_id)) {
+          throw new Error("Incomplete collection snapshot: invalid or duplicate subject ID. Refresh and retry.");
+        }
+        ids.add(item.subject_id);
+      }
+      const plan = {
+        selection,
+        additions: [],
+        diffs: [],
+        unchanged: [],
+        failures: [],
+        localOnlyCount: Array.from(data.localSubjects.keys()).filter((id) => !ids.has(id)).length
+      };
+      const existing = [];
+      const names = new Map(data.collections.map((item) => [item.subject_id, item.subject.name_cn || item.subject.name]));
+      const failedIds = /* @__PURE__ */ new Set();
+      const fail = (subjectId, error) => {
+        var _a2;
+        if (failedIds.has(subjectId)) return;
+        failedIds.add(subjectId);
+        plan.failures.push({ subjectId, name: (_a2 = names.get(subjectId)) != null ? _a2 : String(subjectId), error: error instanceof Error ? error.message : String(error) });
+      };
+      for (const collection of data.collections) {
+        if (data.blockedSubjectIds.has(collection.subject_id)) fail(collection.subject_id, "Local identity is ambiguous. Resolve duplicate or conflicting IDs first.");
+        else if (data.localSubjects.has(collection.subject_id)) existing.push(collection);
+        else plan.additions.push(collection);
+      }
+      const { snapshots, diffs } = await this.statusService.buildDiffSession({
+        selection,
+        collections: existing,
+        localSubjects: data.localSubjects,
+        includeUnchanged: true,
+        onError: fail,
+        concurrency: this.concurrency,
+        onProgress,
+        cancelled
+      });
+      assertCurrent();
+      const snapshotIds = new Set(snapshots.map((snapshot) => snapshot.subjectId));
+      for (const item of existing) {
+        if (!snapshotIds.has(item.subject_id) && !failedIds.has(item.subject_id)) {
+          fail(item.subject_id, "Local file moved or disappeared. Refresh and retry.");
+        }
+      }
+      const byId = new Map(diffs.map((diff) => [diff.subjectId, diff]));
+      await this.statusService.loadBackgroundDiffs(selection, snapshots, {
+        isDisposed: cancelled,
+        updateBackgroundProgress: (current, total) => onProgress == null ? void 0 : onProgress(current, total),
+        updateDiff: (id, patch) => {
+          const diff = byId.get(id);
+          if (diff) Object.assign(diff, patch);
+        }
+      }, void 0, this.concurrency);
+      assertCurrent();
+      const collectionsById = new Map(existing.map((item) => [item.subject_id, item]));
+      for (const diff of diffs) {
+        if (diff.backgroundError || diff.episodeStatusLoadState !== "ready" || diff.platformLoadState !== "ready") {
+          fail(diff.subjectId, (_a = diff.backgroundError) != null ? _a : "Comparison incomplete. Refresh and retry.");
+          continue;
+        }
+        diff.hasUserDiff = [diff.rate, diff.comment, diff.tags, diff.status, diff.episodeStatus].some((field) => field.hasDiff);
+        diff.hasPlatformDiff = diff.platformFields.some((field) => field.hasDiff);
+        diff.hasAnyDiff = diff.hasUserDiff || diff.hasPlatformDiff;
+        if (diff.hasAnyDiff) plan.diffs.push(diff);
+        else plan.unchanged.push(collectionsById.get(diff.subjectId));
+      }
+      this.contexts.set(plan, contextIsValid);
+      return plan;
+    });
+  }
+  async execute(plan, selectedAdditions, properties, subjectDetails) {
+    return withWriteOperation("comprehensive-sync", async (lease) => {
+      var _a, _b, _c;
+      if (!((_a = this.contexts.get(plan)) == null ? void 0 : _a()) || this.consumed.has(plan)) throw new Error("Preview expired or already executed. Refresh and retry.");
+      this.manager.ensureCanStartSync(lease);
+      this.consumed.add(plan);
+      const outcomes = [
+        ...plan.unchanged.map((item) => ({ subjectId: item.subject_id, name: item.subject.name_cn || item.subject.name, status: "unchanged" })),
+        ...plan.failures.map((item) => ({ ...item, status: "failed" }))
+      ];
+      const names = new Map(plan.diffs.map((diff) => [diff.subjectId, diff.name_cn || diff.name]));
+      const selectedDiffs = plan.diffs.filter((diff) => {
+        if (hasSelectedStatusChanges(diff)) return true;
+        outcomes.push({ subjectId: diff.subjectId, name: names.get(diff.subjectId), status: "skipped" });
+        return false;
+      });
+      await this.statusService.executeSync(selectedDiffs, lease, (outcome) => outcomes.push({ ...outcome, name: names.get(outcome.subjectId) }));
+      const additions = plan.additions.filter((item) => {
+        if (selectedAdditions.has(item.subject_id)) return true;
+        outcomes.push({ subjectId: item.subject_id, name: item.subject.name_cn || item.subject.name, status: "skipped" });
+        return false;
+      });
+      if (additions.length === 0) return { outcomes };
+      try {
+        const importResult = await this.manager.syncByCollections(additions, {
+          localPropertyValuesBySubjectId: properties,
+          onlyCreateMissing: true,
+          subjectDetails,
+          concurrency: this.concurrency
+        }, void 0, lease);
+        const importedById = new Map(importResult.outcomes.map((row) => [row.subjectId, row]));
+        for (const item of additions) {
+          const outcome = importedById.get(item.subject_id);
+          const action = outcome == null ? void 0 : outcome.writeAction;
+          const status = action === "created" ? importResult.canRollback ? "pending" : "created" : action === "rolled-back" ? "rolled-back" : action === "unchanged" || action === "skipped" ? "skipped" : "failed";
+          outcomes.push({
+            subjectId: item.subject_id,
+            name: item.subject.name_cn || item.subject.name,
+            status,
+            error: (_c = outcome == null ? void 0 : outcome.error) != null ? _c : status === "failed" ? (_b = importResult.errorDetails[0]) != null ? _b : "Import did not complete." : void 0
+          });
+        }
+        return { outcomes, importResult };
+      } catch (error) {
+        for (const item of additions) outcomes.push({
+          subjectId: item.subject_id,
+          name: item.subject.name_cn || item.subject.name,
+          status: "failed",
+          error: error instanceof Error ? error.message : String(error)
+        });
+        return { outcomes };
+      }
+    });
+  }
+};
+
+// src/ui/comprehensiveSyncModal.ts
+var PAGE_SIZE = 40;
+var ComprehensiveSyncModal = class extends import_obsidian32.Modal {
+  constructor(app, manager, episodes, concurrency, onComplete, openRecovery) {
+    super(app);
+    this.manager = manager;
+    this.concurrency = concurrency;
+    this.onComplete = onComplete;
+    this.openRecovery = openRecovery;
+    this.selection = createDefaultStatusSyncFieldSelection();
+    this.selected = /* @__PURE__ */ new Set();
+    this.disposed = false;
+    this.busy = false;
+    this.executing = false;
+    this.error = null;
+    this.pages = /* @__PURE__ */ new Map();
+    const episodeManager = episodes != null ? episodes : new EpisodeStatusManager(app, manager.client);
+    const status = new StatusSyncService(app, manager.client, new SubjectDocumentService(app, episodeManager), episodeManager);
+    this.service = new ComprehensiveSyncService(manager, status, concurrency);
+    for (const key of Object.keys(this.selection.platform)) this.selection.platform[key] = true;
+  }
+  onOpen() {
+    this.disposed = false;
+    this.modalEl.addClass("bangumi-comprehensive-window");
+    this.contentEl.addClass("bangumi-comprehensive-sync");
+    this.render();
+  }
+  close() {
+    var _a, _b;
+    if (this.executing) return;
+    if (((_b = (_a = this.result) == null ? void 0 : _a.importResult) == null ? void 0 : _b.canRollback) && this.manager.getManagerState() === "awaiting-decision") {
+      this.openImportDecision();
+      return;
+    }
+    super.close();
+  }
+  onClose() {
+    this.disposed = true;
+    this.contentEl.empty();
+  }
+  button(parent, label, action, primary = false) {
+    const button = parent.createEl("button", { text: label, cls: primary ? "mod-cta" : "" });
+    button.type = "button";
+    button.disabled = this.busy;
+    button.addEventListener("click", action);
+    return button;
+  }
+  paged(parent, key, title, rows, render) {
+    var _a;
+    const section = parent.createEl("section");
+    section.createEl("h3", { text: `${title} (${rows.length})` });
+    const total = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    const page = Math.min((_a = this.pages.get(key)) != null ? _a : 0, total - 1);
+    const slice = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    for (const row of slice) render(section, row);
+    if (total > 1) {
+      const navigation = section.createDiv({ cls: "bangumi-comprehensive-actions" });
+      this.button(navigation, tn("comprehensiveSync", "previous"), () => {
+        this.pages.set(key, page - 1);
+        this.render();
+      }).disabled = this.busy || page === 0;
+      navigation.createSpan({ text: tnFormat("comprehensiveSync", "page", { page: page + 1, total }) });
+      this.button(navigation, tn("comprehensiveSync", "next"), () => {
+        this.pages.set(key, page + 1);
+        this.render();
+      }).disabled = this.busy || page + 1 === total;
+    }
+    return slice;
+  }
+  render() {
+    if (this.disposed) return;
+    const el = this.contentEl;
+    el.empty();
+    el.createEl("h2", { text: tn("comprehensiveSync", this.result ? "result" : "title") });
+    el.createEl("p", { text: tn("comprehensiveSync", "description") });
+    if (this.error) el.createEl("p", { text: this.error, attr: { role: "alert" } });
+    if (this.busy) this.progressEl = el.createEl("p", { text: this.executing ? tn("statusSyncModal", "syncProgress") : tn("comprehensiveSync", "loading"), attr: { role: "status", "aria-live": "polite" } });
+    if (this.result) {
+      this.renderResult(el);
+      return;
+    }
+    if (!this.plan) {
+      this.button(el, tn("comprehensiveSync", "compare"), () => this.chooseScope(), true);
+    } else {
+      const plan = this.plan;
+      el.createEl("p", { text: tnFormat("comprehensiveSync", "summary", {
+        additions: plan.additions.length,
+        differences: plan.diffs.length,
+        unchanged: plan.unchanged.length,
+        failed: plan.failures.length
+      }), cls: "bangumi-sync-stats" });
+      el.createEl("p", { text: tnFormat("comprehensiveSync", "localOnly", { count: plan.localOnlyCount }) });
+      el.createEl("p", { text: tnFormat("comprehensiveSync", "choices", { count: plan.diffs.filter(hasSelectedStatusChanges).length }) });
+      const actions = el.createDiv({ cls: "bangumi-comprehensive-actions" });
+      this.button(actions, tn("comprehensiveSync", "all"), () => {
+        this.selected = new Set(plan.additions.map((item) => item.subject_id));
+        this.render();
+      });
+      this.button(actions, tn("comprehensiveSync", "none"), () => {
+        this.selected.clear();
+        this.render();
+      });
+      this.paged(el, "additions", tn("comprehensiveSync", "additions"), plan.additions, (parent, item) => {
+        const label = parent.createEl("label", { cls: "bangumi-comprehensive-row" });
+        const checkbox = label.createEl("input", { type: "checkbox" });
+        checkbox.checked = this.selected.has(item.subject_id);
+        checkbox.disabled = this.busy;
+        label.createSpan({ text: item.subject.name_cn || item.subject.name || String(item.subject_id) });
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) this.selected.add(item.subject_id);
+          else this.selected.delete(item.subject_id);
+        });
+      });
+      const slice = this.paged(
+        el,
+        "diffs",
+        tn("comprehensiveSync", "differences"),
+        plan.diffs,
+        (parent, item) => {
+          parent.createDiv({ text: item.name_cn || item.name, cls: "bangumi-comprehensive-row" });
+        }
+      );
+      if (slice.length > 0) this.button(el, tn("comprehensiveSync", "review"), () => {
+        new StatusSyncModal(this.app, this.service.statusService, plan.selection, slice, () => void 0, (reviewed) => {
+          if (this.disposed || this.plan !== plan) return;
+          const replacements = new Map(reviewed.map((diff) => [diff.subjectId, diff]));
+          plan.diffs = plan.diffs.map((diff) => {
+            var _a;
+            return (_a = replacements.get(diff.subjectId)) != null ? _a : diff;
+          });
+          this.render();
+        }).open();
+      });
+      this.paged(
+        el,
+        "unchanged",
+        tn("comprehensiveSync", "unchanged"),
+        plan.unchanged,
+        (parent, item) => {
+          parent.createDiv({ text: item.subject.name_cn || item.subject.name });
+        }
+      );
+      this.paged(
+        el,
+        "failures",
+        tn("comprehensiveSync", "failed"),
+        plan.failures,
+        (parent, item) => {
+          parent.createEl("p", { text: `${item.name}: ${item.error}` });
+        }
+      );
+      el.createEl("p", { text: tn("comprehensiveSync", "boundary") });
+      const footer = el.createDiv({ cls: "bangumi-comprehensive-actions" });
+      this.button(footer, tn("comprehensiveSync", "execute"), () => {
+        void this.execute();
+      }, true);
+      this.button(footer, tn("comprehensiveSync", "refresh"), () => {
+        void this.prepare();
+      });
+      this.button(footer, tn("comprehensiveSync", "compare"), () => this.chooseScope());
+    }
+    this.button(el, tn("comprehensiveSync", "close"), () => this.close());
+  }
+  chooseScope() {
+    new StatusSyncScopeModal(this.app, this.selection, (selection) => {
+      this.selection = selection;
+      void this.prepare();
+    }).open();
+  }
+  async prepare() {
+    if (this.busy) return;
+    this.busy = true;
+    this.error = null;
+    this.plan = void 0;
+    this.pages.clear();
+    this.render();
+    try {
+      const plan = await this.service.prepare(this.selection, () => this.disposed, (current, total) => {
+        var _a;
+        if (!this.disposed) (_a = this.progressEl) == null ? void 0 : _a.setText(`${tn("comprehensiveSync", "loading")} ${current}/${total}`);
+      });
+      if (!this.disposed) {
+        this.plan = plan;
+        this.selected = new Set(plan.additions.map((item) => item.subject_id));
+      }
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.busy = false;
+      this.render();
+    }
+  }
+  async collectProperties(details) {
+    const additions = this.plan.additions.filter((item) => this.selected.has(item.subject_id));
+    if (additions.length === 0 || additions.length > 10) return { propertyValuesBySubjectId: /* @__PURE__ */ new Map() };
+    const subjects = await loadSubjectsForCollections(additions, this.manager.client, void 0, void 0, { session: details, concurrency: this.concurrency });
+    if (!hasLocalPropertyFieldsForCollections(additions, subjects, this.manager.getCustomTemplates())) return { propertyValuesBySubjectId: /* @__PURE__ */ new Map() };
+    return new Promise((resolve) => {
+      let settled = false;
+      const modal = new LocalPropertyModal(this.app, additions, subjects, this.manager.getCustomTemplates(), (result) => {
+        settled = true;
+        resolve(result);
+      });
+      const original = modal.onClose.bind(modal);
+      modal.onClose = () => {
+        original();
+        if (!settled) resolve(null);
+      };
+      modal.open();
+    });
+  }
+  async execute() {
+    if (this.busy || !this.plan) return;
+    this.busy = true;
+    this.executing = true;
+    this.error = null;
+    this.render();
+    const details = new SubjectDetailSession(this.manager.client, this.concurrency);
+    try {
+      const properties = await this.collectProperties(details);
+      if (!properties) return;
+      this.result = await this.service.execute(this.plan, this.selected, properties.propertyValuesBySubjectId, details);
+      this.pages.clear();
+      this.onComplete();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+      new import_obsidian32.Notice(this.error);
+    } finally {
+      details.dispose();
+      this.busy = false;
+      this.executing = false;
+      this.render();
+    }
+  }
+  renderResult(el) {
+    var _a, _b;
+    const result = this.result;
+    const counts = /* @__PURE__ */ new Map();
+    for (const item of result.outcomes) counts.set(item.status, ((_a = counts.get(item.status)) != null ? _a : 0) + 1);
+    for (const [key, count] of counts) el.createEl("p", { text: `${tn("comprehensiveSync", key === "rolled-back" ? "rolledBack" : key)}: ${count}` });
+    this.paged(el, "results", tn("comprehensiveSync", "result"), result.outcomes, (parent, item) => {
+      parent.createEl("p", { text: `${item.name} \xB7 ${tn("comprehensiveSync", item.status === "rolled-back" ? "rolledBack" : item.status)}${item.error ? `: ${item.error}` : ""}` });
+    });
+    el.createEl("p", { text: tn("comprehensiveSync", "boundary") });
+    if (((_b = result.importResult) == null ? void 0 : _b.canRollback) || this.manager.getRecoveryRequired()) this.button(el, tn("comprehensiveSync", "importDecision"), () => this.openImportDecision());
+    this.button(el, tn("comprehensiveSync", "close"), () => this.close());
+  }
+  openImportDecision() {
+    var _a;
+    const result = this.result;
+    if (!(result == null ? void 0 : result.importResult)) {
+      this.openRecovery();
+      return;
+    }
+    if ((_a = this.decisionModal) == null ? void 0 : _a.containerEl.isConnected) return;
+    const modal = new SyncModal(this.app, createCancellationSignal());
+    this.decisionModal = modal;
+    modal.setRollbackHandler(async () => {
+      const decision = await this.manager.rollbackBatch();
+      if (decision.result) result.importResult = decision.result;
+      if (decision.status === "rolled-back") {
+        for (const outcome of result.outcomes) if (outcome.status === "pending") outcome.status = "rolled-back";
+      }
+      this.render();
+      return decision;
+    });
+    modal.setCommitHandler(async () => {
+      const decision = await this.manager.commitPendingBatch();
+      if (decision.result) result.importResult = decision.result;
+      if (decision.status === "committed") {
+        for (const outcome of result.outcomes) if (outcome.status === "pending") outcome.status = "created";
+      }
+      this.render();
+      return decision;
+    });
+    modal.setRecoveryStateSubscriber((listener) => this.manager.subscribeRecoveryState(listener));
+    modal.setRecoveryCenterHandler(this.openRecovery);
+    modal.open();
+    if (result.importResult) modal.showCompleted(result.importResult);
+  }
+};
+
 // main.ts
-var BangumiPlugin = class extends import_obsidian32.Plugin {
+var BangumiPlugin = class extends import_obsidian33.Plugin {
   constructor() {
     super(...arguments);
     this.syncManager = null;
@@ -20750,6 +21339,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       name: tn("commands", "searchSubjects"),
       callback: () => this.openSearchModal()
     });
+    this.addCommand({ id: "comprehensive-sync", name: tn("comprehensiveSync", "title"), callback: () => this.openComprehensiveSync() });
     this.addCommand({
       id: "check-and-sync-status",
       name: tn("commands", "checkAndSyncStatus"),
@@ -20807,7 +21397,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
   async openPathDiagnostic() {
     try {
       if (!this.syncManager) {
-        new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+        new import_obsidian33.Notice(tn("notices", "syncManagerNotInit"));
         return;
       }
       const report = await this.syncManager.diagnoseLocalSubjects();
@@ -20820,13 +21410,13 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         }
       ).open();
     } catch (error) {
-      new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian33.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   openRecoveryCenter() {
     const manager = this.syncManager;
     if (!manager) {
-      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian33.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     new RecoveryCenterModal(this.app, {
@@ -20842,7 +21432,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
   async openPathMigrationPreview() {
     try {
       if (!this.syncManager) {
-        new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+        new import_obsidian33.Notice(tn("notices", "syncManagerNotInit"));
         return;
       }
       const preview = await this.syncManager.previewPathMigration();
@@ -20859,7 +21449,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         }
       ).open();
     } catch (error) {
-      new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian33.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   onunload() {
@@ -21055,8 +21645,8 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       this.lastSavedSettings = this.cloneSettings(this.settings);
       return { applied: true, settings: this.cloneSettings(this.settings) };
     }
-    if (outcome.error instanceof ConfigurationChangeBlockedError) new import_obsidian32.Notice(outcome.error.message);
-    else new import_obsidian32.Notice(`Failed to save settings: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`);
+    if (outcome.error instanceof ConfigurationChangeBlockedError) new import_obsidian33.Notice(outcome.error.message);
+    else new import_obsidian33.Notice(`Failed to save settings: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`);
     return { applied: false, settings: this.cloneSettings(this.settings) };
   }
   async reconcileConfigurationRecovery(facts) {
@@ -21096,7 +21686,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     }
     this.syncManager = new SyncManager(this.app, config);
     await this.syncManager.initializeRecovery();
-    if (this.syncManager.getRecoveryRequired()) new import_obsidian32.Notice(tn("recoveryCenter", "writeBlocked"));
+    if (this.syncManager.getRecoveryRequired()) new import_obsidian33.Notice(tn("recoveryCenter", "writeBlocked"));
     this.appliedSyncConfig = cloneSyncManagerConfig(config);
     this.lastSavedSettings = this.cloneSettings(this.settings);
     const manager = this.syncManager;
@@ -21183,12 +21773,12 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         if (config.filePath) {
           try {
             const file = this.app.vault.getAbstractFileByPath(config.filePath);
-            if (file instanceof import_obsidian32.TFile) {
+            if (file instanceof import_obsidian33.TFile) {
               return await this.app.vault.read(file);
             }
           } catch (error) {
             console.error(`[Bangumi Sync] \u8BFB\u53D6\u6A21\u677F\u6587\u4EF6\u5931\u8D25: ${config.filePath}`, error);
-            new import_obsidian32.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
+            new import_obsidian33.Notice(tnFormat("notices", "templateReadFailed", { path: config.filePath }));
           }
         }
         return getBuiltInTemplateByKey(defaultTemplateKey, true);
@@ -21207,7 +21797,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       this.app,
       this.settings.scanFolderPath,
       (files) => {
-        new import_obsidian32.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
+        new import_obsidian33.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
       }
     );
     modal.open();
@@ -21232,7 +21822,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
             content: await file.text()
           });
         } catch (error) {
-          new import_obsidian32.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
+          new import_obsidian33.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
           return;
         }
       }
@@ -21254,12 +21844,12 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
    */
   openSearchModal() {
     if (!this.syncManager) {
-      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian33.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     if (!this.ensureSyncCanStart()) return;
     if (!this.settings.accessToken) {
-      new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian33.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     const modal = new SearchModal(
@@ -21280,7 +21870,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     var _a;
     if (!this.ensureSyncCanStart()) return;
     if (!this.settings.accessToken) {
-      new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian33.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (this.controlPanel) {
@@ -21299,7 +21889,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         this.settings.panelFilters = filters;
         void this.saveSettings().catch((error) => {
           console.error("[Bangumi Sync] Failed to persist panel filters:", error);
-          new import_obsidian32.Notice(`Failed to save settings: ${error instanceof Error ? error.message : String(error)}`);
+          new import_obsidian33.Notice(`Failed to save settings: ${error instanceof Error ? error.message : String(error)}`);
         });
       },
       cachedPanelData,
@@ -21319,17 +21909,35 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       },
       this.subjectNoteManager,
       this.episodeStatusManager,
-      (_a = options == null ? void 0 : options.autoSyncSelection) != null ? _a : null
+      (_a = options == null ? void 0 : options.autoSyncSelection) != null ? _a : null,
+      () => this.openComprehensiveSync()
     );
     this.controlPanel.open();
   }
   /**
    * 打开同步选项弹窗
    */
+  openComprehensiveSync() {
+    if (!this.ensureWriteCanStart("comprehensive-sync") || !this.syncManager) return;
+    if (!this.settings.accessToken) {
+      new import_obsidian33.Notice(tn("notices", "configureTokenFirst"));
+      return;
+    }
+    new ComprehensiveSyncModal(
+      this.app,
+      this.syncManager,
+      this.episodeStatusManager,
+      this.settings.syncConcurrency,
+      () => {
+        this.clearCache();
+      },
+      () => this.openRecoveryCenter()
+    ).open();
+  }
   openSyncOptions() {
     if (!this.ensureSyncCanStart()) return;
     if (!this.settings.accessToken) {
-      new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian33.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     const modal = new SyncOptionsModal(
@@ -21363,11 +21971,11 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
   async batchDownloadCovers() {
     if (!this.ensureWriteCanStart("cover-download")) return;
     if (!this.settings.downloadImages) {
-      new import_obsidian32.Notice(tn("notices", "coverDownloadDisabled"));
+      new import_obsidian33.Notice(tn("notices", "coverDownloadDisabled"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian33.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -21401,21 +22009,21 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         this.syncManager.getRecoveryRequired() !== null
       );
       if (noticeKind === "recovery") {
-        new import_obsidian32.Notice(tnFormat("notices", "coverDownloadRecoveryRequired", {
+        new import_obsidian33.Notice(tnFormat("notices", "coverDownloadRecoveryRequired", {
           downloaded: result.downloaded,
           skipped: result.skipped,
           failed: result.failed
         }));
       } else if (noticeKind === "failed") {
-        new import_obsidian32.Notice(tnFormat("notices", "coverDownloadFailed", {
+        new import_obsidian33.Notice(tnFormat("notices", "coverDownloadFailed", {
           downloaded: result.downloaded,
           skipped: result.skipped,
           failed: result.failed
         }));
       } else if (noticeKind === "empty") {
-        new import_obsidian32.Notice(tn("notices", "coverDownloadNoItems"));
+        new import_obsidian33.Notice(tn("notices", "coverDownloadNoItems"));
       } else {
-        new import_obsidian32.Notice(tnFormat("notices", "coverDownloadComplete", {
+        new import_obsidian33.Notice(tnFormat("notices", "coverDownloadComplete", {
           downloaded: result.downloaded,
           skipped: result.skipped,
           failed: result.failed
@@ -21430,7 +22038,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u5931\u8D25:", error);
-      new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian33.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
@@ -21439,7 +22047,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
   async scanAndLinkRelated() {
     if (!this.ensureWriteCanStart("related-link-scan")) return;
     if (!this.syncManager) {
-      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian33.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -21470,7 +22078,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u626B\u63CF\u5173\u8054\u5931\u8D25:", error);
-      new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian33.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
@@ -21482,19 +22090,19 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
     (_a = this.previewDetails) == null ? void 0 : _a.dispose();
     this.previewDetails = null;
     if (!this.settings.accessToken) {
-      new import_obsidian32.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian33.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (options.subjectTypes.length === 0) {
-      new import_obsidian32.Notice(tn("notices", "selectSubjectType"));
+      new import_obsidian33.Notice(tn("notices", "selectSubjectType"));
       return;
     }
     if (options.collectionTypes.length === 0) {
-      new import_obsidian32.Notice(tn("notices", "selectCollectionType"));
+      new import_obsidian33.Notice(tn("notices", "selectCollectionType"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian33.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -21538,12 +22146,12 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
           return;
         }
         if (!prepareResult.success) {
-          new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
+          new import_obsidian33.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
           this.cleanupSyncState(0);
           return;
         }
         if (!prepareResult.previewItems || prepareResult.previewItems.length === 0) {
-          new import_obsidian32.Notice(tn("notices", "noItemsToSync"));
+          new import_obsidian33.Notice(tn("notices", "noItemsToSync"));
           this.cleanupSyncState(0);
           return;
         }
@@ -21564,7 +22172,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         }
         if (localPropertyResult === null) {
           debugLog(() => "[Bangumi Sync] User cancelled custom properties");
-          new import_obsidian32.Notice(tn("notices", "syncCancelled"));
+          new import_obsidian33.Notice(tn("notices", "syncCancelled"));
           this.cleanupSyncState(0);
           return;
         }
@@ -21579,12 +22187,12 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
               try {
                 if (this.previewDetails !== details) return;
                 if (result.action === "cancel") {
-                  new import_obsidian32.Notice(tn("notices", "syncCancelled"));
+                  new import_obsidian33.Notice(tn("notices", "syncCancelled"));
                   this.cleanupSyncState(0);
                   return;
                 }
                 if (!details.isValid || this.syncManager !== previewManager || JSON.stringify(this.appliedSyncConfig) !== previewConfig) {
-                  new import_obsidian32.Notice(tn("notices", "syncCancelled"));
+                  new import_obsidian33.Notice(tn("notices", "syncCancelled"));
                   this.cleanupSyncState(0);
                   return;
                 }
@@ -21623,7 +22231,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
                 this.hideStatusBar();
               } catch (error) {
                 console.error("[Bangumi Sync] Preview execution failed:", error);
-                new import_obsidian32.Notice(tn("notices", "syncFailed"));
+                new import_obsidian33.Notice(tn("notices", "syncFailed"));
                 this.cleanupSyncState(0);
               } finally {
                 disposeDetails();
@@ -21634,7 +22242,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
         previewModal.open();
       } catch (error) {
         console.error("[Bangumi Sync] Preview flow error:", error);
-        new import_obsidian32.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+        new import_obsidian33.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
         if (this.previewDetails === details) this.cleanupSyncState(0);
         disposeDetails();
       }
@@ -21658,7 +22266,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
   }
   ensureSyncCanStart() {
     if (!this.syncManager) {
-      new import_obsidian32.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian33.Notice(tn("notices", "syncManagerNotInit"));
       return false;
     }
     try {
@@ -21666,14 +22274,14 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       return true;
     } catch (error) {
       if (error instanceof RecoveryRequiredError) {
-        new import_obsidian32.Notice(tn("recoveryCenter", "writeBlocked"));
+        new import_obsidian33.Notice(tn("recoveryCenter", "writeBlocked"));
         this.openRecoveryCenter();
       } else if (error instanceof PendingDecisionInProgressError) {
-        new import_obsidian32.Notice(tn("recoveryCenter", "decisionInProgress"));
+        new import_obsidian33.Notice(tn("recoveryCenter", "decisionInProgress"));
       } else if (error instanceof PendingSyncTransactionError) {
-        new import_obsidian32.Notice(tn("recoveryCenter", "pendingDecision"));
+        new import_obsidian33.Notice(tn("recoveryCenter", "pendingDecision"));
       } else {
-        new import_obsidian32.Notice(error instanceof Error ? error.message : String(error));
+        new import_obsidian33.Notice(error instanceof Error ? error.message : String(error));
       }
       return false;
     }
@@ -21684,14 +22292,14 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       return true;
     } catch (error) {
       if (error instanceof RecoveryRequiredError) {
-        new import_obsidian32.Notice(tn("recoveryCenter", "writeBlocked"));
+        new import_obsidian33.Notice(tn("recoveryCenter", "writeBlocked"));
         this.openRecoveryCenter();
       } else if (error instanceof PendingDecisionInProgressError) {
-        new import_obsidian32.Notice(tn("recoveryCenter", "decisionInProgress"));
+        new import_obsidian33.Notice(tn("recoveryCenter", "decisionInProgress"));
       } else if (error instanceof PendingSyncTransactionError) {
-        new import_obsidian32.Notice(tn("recoveryCenter", "pendingDecision"));
+        new import_obsidian33.Notice(tn("recoveryCenter", "pendingDecision"));
       } else {
-        new import_obsidian32.Notice(error instanceof Error ? error.message : String(error));
+        new import_obsidian33.Notice(error instanceof Error ? error.message : String(error));
       }
       return false;
     }
@@ -21724,7 +22332,7 @@ var BangumiPlugin = class extends import_obsidian32.Plugin {
       (message) => {
         if (!warned) {
           warned = true;
-          new import_obsidian32.Notice(message);
+          new import_obsidian33.Notice(message);
         }
       },
       (current, total) => {

@@ -46,6 +46,7 @@ import { RecoveryCenterModal } from './src/ui/recoveryCenterModal';
 import { assertWriteOperationAllowed, setWriteOperationGuard, WriteOperation } from './src/sync/writeOperationGate';
 import { cloneSyncManagerConfig, syncConfigFieldEqual } from './src/sync/syncConfig';
 import { selectPreviousAccessToken } from './src/sync/recoveryJournal';
+import { ComprehensiveSyncModal } from './src/ui/comprehensiveSyncModal';
 
 /**
  * 缓存数据结构
@@ -143,6 +144,7 @@ export default class BangumiPlugin extends Plugin {
 		});
 
 		// 添加命令：检查并同步状态
+		this.addCommand({ id: 'comprehensive-sync', name: tn('comprehensiveSync', 'title'), callback: () => this.openComprehensiveSync() });
                 this.addCommand({
                         id: 'check-and-sync-status',
                         name: tn('commands', 'checkAndSyncStatus'),
@@ -762,7 +764,8 @@ export default class BangumiPlugin extends Plugin {
                         () => { void this.scanAndLinkRelated(); },
                         this.subjectNoteManager,
                         this.episodeStatusManager,
-                        options?.autoSyncSelection ?? null
+                        options?.autoSyncSelection ?? null,
+			() => this.openComprehensiveSync(),
                 );
 		this.controlPanel.open();
 	}
@@ -770,6 +773,13 @@ export default class BangumiPlugin extends Plugin {
 	/**
 	 * 打开同步选项弹窗
 	 */
+	openComprehensiveSync(): void {
+		if (!this.ensureWriteCanStart('comprehensive-sync') || !this.syncManager) return;
+		if (!this.settings.accessToken) { new Notice(tn('notices', 'configureTokenFirst')); return; }
+		new ComprehensiveSyncModal(this.app, this.syncManager, this.episodeStatusManager, this.settings.syncConcurrency,
+			() => { this.clearCache(); }, () => this.openRecoveryCenter()).open();
+	}
+
 	openSyncOptions() {
 		if (!this.ensureSyncCanStart()) return;
 		if (!this.settings.accessToken) {

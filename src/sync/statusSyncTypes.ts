@@ -174,6 +174,18 @@ export interface StatusSyncExecutionSummary {
 	failCount: number;
 }
 
+export interface StatusSyncOutcome {
+	subjectId: number;
+	status: 'updated' | 'skipped' | 'failed';
+	error?: string;
+}
+
+export function hasSelectedStatusChanges(diff: StatusSyncDiff): boolean {
+	return [diff.rate, diff.comment, diff.tags, diff.status, diff.episodeStatus]
+		.some(field => field.hasDiff && field.decision !== 'skip')
+		|| diff.platformFields.some(field => field.hasDiff && field.decision === 'cloud');
+}
+
 export type CloudCollectionUpdates = {
 	type?: CollectionType;
 	rate?: number;
