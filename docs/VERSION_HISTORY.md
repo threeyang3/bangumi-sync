@@ -2,6 +2,12 @@
 
 [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases) 是已发布版本的最终对外事实；`docs/history/release-notes/{version}.md` 是 Release notes 源文件。本文只提供简洁索引，不复制完整变更日志。
 
+## 6.14.0
+
+重点：全面同步、写前云端与本地身份复核、统一扫描范围、撤销及导入并发保护、弹窗样式隔离与恢复入口。专用账号的真实 API 最小冒烟已通过；实体移动设备尚未验证。
+
+[GitHub Release](https://github.com/threeyang3/bangumi-sync/releases/tag/6.14.0) · [Release notes source](history/release-notes/6.14.0.md) · [发布验证](history/releases/6.14.0-validation.md)
+
 ## 6.13.1
 
 重点：桌面与手机端操作改进、连续编辑与搜索状态修复、响应式布局和局部渲染优化。
