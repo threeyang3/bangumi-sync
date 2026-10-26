@@ -5,6 +5,14 @@ import {BangumiClient} from '../../src/api/client';
 beforeEach(()=>requestUrl.mockReset());
 const page=(ids:number[],total:number)=>({status:200,json:{data:ids.map(id=>({id})),total}});
 describe('complete episode snapshots',()=>{
+	it('accepts a null zero-total slice for episode collections', async () => {
+		requestUrl.mockResolvedValue({ status: 200, json: { data: null, total: 0 } });
+		expect(await new BangumiClient().getUserEpisodeStatus(1)).toEqual([]);
+	});
+	it('rejects a null slice with remaining episodes', async () => {
+		requestUrl.mockResolvedValue({ status: 200, json: { data: null, total: 1 } });
+		await expect(new BangumiClient().getUserEpisodeStatus(1)).rejects.toThrow('Incomplete episode snapshot');
+	});
  it('retrieves all pages including short intermediate pages',async()=>{
   requestUrl.mockResolvedValueOnce(page([1,2],3)).mockResolvedValueOnce(page([3],3));
   const result=await new BangumiClient().getEpisodes(1);expect(result.data.map(e=>e.id)).toEqual([1,2,3]);

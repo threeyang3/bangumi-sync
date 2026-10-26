@@ -86,6 +86,7 @@ export class InMemoryVault {
 				},
 			},
 			configDir: ['.', 'obsidian'].join(''),
+			getRoot: () => this.folders.get('')!,
 			getMarkdownFiles: () => Array.from(this.files.values()).filter(file =>
 				file.extension === 'md' && !file.path.split('/').some(segment => segment.startsWith('.')),
 			),

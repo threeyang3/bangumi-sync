@@ -17,6 +17,13 @@ function setup() {
  return {vault,file,client,episodes,executor,diff,write,content};
 }
 describe('status sync execution invariants',()=>{
+	it('does not count all-skip decisions as updates', async () => {
+		const { executor, diff, write } = setup(); diff.rate.decision = 'skip';
+		const outcome = vi.fn();
+		expect(await executor.executeSync([diff], undefined, outcome)).toEqual({ successCount: 0, failCount: 0 });
+		expect(outcome).toHaveBeenCalledWith({ subjectId: 1, status: 'skipped' });
+		expect(write).not.toHaveBeenCalled();
+	});
  it.each(['identity','edit','move'])('rejects preview invalidated by %s before cloud writes',async kind=>{
   const {vault,file,executor,diff,write,content}=setup();
   if(kind==='move') await vault.app.fileManager.renameFile(file,'moved.md');

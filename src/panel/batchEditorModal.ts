@@ -52,8 +52,11 @@ interface EditableBatchItem extends BatchEditTargetItem {
 interface BatchEditHistory {
 	affectedFiles: string[];
 	originalContent: Map<string, string>;
+	updatedContent: Map<string, string>;
 	timestamp: number;
 }
+
+interface BatchEditSnapshot { original: string; updated: string }
 
 /**
  * 批量编辑器弹窗
@@ -94,6 +97,7 @@ export class BatchEditorModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 
 		contentEl.addClass('bangumi-batch-editor');
@@ -695,7 +699,9 @@ export class FrontmatterEditor {
 		expectedSubjectIds: ReadonlyMap<string, number> = new Map(),
 	): Promise<{ success: number; failed: number }> {
 		return withWriteOperation('batch-edit', async () => {
-			const originalContents = await this.captureOriginalContents(filePaths);
+			if (new Set(filePaths).size !== filePaths.length) throw new Error('Duplicate batch targets');
+			const originalContents = new Map<string, string>();
+			const updatedContents = new Map<string, string>();
 			const affectedFiles: string[] = [];
 			let success = 0;
 			let failed = 0;
@@ -703,6 +709,8 @@ export class FrontmatterEditor {
 			for (const path of filePaths) {
 				const result = await this.applyUniformOperations(path, operations, expectedSubjectIds.get(path));
 				if (result) {
+					originalContents.set(path, result.original);
+					updatedContents.set(path, result.updated);
 					success++;
 					affectedFiles.push(path);
 				} else {
@@ -710,7 +718,7 @@ export class FrontmatterEditor {
 				}
 			}
 
-			this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
+			this.pushHistoryIfNeeded(success, affectedFiles, originalContents, updatedContents);
 			return { success, failed };
 		});
 	}
@@ -720,7 +728,9 @@ export class FrontmatterEditor {
 	): Promise<{ success: number; failed: number }> {
 		return withWriteOperation('batch-edit', async () => {
 			const filePaths = updates.map(update => update.filePath);
-			const originalContents = await this.captureOriginalContents(filePaths);
+			if (new Set(filePaths).size !== filePaths.length) throw new Error('Duplicate batch targets');
+			const originalContents = new Map<string, string>();
+			const updatedContents = new Map<string, string>();
 			const affectedFiles: string[] = [];
 			let success = 0;
 			let failed = 0;
@@ -728,6 +738,8 @@ export class FrontmatterEditor {
 			for (const update of updates) {
 				const result = await this.applyPerItemUpdate(update);
 				if (result) {
+					originalContents.set(update.filePath, result.original);
+					updatedContents.set(update.filePath, result.updated);
 					success++;
 					affectedFiles.push(update.filePath);
 				} else {
@@ -735,7 +747,7 @@ export class FrontmatterEditor {
 				}
 			}
 
-			this.pushHistoryIfNeeded(success, affectedFiles, originalContents);
+			this.pushHistoryIfNeeded(success, affectedFiles, originalContents, updatedContents);
 			return { success, failed };
 		});
 	}
@@ -746,23 +758,34 @@ export class FrontmatterEditor {
 				return false;
 			}
 
-			const lastOperation = this.history.pop();
+			const lastOperation = this.history[this.history.length - 1];
 			if (!lastOperation) {
 				return false;
 			}
 
-			let restored = 0;
-			for (const [path, content] of lastOperation.originalContent) {
+			// Check the entire batch before the first restore, then check atomically again.
+			for (const path of lastOperation.affectedFiles) {
 				const file = this.app.vault.getAbstractFileByPath(path);
-				if (file instanceof TFile && lastOperation.affectedFiles.includes(path)) {
-					const identity = this.documentService.getSubjectIdentityFromContent(content);
-					if (identity.subjectId === null || identity.conflicts?.length) continue;
-					await this.documentService.processSubjectFile(file, identity.subjectId, () => content);
-					restored++;
+				if (!(file instanceof TFile) || await this.app.vault.read(file) !== lastOperation.updatedContent.get(path)) {
+					throw new Error(tn('controlPanel', 'undoChanged'));
 				}
 			}
+			for (const path of lastOperation.affectedFiles) {
+				const content = lastOperation.originalContent.get(path);
+				const file = this.app.vault.getAbstractFileByPath(path);
+				if (!(file instanceof TFile) || content === undefined) throw new Error(tn('controlPanel', 'undoChanged'));
+				const identity = this.documentService.getSubjectIdentityFromContent(content);
+				if (identity.subjectId === null || identity.conflicts?.length) throw new Error(tn('controlPanel', 'undoChanged'));
+				await this.documentService.processSubjectFile(file, identity.subjectId, current => {
+					if (current !== lastOperation.updatedContent.get(path)) throw new Error(tn('controlPanel', 'undoChanged'));
+					return content;
+				});
+				// A later restore may fail; retain a retryable history of completed restores.
+				lastOperation.updatedContent.set(path, content);
+			}
 
-			return restored > 0;
+			this.history.pop();
+			return true;
 		});
 	}
 
@@ -774,16 +797,17 @@ export class FrontmatterEditor {
 		filePath: string,
 		operations: BatchEditOperation[],
 		expectedSubjectId?: number,
-	): Promise<boolean> {
+	): Promise<BatchEditSnapshot | null> {
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 		if (!(file instanceof TFile)) {
-			return false;
+			return null;
 		}
 
 		try {
 			const identity = await this.documentService.getSubjectIdentity(file);
 			const subjectId = expectedSubjectId ?? identity.subjectId;
-			if (subjectId === null || identity.subjectId !== subjectId || identity.conflicts?.length) return false;
+			if (subjectId === null || identity.subjectId !== subjectId || identity.conflicts?.length) return null;
+			let snapshot: BatchEditSnapshot | null = null;
 			await this.documentService.processSubjectFile(file, subjectId, content => {
 				let updated = content;
 				for (const operation of operations) {
@@ -794,55 +818,45 @@ export class FrontmatterEditor {
 
 					updated = this.documentService.updateFrontmatterField(updated, operation.property, operation.value ?? '');
 				}
+				snapshot = { original: content, updated };
 				return updated;
 			});
-			return true;
+			return snapshot;
 		} catch (error) {
 			console.error(`[Bangumi Sync] Failed to batch modify frontmatter: ${filePath}`, error);
-			return false;
+			return null;
 		}
 	}
 
-	private async applyPerItemUpdate(update: BatchPerItemUpdate): Promise<boolean> {
+	private async applyPerItemUpdate(update: BatchPerItemUpdate): Promise<BatchEditSnapshot | null> {
 		const file = this.app.vault.getAbstractFileByPath(update.filePath);
 		if (!(file instanceof TFile)) {
-			return false;
+			return null;
 		}
 
 		try {
-			if (update.subjectId === undefined) return false;
+			if (update.subjectId === undefined) return null;
+			let snapshot: BatchEditSnapshot | null = null;
 			await this.documentService.processSubjectFile(file, update.subjectId, content => {
 				let updated = content;
 				for (const [property, value] of Object.entries(update.properties)) {
 					updated = this.documentService.updateFrontmatterField(updated, property, value);
 				}
+				snapshot = { original: content, updated };
 				return updated;
 			});
-			return true;
+			return snapshot;
 		} catch (error) {
 			console.error(`[Bangumi Sync] Failed to apply per-item batch update: ${update.filePath}`, error);
-			return false;
+			return null;
 		}
-	}
-
-	private async captureOriginalContents(filePaths: string[]): Promise<Map<string, string>> {
-		const originalContents = new Map<string, string>();
-
-		for (const path of filePaths) {
-			const file = this.app.vault.getAbstractFileByPath(path);
-			if (file instanceof TFile) {
-				const content = await this.app.vault.read(file);
-				originalContents.set(path, content);
-			}
-		}
-
-		return originalContents;
 	}
 
 	private pushHistoryIfNeeded(
 		success: number,
 		affectedFiles: string[],
-		originalContents: Map<string, string>
+		originalContents: Map<string, string>,
+		updatedContents: Map<string, string>,
 	): void {
 		if (success <= 0) {
 			return;
@@ -851,6 +865,7 @@ export class FrontmatterEditor {
 		this.history.push({
 			affectedFiles,
 			originalContent: originalContents,
+			updatedContent: updatedContents,
 			timestamp: Date.now()
 		});
 

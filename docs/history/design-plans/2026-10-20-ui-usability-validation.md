@@ -37,7 +37,7 @@ Used an isolated fixture vault, with production `release/main.js`, `release/mani
 - Six settings sections render as buttons; selection updates the pressed state correctly.
 - Import comparison shows local/import labels and retains the selected local decision.
 - Status comparison shows local/cloud labels, retains the cloud decision and has no modal horizontal overflow.
-- Recovery diagnostics start collapsed while policy-selected actions remain available; no recovery action executed in the fixture UI test.
+- The basic recovery details in the journal-corrupt fixture started collapsed while policy-selected actions remained available; this fixture had no detailed action diagnostics and executed no recovery action. It did not establish that every diagnostic section was collapsed. The broader diagnostic and execution gaps were addressed in the [2026-10-22 follow-up](2026-10-22-ui-review-followup.md).
 - An unrelated Modal does not match the plugin-scoped mobile selector.
 - Plugin reload succeeded. `obsidian dev:errors` and error-level console capture reported no errors after the final run.
 - Second-pass production checks confirmed rating label/slider both start at 8, cancelled tags leave the cached original intact, and reopening after a simulated successful cloud save displays 9.

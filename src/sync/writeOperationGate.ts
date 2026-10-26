@@ -5,6 +5,7 @@ export type WriteOperation =
 	| 'cover-download'
 	| 'related-link-scan'
 	| 'status-sync'
+	| 'comprehensive-sync'
 	| 'batch-edit'
 	| 'user-data-import'
 	| 'user-data-export'

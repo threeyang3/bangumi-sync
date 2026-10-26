@@ -67,6 +67,7 @@ type ControlPanelActionKey =
         | 'search'
         | 'refresh'
         | 'syncStatus'
+	| 'comprehensiveSync'
         | 'syncCollections'
         | 'scanAndLinkRelated'
         | 'batchDownloadCovers'
@@ -211,7 +212,8 @@ export class ControlPanel extends Modal {
                 onScanAndLinkRelated: () => void,
                 subjectNoteManager?: SubjectNoteManager | null,
                 episodeStatusManager?: EpisodeStatusManager | null,
-                autoSyncSelection?: StatusSyncFieldSelection | 'prompt' | null
+                autoSyncSelection?: StatusSyncFieldSelection | 'prompt' | null,
+		private readonly actions: { openRecoveryCenter?: () => void; openComprehensiveSync?: () => void } = {},
         ) {
 		super(app);
 		this.settings = settings;
@@ -246,6 +248,7 @@ export class ControlPanel extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 
 		contentEl.addClass('bangumi-control-panel');
@@ -433,6 +436,12 @@ export class ControlPanel extends Modal {
 	 */
 	private renderActionBar(): void {
 		this.actionBarEl.empty();
+		if (this.managerState === 'recovery-required' && this.actions.openRecoveryCenter) {
+			const recoveryButton = this.actionBarEl.createEl('button', {
+				text: tn('commands', 'openRecoveryCenter'), cls: 'bangumi-open-recovery mod-warning',
+			});
+			recoveryButton.addEventListener('click', this.actions.openRecoveryCenter);
+		}
 		const hasSelection = this.state.selectedIds.size > 0;
 		const toolbarActions = this.getToolbarActions(hasSelection);
 
@@ -469,7 +478,7 @@ export class ControlPanel extends Modal {
                 const actionMap = new Map(this.getActionDescriptors().map(action => [action.key, action]));
                 const keys: ControlPanelActionKey[] = hasSelection
                         ? ['syncSelected', 'batchEdit', 'undo', 'more']
-                        : ['search', 'syncStatus', 'syncCollections', 'more'];
+                        : ['search', 'comprehensiveSync', 'syncStatus', 'more'];
 
 		return keys
 			.map(key => actionMap.get(key))
@@ -485,6 +494,11 @@ export class ControlPanel extends Modal {
 
 	private getActionDescriptors(): ControlPanelActionDescriptor[] {
 		return [
+			{
+				key: 'comprehensiveSync', label: tn('comprehensiveSync', 'title'), mobileLabel: tn('comprehensiveSync', 'title'),
+				className: 'bangumi-action-btn-sync', showInDefaultToolbar: true, showInSelectionToolbar: false,
+				showInMoreMenu: true, menuSection: 'sync', run: () => this.actions.openComprehensiveSync?.(),
+			},
                         {
                                 key: 'search',
                                 label: tn('searchModal', 'title'),
@@ -697,7 +711,7 @@ export class ControlPanel extends Modal {
 
 			// 3. 扫描本地文件夹
 			this.renderStatus(tn('controlPanel', 'scanningLocal'));
-			const scanPath = this.settings.scanFolderPath || 'ACGN';
+			const scanPath = this.syncManager.getScanRoot();
 			await this.incrementalSync.scanLocalFolder(scanPath, (current, total) => {
 				this.renderStatus(`${tn('controlPanel', 'scanningFiles')} (${current}/${total})`);
 			});
@@ -1171,7 +1185,7 @@ export class ControlPanel extends Modal {
 				new Notice(`${completionText}: ${result.added}, ${result.errors}`);
 
 				// 重新扫描本地文件夹以更新同步状态
-				const scanPath = this.settings.scanFolderPath || 'ACGN';
+				const scanPath = this.syncManager.getScanRoot();
 				await this.incrementalSync.scanLocalFolder(scanPath);
 
 				// 更新本地条目映射
@@ -1397,7 +1411,9 @@ export class ControlPanel extends Modal {
 			return;
 		}
 
-		const success = await this.frontmatterEditor.undo();
+		let success: boolean;
+		try { success = await this.frontmatterEditor.undo(); }
+		catch (error) { new Notice(`${tn('controlPanel', 'undoFailed')}: ${error instanceof Error ? error.message : String(error)}`); return; }
 		if (success) {
 			new Notice(tn('controlPanel', 'undoSuccess'));
 			this.renderActionBar();
@@ -1773,6 +1789,7 @@ class ConfirmModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 
 		contentEl.createEl('p', { text: this.message });

@@ -50,6 +50,7 @@ export class SyncPreviewModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 
 		new Setting(contentEl).setName(tn('syncPreview', 'title')).setHeading();

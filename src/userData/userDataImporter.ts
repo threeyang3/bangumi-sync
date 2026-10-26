@@ -269,7 +269,8 @@ export class UserDataImporter {
 				const localFile = await this.findLocalFile(subjectId);
 				if (!localFile) continue;
 
-				let content = await this.app.vault.read(localFile);
+				const originalContent = await this.app.vault.read(localFile);
+				let content = originalContent;
 
 				for (const decision of fieldDecisions) {
 					if (decision.decision === 'add') {
@@ -281,7 +282,10 @@ export class UserDataImporter {
 					}
 				}
 
-				await this.documentService.processSubjectFile(localFile, subjectId, () => content);
+				await this.documentService.processSubjectFile(localFile, subjectId, current => {
+					if (current !== originalContent) throw new Error('Note changed during import. Compare again before retrying.');
+					return content;
+				});
 			}
 		});
 	}
@@ -300,7 +304,8 @@ export class UserDataImporter {
 				const localFile = await this.findLocalFile(item.subjectId);
 				if (!localFile) continue;
 
-				let content = await this.app.vault.read(localFile);
+				const originalContent = await this.app.vault.read(localFile);
+				let content = originalContent;
 				let changed = false;
 
 				for (const diff of item.diffs) {
@@ -338,7 +343,10 @@ export class UserDataImporter {
 				}
 
 				if (changed) {
-					await this.documentService.processSubjectFile(localFile, item.subjectId, () => content);
+					await this.documentService.processSubjectFile(localFile, item.subjectId, current => {
+						if (current !== originalContent) throw new Error('Note changed during import. Compare again before retrying.');
+						return content;
+					});
 					applied++;
 				}
 			}
@@ -709,7 +717,10 @@ export class UserDataImporter {
 		}
 
 		if (changed || updatedContent !== originalContent) {
-			await this.documentService.processSubjectFile(localFile, subjectId, () => updatedContent);
+			await this.documentService.processSubjectFile(localFile, subjectId, current => {
+				if (current !== originalContent) throw new Error('Note changed during import. Compare again before retrying.');
+				return updatedContent;
+			});
 			return true;
 		}
 

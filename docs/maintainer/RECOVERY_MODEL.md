@@ -1,5 +1,7 @@
 # Recovery Model
 
+当前扫描配置不一致不能阻止建立 recovery 门禁。缺少可信 journal 事实而需要创建阻断恢复状态时，无法解析的当前配置退到保守的 Vault 根范围，并保留 blocking issue／人工确认要求；这不是普通同步的配置回退。已有 journal 的捕获范围与具体路径事实保持原样。
+
 本文是 recovery 内部实现的 canonical technical reference。用户操作以[恢复指南](../user/RECOVERY_GUIDE.md)为准；特定版本验证证据位于 [`history/releases/`](../history/releases/)。
 
 ## Design goals

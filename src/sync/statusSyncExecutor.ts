@@ -9,6 +9,8 @@ import {
 	PlatformSyncPayload,
 	StatusSyncDiff,
 	StatusSyncExecutionSummary,
+	StatusSyncOutcome,
+	hasSelectedStatusChanges,
 } from './statusSyncTypes';
 import { withWriteOperation, WriteOperationLease } from './writeOperationGate';
 
@@ -30,21 +32,27 @@ export class StatusSyncExecutor {
 		this.episodeStatusManager = episodeStatusManager ?? null;
 	}
 
-	async executeSync(diffs: StatusSyncDiff[]): Promise<StatusSyncExecutionSummary> {
-		return withWriteOperation('status-sync', lease => this.executeWithLease(diffs, lease));
+	async executeSync(diffs: StatusSyncDiff[], lease?: WriteOperationLease, onOutcome?: (outcome: StatusSyncOutcome) => void): Promise<StatusSyncExecutionSummary> {
+		return withWriteOperation('status-sync', owned => this.executeWithLease(diffs, owned, onOutcome), lease);
 	}
 
-	private async executeWithLease(diffs: StatusSyncDiff[], lease: WriteOperationLease): Promise<StatusSyncExecutionSummary> {
+	private async executeWithLease(diffs: StatusSyncDiff[], lease: WriteOperationLease, onOutcome?: (outcome: StatusSyncOutcome) => void): Promise<StatusSyncExecutionSummary> {
 		let successCount = 0;
 		let failCount = 0;
 		const actionableDiffs = diffs.filter(diff => diff.hasAnyDiff);
 
 		for (const diff of actionableDiffs) {
+			if (!hasSelectedStatusChanges(diff)) {
+				onOutcome?.({ subjectId: diff.subjectId, status: 'skipped' });
+				continue;
+			}
 			try {
 				await this.syncItem(diff, lease);
 				successCount++;
+				onOutcome?.({ subjectId: diff.subjectId, status: 'updated' });
 			} catch (error) {
 				failCount++;
+				onOutcome?.({ subjectId: diff.subjectId, status: 'failed', error: error instanceof Error ? error.message : String(error) });
 				console.error(`[Bangumi Sync] 同步失败: ${diff.name_cn}`, error);
 			}
 		}

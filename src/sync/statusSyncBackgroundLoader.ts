@@ -4,6 +4,7 @@ import { BangumiClient } from '../api/client';
 import { EpisodeStatusManager } from '../episode/episodeStatusManager';
 import { tn } from '../i18n';
 import { createCloudPlatformFieldDiff } from './platformSyncLogic';
+import { cloudSnapshot } from './cloudSnapshots';
 import {
 	FieldDiff,
 	PlatformFieldDiff,
@@ -36,8 +37,10 @@ export class StatusSyncBackgroundLoader {
 		callbacks: BackgroundUpdateCallbacks,
 		onProgress?: (completed: number, total: number) => void,
 		concurrency = 4,
+		captureCloudSnapshots = false,
 	): Promise<void> {
 		const context: StatusSyncBuildContext = {
+			captureCloudSnapshots,
 			subjectCache: new Map(),
 			cloudEpisodeStatusCache: new Map(),
 			platformDiffCache: new Map(),
@@ -85,6 +88,8 @@ export class StatusSyncBackgroundLoader {
 				if (platformResult) {
 					patch.platformFields = platformResult.fields;
 					patch.platformSyncPayload = platformResult.payload;
+					patch.cloudPlatformSnapshot = platformResult.cloudPlatformSnapshot;
+					patch.cloudEpisodesSnapshot = platformResult.cloudEpisodesSnapshot;
 					patch.platformLoadState = 'ready';
 				}
 				callbacks.updateDiff(snapshot.subjectId, patch);
@@ -111,7 +116,7 @@ export class StatusSyncBackgroundLoader {
 		snapshot: StatusSyncSnapshot,
 		context: StatusSyncBuildContext,
 		selection: StatusSyncFieldSelection,
-	): Promise<{ fields: PlatformFieldDiff[]; payload?: PlatformSyncPayload }> {
+	): Promise<{ fields: PlatformFieldDiff[]; payload?: PlatformSyncPayload; cloudPlatformSnapshot?: string; cloudEpisodesSnapshot?: string }> {
 		return this.getOrCreateCachedPromise(
 			context.platformDiffCache,
 			snapshot.subjectId,
@@ -136,6 +141,8 @@ export class StatusSyncBackgroundLoader {
 				);
 				const parsedInfo = parseInfoByType(subject.infobox, subject.type, subject.platform);
 				const cloudPayload = this.buildPlatformSyncPayload(subject, parsedInfo);
+				const cloudPlatformSnapshot = context.captureCloudSnapshots ? cloudSnapshot(Object.fromEntries(Object.entries(cloudPayload)
+					.filter(([key]) => selection.platform[key as keyof typeof selection.platform]))) : undefined;
 				const fields: PlatformFieldDiff[] = [];
 				const localContext = snapshot.localSnapshot.platform;
 
@@ -225,7 +232,11 @@ export class StatusSyncBackgroundLoader {
 					cloudPayload.progress,
 				);
 
-				return fields.length > 0 ? { fields, payload: cloudPayload } : { fields: [] };
+				const episodes = context.captureCloudSnapshots && fields.some(field => field.key === 'episodeCount' && field.hasDiff)
+					? (await this.client.getEpisodes(snapshot.subjectId)).data : undefined;
+				if (!context.captureCloudSnapshots && fields.length === 0) return { fields: [] };
+				return { fields, payload: cloudPayload, cloudPlatformSnapshot,
+					cloudEpisodesSnapshot: episodes ? cloudSnapshot([...episodes].sort((a, b) => a.id - b.id)) : undefined };
 			},
 		);
 	}
@@ -270,14 +281,15 @@ export class StatusSyncBackgroundLoader {
 
 		const localValue = this.episodeStatusManager.summarizeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap);
 		const cloudValue = this.episodeStatusManager.summarizeEpisodeStatuses(cloudMap);
-		const hasDiff = this.episodeStatusManager.serializeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) !==
-			this.episodeStatusManager.serializeEpisodeStatuses(cloudMap);
+		const serializedCloud = this.episodeStatusManager.serializeEpisodeStatuses(cloudMap);
+		const hasDiff = this.episodeStatusManager.serializeEpisodeStatuses(snapshot.localSnapshot.episodeStatusMap) !== serializedCloud;
 
 		return {
 			localValue,
 			cloudValue,
 			hasDiff,
 			decision: 'skip',
+			cloudSnapshot: context.captureCloudSnapshots ? serializedCloud : undefined,
 		};
 	}
 
