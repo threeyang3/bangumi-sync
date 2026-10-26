@@ -4778,7 +4778,7 @@ function stripQuotedValue(value) {
   return value;
 }
 function isTopLevelFrontmatterLine(line) {
-  return /^[^\s-][^:]*:\s*/.test(line);
+  return !line.startsWith("#") && /^[^\s-][^:]*:\s*/.test(line);
 }
 function formatFrontmatterValue(value) {
   if (typeof value === "string") {
@@ -4977,7 +4977,8 @@ function removeFrontmatterField(content, field) {
   const block = parseFrontmatterBlock(content);
   if (!block) return content;
   const lines = block.frontmatter.split("\n");
-  const start = lines.findIndex((line) => line.startsWith(field + ":"));
+  const key = new RegExp(`^(?:${escapeRegExp(field)}|"${escapeRegExp(field)}"|'${escapeRegExp(field)}'):\\s*`);
+  const start = lines.findIndex((line) => key.test(line));
   if (start < 0) return content;
   let end = start + 1;
   while (end < lines.length && !isTopLevelFrontmatterLine(lines[end])) end++;
@@ -15795,7 +15796,7 @@ var StatusSyncBackgroundLoader = class {
     this.client = client;
     this.episodeStatusManager = episodeStatusManager != null ? episodeStatusManager : null;
   }
-  async loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency = 4, captureCloudSnapshots = false) {
+  async loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency = 4, captureCloudSnapshots = true) {
     const context = {
       captureCloudSnapshots,
       subjectCache: /* @__PURE__ */ new Map(),
@@ -15991,7 +15992,7 @@ var StatusSyncBackgroundLoader = class {
       cloudValue,
       hasDiff,
       decision: "skip",
-      cloudSnapshot: context.captureCloudSnapshots ? serializedCloud : void 0
+      cloudSnapshot: serializedCloud
     };
   }
   appendTextPlatformFieldDiff(fields, enabled, key, label, localValue, cloudValue) {
@@ -16390,14 +16391,19 @@ var StatusSyncSnapshotBuilder = class {
 // src/sync/statusSyncService.ts
 var StatusSyncService = class {
   constructor(app, client, documentService, episodeStatusManager) {
+    this.client = client;
     this.snapshotBuilder = new StatusSyncSnapshotBuilder(app, documentService, episodeStatusManager);
     this.backgroundLoader = new StatusSyncBackgroundLoader(client, episodeStatusManager);
     this.executor = new StatusSyncExecutor(app, client, documentService, episodeStatusManager);
   }
   async buildDiffSession(options) {
-    return await this.snapshotBuilder.buildDiffSession(options);
+    const revision = this.client.subjectDetailRevision;
+    const session = await this.snapshotBuilder.buildDiffSession(options);
+    if (revision !== this.client.subjectDetailRevision) throw new Error("Account changed. Compare again before syncing.");
+    for (const diff of session.diffs) diff.credentialRevision = revision;
+    return session;
   }
-  async loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency = 4, captureCloudSnapshots = false) {
+  async loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency = 4, captureCloudSnapshots = true) {
     await this.backgroundLoader.loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency, captureCloudSnapshots);
   }
   applyDecisionPreset(diffs, decision) {
@@ -16417,7 +16423,58 @@ var StatusSyncService = class {
     });
   }
   async executeSync(diffs, lease, onOutcome) {
-    return await this.executor.executeSync(diffs, lease, onOutcome);
+    const confirmed = structuredClone(diffs);
+    return withWriteOperation("status-sync", async (owned) => {
+      if (!lease) await this.validatePreview(confirmed.filter(hasSelectedStatusChanges));
+      return this.executor.executeSync(confirmed, owned, onOutcome);
+    }, lease);
+  }
+  async validatePreview(diffs) {
+    const revision = this.client.subjectDetailRevision;
+    let next = 0;
+    let failure;
+    await Promise.all(Array.from({ length: Math.min(3, diffs.length) }, async () => {
+      var _a;
+      while (next < diffs.length && !failure) {
+        const diff = diffs[next++];
+        try {
+          if (diff.credentialRevision !== void 0 && diff.credentialRevision !== revision) throw new Error("Account changed. Compare again before syncing.");
+          const collection = await this.client.getCollectionStatus(diff.subjectId);
+          if (!collection || collectionSnapshot(collection) !== collectionSnapshot(diff.collection)) {
+            throw new Error("Cloud collection changed or could not be verified. Compare again before syncing.");
+          }
+          const selected = (field) => field.hasDiff && field.decision !== "skip";
+          const selection = {
+            user: { rate: selected(diff.rate), comment: selected(diff.comment), tags: selected(diff.tags), status: selected(diff.status), episodeStatus: selected(diff.episodeStatus) },
+            platform: { episodeCount: false, chapterCount: false, volumeCount: false, start: false, end: false, progress: false }
+          };
+          for (const field of diff.platformFields) if (selected(field)) selection.platform[field.key] = true;
+          const session = await this.buildDiffSession({
+            selection,
+            collections: [collection],
+            includeUnchanged: true,
+            localSubjects: /* @__PURE__ */ new Map([[diff.subjectId, { id: diff.subjectId, path: diff.localPath, name_cn: diff.name_cn }]])
+          });
+          const fresh = session.diffs[0];
+          if (!fresh || fresh.localContentSnapshot !== diff.localContentSnapshot) throw new Error("Note changed since preview. Compare again before syncing.");
+          await this.loadBackgroundDiffs(selection, session.snapshots, {
+            isDisposed: () => false,
+            updateBackgroundProgress: () => void 0,
+            updateDiff: (_id, patch) => Object.assign(fresh, patch)
+          }, void 0, 1, true);
+          if (fresh.backgroundError || fresh.episodeStatusLoadState !== "ready" || fresh.platformLoadState !== "ready") throw new Error("Cloud data could not be verified. Compare again before syncing.");
+          if (selection.user.episodeStatus && (diff.episodeStatus.cloudSnapshot === void 0 || fresh.episodeStatus.cloudSnapshot !== diff.episodeStatus.cloudSnapshot)) throw new Error("Cloud episode status changed. Compare again before syncing.");
+          for (const field of diff.platformFields.filter(selected)) {
+            if (!diff.platformSyncPayload || cloudSnapshot((_a = fresh.platformSyncPayload) == null ? void 0 : _a[field.key]) !== cloudSnapshot(diff.platformSyncPayload[field.key])) throw new Error("Cloud platform data changed. Compare again before syncing.");
+          }
+          if (selection.platform.episodeCount && (diff.cloudEpisodesSnapshot === void 0 || fresh.cloudEpisodesSnapshot !== diff.cloudEpisodesSnapshot)) throw new Error("Cloud episode catalog changed. Compare again before syncing.");
+        } catch (error) {
+          failure = error instanceof Error ? error : new Error("Cloud data could not be verified. Compare again before syncing.");
+        }
+      }
+    }));
+    if (failure) throw failure;
+    if (revision !== this.client.subjectDetailRevision) throw new Error("Account changed. Compare again before syncing.");
   }
   applySmartMerge(diffs) {
     diffs.forEach((diff) => {
@@ -20125,24 +20182,18 @@ ${statusLines}`;
   }
   extractEpisodeStatusMapFromFrontmatter(content) {
     const statusMap = /* @__PURE__ */ new Map();
-    const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-    if (!frontmatterMatch) {
-      return statusMap;
-    }
-    const frontmatter = frontmatterMatch[1].replace(/\r\n/g, "\n");
-    const epStatusesMatch = frontmatter.match(/^ep_statuses:\s*\n((?:\s+- .+\n?)+)/m);
-    if (!epStatusesMatch) {
-      return statusMap;
-    }
-    const lines = epStatusesMatch[1].split("\n");
-    for (const line of lines) {
-      const match = line.match(/^\s+- (\d+):(\d+(?:\.\d+)?):(\d+)/);
-      if (!match) {
-        continue;
-      }
+    const entries = extractFrontmatterRecord(content).ep_statuses;
+    if (entries === void 0) return statusMap;
+    if (!Array.isArray(entries)) throw new Error("Invalid local episode statuses. Repair ep_statuses before syncing.");
+    for (const entry of entries) {
+      const match = typeof entry === "string" ? entry.match(/^(\d+):(\d+(?:\.\d+)?):([0-3])$/) : null;
+      if (!match) throw new Error("Invalid local episode status. Repair ep_statuses before syncing.");
       const episodeId = parseInt(match[1], 10);
       const epNumber = parseFloat(match[2]);
       const status = parseInt(match[3], 10);
+      if (!Number.isSafeInteger(episodeId) || episodeId <= 0 || !Number.isFinite(epNumber) || statusMap.has(episodeId)) {
+        throw new Error("Invalid or duplicate local episode ID. Repair ep_statuses before syncing.");
+      }
       statusMap.set(episodeId, this.createLocalEpisodeStatus(episodeId, epNumber, status));
     }
     return statusMap;
@@ -20188,7 +20239,7 @@ ${statusLines}`;
     });
   }
   clearEpisodeStatusArtifacts(content) {
-    const withoutFrontmatterStatuses = removeYamlListField(content, "ep_statuses");
+    const withoutFrontmatterStatuses = removeFrontmatterField(content, "ep_statuses");
     const episodeBoxRegex = /<span\b[^>]*class="[^"]*\bep-box\b[^"]*"[^>]*>.*?<\/span>/g;
     return withoutFrontmatterStatuses.replace(episodeBoxRegex, (fullMatch) => {
       const attrs = this.parseEpisodeBox(fullMatch);

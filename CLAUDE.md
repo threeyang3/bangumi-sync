@@ -141,7 +141,7 @@ gh release create {版本号} ./release/main.js ./release/manifest.json ./releas
 
 ## 同步注意事项
 
-- 收藏更新统一使用 `POST /v0/users/-/collections/{subject_id}`
+- 新建收藏使用 `POST /v0/users/-/collections/{subject_id}`；已收藏条目的选定字段更新使用 `PATCH`，避免覆盖未选字段。
 - 本地 -> 云端的评分 / 短评 / 标签 / 收藏状态应尽量合并成一次 `updateCollection`，不要按字段拆成多次请求
 - 收藏状态查询不能再使用 `/v0/users/-/collections/{subject_id}`，必须先拿真实用户名再查询 `/v0/users/{username}/collections/{subject_id}`
 - 清空云端标签时要显式发送 `tags: []`
