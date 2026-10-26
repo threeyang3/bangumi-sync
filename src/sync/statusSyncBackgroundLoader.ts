@@ -37,7 +37,7 @@ export class StatusSyncBackgroundLoader {
 		callbacks: BackgroundUpdateCallbacks,
 		onProgress?: (completed: number, total: number) => void,
 		concurrency = 4,
-		captureCloudSnapshots = false,
+		captureCloudSnapshots = true,
 	): Promise<void> {
 		const context: StatusSyncBuildContext = {
 			captureCloudSnapshots,
@@ -289,7 +289,7 @@ export class StatusSyncBackgroundLoader {
 			cloudValue,
 			hasDiff,
 			decision: 'skip',
-			cloudSnapshot: context.captureCloudSnapshots ? serializedCloud : undefined,
+			cloudSnapshot: serializedCloud,
 		};
 	}
 

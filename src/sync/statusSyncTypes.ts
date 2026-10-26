@@ -132,6 +132,7 @@ export interface StatusSyncDiff {
 	name: string;
 	localPath: string;
 	localContentSnapshot?: string;
+	credentialRevision?: number;
 	collection: UserCollection;
 	statusFieldName: string;
 	rate: FieldDiff<number>;

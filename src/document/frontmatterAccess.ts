@@ -16,7 +16,7 @@ function stripQuotedValue(value: string): string {
 }
 
 function isTopLevelFrontmatterLine(line: string): boolean {
-	return /^[^\s-][^:]*:\s*/.test(line);
+	return !line.startsWith('#') && /^[^\s-][^:]*:\s*/.test(line);
 }
 
 function formatFrontmatterValue(value: unknown): string {
@@ -264,7 +264,8 @@ export function removeFrontmatterField(content: string, field: string): string {
 	const block = parseFrontmatterBlock(content);
 	if (!block) return content;
 	const lines = block.frontmatter.split('\n');
-	const start = lines.findIndex(line => line.startsWith(field + ':'));
+	const key = new RegExp(`^(?:${escapeRegExp(field)}|"${escapeRegExp(field)}"|'${escapeRegExp(field)}'):\\s*`);
+	const start = lines.findIndex(line => key.test(line));
 	if (start < 0) return content;
 	let end = start + 1;
 	while (end < lines.length && !isTopLevelFrontmatterLine(lines[end])) end++;
