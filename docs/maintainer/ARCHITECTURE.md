@@ -148,7 +148,7 @@ Journal candidates、terminal markers、configuration recovery、secret safety �
 
 ## Status sync flow
 
-控制面板先加载基础收藏和本地快照，再后台补全 episode/platform 数据。Pure logic 生成差异，modal 收集保留本地、保留云端或合并选择，service 在身份校验和 gate 通过后执行写回。
+控制面板先加载基础收藏和本地快照，再后台补全 episode/platform 数据及语义快照。Pure logic 生成差异，modal 收集保留本地、保留云端或合并选择。普通入口由 `StatusSyncService` 冻结确认数据、取得 write lease、有界复核选中条目的云端快照和本地内容，全部通过后调用 executor；全面同步由协调层先完成预检，再携同一 lease 调用 service，避免重复请求。执行器仍在每次写回核对身份和内容。
 
 长期不变量见[状态同步不变量](STATUS_SYNC_INVARIANTS.md)。
 

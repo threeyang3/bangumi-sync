@@ -8,7 +8,7 @@ import { BangumiClient } from '../api/client';
 import { LocalEpisodeStatus, EpisodeStatusType, getEpisodeStatusText } from './types';
 import { delay } from '../../common/utils/timing';
 import { assertWriteOperationAllowed, withWriteOperation, WriteOperationLease } from '../sync/writeOperationGate';
-import { removeYamlListField } from '../document/frontmatterAccess';
+import { extractFrontmatterRecord, removeFrontmatterField } from '../document/frontmatterAccess';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 
 /**
@@ -203,27 +203,19 @@ export class EpisodeStatusManager {
 
 	private extractEpisodeStatusMapFromFrontmatter(content: string): Map<number, LocalEpisodeStatus> {
 		const statusMap = new Map<number, LocalEpisodeStatus>();
-		const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-		if (!frontmatterMatch) {
-			return statusMap;
-		}
-
-		const frontmatter = frontmatterMatch[1].replace(/\r\n/g, '\n');
-		const epStatusesMatch = frontmatter.match(/^ep_statuses:\s*\n((?:\s+- .+\n?)+)/m);
-		if (!epStatusesMatch) {
-			return statusMap;
-		}
-
-		const lines = epStatusesMatch[1].split('\n');
-		for (const line of lines) {
-			const match = line.match(/^\s+- (\d+):(\d+(?:\.\d+)?):(\d+)/);
-			if (!match) {
-				continue;
-			}
+		const entries: unknown = extractFrontmatterRecord(content).ep_statuses;
+		if (entries === undefined) return statusMap;
+		if (!Array.isArray(entries)) throw new Error('Invalid local episode statuses. Repair ep_statuses before syncing.');
+		for (const entry of entries) {
+			const match = typeof entry === 'string' ? entry.match(/^(\d+):(\d+(?:\.\d+)?):([0-3])$/) : null;
+			if (!match) throw new Error('Invalid local episode status. Repair ep_statuses before syncing.');
 
 			const episodeId = parseInt(match[1], 10);
 			const epNumber = parseFloat(match[2]);
 			const status = parseInt(match[3], 10) as EpisodeStatusType;
+			if (!Number.isSafeInteger(episodeId) || episodeId <= 0 || !Number.isFinite(epNumber) || statusMap.has(episodeId)) {
+				throw new Error('Invalid or duplicate local episode ID. Repair ep_statuses before syncing.');
+			}
 
 			statusMap.set(episodeId, this.createLocalEpisodeStatus(episodeId, epNumber, status));
 		}
@@ -288,7 +280,7 @@ export class EpisodeStatusManager {
 	}
 
 	private clearEpisodeStatusArtifacts(content: string): string {
-		const withoutFrontmatterStatuses = removeYamlListField(content, 'ep_statuses');
+		const withoutFrontmatterStatuses = removeFrontmatterField(content, 'ep_statuses');
 		const episodeBoxRegex = /<span\b[^>]*class="[^"]*\bep-box\b[^"]*"[^>]*>.*?<\/span>/g;
 
 		return withoutFrontmatterStatuses.replace(episodeBoxRegex, (fullMatch) => {
