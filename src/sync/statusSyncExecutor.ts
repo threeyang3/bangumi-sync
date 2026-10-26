@@ -9,8 +9,10 @@ import {
 	PlatformSyncPayload,
 	StatusSyncDiff,
 	StatusSyncExecutionSummary,
+	StatusSyncOutcome,
+	hasSelectedStatusChanges,
 } from './statusSyncTypes';
-import { assertWriteOperationAllowed } from './writeOperationGate';
+import { withWriteOperation, WriteOperationLease } from './writeOperationGate';
 
 export class StatusSyncExecutor {
 	private app: App;
@@ -30,18 +32,27 @@ export class StatusSyncExecutor {
 		this.episodeStatusManager = episodeStatusManager ?? null;
 	}
 
-	async executeSync(diffs: StatusSyncDiff[]): Promise<StatusSyncExecutionSummary> {
-		assertWriteOperationAllowed('status-sync');
+	async executeSync(diffs: StatusSyncDiff[], lease?: WriteOperationLease, onOutcome?: (outcome: StatusSyncOutcome) => void): Promise<StatusSyncExecutionSummary> {
+		return withWriteOperation('status-sync', owned => this.executeWithLease(diffs, owned, onOutcome), lease);
+	}
+
+	private async executeWithLease(diffs: StatusSyncDiff[], lease: WriteOperationLease, onOutcome?: (outcome: StatusSyncOutcome) => void): Promise<StatusSyncExecutionSummary> {
 		let successCount = 0;
 		let failCount = 0;
 		const actionableDiffs = diffs.filter(diff => diff.hasAnyDiff);
 
 		for (const diff of actionableDiffs) {
+			if (!hasSelectedStatusChanges(diff)) {
+				onOutcome?.({ subjectId: diff.subjectId, status: 'skipped' });
+				continue;
+			}
 			try {
-				await this.syncItem(diff);
+				await this.syncItem(diff, lease);
 				successCount++;
+				onOutcome?.({ subjectId: diff.subjectId, status: 'updated' });
 			} catch (error) {
 				failCount++;
+				onOutcome?.({ subjectId: diff.subjectId, status: 'failed', error: error instanceof Error ? error.message : String(error) });
 				console.error(`[Bangumi Sync] 同步失败: ${diff.name_cn}`, error);
 			}
 		}
@@ -49,19 +60,29 @@ export class StatusSyncExecutor {
 		return { successCount, failCount };
 	}
 
-	private async syncItem(diff: StatusSyncDiff): Promise<void> {
+	private async syncItem(diff: StatusSyncDiff, lease: WriteOperationLease): Promise<void> {
 		const file = this.app.vault.getAbstractFileByPath(diff.localPath);
 		if (!(file instanceof TFile)) {
 			throw new Error('File not found');
 		}
 
 		const originalContent = await this.app.vault.read(file);
+		this.documentService.assertContentSubjectId(originalContent, diff.subjectId, file.path);
+		if (diff.localContentSnapshot === undefined || diff.localContentSnapshot !== originalContent) throw new Error('Note changed since preview. Refresh and retry.');
+		let baseline = originalContent;
+		const persist = async (next: string) => {
+			await this.documentService.processSubjectFile(file, diff.subjectId, current => {
+				if (current !== baseline) throw new Error('Note changed during synchronization. Refresh and retry.');
+				return next;
+			});
+			baseline = next;
+		};
 		let content = originalContent;
 		const cloudUpdates: CloudCollectionUpdates = {};
 
 		if (diff.rate.hasDiff && diff.rate.decision !== 'skip') {
 			if (diff.rate.decision === 'local') {
-				cloudUpdates.rate = diff.rate.localValue || undefined;
+				cloudUpdates.rate = diff.rate.localValue ?? 0;
 			} else if (diff.rate.decision === 'cloud') {
 				content = diff.rate.cloudValue
 					? this.documentService.updateRate(content, diff.rate.cloudValue)
@@ -108,31 +129,23 @@ export class StatusSyncExecutor {
 		}
 
 		if (Object.keys(cloudUpdates).length > 0) {
-			const fallbackType = this.toValidCollectionType(diff.collection.type);
-			const finalUpdates = {
-				...cloudUpdates,
-				type: cloudUpdates.type ?? fallbackType ?? undefined,
-			};
-			await this.syncCloudUpdates(diff.subjectId, finalUpdates);
+			await this.syncCloudUpdates(diff.subjectId, cloudUpdates);
 		}
 
-		if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== 'skip' && this.episodeStatusManager) {
+		if (diff.episodeStatus.hasDiff && diff.episodeStatus.decision !== 'skip') {
+			if (!this.episodeStatusManager) throw new Error('Episode status service unavailable');
 			if (content !== originalContent) {
-				await this.documentService.processSubjectFile(file, diff.subjectId, () => content);
-				content = await this.app.vault.read(file);
+				await persist(content);
 			}
 
 			if (diff.episodeStatus.decision === 'local') {
-				const result = await this.episodeStatusManager.syncStatusToCloud(file);
-				if (result.failed > 0 && result.success === 0) {
-					throw new Error(`单集状态同步到云端全部失败 (${result.failed}集)`);
+				const result = await this.episodeStatusManager.syncStatusToCloud(file, undefined, diff.subjectId, baseline, lease);
+				if (result.failed > 0) {
+					throw new Error(`单集状态同步到云端未全部完成 (${result.failed}集)`);
 				}
 			} else if (diff.episodeStatus.decision === 'cloud') {
-				const synced = await this.episodeStatusManager.syncStatusFromCloud(file, diff.subjectId);
-				if (!synced) {
-					throw new Error('单集状态从云端同步失败');
-				}
-				content = await this.app.vault.read(file);
+				content = await this.episodeStatusManager.pullStatusFromCloud(file, diff.subjectId, baseline, lease);
+				baseline = content;
 			}
 		}
 
@@ -140,8 +153,8 @@ export class StatusSyncExecutor {
 			content = await this.applyPlatformSync(diff, file, content);
 		}
 
-		if (content !== originalContent) {
-			await this.documentService.processSubjectFile(file, diff.subjectId, () => content);
+		if (content !== baseline) {
+			await persist(content);
 		}
 	}
 
@@ -238,7 +251,6 @@ export class StatusSyncExecutor {
 		} catch (error) {
 			console.error('[Bangumi Sync] 云端字段同步失败:', {
 				subjectId,
-				payload: updates,
 				error,
 			});
 			throw new Error('云端用户数据更新失败');

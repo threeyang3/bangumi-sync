@@ -91,7 +91,7 @@ export class BangumiClient {
 	 * 对 429 和 5xx 自动重试 3 次，退避 1s→2s→4s
 	 */
 	private async request<T>(
-		method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+		method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
 		endpoint: string,
 		data?: unknown,
 		cancelled?: () => boolean,
@@ -445,6 +445,22 @@ export class BangumiClient {
 		let total = 0;
 		let page = 0;
 		const allCollections: UserCollection[] = [];
+		const ids = new Set<number>();
+		const appendPage = (result: PagedResult<UserCollection>) => {
+			if (!result || !Array.isArray(result.data) || !Number.isSafeInteger(result.total) || result.total < 0
+				|| (page > 0 && result.total !== total)
+				|| (result.data.length === 0 && allCollections.length < result.total)) {
+				throw new Error('Incomplete collection snapshot. Refresh and retry.');
+			}
+			for (const item of result.data) {
+				if (!Number.isSafeInteger(item.subject_id) || item.subject_id <= 0 || ids.has(item.subject_id)) {
+					throw new Error('Incomplete collection snapshot: invalid or duplicate subject ID.');
+				}
+				ids.add(item.subject_id);
+				allCollections.push(item);
+			}
+			if (allCollections.length > result.total) throw new Error('Incomplete collection snapshot: inconsistent total.');
+		};
 
 		// 首次请求获取 total
 		const firstResult = await this.getUserCollections(username, {
@@ -453,7 +469,7 @@ export class BangumiClient {
 			offset,
 		});
 		total = firstResult.total;
-		allCollections.push(...firstResult.data);
+		appendPage(firstResult);
 		page++;
 
 		if (options?.onProgress) {
@@ -464,10 +480,10 @@ export class BangumiClient {
 		while (allCollections.length < total) {
 			if (options?.cancelled?.value) {
 				debugLog(() => '[Bangumi Sync] 分页获取已取消');
-				break;
+				throw new RequestCancelledError('Collection loading cancelled');
 			}
 
-			offset += limit;
+			offset = allCollections.length;
 			// 前 5 页 50ms，之后 100ms
 			const delay = page < 5 ? 50 : 100;
 			await new Promise(resolve => activeWindow.setTimeout(resolve, delay));
@@ -477,7 +493,7 @@ export class BangumiClient {
 				limit,
 				offset,
 			});
-			allCollections.push(...result.data);
+			appendPage(result);
 			page++;
 
 			if (options?.onProgress) {
@@ -528,9 +544,9 @@ export class BangumiClient {
 	}): Promise<void> {
 		const payload = this.sanitizeCollectionUpdateData(data);
 		const endpoint = ENDPOINTS.MY_COLLECTION_UPDATE(subjectId);
-		debugLog(() => `[Bangumi Sync] 更新收藏: POST ${endpoint}`);
+		debugLog(() => `[Bangumi Sync] 更新收藏: PATCH ${endpoint}`);
 
-		await this.request('POST', endpoint, payload);
+		await this.request('PATCH', endpoint, payload);
 		debugLog(() => `[Bangumi Sync] 收藏更新成功: ${subjectId}`);
 	}
 
@@ -559,15 +575,13 @@ export class BangumiClient {
 			payload.type = data.type;
 		}
 
-		if (data.rate !== undefined && data.rate >= 1 && data.rate <= 10) {
+		if (data.rate !== undefined && data.rate >= 0 && data.rate <= 10) {
 			payload.rate = data.rate;
 		}
 
 		if (data.comment !== undefined) {
 			const comment = data.comment.trim();
-			if (comment.length > 0) {
-				payload.comment = comment;
-			}
+			payload.comment = comment;
 		}
 
 		if (data.tags !== undefined) {
@@ -616,10 +630,8 @@ export class BangumiClient {
 		const endpoint = `${ENDPOINTS.EPISODES}?subject_id=${subjectId}`;
 		debugLog(() => `[Bangumi Sync] 获取章节: ${endpoint}`);
 
-		const result = await this.request<PagedEpisodes>('GET', endpoint);
-		const data = result?.data ?? [];
-		debugLog(() => `[Bangumi Sync] 获取到 ${data.length}/${result?.total ?? 0} 个章节`);
-		return result;
+		const data = await this.getCompletePages<PagedEpisodes['data'][number]>(endpoint, episode => episode.id);
+		return { data, total: data.length, offset: 0, limit: data.length };
 	}
 
 	/**
@@ -630,9 +642,35 @@ export class BangumiClient {
 		const endpoint = ENDPOINTS.USER_SUBJECT_EPISODES(subjectId);
 		debugLog(() => `[Bangumi Sync] 获取用户章节状态: ${endpoint}`);
 
-		const result = await this.request<PagedResult<UserEpisodeCollection>>('GET', endpoint);
-		const data = result?.data ?? [];
-		debugLog(() => `[Bangumi Sync] 获取到 ${data.length} 个章节状态`);
+		const entries = await this.getCompletePages<UserEpisodeCollection>(endpoint, entry => entry.episode?.id);
+		if (entries.some(entry => ![0, 1, 2, 3].includes(entry.type))) throw new Error('Incomplete episode snapshot: invalid status.');
+		return entries;
+	}
+
+	/** Never present a partial or shifting response as a complete replacement snapshot. */
+	private async getCompletePages<T>(endpoint: string, getId: (item: T) => number): Promise<T[]> {
+		const data: T[] = [];
+		const ids = new Set<number>();
+		let expectedTotal: number | undefined;
+		do {
+			const separator = endpoint.includes('?') ? '&' : '?';
+			const page = await this.request<PagedResult<T>>('GET', `${endpoint}${separator}limit=100&offset=${data.length}`);
+			// The server may serialize an uninitialized empty Go slice as null.
+			if (page?.total === 0 && page.data === null) page.data = [];
+			if (!page || !Array.isArray(page.data) || !Number.isSafeInteger(page.total) || page.total < 0
+				|| (expectedTotal !== undefined && page.total !== expectedTotal)) {
+				throw new Error('Incomplete episode snapshot: invalid or changing total. Retry the operation.');
+			}
+			expectedTotal = page.total;
+			if (page.data.length === 0 && data.length < expectedTotal) throw new Error('Incomplete episode snapshot: empty page.');
+			for (const item of page.data) {
+				const id = getId(item);
+				if (!Number.isSafeInteger(id) || id <= 0 || ids.has(id)) throw new Error('Incomplete episode snapshot: invalid or duplicate episode ID.');
+				ids.add(id);
+				data.push(item);
+			}
+			if (data.length > expectedTotal) throw new Error('Incomplete episode snapshot: inconsistent total.');
+		} while (data.length < expectedTotal);
 		return data;
 	}
 

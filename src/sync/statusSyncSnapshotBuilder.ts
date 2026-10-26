@@ -24,6 +24,9 @@ export interface BuildDiffSessionOptions {
 	concurrency?: number;
 	onPrefetchHit?: () => void;
 	onPrefetchMiss?: () => void;
+	includeUnchanged?: boolean;
+	onError?: (subjectId: number, error: unknown) => void;
+	cancelled?: () => boolean;
 }
 
 export class StatusSyncSnapshotBuilder {
@@ -49,14 +52,21 @@ export class StatusSyncSnapshotBuilder {
 			options.collections,
 			options.concurrency ?? 6,
 			async (collection, index) => {
+				if (options.cancelled?.()) return null;
 				options.onProgress?.(index + 1, options.collections.length);
-				return this.buildSnapshot(collection, options.localSubjects, options.getCachedSnapshot, options.onPrefetchHit, options.onPrefetchMiss);
+				try {
+					return await this.buildSnapshot(collection, options.localSubjects, options.getCachedSnapshot, options.onPrefetchHit, options.onPrefetchMiss);
+				} catch (error) {
+					if (!options.onError) throw error;
+					options.onError(collection.subject_id, error);
+					return null;
+				}
 			},
 		)).filter((snapshot): snapshot is StatusSyncSnapshot => snapshot !== null);
 
 		const diffs = snapshots
 			.map(snapshot => this.buildStatusSyncDiff(snapshot, options.selection))
-			.filter(diff => diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
+			.filter(diff => options.includeUnchanged || diff.hasAnyDiff || this.hasPendingBackgroundLoad(diff));
 
 		return { snapshots, diffs };
 	}
@@ -98,6 +108,7 @@ export class StatusSyncSnapshotBuilder {
 
 		onPrefetchMiss?.();
 		const localSnapshot = await this.documentService.readSnapshot(file, collection.subject_type);
+		this.documentService.assertContentSubjectId(localSnapshot.content, collection.subject_id, file.path);
 		return {
 			subjectId: collection.subject_id,
 			collection,
@@ -165,6 +176,7 @@ export class StatusSyncSnapshotBuilder {
 			name_cn: collection.subject.name_cn || '',
 			name: collection.subject.name || '',
 			localPath: localInfo.path,
+			localContentSnapshot: snapshot.localSnapshot.content,
 			collection,
 			statusFieldName: snapshot.localSnapshot.user.statusFieldName,
 			rate: rateDiff,

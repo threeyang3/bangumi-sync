@@ -11,7 +11,9 @@ import {
 	StatusSyncExecutionSummary,
 	StatusSyncFieldSelection,
 	StatusSyncSnapshot,
+	StatusSyncOutcome,
 } from './statusSyncTypes';
+import { WriteOperationLease } from './writeOperationGate';
 
 export class StatusSyncService {
 	private snapshotBuilder: StatusSyncSnapshotBuilder;
@@ -42,8 +44,9 @@ export class StatusSyncService {
 		callbacks: BackgroundUpdateCallbacks,
 		onProgress?: (completed: number, total: number) => void,
 		concurrency = 4,
+		captureCloudSnapshots = false,
 	): Promise<void> {
-		await this.backgroundLoader.loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency);
+		await this.backgroundLoader.loadBackgroundDiffs(selection, snapshots, callbacks, onProgress, concurrency, captureCloudSnapshots);
 	}
 
 	applyDecisionPreset(diffs: StatusSyncDiff[], decision: FieldDecision | 'smart'): void {
@@ -64,8 +67,8 @@ export class StatusSyncService {
 		});
 	}
 
-	async executeSync(diffs: StatusSyncDiff[]): Promise<StatusSyncExecutionSummary> {
-		return await this.executor.executeSync(diffs);
+	async executeSync(diffs: StatusSyncDiff[], lease?: WriteOperationLease, onOutcome?: (outcome: StatusSyncOutcome) => void): Promise<StatusSyncExecutionSummary> {
+		return await this.executor.executeSync(diffs, lease, onOutcome);
 	}
 
 	private applySmartMerge(diffs: StatusSyncDiff[]): void {

@@ -32,6 +32,7 @@ export class StatusSyncScopeModal extends Modal {
         }
 
         onOpen(): void {
+            this.modalEl.addClass('bangumi-modal');
                 this.modalEl.addClass('bangumi-status-sync-scope-window');
                 this.render();
         }

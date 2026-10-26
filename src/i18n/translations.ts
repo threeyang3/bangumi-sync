@@ -11,6 +11,16 @@ export type Locale = 'en' | 'zh-CN';
  * 翻译文本类型
  */
 export interface TranslationStrings {
+	comprehensiveSync: {
+		title: string; description: string; compare: string; loading: string; summary: string;
+		additions: string; differences: string; unchanged: string; failed: string; localOnly: string;
+		review: string; saveChoices: string; execute: string; refresh: string; close: string;
+		all: string; none: string; previous: string; next: string; page: string;
+		choices: string; result: string; created: string; updated: string; skipped: string;
+		pending: string; rolledBack: string; importDecision: string; boundary: string;
+		localAdditionConflict: string; collectionUnavailable: string;
+		previewExpired: string;
+	};
 	// 命令
         commands: {
                 openControlPanel: string;
@@ -86,6 +96,8 @@ export interface TranslationStrings {
 		pathTemplateByTypeDesc: string;
 		scanFolderPath: string;
 		scanFolderPathDesc: string;
+		scanScopeMismatch: string;
+		scanRootUnavailable: string;
 		downloadCoverImages: string;
 		downloadCoverImagesDesc: string;
 		imageQuality: string;
@@ -313,6 +325,7 @@ export interface TranslationStrings {
 		noUndo: string;
 		undoSuccess: string;
 		undoFailed: string;
+		undoChanged: string;
 		noSyncedItems: string;
 		noSyncedItemsComment: string;
 		noSyncedItemsTag: string;
@@ -557,6 +570,7 @@ export interface TranslationStrings {
 		sort_score: string;
 		searching: string;
 		resultsCount: string;
+		noProgress: string;
 		searchFailed: string;
 		loadMore: string;
 		addToCollection: string;
@@ -706,6 +720,20 @@ export interface TranslationStrings {
  * 英文翻译（默认）
  */
 const en: TranslationStrings = {
+	comprehensiveSync: {
+		title: 'Comprehensive sync', description: 'Compare all collections for the current account, across all types and statuses. Import missing notes and review selected user and platform fields in existing notes. Local-only notes are kept.',
+		compare: 'Choose fields and compare', loading: 'Comparing collections and local notes…',
+		summary: '{additions} to add · {differences} with differences · {unchanged} unchanged · {failed} comparison failures',
+		additions: 'New notes', differences: 'Existing note differences', unchanged: 'Unchanged', failed: 'Failed', localOnly: '{count} local-only notes kept',
+		review: 'Review this page', saveChoices: 'Save choices', execute: 'Confirm and sync', refresh: 'Refresh preview', close: 'Close',
+		all: 'Select all new notes', none: 'Clear new note selection', previous: 'Previous', next: 'Next', page: 'Page {page} / {total}',
+		choices: '{count} existing notes selected for update. Existing differences default to skip; review choices before confirming.',
+		result: 'Sync result', created: 'Created', updated: 'Updated', skipped: 'Skipped', pending: 'Awaiting import decision', rolledBack: 'Rolled back',
+		importDecision: 'Review import result and recovery', boundary: 'Local import rollback does not undo saved cloud changes or prior status updates. Failures can include changes already saved; refresh before retrying.',
+		localAdditionConflict: 'Subject {id} now exists locally or has an identity conflict. No writes were started. Resolve the conflict and refresh the preview.',
+		previewExpired: 'This preview has expired. Refresh the comparison before confirming again.',
+		collectionUnavailable: 'Cloud collection {id} could not be verified. It may have been removed or be inaccessible, including due to NSFW visibility settings. No writes were started. Check account visibility and refresh the preview.',
+	},
         commands: {
                 openControlPanel: 'Open collection manager',
                 syncCollections: 'Sync Bangumi collections',
@@ -776,7 +804,9 @@ const en: TranslationStrings = {
 		pathTemplateByType: 'Per-type path templates',
 		pathTemplateByTypeDesc: 'Optional overrides; empty falls back to the default template above',
 		scanFolderPath: 'Scan folder path',
-		scanFolderPathDesc: 'Folder path for detecting synced items (leave empty to use base path from file path template)',
+		scanFolderPathDesc: 'Folder for detecting synced items. Leave empty to use the common static directory of all path templates; disjoint or dynamic roots scan the vault. An explicit folder must cover every template.',
+		scanScopeMismatch: 'Scan folder "{root}" does not cover all path templates. Clear the scan folder to infer a common root, or choose a parent covering every template.',
+		scanRootUnavailable: 'Scan folder "{root}" is unavailable or contains a file instead of a folder. Existing subject notes may be outside the scan range. Check the folder and refresh before syncing.',
 		downloadCoverImages: 'Download cover images',
 		downloadCoverImagesDesc: 'Download cover images to local storage',
 		imageQuality: 'Image quality',
@@ -996,6 +1026,7 @@ const en: TranslationStrings = {
 		noUndo: 'No operation to undo',
 		undoSuccess: 'Undo successful',
 		undoFailed: 'Undo failed',
+		undoChanged: 'Undo did not complete: a file changed, moved or disappeared. Some files may already be restored; history is retained. Restore the expected files before retrying.',
 		noSyncedItems: 'No synced items',
 		noSyncedItemsComment: 'No synced items to compare comments',
 		noSyncedItemsTag: 'No synced items to compare tags',
@@ -1231,6 +1262,7 @@ const en: TranslationStrings = {
 		sort_score: 'Score',
 		searching: 'Searching...',
 		resultsCount: 'Found {total} results, showing {count}',
+		noProgress: 'No new results were returned. Pagination stopped; search again to refresh.',
 		searchFailed: 'Search failed',
 		loadMore: 'Load more',
 		addToCollection: 'Add',
@@ -1374,6 +1406,20 @@ const en: TranslationStrings = {
  * 中文翻译
  */
 const zhCN: TranslationStrings = {
+	comprehensiveSync: {
+		title: '全面同步', description: '比较当前账号全部类型、全部收藏状态的条目。导入缺失笔记，并审阅已有笔记中选定的用户数据与平台数据。本地独有笔记会保留。',
+		compare: '选择字段并比较', loading: '正在比较云端收藏与本地笔记…',
+		summary: '待新增 {additions} · 存在差异 {differences} · 无差异 {unchanged} · 比较失败 {failed}',
+		additions: '新增笔记', differences: '已有笔记差异', unchanged: '无差异', failed: '失败', localOnly: '保留 {count} 个本地独有条目',
+		review: '审阅本页差异', saveChoices: '保存选择', execute: '确认并同步', refresh: '刷新预览', close: '关闭',
+		all: '全选新增笔记', none: '取消选择新增笔记', previous: '上一页', next: '下一页', page: '第 {page} / {total} 页',
+		choices: '已选择更新 {count} 个已有条目。已有差异默认跳过，请审阅后再确认。',
+		result: '同步结果', created: '已新增', updated: '已更新', skipped: '已跳过', pending: '等待导入保留或回滚', rolledBack: '已回滚',
+		importDecision: '查看导入结果与恢复操作', boundary: '本地导入回滚不会撤销已保存的云端修改或此前的状态更新。失败也可能包含已保存的修改；重试前请刷新比较。',
+		localAdditionConflict: '条目 {id} 已在本地出现或存在身份冲突，尚未开始任何写入。请处理冲突后刷新比较。',
+		previewExpired: '此预览已失效，请刷新比较后再确认执行。',
+		collectionUnavailable: '无法复核云端收藏 {id}：可能已取消收藏，或因 NSFW 等可见性设置而无法访问。尚未开始任何写入。请检查账号可见性并刷新比较。',
+	},
         commands: {
                 openControlPanel: '打开收藏管理面板',
                 syncCollections: '同步 Bangumi 收藏',
@@ -1444,7 +1490,9 @@ const zhCN: TranslationStrings = {
 		pathTemplateByType: '各类型路径模板',
 		pathTemplateByTypeDesc: '可选覆盖，为空则使用上方默认模板',
 		scanFolderPath: '扫描文件夹路径',
-		scanFolderPathDesc: '用于检测已同步条目的文件夹路径（留空则使用文件路径模板的基础路径）',
+		scanFolderPathDesc: '检测已同步条目的目录。留空使用所有路径模板的共同静态目录；无共同目录或根目录动态时扫描整个 Vault。显式目录必须覆盖所有模板。',
+		scanScopeMismatch: '扫描目录“{root}”无法覆盖所有路径模板。请留空以推导共同根目录，或选择覆盖所有模板的上级目录。',
+		scanRootUnavailable: '扫描目录“{root}”不可用，或该路径实际是文件。已有条目可能在扫描范围之外；请检查目录后重新比较再同步。',
 		downloadCoverImages: '下载封面图片',
 		downloadCoverImagesDesc: '是否下载条目封面到本地',
 		imageQuality: '图片质量',
@@ -1664,6 +1712,7 @@ const zhCN: TranslationStrings = {
 		noUndo: '没有可撤销的操作',
 		undoSuccess: '撤销成功',
 		undoFailed: '撤销失败',
+		undoChanged: '撤销未完成：文件已变化、移动或消失。部分文件可能已恢复；历史记录仍保留。请恢复预期文件后重试。',
 		noSyncedItems: '没有已同步的条目',
 		noSyncedItemsComment: '没有已同步的条目，无法对比短评',
 		noSyncedItemsTag: '没有已同步的条目，无法对比标签',
@@ -1899,6 +1948,7 @@ const zhCN: TranslationStrings = {
 		sort_score: '评分',
 		searching: '搜索中...',
 		resultsCount: '找到 {total} 个结果，已显示 {count} 个',
+		noProgress: '服务器未返回新结果，已停止加载。可重新搜索以刷新结果。',
 		searchFailed: '搜索失败',
 		loadMore: '加载更多',
 		addToCollection: '添加',

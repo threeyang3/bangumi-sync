@@ -55,6 +55,7 @@ export class LocalPropertyModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 		contentEl.addClass('bangumi-local-property-modal');
 

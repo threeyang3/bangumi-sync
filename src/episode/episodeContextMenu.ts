@@ -200,7 +200,7 @@ export class EpisodeContextMenu {
 			});
 
 			// 批量更新本地状态
-			await this.statusManager.updateMultipleStatuses(file, episodesToUpdate.map(e => ({
+			await this.statusManager.patchEpisodeStatuses(file, episodesToUpdate.map(e => ({
 				episodeId: e.episodeId,
 				epNumber: e.epNumber,
 				status: 2,

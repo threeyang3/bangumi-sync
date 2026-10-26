@@ -19,6 +19,8 @@ describe('SyncTransaction staged rename log', () => {
 		for (const facts of exports) expect(facts.updatedContents[0]).toMatchObject({ originalContent: original, expectedContentHash: expectedHash });
 		await transaction.createOrUpdateFile('A/one.md', '---\nid: 1\n---\nchanged again', { overwrite: true, subjectId: 1 });
 		expect((await transaction.getRecoveryExpectations()).updatedContents[0].expectedContentHash).toBe(expectedHash);
+		await transaction.createOrUpdateFile('A/one.md', '---\nid: 1\n---\nchanged again', { overwrite: true, subjectId: 1 });
+		expect((await transaction.getRecoveryExpectations()).updatedContents[0].originalContent).toBe(original);
 		expect(hash).toHaveBeenCalledTimes(1);
 		expect(await transaction.rollback()).toMatchObject({ restoredContents: 1, failed: 0 });
 		expect(vault.contents.get('A/one.md')).toBe(original);

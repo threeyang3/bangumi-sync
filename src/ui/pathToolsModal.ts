@@ -12,6 +12,7 @@ export class PathDiagnosticModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		new Setting(this.contentEl).setName(tn('pathTools', 'diagnosticTitle')).setHeading();
 		this.contentEl.createEl('p', {
 			text: tnFormat('pathTools', 'diagnosticSummary', {
@@ -61,6 +62,7 @@ export class PathMigrationPreviewModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		this.render();
 	}
 

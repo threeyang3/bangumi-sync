@@ -100,6 +100,7 @@ export interface FieldDiff<T> {
 	cloudValue: T | null;
 	hasDiff: boolean;
 	decision: FieldDecision;
+	cloudSnapshot?: string;
 }
 
 export type PlatformFieldDecision = 'cloud' | 'skip';
@@ -130,6 +131,7 @@ export interface StatusSyncDiff {
 	name_cn: string;
 	name: string;
 	localPath: string;
+	localContentSnapshot?: string;
 	collection: UserCollection;
 	statusFieldName: string;
 	rate: FieldDiff<number>;
@@ -139,6 +141,8 @@ export interface StatusSyncDiff {
 	episodeStatus: FieldDiff<string>;
 	platformFields: PlatformFieldDiff[];
 	platformSyncPayload?: PlatformSyncPayload;
+	cloudPlatformSnapshot?: string;
+	cloudEpisodesSnapshot?: string;
 	hasUserDiff: boolean;
 	hasPlatformDiff: boolean;
 	hasAnyDiff: boolean;
@@ -163,14 +167,27 @@ export interface StatusSyncSnapshot {
 }
 
 export interface StatusSyncBuildContext {
+	captureCloudSnapshots?: boolean;
 	subjectCache: Map<number, Promise<import('../../common/api/types').Subject>>;
 	cloudEpisodeStatusCache: Map<number, Promise<Map<number, LocalEpisodeStatus>>>;
-	platformDiffCache: Map<number, Promise<{ fields: PlatformFieldDiff[]; payload?: PlatformSyncPayload }>>;
+	platformDiffCache: Map<number, Promise<{ fields: PlatformFieldDiff[]; payload?: PlatformSyncPayload; cloudPlatformSnapshot?: string; cloudEpisodesSnapshot?: string }>>;
 }
 
 export interface StatusSyncExecutionSummary {
 	successCount: number;
 	failCount: number;
+}
+
+export interface StatusSyncOutcome {
+	subjectId: number;
+	status: 'updated' | 'skipped' | 'failed';
+	error?: string;
+}
+
+export function hasSelectedStatusChanges(diff: StatusSyncDiff): boolean {
+	return [diff.rate, diff.comment, diff.tags, diff.status, diff.episodeStatus]
+		.some(field => field.hasDiff && field.decision !== 'skip')
+		|| diff.platformFields.some(field => field.hasDiff && field.decision === 'cloud');
 }
 
 export type CloudCollectionUpdates = {

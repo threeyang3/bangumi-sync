@@ -7,7 +7,8 @@ import { App, TFile } from 'obsidian';
 import { BangumiClient } from '../api/client';
 import { LocalEpisodeStatus, EpisodeStatusType, getEpisodeStatusText } from './types';
 import { delay } from '../../common/utils/timing';
-import { assertWriteOperationAllowed } from '../sync/writeOperationGate';
+import { assertWriteOperationAllowed, withWriteOperation, WriteOperationLease } from '../sync/writeOperationGate';
+import { removeYamlListField } from '../document/frontmatterAccess';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 
 /**
@@ -25,9 +26,11 @@ export class EpisodeStatusManager {
 	}
 
 	private async processKnownSubjectFile(file: TFile, updater: (content: string) => string): Promise<void> {
-		const identity = await this.documentService.getSubjectIdentity(file);
-		if (identity.subjectId === null || identity.conflicts?.length) throw new Error(`Cannot safely write episode status to ${file.path}: subject ID is missing or conflicting.`);
-		await this.documentService.processSubjectFile(file, identity.subjectId, updater);
+		await withWriteOperation('episode-status', async () => {
+			const identity = await this.documentService.getSubjectIdentity(file);
+			if (identity.subjectId === null || identity.conflicts?.length) throw new Error(`Cannot safely write episode status to ${file.path}: subject ID is missing or conflicting.`);
+			await this.documentService.processSubjectFile(file, identity.subjectId, updater);
+		});
 	}
 
 	/**
@@ -117,99 +120,44 @@ export class EpisodeStatusManager {
 		epNumber: number,
 		status: EpisodeStatusType
 	): Promise<void> {
+		await this.patchEpisodeStatuses(file, [{ episodeId, epNumber, status }]);
+	}
+
+	/** Partial updates preserve every unselected episode. */
+	async patchEpisodeStatuses(file: TFile, episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>): Promise<void> {
 		assertWriteOperationAllowed('episode-status');
-		await this.processKnownSubjectFile(file, (content) => {
-			// 单条更新走细粒度 updateEpStatusInContent，避免触发 applyEpisodeStatusUpdates
-			// 的"先清空再重建"流程把其他集的状态也清掉。
-			return this.updateEpStatusInContent(content, episodeId, epNumber, status);
+		await this.processKnownSubjectFile(file, content => {
+			const merged = this.getEpisodeStatusMapFromContent(content);
+			for (const ep of episodes) merged.set(ep.episodeId, this.createLocalEpisodeStatus(ep.episodeId, ep.epNumber, ep.status));
+			return this.applyEpisodeStatusUpdates(content, Array.from(merged.values()));
 		});
 	}
 
-	/**
-	 * 批量更新多个单集状态
-	 */
-	async updateMultipleStatuses(
-		file: TFile,
-		episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>
-	): Promise<void> {
-		assertWriteOperationAllowed('episode-status');
-		await this.processKnownSubjectFile(file, (content) => {
-			return this.applyEpisodeStatusUpdates(content, episodes);
-		});
+	async updateMultipleStatuses(file: TFile, episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>): Promise<void> {
+		await this.patchEpisodeStatuses(file, episodes);
 	}
 
-	/**
-	 * 在内容中更新单集状态
-	 */
-	private updateEpStatusInContent(
-		content: string,
-		episodeId: number,
-		epNumber: number,
-		status: EpisodeStatusType
-	): string {
-		// 匹配 frontmatter
-		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-		if (!frontmatterMatch) return content;
-
-		const prefix = frontmatterMatch[1];
-		let frontmatter = frontmatterMatch[2];
-		const suffix = frontmatterMatch[3];
-		const bodyContent = frontmatterMatch[4];
-
-		// 如果状态为 0（未收藏），则移除该条目
-		if (status === 0) {
-			const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+\\n?`, 'm');
-			frontmatter = frontmatter.replace(statusLineRegex, '');
-
-			// 如果 ep_statuses 为空，移除整个字段
-			if (frontmatter.includes('ep_statuses:\n') && !frontmatter.match(/ep_statuses:\n\s+- /)) {
-				frontmatter = frontmatter.replace(/ep_statuses:\n/, '');
-			}
-		} else {
-			// 构建新的状态条目
-			const statusEntry = `${episodeId}:${epNumber}:${status}`;
-
-			// 检查是否已有 ep_statuses 字段
-			const existingStatusesMatch = frontmatter.match(/^ep_statuses:\s*\n((?:\s+- .+\n?)+)/m);
-
-			if (existingStatusesMatch) {
-				// 检查是否已有该集数的状态
-				const statusLineRegex = new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+$`, 'm');
-				if (statusLineRegex.test(frontmatter)) {
-					// 更新现有状态
-					frontmatter = frontmatter.replace(
-						new RegExp(`^\\s+- ${episodeId}:\\d+(?:\\.\\d+)?:\\d+$`, 'm'),
-						`  - ${statusEntry}`
-					);
-				} else {
-					// 添加新状态
-					frontmatter = frontmatter.replace(
-						/^ep_statuses:\s*\n/,
-						`ep_statuses:\n  - ${statusEntry}\n`
-					);
-				}
-			} else {
-				// 添加新的 ep_statuses 字段
-				frontmatter += `\nep_statuses:\n  - ${statusEntry}`;
-			}
-		}
-
-		const updatedContent = prefix + frontmatter + suffix + bodyContent;
-		return this.updateEpisodeBoxStatusInContent(updatedContent, episodeId, epNumber, status);
+	/** Only callers holding a complete snapshot may replace all statuses. */
+	async replaceAllEpisodeStatuses(file: TFile, expectedSubjectId: number, episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>, expectedContent: string): Promise<void> {
+		return withWriteOperation('episode-status', async () => {
+			await this.documentService.processSubjectFile(file, expectedSubjectId, content => {
+				if (content !== expectedContent) throw new Error('Note changed during synchronization. Refresh and retry.');
+				return this.applyEpisodeStatusUpdates(content, episodes);
+			});
+		});
 	}
 
 	private applyEpisodeStatusUpdates(
 		content: string,
 		episodes: Array<{ episodeId: number; epNumber: number; status: EpisodeStatusType }>
 	): string {
-		const withoutOldStatuses = this.clearEpisodeStatusArtifacts(content);
-		const withUpdatedBoxes = episodes.reduce(
-			(updatedContent, ep) => this.updateEpisodeBoxStatusInContent(updatedContent, ep.episodeId, ep.epNumber, ep.status),
-			withoutOldStatuses
-		);
-		// 同步云端时 frontmatter `ep_statuses` 会被 `clearEpisodeStatusArtifacts` 清空，
-		// 而 `.ep-box` 只覆盖已有元素；云端新出现的 SP 状态如果本地没有 .ep-box 就会永久丢失。
-		// 这里在清空后按云端数据重建 frontmatter，避免 SP/OP/ED 等非本篇集的状态无法保留。
+		const updates = new Map(episodes.map(ep => [ep.episodeId, ep]));
+		const cleared = this.clearEpisodeStatusArtifacts(content);
+		const withUpdatedBoxes = cleared.replace(/<span\b[^>]*class="[^"]*\bep-box\b[^"]*"[^>]*>.*?<\/span>/g, tag => {
+			const attrs = this.parseEpisodeBox(tag);
+			const ep = attrs && updates.get(attrs.episodeId);
+			return ep ? this.updateEpisodeBoxStatusInContent(tag, ep.episodeId, ep.epNumber, ep.status) : tag;
+		});
 		return this.writeEpisodeStatusesToFrontmatter(withUpdatedBoxes, episodes);
 	}
 
@@ -225,7 +173,7 @@ export class EpisodeStatusManager {
 			return content;
 		}
 
-		const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+		const frontmatterMatch = content.match(/^(---\r?\n)([\s\S]*?)(\r?\n---)([\s\S]*)$/);
 		if (!frontmatterMatch) {
 			return content;
 		}
@@ -255,12 +203,12 @@ export class EpisodeStatusManager {
 
 	private extractEpisodeStatusMapFromFrontmatter(content: string): Map<number, LocalEpisodeStatus> {
 		const statusMap = new Map<number, LocalEpisodeStatus>();
-		const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+		const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 		if (!frontmatterMatch) {
 			return statusMap;
 		}
 
-		const frontmatter = frontmatterMatch[1];
+		const frontmatter = frontmatterMatch[1].replace(/\r\n/g, '\n');
 		const epStatusesMatch = frontmatter.match(/^ep_statuses:\s*\n((?:\s+- .+\n?)+)/m);
 		if (!epStatusesMatch) {
 			return statusMap;
@@ -340,7 +288,7 @@ export class EpisodeStatusManager {
 	}
 
 	private clearEpisodeStatusArtifacts(content: string): string {
-		const withoutFrontmatterStatuses = content.replace(/^ep_statuses:\s*\n(?:\s+- .+\n?)+/m, '').replace(/\n{3,}/g, '\n\n');
+		const withoutFrontmatterStatuses = removeYamlListField(content, 'ep_statuses');
 		const episodeBoxRegex = /<span\b[^>]*class="[^"]*\bep-box\b[^"]*"[^>]*>.*?<\/span>/g;
 
 		return withoutFrontmatterStatuses.replace(episodeBoxRegex, (fullMatch) => {
@@ -391,11 +339,36 @@ export class EpisodeStatusManager {
 	 */
 	async syncStatusToCloud(
 		file: TFile,
-		progressCallback?: (current: number, total: number, message: string) => void
+		progressCallback?: (current: number, total: number, message: string) => void,
+		expectedSubjectId?: number,
+		expectedContent?: string,
+		lease?: WriteOperationLease
 	): Promise<{ success: number; failed: number }> {
-		assertWriteOperationAllowed('episode-status');
-		const statusMap = await this.getEpisodeStatusMap(file);
-		const entries = Array.from(statusMap.values()).filter(s => s.status !== 0);
+		return withWriteOperation('episode-status', owned => this.syncStatusToCloudWithLease(file, progressCallback, expectedSubjectId, expectedContent, owned), lease);
+	}
+
+	private async syncStatusToCloudWithLease(
+		file: TFile,
+		progressCallback?: (current: number, total: number, message: string) => void,
+		expectedSubjectId?: number,
+		expectedContent?: string,
+		lease?: WriteOperationLease
+	): Promise<{ success: number; failed: number }> {
+		assertWriteOperationAllowed('episode-status', lease);
+		const baseline = expectedContent ?? await this.app.vault.read(file);
+		const identity = this.documentService.getSubjectIdentityFromContent(baseline);
+		const subjectId = expectedSubjectId ?? identity.subjectId;
+		if (subjectId === null) throw new Error('Missing subject ID');
+		this.documentService.assertContentSubjectId(baseline, subjectId, file.path);
+		const statusMap = this.getEpisodeStatusMapFromContent(baseline);
+		const cloud = await this.client.getUserEpisodeStatus(subjectId);
+		const currentSnapshot = await this.app.vault.read(file);
+		this.documentService.assertContentSubjectId(currentSnapshot, subjectId, file.path);
+		if (currentSnapshot !== baseline) throw new Error('Note changed during synchronization. Refresh and retry.');
+		const cloudIds = new Set(cloud.map(entry => entry.episode.id));
+		if (Array.from(statusMap.values()).some(entry => entry.status !== 0 && !cloudIds.has(entry.episodeId))) throw new Error('Local episode is absent from the complete cloud snapshot.');
+		const entries = cloud.map(entry => ({ episodeId: entry.episode.id, epNumber: entry.episode.ep ?? entry.episode.sort, status: statusMap.get(entry.episode.id)?.status ?? 0, cloudStatus: entry.type }))
+			.filter(entry => entry.status !== entry.cloudStatus);
 		const ownerWindow = this.app.workspace.containerEl.ownerDocument.defaultView;
 
 		let success = 0;
@@ -408,6 +381,9 @@ export class EpisodeStatusManager {
 				progressCallback(i + 1, entries.length, `正在同步第${entry.epNumber}集...`);
 			}
 
+			const current = await this.app.vault.read(file);
+			this.documentService.assertContentSubjectId(current, subjectId, file.path);
+			if (current !== baseline) throw new Error('Note changed during synchronization. Refresh and retry.');
 			try {
 				await this.client.updateEpisodeStatus(entry.episodeId, entry.status);
 				success++;
@@ -426,32 +402,33 @@ export class EpisodeStatusManager {
 	/**
 	 * 从云端拉取状态到本地
 	 */
-	async syncStatusFromCloud(
-		file: TFile,
-		subjectId: number
-	): Promise<boolean> {
-		assertWriteOperationAllowed('episode-status');
+	async syncStatusFromCloud(file: TFile, subjectId: number, expectedContent?: string, lease?: WriteOperationLease): Promise<boolean> {
 		try {
-			const userEpisodes = await this.client.getUserEpisodeStatus(subjectId);
-
-			// 更新本地文件
-			await this.processKnownSubjectFile(file, (content) => {
-				const episodes = userEpisodes
-					.filter(userEp => userEp.type !== 0 && userEp.episode)
-					.map(userEp => ({
-						episodeId: userEp.episode.id,
-						epNumber: userEp.episode.ep || userEp.episode.sort || 0,
-						status: userEp.type as EpisodeStatusType,
-					}));
-
-				return this.applyEpisodeStatusUpdates(content, episodes);
-			});
-
+			await this.pullStatusFromCloud(file, subjectId, expectedContent, lease);
 			return true;
 		} catch (error) {
 			console.error('[Bangumi Sync] 从云端同步状态失败:', error);
 			return false;
 		}
+	}
+
+	/** Returns exactly the committed content, never a later user edit. */
+	async pullStatusFromCloud(file: TFile, subjectId: number, expectedContent?: string, lease?: WriteOperationLease): Promise<string> {
+		return withWriteOperation('episode-status', async () => {
+			const baseline = expectedContent ?? await this.app.vault.read(file);
+			this.documentService.assertContentSubjectId(baseline, subjectId, file.path);
+			const userEpisodes = await this.client.getUserEpisodeStatus(subjectId);
+			const episodes = userEpisodes.filter(ep => ep.type !== 0).map(ep => ({
+				episodeId: ep.episode.id, epNumber: ep.episode.ep ?? ep.episode.sort ?? 0, status: ep.type as EpisodeStatusType,
+			}));
+			let committed = baseline;
+			await this.documentService.processSubjectFile(file, subjectId, content => {
+				if (content !== baseline) throw new Error('Note changed during synchronization. Refresh and retry.');
+				committed = this.applyEpisodeStatusUpdates(content, episodes);
+				return committed;
+			});
+			return committed;
+		}, lease);
 	}
 
 	/**
@@ -467,15 +444,6 @@ export class EpisodeStatusManager {
 	 */
 	async clearAllStatuses(file: TFile): Promise<void> {
 		assertWriteOperationAllowed('episode-status');
-		await this.processKnownSubjectFile(file, (content) => {
-			const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
-			if (!frontmatterMatch) return content;
-
-			let frontmatter = frontmatterMatch[2];
-			// 移除 ep_statuses 字段及其内容
-			frontmatter = frontmatter.replace(/^ep_statuses:\s*\n(?:\s+- .+\n?)+/m, '');
-
-			return frontmatterMatch[1] + frontmatter + frontmatterMatch[3] + frontmatterMatch[4];
-		});
+		await this.processKnownSubjectFile(file, content => this.clearEpisodeStatusArtifacts(content));
 	}
 }

@@ -2,6 +2,7 @@ import { App, TFile, TFolder, normalizePath } from 'obsidian';
 import { isDescendantPath, normalizePathCollisionKey } from '../../common/file/pathUtils';
 import { SubjectDocumentService } from '../document/subjectDocumentService';
 import { SubjectIdentitySource } from '../document/subjectIdentity';
+import { tnFormat } from '../i18n';
 
 export type SubjectNamingState = 'managed' | 'inferred-managed' | 'user-renamed' | 'unknown';
 export type LocalFileProblemSeverity = 'safe-auto-fix' | 'needs-user-decision' | 'blocking-error';
@@ -31,6 +32,7 @@ export interface LocalFileProblem {
 	code: 'missing-id' | 'identity-conflict' | 'duplicate-id' | 'path-collision';
 	message: string;
 	subjectId?: number;
+	relatedSubjectIds?: number[];
 }
 
 export class LocalSubjectRegistry {
@@ -59,8 +61,15 @@ export class LocalSubjectRegistry {
 	async scan(folderPath: string, onProgress?: (current: number, total: number) => void): Promise<number> {
 		this.clear();
 		const normalizedRoot = normalizePath(folderPath);
-		const folder = this.app.vault.getAbstractFileByPath(normalizedRoot);
+		const folder = normalizedRoot ? this.app.vault.getAbstractFileByPath(normalizedRoot) : this.app.vault.getRoot();
 		if (!(folder instanceof TFolder)) {
+			if (folder) throw new Error(tnFormat('settings', 'scanRootUnavailable', { root: normalizedRoot }));
+			// A fresh vault may have no output folder yet. A moved/deleted root must
+			// not silently hide identities elsewhere; this slow path is exceptional.
+			for (const file of this.app.vault.getMarkdownFiles()) {
+				const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(file));
+				if (identity.subjectId !== null) throw new Error(tnFormat('settings', 'scanRootUnavailable', { root: normalizedRoot }));
+			}
 			return 0;
 		}
 
@@ -90,6 +99,7 @@ export class LocalSubjectRegistry {
 			this.invalidFiles.push({
 				path: file.path,
 				subjectId: identity.subjectId,
+				relatedSubjectIds: [identity.subjectId, ...identity.conflicts.map(conflict => conflict.value)],
 				severity: 'blocking-error',
 				code: 'identity-conflict',
 				message: `Conflicting subject IDs: ${identity.conflicts.map(conflict => `${conflict.source}=${conflict.value}`).join(', ')}`,

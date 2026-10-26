@@ -9,7 +9,8 @@ function stripQuotedValue(value: string): string {
 		(value.startsWith('"') && value.endsWith('"')) ||
 		(value.startsWith("'") && value.endsWith("'"))
 	) {
-		return value.slice(1, -1);
+		if (value.startsWith('"')) { try { return JSON.parse(value) as string; } catch { /* Legacy quoted scalar. */ } }
+		return value.slice(1, -1).replace(/''/g, "'");
 	}
 	return value;
 }
@@ -20,15 +21,8 @@ function isTopLevelFrontmatterLine(line: string): boolean {
 
 function formatFrontmatterValue(value: unknown): string {
 	if (typeof value === 'string') {
-		if (value.includes('\n')) {
-			return `|-\n${value.split('\n').map(line => `  ${line}`).join('\n')}`;
-		}
-		if (
-			value.includes(':') || value.includes('#') ||
-			value.includes('"') || value.includes("'") || value.includes('[') || value.includes('{')
-		) {
-			return `"${value.replace(/"/g, '\\"')}"`;
-		}
+		// JSON strings are valid YAML scalars and escape backslashes and control characters.
+		if (!value || /[:#"'\[\]{}\\\r\n\t]|^[-?!&*|>@%`]|^\s|\s$/.test(value) || /^(?:true|false|null|~|yes|no|on|off|[-+]?\d.*)$/i.test(value)) return JSON.stringify(value);
 		return value;
 	}
 
@@ -41,7 +35,7 @@ function formatFrontmatterValue(value: unknown): string {
 	}
 
 	if (Array.isArray(value)) {
-		return `\n${value.map(item => `  - ${formatFrontmatterValue(item)}`).join('\n')}`;
+		return value.length ? `\n${value.map(item => `  - ${formatFrontmatterValue(item)}`).join('\n')}` : '[]';
 	}
 
 	if (typeof value === 'object' && value !== null) {
@@ -70,14 +64,14 @@ function parseFrontmatterBlock(content: string): {
 	rest: string;
 	match: string;
 } | null {
-	const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)([\s\S]*)$/);
+	const frontmatterMatch = content.match(/^(---\r?\n)([\s\S]*?)(\r?\n---)([\s\S]*)$/);
 	if (!frontmatterMatch) {
 		return null;
 	}
 
 	return {
 		prefix: frontmatterMatch[1],
-		frontmatter: frontmatterMatch[2],
+		frontmatter: frontmatterMatch[2].replace(/\r\n/g, '\n'),
 		suffix: frontmatterMatch[3],
 		rest: frontmatterMatch[4],
 		match: frontmatterMatch[0],
@@ -109,8 +103,8 @@ function upsertFrontmatterBody(frontmatter: string, field: string, value: unknow
 }
 
 export function extractFrontmatter(content: string): string | null {
-	const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-	return frontmatterMatch ? frontmatterMatch[1] : null;
+	const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+	return frontmatterMatch ? frontmatterMatch[1].replace(/\r\n/g, '\n') : null;
 }
 
 export function extractFrontmatterRecord(content: string): Record<string, unknown> {
@@ -268,17 +262,13 @@ export function addFrontmatterField(content: string, field: string, value: unkno
 
 export function removeFrontmatterField(content: string, field: string): string {
 	const block = parseFrontmatterBlock(content);
-	if (!block) {
-		return content;
-	}
-
-	const escapedName = escapeRegExp(field);
-	const fieldRegex = new RegExp(`^${escapedName}:.*$`, 'm');
-	const updatedFrontmatter = block.frontmatter
-		.replace(fieldRegex, '')
-		.replace(/\n{3,}/g, '\n\n')
-		.trim();
-	return block.prefix + updatedFrontmatter + block.suffix + block.rest;
+	if (!block) return content;
+	const lines = block.frontmatter.split('\n');
+	const start = lines.findIndex(line => line.startsWith(field + ':'));
+	if (start < 0) return content;
+	let end = start + 1;
+	while (end < lines.length && !isTopLevelFrontmatterLine(lines[end])) end++;
+	return block.prefix + [...lines.slice(0, start), ...lines.slice(end)].join('\n') + block.suffix + block.rest;
 }
 
 export function readTextField(content: string, fieldNames: string | string[]): string | null {
@@ -301,7 +291,7 @@ export function readTextField(content: string, fieldNames: string | string[]): s
 			return null;
 		}
 
-		const unquoted = rawValue.replace(/^["']|["']$/g, '').trim();
+		const unquoted = stripQuotedValue(rawValue).trim();
 		return unquoted.length > 0 ? unquoted : null;
 	}
 
@@ -328,28 +318,12 @@ export function upsertQuotedTextField(
 	fieldName: string,
 	value: string | number | null | undefined,
 ): string {
+	if (value === null || value === undefined || String(value).trim() === '') return removeFrontmatterField(content, fieldName);
 	const block = parseFrontmatterBlock(content);
-	if (!block) {
-		return content;
-	}
-
-	const escapedName = escapeRegExp(fieldName);
-	const fieldRegex = new RegExp(`^${escapedName}:.*$`, 'm');
-	let frontmatter = block.frontmatter;
-
-	if (value === null || value === undefined || String(value).trim() === '') {
-		frontmatter = frontmatter.replace(fieldRegex, '').replace(/\n{3,}/g, '\n\n').trim();
-		return block.prefix + frontmatter + block.suffix + block.rest;
-	}
-
-	const nextLine = `${fieldName}: "${String(value).replace(/"/g, '\\"')}"`;
-	if (fieldRegex.test(frontmatter)) {
-		frontmatter = frontmatter.replace(fieldRegex, nextLine);
-	} else {
-		frontmatter = `${frontmatter}\n${nextLine}`;
-	}
-
-	return block.prefix + frontmatter + block.suffix + block.rest;
+	if (!block) return content;
+	const removed = removeFrontmatterField(content, fieldName);
+	const remaining = parseFrontmatterBlock(removed)!;
+	return remaining.prefix + remaining.frontmatter + '\n' + fieldName + ': ' + JSON.stringify(String(value)) + remaining.suffix + remaining.rest;
 }
 
 function findYamlListBlock(lines: string[], key: string): { start: number; end: number } | null {
@@ -401,7 +375,7 @@ export function upsertYamlListField(content: string, field: string, values: stri
 		return content;
 	}
 
-	const newTagLines = [`${field}:`, ...values.map(value => `  - ${value}`)];
+	const newTagLines = [`${field}:`, ...values.map(value => `  - ${formatFrontmatterValue(value)}`)];
 	const updatedFrontmatter = replaceYamlBlock(block.frontmatter.split('\n'), field, newTagLines).join('\n');
 	return block.prefix + updatedFrontmatter + block.suffix + block.rest;
 }

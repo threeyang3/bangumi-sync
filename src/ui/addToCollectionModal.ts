@@ -58,6 +58,7 @@ export class AddToCollectionModal extends Modal {
 	private localPropertyValues: Record<string, string | boolean | string[]> = {};
 	private syncToCloud: boolean = true;
 	private createLocal: boolean = true;
+	private submitting = false;
 	private customFields: TemplatePropertyDefinition[] = [];
 
 	// UI 元素
@@ -94,6 +95,7 @@ export class AddToCollectionModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.modalEl.addClass('bangumi-modal');
 		const { contentEl } = this;
 		contentEl.addClass('bangumi-add-collection-modal');
 
@@ -242,13 +244,16 @@ export class AddToCollectionModal extends Modal {
 	 * 确认添加
 	 */
 	private async confirm(): Promise<void> {
+		if (this.submitting) return;
+		this.submitting = true;
+		this.contentEl.querySelectorAll('button').forEach(button => { button.disabled = true; });
 		const input: AddToCollectionInput = {
 			subjectId: this.subject.id,
 			subjectName: this.subject.name_cn || this.subject.name,
 			type: this.collectionType,
 			rate: this.rate,
 			comment: this.comment,
-			tags: this.tags,
+			tags: Array.from(new Set([...this.tags, ...(this.tagInputEl.value.trim() ? [this.tagInputEl.value.trim()] : [])])),
 			private: this.isPrivate,
 			localPropertyValues: { ...this.localPropertyValues },
 			syncToCloud: this.syncToCloud,
@@ -278,6 +283,9 @@ export class AddToCollectionModal extends Modal {
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			new Notice(`${tn('addToCollection', 'addError')}: ${errorMsg}`);
+		} finally {
+			this.submitting = false;
+			this.contentEl.querySelectorAll('button').forEach(button => { button.disabled = false; });
 		}
 	}
 
