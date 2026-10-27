@@ -11,7 +11,8 @@ import { SyncManager } from '../sync/syncManager';
 import { AddToCollectionModal, AddToCollectionInput } from './addToCollectionModal';
 import { getLocale, tn, tnFormat } from '../i18n';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
-import { generateFilePath, extractPathVars } from '../../common/template/pathTemplate';
+import { generatePreferredFilePath } from '../../common/template/pathTemplate';
+import { classifySubject, migrateTemplateSettings, resolveTemplateRule } from '../../common/template/templateSystem';
 
 /**
  * 条目类型选项
@@ -316,11 +317,11 @@ export class SearchModal extends Modal {
 	 */
 	private checkLocalSyncStatus(subject: Subject): string | null {
 		try {
-			const typeLabel = extractPathVars(subject).type;
-			const template = this.settings.pathTemplateByType?.[typeLabel] || this.settings.syncPathTemplate;
-			const filePath = generateFilePath(
+			const template = resolveTemplateRule(migrateTemplateSettings(this.settings), classifySubject(subject).nodeId).pathTemplate;
+			const filePath = generatePreferredFilePath(
 				template,
-				subject
+				subject,
+				this.settings.pathNamingStrategy
 			);
 
 			const file = this.app.vault.getAbstractFileByPath(filePath);

@@ -141,3 +141,15 @@ export function generateFilePath(
 	const vars = extractPathVars(subject, collection);
 	return renderPathTemplate(template, vars);
 }
+
+/** Shared production/preview naming; collision allocation remains with SubjectPathResolver. */
+export function generatePreferredFilePath(template: string, subject: Subject, strategy: string = 'simple-until-collision', collection?: UserCollection): string {
+	const path = generateFilePath(template, subject, collection);
+	let suffix = '';
+	if (strategy === 'always-id') suffix = '[bgm-' + subject.id + ']';
+	if (strategy === 'always-year') {
+		const year = extractPathVars(subject, collection).year;
+		suffix = year ? '（' + year + '）' : '[bgm-' + subject.id + ']';
+	}
+	return suffix ? path.slice(0, -3) + suffix + '.md' : path;
+}

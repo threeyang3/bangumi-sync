@@ -10,6 +10,7 @@ import { parseInfoByType, parseDate, cleanSummary } from '../../common/parser/in
 import { getCharacterTemplateVars, CharacterInfo } from '../../common/parser/characterParser';
 import { getDefaultTemplate, getTypeLabel } from '../../common/template/defaultTemplates';
 import { getTemplateFallbackLookupKey, resolveTemplateTarget } from '../../common/template/templateRegistry';
+import { classifySubject, templateLookupKey, templateErrorKey } from '../../common/template/templateSystem';
 import { getTypeSuffixForName } from '../../common/template/pathTemplate';
 import { parseEpisodes, createUserStatusMap } from '../../common/parser/episodeParser';
 import { CoverLinkType } from '../settings/settings';
@@ -124,15 +125,16 @@ export function extractTemplateVars(
 	let episodesContent = '';
 	let volumesContent = '';
 	if (episodes && episodes.length > 0) {
+		const classification = classifySubject(subject, parsedInfo.category);
 		const statusMap = userEpisodeStatus ? createUserStatusMap(userEpisodeStatus) : undefined;
 		// 根据条目类型决定显示标题
 		if (subject.type === SubjectType.Anime) {  // 动画
 			episodesContent = parseEpisodes(episodes, statusMap);
 		} else if (subject.type === SubjectType.Real) {  // 三次元
 			episodesContent = parseEpisodes(episodes, statusMap);
-		} else if (parsedInfo.category?.includes('小说')) {
+		} else if (subject.type === SubjectType.Book && classification.templateGroup === 'novel') {
 			volumesContent = parseEpisodes(episodes, statusMap);
-		} else if (parsedInfo.category?.includes('漫画')) {
+		} else if (subject.type === SubjectType.Book && classification.templateGroup === 'comic') {
 			episodesContent = parseEpisodes(episodes, statusMap);
 		}
 	}
@@ -368,16 +370,21 @@ export function resolveTemplateForSubject(
 	const category = resolvedCategory || parseInfoByType(subject.infobox, subject.type, subject.platform).category || '';
 
 	if (customTemplates) {
-		// 直接按 category 查找
-		const template = customTemplates[category];
+		const classification = classifySubject(subject, category);
+		const error = customTemplates[templateErrorKey(classification.nodeId)];
+		if (error) throw new Error(error);
+		const resolved = customTemplates[templateLookupKey(classification.nodeId)];
+		if (resolved !== undefined) return resolved;
+		const target = resolveTemplateTarget(subject.type, category, subject.platform);
+		const template = target.categoryOption ? customTemplates[target.categoryOption.category] : undefined;
 		if (template) return template;
 
-		const { templateKey } = resolveTemplateTarget(subject.type, category);
+		const { templateKey } = resolveTemplateTarget(subject.type, category, subject.platform);
 		const fallbackTemplate = customTemplates[getTemplateFallbackLookupKey(templateKey)];
 		if (fallbackTemplate) return fallbackTemplate;
 	}
 
-	return getDefaultTemplate(subject.type, category);
+	return getDefaultTemplate(subject.type, resolveTemplateTarget(subject.type, category, subject.platform).categoryOption?.category ?? category);
 }
 
 export function applyNamedPropertyValuesToContent(

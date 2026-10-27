@@ -48,6 +48,12 @@ path transaction + recovery journal
 
 模板注册、自定义属性分类、路径规范化、状态同步 diff、短评解析、导入合并等应尽量保持为纯函数，以便 Vitest 覆盖并避免 UI 分支漂移。
 
+`common/template/templateSystem.ts` 是内容／路径分类树、V2 配置迁移和继承解析的唯一入口。旧字段保留为迁移备份；`main.ts` 只负责提供文件读取器并将编译结果接入稳定 Manager。运行时沿用不可变的内容和路径 map，但 key 为规范节点 ID（内容 key 带命名空间），不再用原始作品 category 决定继承。
+
+`TemplateSettingsView` 提供作品内容、输出路径、共享笔记和模板管理四个界面，共用同一节点定义。`templateFiles.ts` 管理只创建新目录的导出和 manifest 校验；它使用统一 write gate，不会修改或删除既有条目文档。部分导出失败保留可见文件，不自动清理。真实条目写入继续通过 `SubjectDocumentService` 和原事务／journal。
+
+引用文件事件由插件注册并随卸载清理；修改立即使预览 context 失效，在无活动事务时串行编译并更新 Manager。读取失败保留为节点错误，设置界面仍可修正引用。模板示例预览调用生产正文渲染和路径命名函数，不执行下载、条目写入或路径迁移。
+
 `src/sync/recoveryFactIndex.ts` 负责 journal 事实的内存合并索引和 pending created-path 匹配，复用统一路径规范化；由 manager 管理索引生命周期，不执行 Vault I/O 或决定 recovery actions。
 
 ### Infrastructure
