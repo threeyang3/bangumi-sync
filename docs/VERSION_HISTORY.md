@@ -2,6 +2,12 @@
 
 [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases) 是已发布版本的最终对外事实；`docs/history/release-notes/{version}.md` 是 Release notes 源文件。本文只提供简洁索引，不复制完整变更日志。
 
+## 6.15.0
+
+重点：统一模板分类树、内容／路径独立继承、保留草稿与旧配置备份、模板文件刷新、只读预览及安全导入导出。556 项测试与生产隔离 Sandbox 验证通过。
+
+[GitHub Release](https://github.com/threeyang3/bangumi-sync/releases/tag/6.15.0) · [Release notes source](history/release-notes/6.15.0.md) · [发布验证](history/releases/6.15.0-validation.md)
+
 ## 6.14.1
 
 重点：修复 YAML 章节状态漏读导致的丢失／误清零，普通状态同步增加选中条目的写前云端复核。537 项测试、生产隔离环境及专用账号评分冒烟通过。
