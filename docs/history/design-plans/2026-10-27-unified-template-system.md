@@ -40,4 +40,4 @@ Local drivers and screenshots: `E:\cctry\bangumi-template-system-20261027`. The 
 
 ## Preview boundary
 
-The template preview shares production rendering and preferred-path naming. It renders an isolated new document, not a complete synchronization transaction: collection state, protected local content, cover download outcomes and multi-subject collision allocation must still be checked in the synchronization flow. The UI and user guide explicitly describe this boundary. No automatic note rewrite, path migration, version bump, tag or release is part of this change.
+The template preview shares production rendering and preferred-path naming. It renders an isolated new document, not a complete synchronization transaction: collection state, protected local content, cover download outcomes and multi-subject collision allocation must still be checked in the synchronization flow. The UI and user guide explicitly describe this boundary. No automatic note rewrite or path migration occurs. Subsequent release preparation and results are recorded in [6.15.0 validation](../releases/6.15.0-validation.md).

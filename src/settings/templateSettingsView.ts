@@ -1,4 +1,4 @@
-import { App, Component, FuzzySuggestModal, MarkdownRenderer, Modal, Notice, Plugin, Setting, TFile, TextAreaComponent } from 'obsidian';
+import { App, Component, FuzzySuggestModal, MarkdownRenderer, Modal, Notice, Plugin, Setting, TFile, TextAreaComponent, normalizePath } from 'obsidian';
 import { ContentRule, TemplateSettingsV2, TEMPLATE_NODES, templateChain, templateNode, resolveTemplateRule, resolveNodeContent, migrateTemplateSettings, classifySubject, compileTemplateSettings } from '../../common/template/templateSystem';
 import { Subject, SubjectType } from '../../common/api/types';
 import { BangumiPluginSettings } from './settings';
@@ -175,7 +175,7 @@ class TemplatePreviewModal extends Modal {
 			.addButton(button => button.setButtonText(label('重新预览', 'Refresh preview')).onClick(() => this.render(output, subjectId)));
 		const invalidate = (path: string, oldPath?: string) => {
 			const references = Object.values(migrateTemplateSettings(this.settings()).rules).flatMap(rule => rule.content?.mode === 'file' && rule.content.filePath ? [rule.content.filePath] : []);
-			if (!references.some(reference => [path, oldPath].some(changed => changed && (reference === changed || reference.startsWith(`${changed}/`))))) return;
+			if (!references.some(reference => [path, oldPath].some(changed => changed && (normalizePath(reference) === normalizePath(changed) || normalizePath(reference).startsWith(`${normalizePath(changed)}/`))))) return;
 			this.generation++; output.empty(); output.createEl('p', { text: label('模板文件已变更，请重新预览。', 'Template files changed. Refresh the preview.') });
 		};
 		this.lifecycle.registerEvent(this.app.vault.on('modify', file => invalidate(file.path)));

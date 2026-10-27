@@ -48,6 +48,8 @@ describe('template export and import', () => {
 		const vault = new InMemoryVault();
 		expect(() => parseTemplateBundle('{"format":"other"}')).toThrow('Invalid template bundle');
 		await expect(exportTemplateBundle(vault.app, migrateTemplateSettings(DEFAULT_SETTINGS), '../notes')).rejects.toThrow('vault-relative');
+		await expect(exportTemplateBundle(vault.app, migrateTemplateSettings(DEFAULT_SETTINGS), '  /notes  ')).rejects.toThrow('vault-relative');
+		await expect(exportTemplateBundle(vault.app, migrateTemplateSettings(DEFAULT_SETTINGS), '  C:\\notes  ')).rejects.toThrow('vault-relative');
 		expect(vault.files.size).toBe(0);
 	});
 });

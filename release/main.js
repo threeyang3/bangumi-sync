@@ -3443,6 +3443,7 @@ async function exportTemplateBundle(app, settings, parent) {
   var _a, _b;
   validateTemplateSettings(settings);
   settings = JSON.parse(JSON.stringify(settings));
+  parent = parent.trim();
   if (/^[\/\\]|^[a-z]:|(?:^|[\/\\])\.{1,2}(?:[\/\\]|$)/i.test(parent)) throw new Error("Use a vault-relative folder");
   const base = (0, import_obsidian2.normalizePath)(parent.trim()).replace(/\/$/, "");
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
@@ -4957,7 +4958,7 @@ var TemplatePreviewModal = class extends import_obsidian4.Modal {
         var _a;
         return ((_a = rule.content) == null ? void 0 : _a.mode) === "file" && rule.content.filePath ? [rule.content.filePath] : [];
       });
-      if (!references.some((reference) => [path, oldPath].some((changed) => changed && (reference === changed || reference.startsWith(`${changed}/`))))) return;
+      if (!references.some((reference) => [path, oldPath].some((changed) => changed && ((0, import_obsidian4.normalizePath)(reference) === (0, import_obsidian4.normalizePath)(changed) || (0, import_obsidian4.normalizePath)(reference).startsWith(`${(0, import_obsidian4.normalizePath)(changed)}/`))))) return;
       this.generation++;
       output.empty();
       output.createEl("p", { text: label("\u6A21\u677F\u6587\u4EF6\u5DF2\u53D8\u66F4\uFF0C\u8BF7\u91CD\u65B0\u9884\u89C8\u3002", "Template files changed. Refresh the preview.") });

@@ -12,6 +12,7 @@ export async function readTemplateFile(app: App, path: string): Promise<string> 
 export async function exportTemplateBundle(app: App, settings: TemplateSettingsV2, parent: string): Promise<string> {
 	validateTemplateSettings(settings);
 	settings = JSON.parse(JSON.stringify(settings)) as TemplateSettingsV2;
+	parent = parent.trim();
 	if (/^[\/\\]|^[a-z]:|(?:^|[\/\\])\.{1,2}(?:[\/\\]|$)/i.test(parent)) throw new Error('Use a vault-relative folder');
 	const base = normalizePath(parent.trim()).replace(/\/$/, '');
 	const stamp = new Date().toISOString().replace(/[:.]/g, '-');
