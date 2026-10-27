@@ -46,6 +46,14 @@ async function sync(template: string, value: Subject, links = false, failStatus 
 }
 
 describe('real client and manager demand loading', () => {
+	it('loads and renders comic chapters when raw metadata contains novel and comic', async () => {
+		const value = subject(SubjectType.Book, '漫画');
+		value.infobox!.push({ key: '类型', value: '小说漫画' });
+		const { result, output, urls } = await sync('---\nid: {{id}}\n---\n{{episodes}}', value);
+		expect(result.completion).toBe('success');
+		expect(urls).toContain('/v0/episodes');
+		expect(output?.[1]).toContain('ep-box watched');
+	});
 	it.each([false, true])('restores shared background concurrency after a single-worker sync, failed=%s', async failed => {
 		const value = subject(SubjectType.Music, '');
 		const { manager } = await sync('---\nid: {{id}}\n---\n{{summary}}', value);

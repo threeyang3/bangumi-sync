@@ -11,7 +11,7 @@ import { getSyncProgressPresentation, SyncProgressThrottle } from './src/sync/sy
  * 4. 控制面板：收藏管理、批量编辑、撤销支持
  */
 
-import { Plugin, Notice, TFile } from 'obsidian';
+import { Plugin, Notice, normalizePath } from 'obsidian';
 import { BangumiPluginSettings, DEFAULT_SETTINGS, normalizeSyncConcurrency, PanelFilters } from './src/settings/settings';
 import { BangumiSettingTab } from './src/settings/settingsTab';
 import { persistStableManagerSettings, SettingsPersistenceCoordinator } from './src/settings/settingsLifecycle';
@@ -26,15 +26,8 @@ import { ControlPanel } from './src/panel/controlPanel';
 import { determineCoverDownloadNotice, SyncProgress, createCancellationSignal } from './src/sync/syncStatus';
 import { UserCollection } from './common/api/types';
 import { tn, tnFormat } from './src/i18n';
-import {
-	getBuiltInTemplateByKey,
-} from './common/template/defaultTemplates';
-import {
-	getTemplateFallbackLookupKey,
-	TEMPLATE_CATEGORY_OPTIONS,
-	TEMPLATE_CATEGORY_OPTIONS_BY_KEY,
-	TemplateKey,
-} from './common/template/templateRegistry';
+import { compileTemplateSettings, migrateTemplateSettings } from './common/template/templateSystem';
+import { readTemplateFile } from './src/template/templateFiles';
 import { UserDataExportModal, UserDataImportModal, ImportResultModal } from './src/userData';
 import { EpisodeContextMenu } from './src/episode/episodeContextMenu';
 import { EpisodeStatusManager } from './src/episode/episodeStatusManager';
@@ -57,11 +50,6 @@ interface CachedData {
 	timestamp: number;
 }
 
-/**
- * 模板集合类型 — 按 category 键索引
- */
-type TemplatesMap = Record<string, string>;
-
 export default class BangumiPlugin extends Plugin {
 	settings!: BangumiPluginSettings;
 	syncManager: SyncManager | null = null;
@@ -75,6 +63,9 @@ export default class BangumiPlugin extends Plugin {
 	private appliedSyncConfig: SyncManagerConfig | null = null;
 	private lastSavedSettings: BangumiPluginSettings | null = null;
 	private runtimePreviousRecoveryToken: string | undefined;
+	private templateRefreshRevision = 0;
+	private templateRefreshPending = false;
+	private templateRefreshRunning = false;
 	private readonly settingsPersistence = new SettingsPersistenceCoordinator();
 
 	// 单集功能
@@ -93,6 +84,7 @@ export default class BangumiPlugin extends Plugin {
 
 		// 初始化同步管理器
 		await this.initOrUpdateSyncManager();
+		this.registerTemplateFileRefresh();
 
 		// 状态栏指示器（默认隐藏）
 		this.syncStatusBarEl = this.addStatusBarItem();
@@ -331,38 +323,11 @@ export default class BangumiPlugin extends Plugin {
 		this.settings.syncConcurrency = normalizeSyncConcurrency(this.settings.syncConcurrency);
 		this.settings.diagnosticLogging = this.settings.diagnosticLogging === true;
 
-		// 迁移：如果路径模板使用 {{name_cn}} 而不是 {{name_cn_with_type}}，自动更新
-		if (this.settings.syncPathTemplate &&
-			this.settings.syncPathTemplate.includes('{{name_cn}}') &&
-			!this.settings.syncPathTemplate.includes('{{name_cn_with_type}}')) {
-			this.settings.syncPathTemplate = this.settings.syncPathTemplate.replace(
-				/{{name_cn}}/g,
-				'{{name_cn_with_type}}'
-			);
+		if (!this.settings.templateSettings) {
+			this.settings.templateSettings = migrateTemplateSettings(this.settings);
 			await this.saveSettings();
 		}
 
-		if (this.settings.notePathTemplate && !this.settings.notePathTemplate.endsWith('.md')) {
-			const normalized = this.settings.notePathTemplate.replace(/\/+$/, '');
-			this.settings.notePathTemplate = `${normalized}/{{name_cn}}.md`;
-			await this.saveSettings();
-		}
-
-		if (this.settings.noteTemplateContent.includes('\nid:\n{{id_yaml}}')) {
-			this.settings.noteTemplateContent = this.settings.noteTemplateContent.replace(
-				/\nid:\n\{\{id_yaml\}\}/,
-				'\n笔记ID:\n{{id_yaml}}'
-			);
-			await this.saveSettings();
-		}
-
-		if (this.settings.noteTemplateContent.includes('\n笔记ID: {{id_yaml}}')) {
-			this.settings.noteTemplateContent = this.settings.noteTemplateContent.replace(
-				/\n笔记ID: \{\{id_yaml\}\}/,
-				'\n笔记ID:\n{{id_yaml}}'
-			);
-			await this.saveSettings();
-		}
 	}
 
 	/**
@@ -378,20 +343,21 @@ export default class BangumiPlugin extends Plugin {
 	 * 初始化同步管理器
 	 */
 	private async buildSyncManagerConfig(settings: BangumiPluginSettings = this.settings): Promise<SyncManagerConfig> {
-		const templates = await this.getTemplates(settings);
+		const system = migrateTemplateSettings(settings);
+		const compiled = await compileTemplateSettings(system, path => readTemplateFile(this.app, path));
 		return cloneSyncManagerConfig({
 			pluginVersion: this.manifest.version,
 			accessToken: settings.accessToken,
-			pathTemplate: settings.syncPathTemplate,
-			pathTemplateByType: settings.pathTemplateByType,
+			pathTemplate: compiled.paths.default,
+			pathTemplateByType: compiled.paths,
 			imagePathTemplate: settings.imagePathTemplate,
-			notePathTemplate: settings.notePathTemplate,
+			notePathTemplate: system.sharedNote.path,
 			downloadImages: settings.downloadImages,
 			imageQuality: settings.imageQuality,
 			imageUpdateExisting: settings.imageUpdateExisting,
 			scanFolderPath: settings.scanFolderPath,
 			coverLinkType: settings.coverLinkType,
-			customTemplates: templates,
+			customTemplates: compiled.customTemplates,
 			enableRelatedLinks: settings.enableRelatedLinks,
 			dataProtection: settings.dataProtection,
 			subjectPathStates: settings.subjectPathStates,
@@ -402,6 +368,44 @@ export default class BangumiPlugin extends Plugin {
 				await this.saveSettings();
 			},
 		});
+	}
+
+	private registerTemplateFileRefresh(): void {
+		const changed = (path: string, oldPath?: string) => {
+			const system = this.settings.templateSettings;
+			if (!system || !Object.values(system.rules).some(rule => rule.content?.mode === 'file' &&
+				[path, oldPath].some(changedPath => changedPath !== undefined && (normalizePath(rule.content!.filePath ?? '') === normalizePath(changedPath) || normalizePath(rule.content!.filePath ?? '').startsWith(normalizePath(changedPath) + '/'))))) return;
+			this.templateRefreshRevision++;
+			this.templateRefreshPending = true;
+			this.syncManager?.invalidateTemplateSources();
+			this.previewDetails?.dispose();
+			this.previewDetails = null;
+			new Notice('模板文件已变更，请重新预览 / template files changed; refresh the preview.');
+			void this.refreshTemplateFiles();
+		};
+		this.registerEvent(this.app.vault.on('modify', file => changed(file.path)));
+		this.registerEvent(this.app.vault.on('create', file => changed(file.path)));
+		this.registerEvent(this.app.vault.on('delete', file => changed(file.path)));
+		this.registerEvent(this.app.vault.on('rename', (file, oldPath) => changed(file.path, oldPath)));
+		this.registerInterval(activeWindow.setInterval(() => { if (this.templateRefreshPending) void this.refreshTemplateFiles(); }, 1000));
+	}
+
+	private async refreshTemplateFiles(): Promise<void> {
+		if (!this.templateRefreshPending || this.templateRefreshRunning || !this.syncManager || this.syncManager.hasActiveTransactionState()) return;
+		this.templateRefreshRunning = true;
+		const revision = this.templateRefreshRevision;
+		try {
+			await this.settingsPersistence.enqueue(async () => {
+				if (!this.syncManager || this.syncManager.hasActiveTransactionState()) return;
+				const config = await this.buildSyncManagerConfig();
+				if (!this.syncManager || revision !== this.templateRefreshRevision || this.syncManager.hasActiveTransactionState()) return;
+				this.syncManager.updateConfig(config, this.changedSyncConfigFields(this.appliedSyncConfig, config));
+				this.appliedSyncConfig = cloneSyncManagerConfig(config);
+				this.syncManager.acknowledgeTemplateSources();
+				this.templateRefreshPending = false;
+			});
+		} catch { /* Keep generation blocked until a consistent snapshot can be loaded. */ }
+		finally { this.templateRefreshRunning = false; }
 	}
 
 	private cloneSettings(settings: BangumiPluginSettings): BangumiPluginSettings {
@@ -425,7 +429,10 @@ export default class BangumiPlugin extends Plugin {
 
 	private refreshDependentServices(manager: SyncManager, settings: BangumiPluginSettings = this.settings): void {
 		manager.client.setRequestConcurrency(settings.syncConcurrency);
-		this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, this.cloneSettings(settings));
+		const templates = migrateTemplateSettings(settings);
+		this.subjectNoteManager = new SubjectNoteManager(this.app, manager.client, {
+			...this.cloneSettings(settings), notePathTemplate: templates.sharedNote.path, noteTemplateContent: templates.sharedNote.content,
+		});
 	}
 
 	private applySettingsChanges(patch: SettingsPatch): Promise<{ applied: boolean; settings: BangumiPluginSettings }> {
@@ -551,86 +558,6 @@ export default class BangumiPlugin extends Plugin {
 		}
 	}
 
-	/**
-	 * 获取各类型模板
-	 */
-	private async getTemplates(settings: BangumiPluginSettings = this.settings): Promise<TemplatesMap> {
-		const templates: TemplatesMap = {};
-		const templateKeys: TemplateKey[] = [
-			'animeTemplateConfig',
-			'novelTemplateConfig',
-			'comicTemplateConfig',
-			'gameTemplateConfig',
-			'albumTemplateConfig',
-			'musicTemplateConfig',
-			'realTemplateConfig',
-		];
-
-		for (const templateKey of templateKeys) {
-			templates[getTemplateFallbackLookupKey(templateKey)] = await this.resolveTemplate(templateKey, settings);
-		}
-
-		for (const categoryOption of TEMPLATE_CATEGORY_OPTIONS) {
-			templates[categoryOption.category] = await this.resolveTemplateForCategory(categoryOption.key, settings);
-		}
-
-		return templates;
-	}
-
-	/**
-	 * 解析单个模板配置
-	 */
-	private async resolveTemplate(configKey: TemplateKey, settings: BangumiPluginSettings = this.settings): Promise<string> {
-		return this.resolveTemplateFromConfig(settings[configKey], configKey);
-	}
-
-	private async resolveTemplateForCategory(categoryKey: string, settings: BangumiPluginSettings = this.settings): Promise<string> {
-		const categoryOption = TEMPLATE_CATEGORY_OPTIONS_BY_KEY[categoryKey];
-		if (!categoryOption) {
-			return '';
-		}
-
-		const categoryConfig = settings.templateConfigByCategory?.[categoryKey];
-		if (categoryConfig) {
-			return this.resolveTemplateFromConfig(categoryConfig, categoryOption.templateKey);
-		}
-
-		return this.resolveTemplate(categoryOption.templateKey, settings);
-	}
-
-	private async resolveTemplateFromConfig(
-		config: BangumiPluginSettings[TemplateKey],
-		defaultTemplateKey: TemplateKey
-	): Promise<string> {
-
-		switch (config.source) {
-			case 'standard':
-				return getBuiltInTemplateByKey(defaultTemplateKey, false);
-
-			case 'author':
-				return getBuiltInTemplateByKey(defaultTemplateKey, true);
-
-			case 'file':
-				if (config.filePath) {
-					try {
-						const file = this.app.vault.getAbstractFileByPath(config.filePath);
-						if (file instanceof TFile) {
-							return await this.app.vault.read(file);
-						}
-					} catch (error) {
-						console.error(`[Bangumi Sync] 读取模板文件失败: ${config.filePath}`, error);
-						new Notice(tnFormat('notices', 'templateReadFailed', { path: config.filePath }));
-					}
-				}
-				return getBuiltInTemplateByKey(defaultTemplateKey, true);
-
-			case 'custom':
-				return config.customContent || getBuiltInTemplateByKey(defaultTemplateKey, true);
-
-			default:
-				return getBuiltInTemplateByKey(defaultTemplateKey, true);
-		}
-	}
 
 	/**
 	 * 打开导出用户数据弹窗

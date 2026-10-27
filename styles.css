@@ -3649,3 +3649,57 @@
 		width: 100% !important;
 	}
 }
+/* Shared classification workbench: native theme, compact navigation, explicit provenance. */
+.bangumi-settings-page .bangumi-template-workbench {
+	display: grid;
+	grid-template-columns: minmax(160px, 1fr) minmax(0, 3fr);
+	gap: var(--size-4-4);
+	margin-block: var(--size-4-4);
+}
+.bangumi-settings-page .bangumi-template-nav {
+	display: flex;
+	flex-direction: column;
+	max-height: 65vh;
+	overflow-y: auto;
+	border-right: var(--border-width) solid var(--background-modifier-border);
+	padding-right: var(--size-4-2);
+}
+.bangumi-settings-page .bangumi-template-nav button {
+	min-height: 44px;
+	height: auto;
+	text-align: start;
+	white-space: normal;
+	box-shadow: none;
+	background: transparent;
+	flex-shrink: 0;
+	justify-content: start;
+}
+.bangumi-settings-page .bangumi-template-nav button[aria-pressed="true"] {
+	background: var(--background-modifier-active-hover);
+	color: var(--text-accent);
+	font-weight: var(--font-semibold);
+}
+.bangumi-settings-page .bangumi-template-nav button:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
+}
+.bangumi-settings-page .bangumi-template-depth-2 { padding-inline-start: var(--size-4-4); }
+.bangumi-settings-page .bangumi-template-depth-3 { padding-inline-start: var(--size-4-6); }
+.bangumi-settings-page .bangumi-template-detail { min-width: 0; }
+.bangumi-settings-page .bangumi-template-breadcrumb { color: var(--text-muted); font-size: var(--font-ui-small); }
+.bangumi-settings-page .bangumi-template-source {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	border-inline-start: 3px solid var(--interactive-accent);
+	padding: var(--size-4-3);
+	background: var(--background-secondary);
+}
+.bangumi-template-preview-modal { width: min(900px, 94vw); }
+.bangumi-template-preview-modal pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.bangumi-template-preview-modal .markdown-rendered { overflow-x: auto; }
+.bangumi-template-preview-modal .setting-item { flex-wrap: wrap; gap: var(--size-4-2); }
+@media (max-width: 600px) {
+	.bangumi-settings-page .bangumi-template-workbench { grid-template-columns: minmax(0, 1fr); }
+	.bangumi-settings-page .bangumi-template-nav { max-height: 200px; border-right: none; border-bottom: var(--border-width) solid var(--background-modifier-border); }
+	.bangumi-settings-page .bangumi-template-detail .setting-item { flex-wrap: wrap; gap: var(--size-4-2); }
+}

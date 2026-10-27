@@ -2,6 +2,7 @@
  * 设置数据结构
  */
 
+import type { TemplateSettingsV2 } from '../../common/template/templateSystem';
 import { SubjectType, CollectionType } from '../../common/api/types';
 import { ImageQuality } from '../../common/file/imageHandler';
 import type { TemplateKey } from '../../common/template/templateRegistry';
@@ -74,6 +75,7 @@ export interface BangumiPluginSettings {
 	scanFolderPath: string;
 
 	// 模板配置
+	templateSettings?: TemplateSettingsV2;
 	animeTemplateConfig: TemplateConfig;
 	novelTemplateConfig: TemplateConfig;
 	comicTemplateConfig: TemplateConfig;

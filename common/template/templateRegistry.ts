@@ -75,11 +75,26 @@ export function getTemplateKeyFallbackForSubjectType(subjectType: SubjectType): 
 	}
 }
 
-export function resolveTemplateTarget(subjectType: SubjectType, category?: string): {
+export function resolveTemplateTarget(subjectType: SubjectType, category?: string, platform?: string): {
 	categoryOption?: TemplateCategoryOption;
 	templateKey: TemplateKey;
 } {
-	const categoryOption = findTemplateCategoryOption(category);
+	const allowed = (option: TemplateCategoryOption | undefined) => option && (
+		subjectType === SubjectType.Book ? ['novelTemplateConfig', 'comicTemplateConfig', 'albumTemplateConfig'].includes(option.templateKey)
+			: option.templateKey === getTemplateKeyFallbackForSubjectType(subjectType));
+	let categoryOption = findTemplateCategoryOption(category);
+	if (!allowed(categoryOption)) categoryOption = undefined;
+	const bookCategory = (value?: string): TemplateCategoryOption | undefined => {
+		if (!value) return undefined;
+		const category = ['轻小说', '小说', '漫画', '画集', '画本', '画册', '绘本', '公式书', '写真'].find(name => value.includes(name));
+		return findTemplateCategoryOption(category);
+	};
+	const platformOption = findTemplateCategoryOption(platform) ?? (subjectType === SubjectType.Book ? bookCategory(platform) : undefined);
+	if (allowed(platformOption) && (!categoryOption || (subjectType === SubjectType.Book &&
+		(categoryOption.templateKey !== platformOption!.templateKey || category === '小说')))) categoryOption = platformOption;
+	if (!categoryOption && subjectType === SubjectType.Book) {
+		categoryOption = bookCategory(category);
+	}
 	if (categoryOption) {
 		return { categoryOption, templateKey: categoryOption.templateKey };
 	}

@@ -1,3 +1,4 @@
+import { classifySubject } from '../../common/template/templateSystem';
 import { assertWriteLeaseAvailable, hasActiveWriteLease, withWriteOperation, WriteOperationLease } from './writeOperationGate';
 import { debugLog, reportSyncSummary } from '../../common/logging';
 import type { SubjectDetailSession } from '../api/subjectDetailSession';
@@ -22,7 +23,7 @@ import { IncrementalSync } from './incrementalSync';
 import { resolveScanRoot } from './scanScope';
 import { determineSyncCompletion, SyncOptions, SyncResult, SyncProgress, SyncPhase, SyncCancellationSignal, SyncResultWithRollback, SyncWarning } from './syncStatus';
 import { parseCharacters } from '../../common/parser/characterParser';
-import { generateFilePath, extractPathVars } from '../../common/template/pathTemplate';
+import { generatePreferredFilePath, extractPathVars } from '../../common/template/pathTemplate';
 import { applyNamedPropertyValuesToContent, CustomTemplates, generateContentByType } from '../template/contentTemplate';
 import { getSubjectDataRequirements } from '../template/subjectDataRequirements';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
@@ -516,6 +517,13 @@ export class SyncManager {
 		return this.resolvePendingBatch('commit');
 	}
 
+	private readonly pathPreviewContexts = new WeakMap<PathMigrationPreview, () => boolean>();
+	private templateSourceRevision = 0;
+	private templateSourcesDirty = false;
+
+	invalidateTemplateSources(): void { this.templateSourceRevision++; this.templateSourcesDirty = true; }
+	acknowledgeTemplateSources(): void { this.templateSourcesDirty = false; }
+
 	ensureCanStartSync(lease?: WriteOperationLease): void {
 		assertWriteLeaseAvailable(lease);
 		if (this.shuttingDown) throw new ManagerShuttingDownError();
@@ -526,6 +534,7 @@ export class SyncManager {
 			throw new PendingDecisionInProgressError();
 		}
 		if (this.pendingTransaction) throw new PendingSyncTransactionError();
+		if (this.templateSourcesDirty && !lease && this.batchTransactionState !== 'active') throw new Error('模板文件已变更，正在刷新；请重新预览 / Template files changed. Refresh the preview.');
 	}
 
 	hasActiveTransactionState(): boolean {
@@ -1688,6 +1697,7 @@ export class SyncManager {
 
 	async previewPathMigration(options: { includeUnknown?: boolean; includeUserRenamed?: boolean } = {}): Promise<PathMigrationPreview> {
 		this.ensureCanStartSync();
+		const contextIsValid = this.createSyncContextValidator();
 		this.beginVaultOperation();
 		try {
 		await this.incrementalSync.scanLocalFolder(this.getScanRoot());
@@ -1748,7 +1758,9 @@ export class SyncManager {
 				status: normalizePathCollisionKey(record.path) === normalizePathCollisionKey(to) ? 'unchanged' as const : 'rename' as const,
 			};
 		});
-		return { generatedAt: new Date().toISOString(), entries };
+		const preview = { generatedAt: new Date().toISOString(), entries };
+		this.pathPreviewContexts.set(preview, contextIsValid);
+		return preview;
 		} finally {
 			this.endVaultOperation();
 		}
@@ -1770,6 +1782,7 @@ export class SyncManager {
 
 	async applyPathMigration(preview: PathMigrationPreview): Promise<{ renamed: number; failed: number }> {
 		this.ensureCanStartSync();
+		if (this.pathPreviewContexts.get(preview)?.() === false) throw new Error('模板配置已变更，请重新预览路径迁移 / Template settings changed. Refresh path migration preview.');
 		const renames = preview.entries
 			.filter(entry => entry.status === 'rename')
 			.map(entry => ({ subjectId: entry.subjectId, from: entry.from, to: entry.to }));
@@ -2683,6 +2696,8 @@ export class SyncManager {
 	 */
 	private resolvePathTemplate(subject: Subject): string {
 		if (this.config.pathTemplateByType) {
+			const nodePath = this.config.pathTemplateByType[classifySubject(subject).nodeId];
+			if (nodePath) return nodePath;
 			const vars = extractPathVars(subject);
 			const typeTemplate = this.config.pathTemplateByType[vars.type];
 			if (typeTemplate) return typeTemplate;
@@ -2691,16 +2706,7 @@ export class SyncManager {
 	}
 
 	private generatePreferredPath(subject: Subject, collection?: UserCollection): string {
-		const basePath = generateFilePath(this.resolvePathTemplate(subject), subject, collection);
-		const strategy = this.config.pathNamingStrategy ?? 'simple-until-collision';
-		if (strategy === 'always-id') {
-			return this.appendPathSuffix(basePath, `[bgm-${subject.id}]`);
-		}
-		if (strategy === 'always-year') {
-			const year = extractPathVars(subject, collection).year;
-			return this.appendPathSuffix(basePath, year ? `（${year}）` : `[bgm-${subject.id}]`);
-		}
-		return basePath;
+		return generatePreferredFilePath(this.resolvePathTemplate(subject), subject, this.config.pathNamingStrategy, collection);
 	}
 
 	private collisionSuffixMode(): 'year-then-id' | 'id' {
@@ -2941,10 +2947,11 @@ export class SyncManager {
 
 	/** Capture settings/account without exposing credentials to a preview model. */
 	createSyncContextValidator(): () => boolean {
+		const templateRevision = this.templateSourceRevision;
 		const captured = JSON.stringify(cloneSyncManagerConfig(this.config));
 		const client = this.client;
 		const revision = client.subjectDetailRevision;
-		return () => !this.shuttingDown && this.client === client
+		return () => !this.shuttingDown && !this.templateSourcesDirty && this.templateSourceRevision === templateRevision && this.client === client
 			&& client.subjectDetailRevision === revision
 			&& JSON.stringify(cloneSyncManagerConfig(this.config)) === captured;
 	}
