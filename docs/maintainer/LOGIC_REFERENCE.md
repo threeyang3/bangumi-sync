@@ -4,23 +4,13 @@
 
 ## 1. 模板选择逻辑
 
-模板选择入口在 `resolveTemplateForSubject()`。
+`templateSystem.ts` 定义统一节点、迁移、分类和继承解析。`resolveTemplateTarget()` 先以 subject type 限定允许的模板组，再匹配 category／platform；书籍 platform 能纠正原始类型串造成的分组误判。漫画、轻小说等原始分类继续用于显示和路径变量，不被规范节点 ID 覆盖。
 
-判断顺序是：
+`resolveTemplateRule()` 对内容和路径分别沿节点到根查找非 inherit 规则。七组内置预设仍保留，书籍和全局节点的内置预设按目标节点的模板组实例化。`compileTemplateSettings()` 按节点生成不可变配置快照，一次编译内同一文件只读取一次；不使用跨快照文件缓存。
 
-1. 先解析条目的细分类别 `category`
-2. 如果是书籍类型中的小说，优先用 `novel`
-3. 如果是书籍类型中的漫画，优先用 `comic`
-4. 如果是画集 / 画本，优先用 `album`
-5. 否则按 `subject.type` 选择：
-   - `anime`
-   - `game`
-   - `music`
-   - `real`
-   - `book` 默认回落到 `novel`
-6. 如果用户没有配置对应模板，再回退到内置默认模板
+正文、动态属性和 API 数据需求均通过 `resolveTemplateForSubject()` 消费相同的节点结果。Manager 与搜索页按同一分类选择路径；`generatePreferredFilePath()` 共用正式清洗与命名策略，最终碰撞分配仍由原 resolver 完成。扫描范围涵盖全部节点的有效路径。
 
-这意味着“书籍”不是一个最终模板类别，而是会继续细分。
+缺失、不可读或空白模板在快照中成为节点错误。受影响条目的模板解析抛错，不能回退成另一模板。文件事件增加运行时 revision，使已有预览失效；更新受配置门禁约束，活动事务仍持有原快照。配置恢复和 recovery journal 不承担文件模板草稿管理。
 
 ## 2. 本地已同步条目如何识别
 
@@ -438,7 +428,7 @@
 | 角色 | 模板引用 character1–9、characterCV1–9 或 characterPhoto1–9 |
 | 人物 | 动画模板引用 animeMake，且现有 infobox/Copyright 不能提供制作公司 |
 | 关联条目 | enableRelatedLinks 开启；即使模板无 related，也需为已存在条目补反向链接 |
-| 章节及用户章节状态 | 动画/三次元引用 episodes；书籍按实际解析类别，小说引用 volumes_display，漫画引用 episodes；与渲染器的小说优先判断一致 |
+| 章节及用户章节状态 | 动画/三次元引用 episodes；书籍按规范模板分组，小说引用 volumes_display，漫画引用 episodes；与渲染器共用同一分类解析 |
 
 静态收集条件键、所有条件体和默认值语法中的变量，不推断条件值，因此可能保守地请求隐藏分支所需资料。普通 episode 话数和 infobox 字段不依赖章节接口。章节为空时不请求用户状态，状态失败时仍渲染章节；章节失败保持原有降级，必要的角色/人物/关联接口失败仍导致该条目准备失败，不以空数据伪装成功。API 方法 getFullSubjectInfo 未提供需求回调的既有调用者保留原来四类资料获取行为。
 

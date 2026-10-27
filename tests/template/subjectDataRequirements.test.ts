@@ -44,10 +44,10 @@ describe('subject data requirements', () => {
 		const value = subject();
 		expect(getSubjectDataRequirements(value, { TV: '{{id}}', '__template_key__:animeTemplateConfig': '{{episodes}}' }, false).episodes).toBe(false);
 	});
-	it('follows the renderer novel-first rule when book category contains both novel and comic', () => {
+	it('uses the canonical comic group when raw genre contains both novel and comic', () => {
 		const value = subject(SubjectType.Book, '漫画');
 		value.infobox = [{ key: '类型', value: '小说漫画' }];
-		expect(needs('{{episodes}}', value).episodes).toBe(false);
-		expect(needs('{{volumes_display}}', value).episodes).toBe(true);
+		expect(needs('{{episodes}}', value).episodes).toBe(true);
+		expect(needs('{{volumes_display}}', value).episodes).toBe(false);
 	});
 });

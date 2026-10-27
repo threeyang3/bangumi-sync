@@ -9,6 +9,7 @@ export type WriteOperation =
 	| 'batch-edit'
 	| 'user-data-import'
 	| 'user-data-export'
+	| 'template-export'
 	| 'episode-status'
 	| 'episode-comment'
 	| 'subject-note'

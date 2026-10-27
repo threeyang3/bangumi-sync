@@ -1,3 +1,4 @@
+import { classifySubject } from '../../common/template/templateSystem';
 import { Subject, SubjectType } from '../../common/api/types';
 import { parseInfoByType } from '../../common/parser/infoboxParser';
 import { CustomTemplates, resolveTemplateForSubject } from './contentTemplate';
@@ -18,8 +19,9 @@ export function getSubjectDataRequirements(
 	const template = resolveTemplateForSubject(subject, templates);
 	const variables = new Set(Array.from(template.matchAll(/\{\{(?:#if\s+)?(\w+)(?=\||\}\})/g), match => match[1]));
 	const info = parseInfoByType(subject.infobox, subject.type, subject.platform);
-	const bookNovel = subject.type === SubjectType.Book && info.category.includes('小说');
-	const bookComic = subject.type === SubjectType.Book && !bookNovel && info.category.includes('漫画');
+	const classification = classifySubject(subject);
+	const bookNovel = subject.type === SubjectType.Book && classification.templateGroup === 'novel';
+	const bookComic = subject.type === SubjectType.Book && classification.templateGroup === 'comic';
 	return {
 		characters: [...variables].some(name => /^character(?:CV|Photo)?[1-9]$/.test(name)),
 		persons: subject.type === SubjectType.Anime && variables.has('animeMake') && !info.animeMake,
