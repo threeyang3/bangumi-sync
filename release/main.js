@@ -3402,6 +3402,73 @@ async function compileTemplateSettings(settings, readFile) {
   return { customTemplates, paths };
 }
 
+// src/template/templatePreviewSamples.ts
+var profiles = {
+  animeTemplateConfig: { type: 2 /* Anime */, category: "TV", title: "\u661F\u6D77\u5217\u8F66", fields: { \u5BFC\u6F14: "\u793A\u4F8B\u52A8\u753B\u5BFC\u6F14", \u52A8\u753B\u5236\u4F5C: "\u661F\u6D77\u52A8\u753B\u5DE5\u4F5C\u5BA4", \u539F\u4F5C: "\u539F\u521B\u52A8\u753B", \u97F3\u4E50: "\u793A\u4F8B\u4F5C\u66F2\u5BB6", \u8BDD\u6570: "3", \u811A\u672C: "\u793A\u4F8B\u7F16\u5267" } },
+  novelTemplateConfig: { type: 1 /* Book */, category: "\u5C0F\u8BF4", title: "\u98CE\u4E4B\u56FE\u4E66\u9986", fields: { \u4F5C\u8005: "\u793A\u4F8B\u5C0F\u8BF4\u4F5C\u8005", \u63D2\u56FE: "\u793A\u4F8B\u63D2\u753B\u5E08", \u51FA\u7248\u793E: "\u661F\u5149\u6587\u5E93", \u4E66\u7CFB: "\u5E7B\u60F3\u6545\u4E8B\u7CFB\u5217", \u518C\u6570: "3", \u5F00\u59CB: "2026-01-01" } },
+  comicTemplateConfig: { type: 1 /* Book */, category: "\u6F2B\u753B", title: "\u4E91\u7AEF\u753B\u5BA4", fields: { \u4F5C\u8005: "\u793A\u4F8B\u6F2B\u753B\u539F\u4F5C", \u4F5C\u753B: "\u793A\u4F8B\u6F2B\u753B\u5BB6", \u51FA\u7248\u793E: "\u9752\u7A7A\u51FA\u7248\u793E", \u8FDE\u8F7D\u6742\u5FD7: "\u6708\u520A\u793A\u4F8B\u6F2B\u753B", \u518C\u6570: "3", \u8BDD\u6570: "3", \u5F00\u59CB: "2026-01-01" } },
+  albumTemplateConfig: { type: 1 /* Book */, category: "\u753B\u96C6", title: "\u56DB\u5B63\u8272\u5F69\u96C6", fields: { \u4F5C\u8005: "\u793A\u4F8B\u753B\u5E08", \u51FA\u7248\u793E: "\u8272\u5F69\u51FA\u7248\u793E", \u9875\u6570: "128", ISBN: "9780000000002" } },
+  gameTemplateConfig: { type: 4 /* Game */, category: "\u6E38\u620F", title: "\u6D6E\u5C9B\u63A2\u9669", fields: { \u5F00\u53D1: "\u6D6E\u5C9B\u6E38\u620F\u5DE5\u4F5C\u5BA4", \u53D1\u884C: "\u793A\u4F8B\u53D1\u884C\u5546", \u5E73\u53F0: "PC", \u6E38\u73A9\u4EBA\u6570: "1\u4EBA", \u5267\u672C: "\u793A\u4F8B\u6E38\u620F\u7F16\u5267", \u539F\u753B: "\u793A\u4F8B\u539F\u753B\u5E08", \u97F3\u4E50: "\u793A\u4F8B\u6E38\u620F\u97F3\u4E50\u5BB6", \u5236\u4F5C\u4EBA: "\u793A\u4F8B\u5236\u4F5C\u4EBA", \u552E\u4EF7: "68\u5143" } },
+  musicTemplateConfig: { type: 3 /* Music */, category: "\u97F3\u4E50", title: "\u6668\u5149\u65CB\u5F8B", fields: { \u827A\u672F\u5BB6: "\u793A\u4F8B\u97F3\u4E50\u4EBA", \u4F5C\u66F2: "\u793A\u4F8B\u4F5C\u66F2\u5BB6", \u5382\u724C: "\u6668\u5149\u5531\u7247", \u789F\u7247\u6570\u91CF: "1" } },
+  realTemplateConfig: { type: 6 /* Real */, category: "\u7535\u89C6\u5267", title: "\u8857\u89D2\u6545\u4E8B", fields: { \u5BFC\u6F14: "\u793A\u4F8B\u5F71\u89C6\u5BFC\u6F14", \u7F16\u5267: "\u793A\u4F8B\u5F71\u89C6\u7F16\u5267", \u4E3B\u6F14: "\u793A\u4F8B\u6F14\u5458\u7532\u3001\u793A\u4F8B\u6F14\u5458\u4E59", "\u56FD\u5BB6/\u5730\u533A": "\u4E2D\u56FD", \u8BED\u8A00: "\u4E2D\u6587", \u96C6\u6570: "3", \u6BCF\u96C6\u957F: "45\u5206\u949F", \u7535\u89C6\u53F0: "\u793A\u4F8B\u7535\u89C6\u53F0" } }
+};
+function createTemplatePreviewSample(nodeId) {
+  var _a;
+  const node = templateNode(nodeId);
+  const profile = profiles[node.templateKey];
+  const category = (_a = node.category) != null ? _a : profile.category;
+  const title = `${profile.title}\uFF08${category}\u793A\u4F8B\uFF09`;
+  const subject = {
+    id: 9e5 + Object.keys(profiles).indexOf(node.templateKey),
+    type: profile.type,
+    name: `Sample ${node.templateKey.replace("TemplateConfig", "")}`,
+    name_cn: title,
+    summary: `\u8FD9\u662F\u865A\u6784\u7684${category}\u5185\u7F6E\u793A\u4F8B\uFF0C\u7528\u4E8E\u5C55\u793A\u76F8\u5E94\u6A21\u677F\u7684\u6392\u7248\u4E0E\u5B57\u6BB5\uFF0C\u4E0D\u4EE3\u8868\u771F\u5B9E\u4F5C\u54C1\u3002`,
+    date: "2026-01-01",
+    platform: category,
+    images: {},
+    infobox: Object.entries({ ...profile.fields, \u7C7B\u578B: category, ...profile.type === 4 /* Game */ ? { \u6E38\u620F\u7C7B\u578B: category } : {} }).map(([key, value]) => ({ key, value })),
+    rating: { rank: 120, total: 100, score: 8.2, count: {} },
+    collection: { wish: 12, collect: 30, doing: 8, on_hold: 2, dropped: 1 },
+    tags: [],
+    nsfw: false,
+    locked: false,
+    series: false,
+    volumes: profile.type === 1 /* Book */ ? 3 : 0,
+    eps: 3,
+    total_episodes: 3,
+    meta_tags: []
+  };
+  const hasEpisodes = ["animeTemplateConfig", "novelTemplateConfig", "comicTemplateConfig", "realTemplateConfig"].includes(node.templateKey);
+  const episodes = hasEpisodes ? ["\u542F\u7A0B", "\u76F8\u9047", "\u5F52\u9014"].map((name, index) => ({
+    id: subject.id * 10 + index,
+    subject_id: subject.id,
+    type: 0,
+    sort: index + 1,
+    name: `Sample ${index + 1}`,
+    name_cn: `${node.templateKey === "novelTemplateConfig" ? "\u5377" : "\u7B2C"}${index + 1}\uFF1A${name}`,
+    airdate: `2026-01-0${index + 1}`,
+    duration: "24m",
+    desc: "\u865A\u6784\u7AE0\u8282\u793A\u4F8B",
+    comment: 0
+  })) : [];
+  const characters = ["animeTemplateConfig", "novelTemplateConfig", "comicTemplateConfig", "gameTemplateConfig"].includes(node.templateKey) ? [{ name: "\u793A\u4F8B\u4E3B\u89D2\xB7\u5C0F\u5149", role: "\u4E3B\u89D2", cv: profile.type === 2 /* Anime */ || profile.type === 4 /* Game */ ? "\u793A\u4F8B\u914D\u97F3\u6F14\u5458" : "", image: "" }] : [];
+  const collection = {
+    subject_id: subject.id,
+    subject_type: subject.type,
+    type: 3 /* Doing */,
+    rate: 8,
+    comment: `\u8FD9\u662F${category}\u7684\u865A\u6784\u77ED\u8BC4\u793A\u4F8B\u3002`,
+    tags: ["\u5185\u7F6E\u793A\u4F8B", category],
+    ep_status: 1,
+    vol_status: 1,
+    updated_at: "2026-01-02T00:00:00Z",
+    private: false,
+    subject: { ...subject, short_summary: subject.summary, collection_total: 53, score: 8.2, rank: 120 }
+  };
+  return { subject, collection, characters, episodes, userEpisodeStatus: episodes.map((episode, index) => ({ episode, type: index === 0 ? 2 : 0, updated_at: 0 })) };
+}
+
 // src/template/templateFiles.ts
 var import_obsidian2 = require("obsidian");
 
@@ -4825,7 +4892,7 @@ ${resolved.pathTemplate}` });
           draft = value;
         })).addButton((button) => button.setButtonText(label("\u5E94\u7528", "Apply")).onClick(() => this.run(async () => {
           if (!draft.trim()) throw new Error(label("\u8DEF\u5F84\u4E0D\u80FD\u4E3A\u7A7A", "Path cannot be empty"));
-          generatePreferredFilePath(draft, sampleSubject(id), this.getSettings().pathNamingStrategy);
+          generatePreferredFilePath(draft, createTemplatePreviewSample(id).subject, this.getSettings().pathNamingStrategy);
           this.system().rules[id] = { ...this.system().rules[id], path: { mode: "custom", value: draft } };
           await update();
         })));
@@ -4926,14 +4993,6 @@ var TemplateFilePicker = class extends import_obsidian4.FuzzySuggestModal {
     this.choose(file);
   }
 };
-function sampleSubject(id) {
-  var _a, _b;
-  const node = templateNode(id);
-  const root = id.split("/")[0];
-  const type = (_a = { anime: 2 /* Anime */, book: 1 /* Book */, game: 4 /* Game */, music: 3 /* Music */, real: 6 /* Real */ }[root]) != null ? _a : 1 /* Book */;
-  const platform = (_b = node.category) != null ? _b : id.includes("comic") ? "\u6F2B\u753B" : id.includes("album") ? "\u753B\u96C6" : id.includes("novel") ? "\u5C0F\u8BF4" : "";
-  return { id: 12345, type, platform, name: "Example / title", name_cn: "\u793A\u4F8B / \u6807\u9898", summary: "\u6A21\u677F\u6E32\u67D3\u793A\u4F8B / Template rendering example", date: "2026-01-01", images: {}, rating: { rank: 1, total: 1, score: 8, count: {} }, collection: { wish: 0, collect: 0, doing: 0, on_hold: 0, dropped: 0 }, tags: [], nsfw: false, locked: false, series: false, volumes: 1, eps: 1, total_episodes: 1, meta_tags: [] };
-}
 var TemplatePreviewModal = class extends import_obsidian4.Modal {
   constructor(app, settings, nodeId) {
     super(app);
@@ -4949,6 +5008,7 @@ var TemplatePreviewModal = class extends import_obsidian4.Modal {
     this.titleEl.setText(label("\u53EA\u8BFB\u6A21\u677F\u9884\u89C8", "Read-only template preview"));
     let subjectId = "";
     const controls = this.contentEl.createDiv();
+    controls.createEl("p", { text: label("\u7559\u7A7A\u65F6\u4F7F\u7528\u5F53\u524D\u5206\u7C7B\u7684\u865A\u6784\u5185\u7F6E\u6570\u636E\uFF0C\u5305\u542B\u793A\u4F8B\u6536\u85CF\u548C\u7AE0\u8282\uFF1B\u5168\u5C40\u9ED8\u8BA4\u4E0E\u4E66\u7C4D\u8282\u70B9\u4F7F\u7528\u5C0F\u8BF4\u793A\u4F8B\u3002", "Leave empty for fictional offline data for this category, including sample collection and chapters. Default and Book use a novel sample.") });
     const output = this.contentEl.createDiv();
     new import_obsidian4.Setting(controls).setName(label("Bangumi \u6761\u76EE ID\uFF08\u7559\u7A7A\u4F7F\u7528\u793A\u4F8B\uFF09", "Bangumi subject ID (empty for sample)")).addText((text) => text.onChange((value) => {
       subjectId = value.trim();
@@ -4970,7 +5030,7 @@ var TemplatePreviewModal = class extends import_obsidian4.Modal {
     void this.render(output, "");
   }
   async render(output, subjectId) {
-    var _a, _b;
+    var _a, _b, _c;
     const generation = ++this.generation;
     output.empty();
     this.rendering.unload();
@@ -4984,16 +5044,17 @@ var TemplatePreviewModal = class extends import_obsidian4.Modal {
       client.setRequestCancellationChecker(() => generation !== this.generation);
       if (subjectId && (!/^[1-9]\d*$/.test(subjectId) || !Number.isSafeInteger(Number(subjectId)))) throw new Error("Invalid subject ID");
       const full = subjectId ? await client.getFullSubjectInfo(Number(subjectId), void 0, (subject2) => getSubjectDataRequirements(subject2, compiled.customTemplates, false)) : void 0;
-      const subject = (_a = full == null ? void 0 : full.subject) != null ? _a : sampleSubject(this.nodeId);
+      const sample = subjectId ? void 0 : createTemplatePreviewSample(this.nodeId);
+      const subject = (_a = full == null ? void 0 : full.subject) != null ? _a : sample.subject;
       const nodeId = subjectId ? classifySubject(subject).nodeId : this.nodeId;
       const source = subjectId ? resolveTemplateForSubject(subject, compiled.customTemplates) : await resolveNodeContent(system, nodeId, (path2) => readTemplateFile(this.app, path2));
       const templates = { ...compiled.customTemplates, [`__node__:${classifySubject(subject).nodeId}`]: source };
       delete templates[`__template_error__:${classifySubject(subject).nodeId}`];
       const needs = getSubjectDataRequirements(subject, templates, false);
-      const episodes = subjectId && needs.episodes ? (await client.getEpisodes(subject.id)).data : void 0;
-      const characters = parseCharacters((_b = full == null ? void 0 : full.characters) != null ? _b : [], 9);
-      const vars = extractTemplateVars(subject, void 0, characters, void 0, episodes, void 0, system.sharedNote.path, settings.coverLinkType, void 0, void 0, void 0, full == null ? void 0 : full.persons);
-      const content = generateContentByType(subject, void 0, characters, templates, void 0, episodes, void 0, system.sharedNote.path, settings.coverLinkType, void 0, void 0, void 0, full == null ? void 0 : full.persons);
+      const episodes = subjectId && needs.episodes ? (await client.getEpisodes(subject.id)).data : sample == null ? void 0 : sample.episodes;
+      const characters = (_c = sample == null ? void 0 : sample.characters) != null ? _c : parseCharacters((_b = full == null ? void 0 : full.characters) != null ? _b : [], 9);
+      const vars = extractTemplateVars(subject, sample == null ? void 0 : sample.collection, characters, void 0, episodes, sample == null ? void 0 : sample.userEpisodeStatus, system.sharedNote.path, settings.coverLinkType, void 0, void 0, void 0, full == null ? void 0 : full.persons);
+      const content = generateContentByType(subject, sample == null ? void 0 : sample.collection, characters, templates, void 0, episodes, sample == null ? void 0 : sample.userEpisodeStatus, system.sharedNote.path, settings.coverLinkType, void 0, void 0, void 0, full == null ? void 0 : full.persons);
       const resolved = resolveTemplateRule(system, nodeId);
       const path = generatePreferredFilePath(resolved.pathTemplate, subject, settings.pathNamingStrategy);
       if (generation !== this.generation) return;

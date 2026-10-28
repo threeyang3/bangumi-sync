@@ -1,6 +1,6 @@
 import { App, Component, FuzzySuggestModal, MarkdownRenderer, Modal, Notice, Plugin, Setting, TFile, TextAreaComponent, normalizePath } from 'obsidian';
 import { ContentRule, TemplateSettingsV2, TEMPLATE_NODES, templateChain, templateNode, resolveTemplateRule, resolveNodeContent, migrateTemplateSettings, classifySubject, compileTemplateSettings } from '../../common/template/templateSystem';
-import { Subject, SubjectType } from '../../common/api/types';
+import { createTemplatePreviewSample } from '../template/templatePreviewSamples';
 import { BangumiPluginSettings } from './settings';
 import { exportTemplateBundle, parseTemplateBundle, readTemplateFile } from '../template/templateFiles';
 import { extractTemplateVars, generateContentByType, resolveTemplateForSubject } from '../template/contentTemplate';
@@ -87,7 +87,7 @@ export class TemplateSettingsView {
 				new Setting(panel).setName(label('路径模板', 'Path template')).addText(text => text.setValue(draft).onChange(value => { draft = value; }))
 					.addButton(button => button.setButtonText(label('应用', 'Apply')).onClick(() => this.run(async () => {
 						if (!draft.trim()) throw new Error(label('路径不能为空', 'Path cannot be empty'));
-						generatePreferredFilePath(draft, sampleSubject(id), this.getSettings().pathNamingStrategy);
+						generatePreferredFilePath(draft, createTemplatePreviewSample(id).subject, this.getSettings().pathNamingStrategy);
 						this.system().rules[id] = { ...this.system().rules[id], path: { mode: 'custom', value: draft } }; await update();
 					})));
 			}
@@ -152,14 +152,6 @@ class TemplateFilePicker extends FuzzySuggestModal<TFile> {
 	onChooseItem(file: TFile): void { this.choose(file); }
 }
 
-export function sampleSubject(id: string): Subject {
-	const node = templateNode(id);
-	const root = id.split('/')[0];
-	const type = ({ anime: SubjectType.Anime, book: SubjectType.Book, game: SubjectType.Game, music: SubjectType.Music, real: SubjectType.Real } as Record<string, SubjectType>)[root] ?? SubjectType.Book;
-	const platform = node.category ?? (id.includes('comic') ? '漫画' : id.includes('album') ? '画集' : id.includes('novel') ? '小说' : '');
-	return { id: 12345, type, platform, name: 'Example / title', name_cn: '示例 / 标题', summary: '模板渲染示例 / Template rendering example', date: '2026-01-01', images: {}, rating: { rank: 1, total: 1, score: 8, count: {} }, collection: { wish: 0, collect: 0, doing: 0, on_hold: 0, dropped: 0 }, tags: [], nsfw: false, locked: false, series: false, volumes: 1, eps: 1, total_episodes: 1, meta_tags: [] };
-}
-
 class TemplatePreviewModal extends Modal {
 	private lifecycle = new Component();
 	private rendering = new Component();
@@ -170,6 +162,7 @@ class TemplatePreviewModal extends Modal {
 		this.titleEl.setText(label('只读模板预览', 'Read-only template preview'));
 		let subjectId = '';
 		const controls = this.contentEl.createDiv();
+		controls.createEl('p', { text: label('留空时使用当前分类的虚构内置数据，包含示例收藏和章节；全局默认与书籍节点使用小说示例。', 'Leave empty for fictional offline data for this category, including sample collection and chapters. Default and Book use a novel sample.') });
 		const output = this.contentEl.createDiv();
 		new Setting(controls).setName(label('Bangumi 条目 ID（留空使用示例）', 'Bangumi subject ID (empty for sample)')).addText(text => text.onChange(value => { subjectId = value.trim(); }))
 			.addButton(button => button.setButtonText(label('重新预览', 'Refresh preview')).onClick(() => this.render(output, subjectId)));
@@ -195,17 +188,18 @@ class TemplatePreviewModal extends Modal {
 			client.setRequestCancellationChecker(() => generation !== this.generation);
 			if (subjectId && (!/^[1-9]\d*$/.test(subjectId) || !Number.isSafeInteger(Number(subjectId)))) throw new Error('Invalid subject ID');
 			const full = subjectId ? await client.getFullSubjectInfo(Number(subjectId), undefined, subject => getSubjectDataRequirements(subject, compiled.customTemplates, false)) : undefined;
-			const subject = full?.subject ?? sampleSubject(this.nodeId);
+			const sample = subjectId ? undefined : createTemplatePreviewSample(this.nodeId);
+			const subject = full?.subject ?? sample!.subject;
 			const nodeId = subjectId ? classifySubject(subject).nodeId : this.nodeId;
 			// Samples preview the selected node itself; real subjects use production classification.
 			const source = subjectId ? resolveTemplateForSubject(subject, compiled.customTemplates) : await resolveNodeContent(system, nodeId, path => readTemplateFile(this.app, path));
 			const templates = { ...compiled.customTemplates, [`__node__:${classifySubject(subject).nodeId}`]: source };
 			delete templates[`__template_error__:${classifySubject(subject).nodeId}`];
 			const needs = getSubjectDataRequirements(subject, templates, false);
-			const episodes = subjectId && needs.episodes ? (await client.getEpisodes(subject.id)).data : undefined;
-			const characters = parseCharacters(full?.characters ?? [], 9);
-			const vars = extractTemplateVars(subject, undefined, characters, undefined, episodes, undefined, system.sharedNote.path, settings.coverLinkType, undefined, undefined, undefined, full?.persons);
-			const content = generateContentByType(subject, undefined, characters, templates, undefined, episodes, undefined, system.sharedNote.path, settings.coverLinkType, undefined, undefined, undefined, full?.persons);
+			const episodes = subjectId && needs.episodes ? (await client.getEpisodes(subject.id)).data : sample?.episodes;
+			const characters = sample?.characters ?? parseCharacters(full?.characters ?? [], 9);
+			const vars = extractTemplateVars(subject, sample?.collection, characters, undefined, episodes, sample?.userEpisodeStatus, system.sharedNote.path, settings.coverLinkType, undefined, undefined, undefined, full?.persons);
+			const content = generateContentByType(subject, sample?.collection, characters, templates, undefined, episodes, sample?.userEpisodeStatus, system.sharedNote.path, settings.coverLinkType, undefined, undefined, undefined, full?.persons);
 			const resolved = resolveTemplateRule(system, nodeId);
 			const path = generatePreferredFilePath(resolved.pathTemplate, subject, settings.pathNamingStrategy);
 			if (generation !== this.generation) return;
