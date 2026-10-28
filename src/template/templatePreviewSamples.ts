@@ -1,7 +1,15 @@
 import { CollectionType, Episode, Subject, SubjectType, UserCollection } from '../../common/api/types';
 import { CharacterInfo } from '../../common/parser/characterParser';
 import { TemplateKey } from '../../common/template/templateRegistry';
-import { templateNode } from '../../common/template/templateSystem';
+import { TEMPLATE_GROUP_IDS, templateNode } from '../../common/template/templateSystem';
+
+export type PreviewScenario = 'complete' | 'missing';
+
+export function previewSampleNodes(nodeId: string): string[] {
+	if (nodeId === 'default') return Object.values(TEMPLATE_GROUP_IDS);
+	if (nodeId === 'book') return ['book/novel', 'book/comic', 'book/album'];
+	return [nodeId];
+}
 
 const profiles: Record<TemplateKey, { type: SubjectType; category: string; title: string; fields: Record<string, string> }> = {
 	animeTemplateConfig: { type: SubjectType.Anime, category: 'TV', title: '星海列车', fields: { 导演: '示例动画导演', 动画制作: '星海动画工作室', 原作: '原创动画', 音乐: '示例作曲家', 话数: '3', 脚本: '示例编剧' } },
@@ -14,7 +22,7 @@ const profiles: Record<TemplateKey, { type: SubjectType; category: string; title
 };
 
 /** Fresh, fictional offline data for the selected node; never reads a user's vault or account. */
-export function createTemplatePreviewSample(nodeId: string) {
+export function createTemplatePreviewSample(nodeId: string, scenario: PreviewScenario = 'complete') {
 	const node = templateNode(nodeId);
 	const profile = profiles[node.templateKey];
 	const category = node.category ?? profile.category;
@@ -44,5 +52,11 @@ export function createTemplatePreviewSample(nodeId: string) {
 		updated_at: '2026-01-02T00:00:00Z', private: false,
 		subject: { ...subject, short_summary: subject.summary, collection_total: 53, score: 8.2, rank: 120 },
 	};
-	return { subject, collection, characters, episodes, userEpisodeStatus: episodes.map((episode, index) => ({ episode, type: index === 0 ? 2 : 0, updated_at: 0 })) };
+	if (scenario === 'missing') {
+		subject.name_cn = ''; subject.date = undefined; subject.summary = '';
+		subject.infobox = subject.infobox?.filter(item => ['类型', '游戏类型'].includes(item.key));
+		subject.volumes = 0; subject.eps = 0; subject.total_episodes = 0;
+		characters.length = 0; episodes.length = 0;
+	}
+	return { subject, collection: scenario === 'missing' ? undefined : collection, characters, episodes, userEpisodeStatus: episodes.map((episode, index) => ({ episode, type: index === 0 ? 2 : 0, updated_at: 0 })) };
 }

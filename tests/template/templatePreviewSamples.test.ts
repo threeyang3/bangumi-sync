@@ -1,9 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { createTemplatePreviewSample } from '../../src/template/templatePreviewSamples';
+import { createTemplatePreviewSample, previewSampleNodes } from '../../src/template/templatePreviewSamples';
+import { generatePreferredFilePath } from '../../common/template/pathTemplate';
 import { TEMPLATE_NODES, classifySubject } from '../../common/template/templateSystem';
 import { extractTemplateVars, generateContentByType } from '../../src/template/contentTemplate';
 
 describe('offline template preview samples', () => {
+	it('offers seven root samples, three book samples and keeps leaves fixed', () => {
+		expect(previewSampleNodes('default')).toHaveLength(7);
+		expect(previewSampleNodes('book')).toEqual(['book/novel', 'book/comic', 'book/album']);
+		expect(previewSampleNodes('anime/ova')).toEqual(['anime/ova']);
+	});
+	it('keeps classification but exercises missing data and filename fallback', () => {
+		for (const node of TEMPLATE_NODES) {
+			const sample = createTemplatePreviewSample(node.id, 'missing');
+			expect(classifySubject(sample.subject).templateKey).toBe(node.templateKey);
+			expect(sample.collection).toBeUndefined();
+			expect(sample.episodes).toEqual([]);
+			expect(sample.characters).toEqual([]);
+			expect(sample.subject.name_cn).toBe('');
+			expect(sample.subject.date).toBeUndefined();
+			expect(generatePreferredFilePath('{{name_cn}}.md', sample.subject)).toBe(sample.subject.name + '.md');
+		}
+	});
 	it('routes all category leaves back to their selected template and preserves category metadata', () => {
 		for (const node of TEMPLATE_NODES) {
 			const sample = createTemplatePreviewSample(node.id);

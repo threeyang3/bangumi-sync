@@ -1633,7 +1633,7 @@ var SyncProgressThrottle = class {
 };
 
 // main.ts
-var import_obsidian35 = require("obsidian");
+var import_obsidian36 = require("obsidian");
 
 // common/api/types.ts
 var SubjectType = /* @__PURE__ */ ((SubjectType3) => {
@@ -1920,10 +1920,10 @@ var DEFAULT_SETTINGS = {
 };
 
 // src/settings/settingsTab.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 
 // src/settings/templateSettingsView.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // common/parser/infoboxParser.ts
 function getInfoboxValue(infobox, key, alternateKeys) {
@@ -3403,6 +3403,11 @@ async function compileTemplateSettings(settings, readFile) {
 }
 
 // src/template/templatePreviewSamples.ts
+function previewSampleNodes(nodeId) {
+  if (nodeId === "default") return Object.values(TEMPLATE_GROUP_IDS);
+  if (nodeId === "book") return ["book/novel", "book/comic", "book/album"];
+  return [nodeId];
+}
 var profiles = {
   animeTemplateConfig: { type: 2 /* Anime */, category: "TV", title: "\u661F\u6D77\u5217\u8F66", fields: { \u5BFC\u6F14: "\u793A\u4F8B\u52A8\u753B\u5BFC\u6F14", \u52A8\u753B\u5236\u4F5C: "\u661F\u6D77\u52A8\u753B\u5DE5\u4F5C\u5BA4", \u539F\u4F5C: "\u539F\u521B\u52A8\u753B", \u97F3\u4E50: "\u793A\u4F8B\u4F5C\u66F2\u5BB6", \u8BDD\u6570: "3", \u811A\u672C: "\u793A\u4F8B\u7F16\u5267" } },
   novelTemplateConfig: { type: 1 /* Book */, category: "\u5C0F\u8BF4", title: "\u98CE\u4E4B\u56FE\u4E66\u9986", fields: { \u4F5C\u8005: "\u793A\u4F8B\u5C0F\u8BF4\u4F5C\u8005", \u63D2\u56FE: "\u793A\u4F8B\u63D2\u753B\u5E08", \u51FA\u7248\u793E: "\u661F\u5149\u6587\u5E93", \u4E66\u7CFB: "\u5E7B\u60F3\u6545\u4E8B\u7CFB\u5217", \u518C\u6570: "3", \u5F00\u59CB: "2026-01-01" } },
@@ -3412,8 +3417,8 @@ var profiles = {
   musicTemplateConfig: { type: 3 /* Music */, category: "\u97F3\u4E50", title: "\u6668\u5149\u65CB\u5F8B", fields: { \u827A\u672F\u5BB6: "\u793A\u4F8B\u97F3\u4E50\u4EBA", \u4F5C\u66F2: "\u793A\u4F8B\u4F5C\u66F2\u5BB6", \u5382\u724C: "\u6668\u5149\u5531\u7247", \u789F\u7247\u6570\u91CF: "1" } },
   realTemplateConfig: { type: 6 /* Real */, category: "\u7535\u89C6\u5267", title: "\u8857\u89D2\u6545\u4E8B", fields: { \u5BFC\u6F14: "\u793A\u4F8B\u5F71\u89C6\u5BFC\u6F14", \u7F16\u5267: "\u793A\u4F8B\u5F71\u89C6\u7F16\u5267", \u4E3B\u6F14: "\u793A\u4F8B\u6F14\u5458\u7532\u3001\u793A\u4F8B\u6F14\u5458\u4E59", "\u56FD\u5BB6/\u5730\u533A": "\u4E2D\u56FD", \u8BED\u8A00: "\u4E2D\u6587", \u96C6\u6570: "3", \u6BCF\u96C6\u957F: "45\u5206\u949F", \u7535\u89C6\u53F0: "\u793A\u4F8B\u7535\u89C6\u53F0" } }
 };
-function createTemplatePreviewSample(nodeId) {
-  var _a;
+function createTemplatePreviewSample(nodeId, scenario = "complete") {
+  var _a, _b;
   const node = templateNode(nodeId);
   const profile = profiles[node.templateKey];
   const category = (_a = node.category) != null ? _a : profile.category;
@@ -3466,7 +3471,18 @@ function createTemplatePreviewSample(nodeId) {
     private: false,
     subject: { ...subject, short_summary: subject.summary, collection_total: 53, score: 8.2, rank: 120 }
   };
-  return { subject, collection, characters, episodes, userEpisodeStatus: episodes.map((episode, index) => ({ episode, type: index === 0 ? 2 : 0, updated_at: 0 })) };
+  if (scenario === "missing") {
+    subject.name_cn = "";
+    subject.date = void 0;
+    subject.summary = "";
+    subject.infobox = (_b = subject.infobox) == null ? void 0 : _b.filter((item) => ["\u7C7B\u578B", "\u6E38\u620F\u7C7B\u578B"].includes(item.key));
+    subject.volumes = 0;
+    subject.eps = 0;
+    subject.total_episodes = 0;
+    characters.length = 0;
+    episodes.length = 0;
+  }
+  return { subject, collection: scenario === "missing" ? void 0 : collection, characters, episodes, userEpisodeStatus: episodes.map((episode, index) => ({ episode, type: index === 0 ? 2 : 0, updated_at: 0 })) };
 }
 
 // src/template/templateFiles.ts
@@ -4788,6 +4804,57 @@ function getSubjectDataRequirements(subject, templates, enableRelatedLinks = tru
   };
 }
 
+// src/template/templatePreviewMarkdown.ts
+var import_obsidian4 = require("obsidian");
+function prepareTemplatePreviewMarkdown(content) {
+  var _a;
+  let properties = {};
+  let yamlError = false;
+  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  if (frontmatter) {
+    try {
+      const parsed = (0, import_obsidian4.parseYaml)(frontmatter[1]);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) properties = parsed;
+    } catch (e) {
+      yamlError = true;
+    }
+  }
+  let resolved = 0;
+  let unsupported = 0;
+  const display = (value) => {
+    if (Array.isArray(value)) return value.map(display).join(", ") || "\u2014";
+    if (value === null || value === void 0 || value === "") return "\u2014";
+    if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") return "\u2014";
+    return String(value).replace(/[&<>|`\[\]*_\\]/g, (character) => `&#${character.charCodeAt(0)};`).replace(/\r?\n/g, "<br>");
+  };
+  let fence;
+  const markdown = content.slice((_a = frontmatter == null ? void 0 : frontmatter[0].length) != null ? _a : 0).split("\n").map((line) => {
+    const marker = line.match(/^\s*(?:>\s*)*(`{3,}|~{3,})(.*)$/);
+    if (marker) {
+      if (!fence) {
+        fence = marker[1];
+        if (/^dataview(?:js)?\s*$/i.test(marker[2].trim())) {
+          unsupported++;
+          return line.replace(/dataview(?:js)?\s*$/i, "text");
+        }
+      } else if (marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = void 0;
+      return line;
+    }
+    if (fence) return line;
+    return line.replace(/(`+)([^`]*?)\1/g, (whole, ticks, expression) => {
+      if (!/^\s*\$?=/.test(expression)) return whole;
+      const simple = expression.match(/^\s*=\s*this\.([\p{L}\p{N}_-]+)\s*$/u);
+      if (simple && !yamlError) {
+        resolved++;
+        return display(Object.prototype.hasOwnProperty.call(properties, simple[1]) ? properties[simple[1]] : void 0);
+      }
+      unsupported++;
+      return `${ticks}Dataview: ${expression.trim()}${ticks}`;
+    });
+  }).join("\n");
+  return { markdown, resolved, unsupported, yamlError };
+}
+
 // src/settings/templateSettingsView.ts
 var label = (zh, en2) => getLocale() === "zh-CN" ? zh : en2;
 var nodeLabel = (id) => {
@@ -4844,7 +4911,7 @@ var TemplateSettingsView = class {
     const rule = (_a = system.rules[id]) != null ? _a : {};
     const resolved = resolveTemplateRule(system, id);
     panel.createEl("p", { cls: "bangumi-template-breadcrumb", text: templateChain(id).reverse().map((node) => nodeLabel(node.id)).join(" / ") });
-    new import_obsidian4.Setting(panel).setName(axis === "content" ? label("\u5185\u5BB9\u6A21\u677F", "Content template") : label("\u6587\u4EF6\u8DEF\u5F84", "File path")).setHeading();
+    new import_obsidian5.Setting(panel).setName(axis === "content" ? label("\u5185\u5BB9\u6A21\u677F", "Content template") : label("\u6587\u4EF6\u8DEF\u5F84", "File path")).setHeading();
     panel.createEl("p", { cls: "bangumi-template-source", text: `${label("\u5185\u5BB9\u6765\u6E90", "Content source")}: ${nodeLabel(resolved.contentSource)} \u2192 ${sourceLabel(resolved.content)}
 ${label("\u8DEF\u5F84\u6765\u6E90", "Path source")}: ${nodeLabel(resolved.pathSource)}
 ${resolved.pathTemplate}` });
@@ -4859,26 +4926,26 @@ ${resolved.pathTemplate}` });
       await update();
     };
     if (axis === "content") {
-      new import_obsidian4.Setting(panel).setName(label("\u6765\u6E90", "Source")).addDropdown((dropdown) => {
+      new import_obsidian5.Setting(panel).setName(label("\u6765\u6E90", "Source")).addDropdown((dropdown) => {
         var _a2, _b2;
         return dropdown.addOption("inherit", label("\u7EE7\u627F\u4E0A\u7EA7", "Inherit parent")).addOption("builtin", label("\u5185\u7F6E\u9884\u8BBE", "Built-in preset")).addOption("file", label("Markdown \u6587\u4EF6", "Markdown file")).addOption("custom", label("\u81EA\u5B9A\u4E49\u5185\u5BB9", "Custom content")).setValue((_b2 = (_a2 = rule.content) == null ? void 0 : _a2.mode) != null ? _b2 : "inherit").onChange((value) => changeContent({ mode: value }));
       });
-      if (((_b = rule.content) == null ? void 0 : _b.mode) === "builtin") new import_obsidian4.Setting(panel).setName(label("\u5185\u7F6E\u9884\u8BBE", "Built-in preset")).addDropdown((dropdown) => {
+      if (((_b = rule.content) == null ? void 0 : _b.mode) === "builtin") new import_obsidian5.Setting(panel).setName(label("\u5185\u7F6E\u9884\u8BBE", "Built-in preset")).addDropdown((dropdown) => {
         var _a2;
         dropdown.addOption("standard", label("\u6807\u51C6\u7248", "Standard"));
         if (templateNode(id).templateKey !== "musicTemplateConfig") dropdown.addOption("author", label("\u4F5C\u8005\u7248", "Author"));
         dropdown.setValue(((_a2 = rule.content) == null ? void 0 : _a2.builtinVariant) === "author" && templateNode(id).templateKey !== "musicTemplateConfig" ? "author" : "standard").onChange((value) => changeContent({ builtinVariant: value }));
       });
-      if (((_c = rule.content) == null ? void 0 : _c.mode) === "file") new import_obsidian4.Setting(panel).setName(label("\u6A21\u677F\u6587\u4EF6", "Template file")).setDesc((_d = rule.content.filePath) != null ? _d : label("\u672A\u9009\u62E9\u6587\u4EF6\uFF0C\u751F\u6210\u5C06\u88AB\u963B\u6B62", "No file selected; generation is blocked")).addButton((button) => button.setButtonText(label("\u9009\u62E9\u6587\u4EF6", "Choose file")).onClick(() => this.openModal(new TemplateFilePicker(this.app, (file) => {
+      if (((_c = rule.content) == null ? void 0 : _c.mode) === "file") new import_obsidian5.Setting(panel).setName(label("\u6A21\u677F\u6587\u4EF6", "Template file")).setDesc((_d = rule.content.filePath) != null ? _d : label("\u672A\u9009\u62E9\u6587\u4EF6\uFF0C\u751F\u6210\u5C06\u88AB\u963B\u6B62", "No file selected; generation is blocked")).addButton((button) => button.setButtonText(label("\u9009\u62E9\u6587\u4EF6", "Choose file")).onClick(() => this.openModal(new TemplateFilePicker(this.app, (file) => {
         void this.run(() => changeContent({ filePath: file.path }));
       }))));
-      if (((_e = rule.content) == null ? void 0 : _e.mode) === "custom") new import_obsidian4.Setting(panel).setName(label("\u81EA\u5B9A\u4E49\u8349\u7A3F", "Custom draft")).setDesc(label("\u5207\u6362\u6765\u6E90\u6216\u7EE7\u627F\u65F6\u4FDD\u7559\u8349\u7A3F\u3002", "Drafts survive source and inheritance changes.")).addButton((button) => button.setButtonText(label("\u7F16\u8F91", "Edit")).onClick(() => {
+      if (((_e = rule.content) == null ? void 0 : _e.mode) === "custom") new import_obsidian5.Setting(panel).setName(label("\u81EA\u5B9A\u4E49\u8349\u7A3F", "Custom draft")).setDesc(label("\u5207\u6362\u6765\u6E90\u6216\u7EE7\u627F\u65F6\u4FDD\u7559\u8349\u7A3F\u3002", "Drafts survive source and inheritance changes.")).addButton((button) => button.setButtonText(label("\u7F16\u8F91", "Edit")).onClick(() => {
         var _a2, _b2;
         return this.editText((_b2 = (_a2 = rule.content) == null ? void 0 : _a2.customContent) != null ? _b2 : "", (value) => changeContent({ customContent: value }));
       }));
-      new import_obsidian4.Setting(panel).setName(label("\u590D\u5236\u6709\u6548\u6A21\u677F", "Copy effective template")).setDesc(label("\u6253\u5F00\u7F16\u8F91\u5668\u786E\u8BA4\u540E\u4FDD\u5B58\u5230\u81EA\u5B9A\u4E49\u8349\u7A3F\u3002", "Review in the editor before replacing the custom draft.")).addButton((button) => button.setButtonText(label("\u590D\u5236\u5E76\u7F16\u8F91", "Copy and edit")).onClick(() => this.run(async () => this.editText(await resolveNodeContent(this.system(), id, (path) => readTemplateFile(this.app, path)), (value) => changeContent({ mode: "custom", customContent: value })))));
+      new import_obsidian5.Setting(panel).setName(label("\u590D\u5236\u6709\u6548\u6A21\u677F", "Copy effective template")).setDesc(label("\u6253\u5F00\u7F16\u8F91\u5668\u786E\u8BA4\u540E\u4FDD\u5B58\u5230\u81EA\u5B9A\u4E49\u8349\u7A3F\u3002", "Review in the editor before replacing the custom draft.")).addButton((button) => button.setButtonText(label("\u590D\u5236\u5E76\u7F16\u8F91", "Copy and edit")).onClick(() => this.run(async () => this.editText(await resolveNodeContent(this.system(), id, (path) => readTemplateFile(this.app, path)), (value) => changeContent({ mode: "custom", customContent: value })))));
     } else {
-      new import_obsidian4.Setting(panel).setName(label("\u8DEF\u5F84\u89C4\u5219", "Path rule")).addDropdown((dropdown) => {
+      new import_obsidian5.Setting(panel).setName(label("\u8DEF\u5F84\u89C4\u5219", "Path rule")).addDropdown((dropdown) => {
         var _a2, _b2;
         return dropdown.addOption("inherit", label("\u7EE7\u627F\u4E0A\u7EA7", "Inherit parent")).addOption("custom", label("\u72EC\u7ACB\u8DEF\u5F84", "Custom path")).setValue((_b2 = (_a2 = rule.path) == null ? void 0 : _a2.mode) != null ? _b2 : "inherit").onChange(async (value) => {
           var _a3;
@@ -4888,7 +4955,7 @@ ${resolved.pathTemplate}` });
       });
       if (((_f = rule.path) == null ? void 0 : _f.mode) === "custom") {
         let draft = (_g = rule.path.value) != null ? _g : resolved.pathTemplate;
-        new import_obsidian4.Setting(panel).setName(label("\u8DEF\u5F84\u6A21\u677F", "Path template")).addText((text) => text.setValue(draft).onChange((value) => {
+        new import_obsidian5.Setting(panel).setName(label("\u8DEF\u5F84\u6A21\u677F", "Path template")).addText((text) => text.setValue(draft).onChange((value) => {
           draft = value;
         })).addButton((button) => button.setButtonText(label("\u5E94\u7528", "Apply")).onClick(() => this.run(async () => {
           if (!draft.trim()) throw new Error(label("\u8DEF\u5F84\u4E0D\u80FD\u4E3A\u7A7A", "Path cannot be empty"));
@@ -4899,49 +4966,49 @@ ${resolved.pathTemplate}` });
       }
       panel.createEl("p", { text: label("\u4FEE\u6539\u89C4\u5219\u4E0D\u4F1A\u79FB\u52A8\u5DF2\u6709\u7B14\u8BB0\u3002\u8BF7\u4F7F\u7528\u8DEF\u5F84\u8FC1\u79FB\u9884\u89C8\u5904\u7406\u73B0\u6709\u6587\u4EF6\u3002", "Changing a rule does not move notes. Use path migration preview for existing files.") });
     }
-    new import_obsidian4.Setting(panel).setName(label("\u53EA\u8BFB\u9884\u89C8", "Read-only preview")).addButton((button) => button.setButtonText(label("\u9884\u89C8 Markdown \u4E0E\u8DEF\u5F84", "Preview Markdown and path")).onClick(() => this.openModal(new TemplatePreviewModal(this.app, this.getSettings, id))));
+    new import_obsidian5.Setting(panel).setName(label("\u53EA\u8BFB\u9884\u89C8", "Read-only preview")).addButton((button) => button.setButtonText(label("\u9884\u89C8 Markdown \u4E0E\u8DEF\u5F84", "Preview Markdown and path")).onClick(() => this.openModal(new TemplatePreviewModal(this.app, this.getSettings, id))));
   }
   buildShared(container) {
     const shared = this.system().sharedNote;
-    new import_obsidian4.Setting(container).setName(label("\u5171\u4EAB\u7B14\u8BB0\u6A21\u677F", "Shared note template")).setHeading();
+    new import_obsidian5.Setting(container).setName(label("\u5171\u4EAB\u7B14\u8BB0\u6A21\u677F", "Shared note template")).setHeading();
     let path = shared.path;
-    new import_obsidian4.Setting(container).setName(label("\u5171\u4EAB\u7B14\u8BB0\u8DEF\u5F84", "Shared note path")).addText((text) => text.setValue(path).onChange((value) => {
+    new import_obsidian5.Setting(container).setName(label("\u5171\u4EAB\u7B14\u8BB0\u8DEF\u5F84", "Shared note path")).addText((text) => text.setValue(path).onChange((value) => {
       path = value;
     })).addButton((button) => button.setButtonText(label("\u5E94\u7528", "Apply")).onClick(() => this.run(async () => {
       this.system().sharedNote.path = path;
       await this.save();
     })));
-    new import_obsidian4.Setting(container).setName(label("\u5171\u4EAB\u7B14\u8BB0\u5185\u5BB9", "Shared note content")).addButton((button) => button.setButtonText(label("\u7F16\u8F91", "Edit")).onClick(() => this.editText(shared.content, async (value) => {
+    new import_obsidian5.Setting(container).setName(label("\u5171\u4EAB\u7B14\u8BB0\u5185\u5BB9", "Shared note content")).addButton((button) => button.setButtonText(label("\u7F16\u8F91", "Edit")).onClick(() => this.editText(shared.content, async (value) => {
       this.system().sharedNote.content = value;
       await this.save();
     })));
   }
   buildManagement(container) {
-    new import_obsidian4.Setting(container).setName(label("\u6A21\u677F\u7BA1\u7406", "Template management")).setHeading();
+    new import_obsidian5.Setting(container).setName(label("\u6A21\u677F\u7BA1\u7406", "Template management")).setHeading();
     const report = container.createEl("details");
     report.createEl("summary", { text: label("\u5347\u7EA7\u62A5\u544A\u4E0E\u517C\u5BB9\u6027\u53D8\u5316", "Migration report and compatibility changes") });
     for (const note of this.system().migrationNotes) report.createEl("p", { text: note });
     let folder = "templates";
-    new import_obsidian4.Setting(container).setName(label("\u5BFC\u51FA\u4E0E\u5907\u4EFD", "Export and backup")).setDesc(label("\u59CB\u7EC8\u521B\u5EFA\u65B0\u5B50\u76EE\u5F55\uFF1B\u4FDD\u7559\u8349\u7A3F\u3001\u7EE7\u627F\u89C4\u5219\u4E0E manifest\uFF0C\u4E0D\u8986\u76D6\u5DF2\u6709\u6587\u4EF6\u3002", "Always creates a new folder with drafts, inheritance rules and manifest; never overwrites files.")).addText((text) => text.setValue(folder).onChange((value) => {
+    new import_obsidian5.Setting(container).setName(label("\u5BFC\u51FA\u4E0E\u5907\u4EFD", "Export and backup")).setDesc(label("\u59CB\u7EC8\u521B\u5EFA\u65B0\u5B50\u76EE\u5F55\uFF1B\u4FDD\u7559\u8349\u7A3F\u3001\u7EE7\u627F\u89C4\u5219\u4E0E manifest\uFF0C\u4E0D\u8986\u76D6\u5DF2\u6709\u6587\u4EF6\u3002", "Always creates a new folder with drafts, inheritance rules and manifest; never overwrites files.")).addText((text) => text.setValue(folder).onChange((value) => {
       folder = value;
     })).addButton((button) => button.setButtonText(label("\u5BFC\u51FA", "Export")).onClick(() => this.run(async () => {
-      new import_obsidian4.Notice(await exportTemplateBundle(this.app, this.system(), folder));
+      new import_obsidian5.Notice(await exportTemplateBundle(this.app, this.system(), folder));
     })));
-    new import_obsidian4.Setting(container).setName(label("\u9A8C\u8BC1\u5168\u90E8\u6A21\u677F", "Validate all templates")).addButton((button) => button.setButtonText(label("\u9A8C\u8BC1", "Validate")).onClick(() => this.run(async () => {
+    new import_obsidian5.Setting(container).setName(label("\u9A8C\u8BC1\u5168\u90E8\u6A21\u677F", "Validate all templates")).addButton((button) => button.setButtonText(label("\u9A8C\u8BC1", "Validate")).onClick(() => this.run(async () => {
       const compiled = await compileTemplateSettings(this.system(), (path) => readTemplateFile(this.app, path));
       const errors = Object.entries(compiled.customTemplates).filter(([key]) => key.startsWith("__template_error__:")).map(([, value]) => value);
       this.showText(label("\u9A8C\u8BC1\u7ED3\u679C", "Validation results"), errors.length ? errors.join("\n") : label("\u5168\u90E8\u6A21\u677F\u53EF\u8BFB\u53D6\u3002", "All templates are readable."));
     })));
-    new import_obsidian4.Setting(container).setName(label("\u5BFC\u5165 manifest", "Import manifest")).setDesc(label("\u7C98\u8D34\u5BFC\u51FA\u7684 manifest\u3002\u786E\u8BA4\u524D\u663E\u793A\u53D8\u66F4\u8282\u70B9\uFF0C\u5E76\u81EA\u52A8\u5907\u4EFD\u5F53\u524D\u6A21\u677F\u3002", "Paste an exported manifest. Review changed nodes; current templates are backed up before import.")).addButton((button) => button.setButtonText(label("\u5BFC\u5165", "Import")).onClick(() => this.editText("", (text) => {
+    new import_obsidian5.Setting(container).setName(label("\u5BFC\u5165 manifest", "Import manifest")).setDesc(label("\u7C98\u8D34\u5BFC\u51FA\u7684 manifest\u3002\u786E\u8BA4\u524D\u663E\u793A\u53D8\u66F4\u8282\u70B9\uFF0C\u5E76\u81EA\u52A8\u5907\u4EFD\u5F53\u524D\u6A21\u677F\u3002", "Paste an exported manifest. Review changed nodes; current templates are backed up before import.")).addButton((button) => button.setButtonText(label("\u5BFC\u5165", "Import")).onClick(() => this.editText("", (text) => {
       const next = parseTemplateBundle(text);
       const current = this.system();
       const reviewed = JSON.stringify(current);
       const changed = TEMPLATE_NODES.filter((node) => JSON.stringify(current.rules[node.id]) !== JSON.stringify(next.rules[node.id])).map((node) => node.id);
-      const modal = new import_obsidian4.Modal(this.app);
+      const modal = new import_obsidian5.Modal(this.app);
       modal.titleEl.setText(label("\u786E\u8BA4\u6A21\u677F\u5BFC\u5165", "Confirm template import"));
       modal.contentEl.createEl("pre", { text: changed.join("\n") || label("\u5206\u7C7B\u89C4\u5219\u65E0\u53D8\u5316", "No category rule changes") });
       modal.contentEl.createEl("p", { text: label("\u5171\u4EAB\u7B14\u8BB0\u914D\u7F6E\u4E5F\u5C06\u66FF\u6362\u3002\u73B0\u6709\u7B14\u8BB0\u4E0D\u4F1A\u6539\u5199\u3002", "Shared note settings will also be replaced. Existing notes are unchanged.") });
-      new import_obsidian4.Setting(modal.contentEl).addButton((button2) => button2.setButtonText(label("\u5907\u4EFD\u5E76\u5BFC\u5165", "Back up and import")).onClick(() => this.run(async () => {
+      new import_obsidian5.Setting(modal.contentEl).addButton((button2) => button2.setButtonText(label("\u5907\u4EFD\u5E76\u5BFC\u5165", "Back up and import")).onClick(() => this.run(async () => {
         if (JSON.stringify(this.system()) !== reviewed) throw new Error(label("\u914D\u7F6E\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u5BFC\u5165\u5E76\u5BA1\u9605\u3002", "Settings changed. Import again to review the new changes."));
         await exportTemplateBundle(this.app, current, folder);
         if (JSON.stringify(this.system()) !== reviewed) throw new Error(label("\u914D\u7F6E\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u5BFC\u5165\u5E76\u5BA1\u9605\u3002", "Settings changed. Import again to review the new changes."));
@@ -4954,18 +5021,18 @@ ${resolved.pathTemplate}` });
     })));
   }
   editText(value, save) {
-    const modal = new import_obsidian4.Modal(this.app);
+    const modal = new import_obsidian5.Modal(this.app);
     modal.titleEl.setText(label("\u7F16\u8F91\u6A21\u677F", "Edit template"));
-    const editor = new import_obsidian4.TextAreaComponent(modal.contentEl).setValue(value);
+    const editor = new import_obsidian5.TextAreaComponent(modal.contentEl).setValue(value);
     editor.inputEl.addClass("bangumi-template-textarea");
-    new import_obsidian4.Setting(modal.contentEl).addButton((button) => button.setButtonText(label("\u4FDD\u5B58", "Save")).onClick(() => this.run(async () => {
+    new import_obsidian5.Setting(modal.contentEl).addButton((button) => button.setButtonText(label("\u4FDD\u5B58", "Save")).onClick(() => this.run(async () => {
       await save(editor.getValue());
       modal.close();
     }))).addButton((button) => button.setButtonText(label("\u53D6\u6D88", "Cancel")).onClick(() => modal.close()));
     this.openModal(modal);
   }
   showText(title, value) {
-    const modal = new import_obsidian4.Modal(this.app);
+    const modal = new import_obsidian5.Modal(this.app);
     modal.titleEl.setText(title);
     modal.contentEl.createEl("pre", { text: value });
     this.openModal(modal);
@@ -4974,11 +5041,11 @@ ${resolved.pathTemplate}` });
     try {
       await action();
     } catch (error) {
-      new import_obsidian4.Notice(error instanceof Error ? error.message : label("\u64CD\u4F5C\u5931\u8D25", "Operation failed"));
+      new import_obsidian5.Notice(error instanceof Error ? error.message : label("\u64CD\u4F5C\u5931\u8D25", "Operation failed"));
     }
   }
 };
-var TemplateFilePicker = class extends import_obsidian4.FuzzySuggestModal {
+var TemplateFilePicker = class extends import_obsidian5.FuzzySuggestModal {
   constructor(app, choose) {
     super(app);
     this.choose = choose;
@@ -4993,24 +5060,39 @@ var TemplateFilePicker = class extends import_obsidian4.FuzzySuggestModal {
     this.choose(file);
   }
 };
-var TemplatePreviewModal = class extends import_obsidian4.Modal {
+var TemplatePreviewModal = class extends import_obsidian5.Modal {
   constructor(app, settings, nodeId) {
     super(app);
     this.settings = settings;
     this.nodeId = nodeId;
-    this.lifecycle = new import_obsidian4.Component();
-    this.rendering = new import_obsidian4.Component();
+    this.lifecycle = new import_obsidian5.Component();
+    this.rendering = new import_obsidian5.Component();
     this.generation = 0;
+    this.sampleNode = "";
+    this.scenario = "complete";
   }
   onOpen() {
     this.lifecycle.load();
     this.modalEl.addClass("bangumi-template-preview-modal");
     this.titleEl.setText(label("\u53EA\u8BFB\u6A21\u677F\u9884\u89C8", "Read-only template preview"));
     let subjectId = "";
+    const choices = previewSampleNodes(this.nodeId);
+    this.sampleNode = choices.includes("book/novel") ? "book/novel" : choices[0];
     const controls = this.contentEl.createDiv();
-    controls.createEl("p", { text: label("\u7559\u7A7A\u65F6\u4F7F\u7528\u5F53\u524D\u5206\u7C7B\u7684\u865A\u6784\u5185\u7F6E\u6570\u636E\uFF0C\u5305\u542B\u793A\u4F8B\u6536\u85CF\u548C\u7AE0\u8282\uFF1B\u5168\u5C40\u9ED8\u8BA4\u4E0E\u4E66\u7C4D\u8282\u70B9\u4F7F\u7528\u5C0F\u8BF4\u793A\u4F8B\u3002", "Leave empty for fictional offline data for this category, including sample collection and chapters. Default and Book use a novel sample.") });
+    controls.createEl("p", { text: label("\u7559\u7A7A\u65F6\u4F7F\u7528\u5F53\u524D\u5206\u7C7B\u7684\u865A\u6784\u5185\u7F6E\u6570\u636E\uFF0C\u5305\u542B\u793A\u4F8B\u6536\u85CF\u548C\u7AE0\u8282\u3002\u7C7B\u578B\u4E0E\u8D44\u6599\u573A\u666F\u4EC5\u7528\u4E8E\u5185\u7F6E\u793A\u4F8B\uFF0C\u8F93\u5165\u771F\u5B9E ID \u540E\u4E0D\u751F\u6548\u3002", "Leave empty for fictional offline data for this category, including sample collection and chapters. Type and scenario apply only when the ID is empty.") });
     const output = this.contentEl.createDiv();
-    new import_obsidian4.Setting(controls).setName(label("Bangumi \u6761\u76EE ID\uFF08\u7559\u7A7A\u4F7F\u7528\u793A\u4F8B\uFF09", "Bangumi subject ID (empty for sample)")).addText((text) => text.onChange((value) => {
+    if (choices.length > 1) new import_obsidian5.Setting(controls).setName(label("\u793A\u4F8B\u7C7B\u578B", "Sample type")).addDropdown((dropdown) => {
+      for (const id of choices) dropdown.addOption(id, nodeLabel(id));
+      dropdown.setValue(this.sampleNode).onChange((value) => {
+        this.sampleNode = value;
+        if (!subjectId) void this.render(output, "");
+      });
+    });
+    new import_obsidian5.Setting(controls).setName(label("\u8D44\u6599\u573A\u666F", "Data scenario")).setDesc(label("\u7F3A\u5931\u573A\u666F\u79FB\u9664\u4E2D\u6587\u540D\u3001\u65E5\u671F\u3001\u8BE6\u7EC6\u8D44\u6599\u3001\u89D2\u8272\u3001\u7AE0\u8282\u548C\u6536\u85CF\uFF0C\u7528\u4E8E\u68C0\u67E5\u56DE\u9000\u884C\u4E3A\u3002", "Missing data removes the Chinese title, date, details, characters, chapters and collection to check fallbacks.")).addDropdown((dropdown) => dropdown.addOption("complete", label("\u5B8C\u6574\u8D44\u6599", "Complete data")).addOption("missing", label("\u7F3A\u5931\u8D44\u6599", "Missing data")).setValue(this.scenario).onChange((value) => {
+      this.scenario = value;
+      if (!subjectId) void this.render(output, "");
+    }));
+    new import_obsidian5.Setting(controls).setName(label("Bangumi \u6761\u76EE ID\uFF08\u7559\u7A7A\u4F7F\u7528\u793A\u4F8B\uFF09", "Bangumi subject ID (empty for sample)")).addText((text) => text.onChange((value) => {
       subjectId = value.trim();
     })).addButton((button) => button.setButtonText(label("\u91CD\u65B0\u9884\u89C8", "Refresh preview")).onClick(() => this.render(output, subjectId)));
     const invalidate = (path, oldPath) => {
@@ -5018,7 +5100,7 @@ var TemplatePreviewModal = class extends import_obsidian4.Modal {
         var _a;
         return ((_a = rule.content) == null ? void 0 : _a.mode) === "file" && rule.content.filePath ? [rule.content.filePath] : [];
       });
-      if (!references.some((reference) => [path, oldPath].some((changed) => changed && ((0, import_obsidian4.normalizePath)(reference) === (0, import_obsidian4.normalizePath)(changed) || (0, import_obsidian4.normalizePath)(reference).startsWith(`${(0, import_obsidian4.normalizePath)(changed)}/`))))) return;
+      if (!references.some((reference) => [path, oldPath].some((changed) => changed && ((0, import_obsidian5.normalizePath)(reference) === (0, import_obsidian5.normalizePath)(changed) || (0, import_obsidian5.normalizePath)(reference).startsWith(`${(0, import_obsidian5.normalizePath)(changed)}/`))))) return;
       this.generation++;
       output.empty();
       output.createEl("p", { text: label("\u6A21\u677F\u6587\u4EF6\u5DF2\u53D8\u66F4\uFF0C\u8BF7\u91CD\u65B0\u9884\u89C8\u3002", "Template files changed. Refresh the preview.") });
@@ -5034,7 +5116,7 @@ var TemplatePreviewModal = class extends import_obsidian4.Modal {
     const generation = ++this.generation;
     output.empty();
     this.rendering.unload();
-    const rendering = this.rendering = new import_obsidian4.Component();
+    const rendering = this.rendering = new import_obsidian5.Component();
     rendering.load();
     try {
       const settings = this.settings();
@@ -5044,10 +5126,14 @@ var TemplatePreviewModal = class extends import_obsidian4.Modal {
       client.setRequestCancellationChecker(() => generation !== this.generation);
       if (subjectId && (!/^[1-9]\d*$/.test(subjectId) || !Number.isSafeInteger(Number(subjectId)))) throw new Error("Invalid subject ID");
       const full = subjectId ? await client.getFullSubjectInfo(Number(subjectId), void 0, (subject2) => getSubjectDataRequirements(subject2, compiled.customTemplates, false)) : void 0;
-      const sample = subjectId ? void 0 : createTemplatePreviewSample(this.nodeId);
+      const sample = subjectId ? void 0 : createTemplatePreviewSample(this.sampleNode, this.scenario);
       const subject = (_a = full == null ? void 0 : full.subject) != null ? _a : sample.subject;
       const nodeId = subjectId ? classifySubject(subject).nodeId : this.nodeId;
-      const source = subjectId ? resolveTemplateForSubject(subject, compiled.customTemplates) : await resolveNodeContent(system, nodeId, (path2) => readTemplateFile(this.app, path2));
+      let source = subjectId ? resolveTemplateForSubject(subject, compiled.customTemplates) : await resolveNodeContent(system, nodeId, (path2) => readTemplateFile(this.app, path2));
+      const selectedRule = resolveTemplateRule(system, nodeId);
+      if (sample && selectedRule.content.mode === "builtin" && ["default", "book", "builtin"].includes(selectedRule.contentSource)) {
+        source = getBuiltInTemplateByKey(templateNode(this.sampleNode).templateKey, selectedRule.content.builtinVariant === "author");
+      }
       const templates = { ...compiled.customTemplates, [`__node__:${classifySubject(subject).nodeId}`]: source };
       delete templates[`__template_error__:${classifySubject(subject).nodeId}`];
       const needs = getSubjectDataRequirements(subject, templates, false);
@@ -5071,8 +5157,11 @@ var TemplatePreviewModal = class extends import_obsidian4.Modal {
         details.createEl("summary", { text: title });
         details.createEl("pre", { text });
       }
+      const projection = prepareTemplatePreviewMarkdown(content);
+      output.createEl("p", { text: label(`\u9884\u89C8\u4ECE\u751F\u6210\u7684\u5C5E\u6027\u663E\u793A\u4E86 ${projection.resolved} \u4E2A\u7B80\u5355 Dataview \u5B57\u6BB5\uFF08\u7A7A\u503C\u663E\u793A\u4E3A \u2014\uFF09\u3002\u590D\u6742\u67E5\u8BE2\u4E0E\u811A\u672C\u4E0D\u6267\u884C\uFF1A${projection.unsupported}\u3002\u751F\u6210\u7684 Markdown \u4FDD\u7559\u539F\u8868\u8FBE\u5F0F\u3002`, `Preview displays ${projection.resolved} simple Dataview fields from generated properties (empty values show \u2014). Queries/scripts are not executed: ${projection.unsupported}. Generated Markdown keeps original expressions.`) });
+      if (projection.yamlError) output.createEl("p", { text: label("Frontmatter \u65E0\u6CD5\u89E3\u6790\uFF0CDataview \u5B57\u6BB5\u4FDD\u7559\u4E3A\u4EE3\u7801\uFF0C\u8BF7\u68C0\u67E5\u751F\u6210\u7684 Markdown\u3002", "Frontmatter could not be parsed. Dataview fields remain code; check generated Markdown.") });
       const rendered = output.createDiv({ cls: "markdown-rendered" });
-      await import_obsidian4.MarkdownRenderer.render(this.app, content, rendered, path, rendering);
+      await import_obsidian5.MarkdownRenderer.render(this.app, projection.markdown, rendered, path, rendering);
     } catch (error) {
       if (generation === this.generation) output.createEl("p", { text: error instanceof Error ? error.message : "Preview failed" });
     }
@@ -5121,7 +5210,7 @@ function applySettingsPatch(current, patch) {
 }
 
 // src/settings/settingsTab.ts
-var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
+var BangumiSettingTab = class extends import_obsidian6.PluginSettingTab {
   constructor(app, plugin, settings, onSave, onDiagnose, onPreviewMigration) {
     super(app, plugin);
     this.activeTab = 0;
@@ -5148,7 +5237,7 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("bangumi-settings-page");
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "heading")).setHeading();
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "heading")).setHeading();
     const tabs = [
       { name: tn("settings", "tabGeneral"), build: this.buildGeneralTab.bind(this) },
       { name: getLocale() === "zh-CN" ? "\u8F93\u51FA\u4E0E\u547D\u540D" : "Output and naming", build: this.buildPathsTab.bind(this) },
@@ -5185,7 +5274,7 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
   }
   // ==================== 标签页：通用 ====================
   buildGeneralTab(containerEl) {
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "helpLinks")).setHeading();
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "helpLinks")).setHeading();
     const helpLinksDiv = containerEl.createDiv({ cls: "bangumi-help-links" });
     helpLinksDiv.createEl("button", { text: tn("settings", "templateGuide"), cls: "mod-cta" }, (btn) => {
       btn.addEventListener("click", () => {
@@ -5202,18 +5291,18 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
         this.openExternalLink("https://next.bgm.tv/demo/access-token");
       });
     });
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "authentication")).setHeading();
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "accessToken")).setDesc(tn("settings", "accessTokenDesc")).addText((text) => text.setPlaceholder(tn("settings", "enterAccessToken")).setValue(this.settings.accessToken).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "authentication")).setHeading();
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "accessToken")).setDesc(tn("settings", "accessTokenDesc")).addText((text) => text.setPlaceholder(tn("settings", "enterAccessToken")).setValue(this.settings.accessToken).onChange(async (value) => {
       this.settings.accessToken = value;
       await this.onSave();
     }));
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "syncStatus")).setHeading();
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "syncStatus")).setHeading();
     const lastSyncText = this.settings.lastSyncTime ? `${tn("settings", "lastSync")}: ${new Date(this.settings.lastSyncTime).toLocaleString()} (${this.settings.lastSyncCount} items)` : tn("settings", "notSyncedYet");
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "syncStatus")).setDesc(lastSyncText);
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "syncStatus")).setDesc(lastSyncText);
   }
   // ==================== 标签页：路径 ====================
   buildPathsTab(containerEl) {
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "pathSettings")).setHeading();
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "pathSettings")).setHeading();
     this.templateView.build(containerEl.createDiv(), "path");
     const namingStrategies = {
       "simple-until-collision": "simple-until-collision",
@@ -5221,35 +5310,35 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
       "always-id": "always-id",
       "custom-template": "custom-template"
     };
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "pathNamingStrategy")).setDesc(tn("settings", "pathNamingStrategyDesc")).addDropdown((dropdown) => dropdown.addOption("simple-until-collision", tn("settings", "pathNamingSimple")).addOption("always-year", tn("settings", "pathNamingYear")).addOption("always-id", tn("settings", "pathNamingId")).addOption("custom-template", tn("settings", "pathNamingCustom")).setValue(this.settings.pathNamingStrategy).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "pathNamingStrategy")).setDesc(tn("settings", "pathNamingStrategyDesc")).addDropdown((dropdown) => dropdown.addOption("simple-until-collision", tn("settings", "pathNamingSimple")).addOption("always-year", tn("settings", "pathNamingYear")).addOption("always-id", tn("settings", "pathNamingId")).addOption("custom-template", tn("settings", "pathNamingCustom")).setValue(this.settings.pathNamingStrategy).onChange(async (value) => {
       const strategy = namingStrategies[value];
       if (!strategy) return;
       this.settings.pathNamingStrategy = strategy;
       await this.onSave();
     }));
-    new import_obsidian5.Setting(containerEl).addButton((button) => button.setButtonText(tn("commands", "diagnoseLocalSubjects")).onClick(() => this.onDiagnose())).addButton((button) => button.setButtonText(tn("commands", "previewPathMigration")).onClick(() => this.onPreviewMigration()));
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "scanFolderPath")).setDesc(tn("settings", "scanFolderPathDesc")).addText((text) => text.setPlaceholder("ACGN").setValue(this.settings.scanFolderPath).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).addButton((button) => button.setButtonText(tn("commands", "diagnoseLocalSubjects")).onClick(() => this.onDiagnose())).addButton((button) => button.setButtonText(tn("commands", "previewPathMigration")).onClick(() => this.onPreviewMigration()));
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "scanFolderPath")).setDesc(tn("settings", "scanFolderPathDesc")).addText((text) => text.setPlaceholder("ACGN").setValue(this.settings.scanFolderPath).onChange(async (value) => {
       this.settings.scanFolderPath = value;
       await this.onSave();
     }));
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "downloadCoverImages")).setDesc(tn("settings", "downloadCoverImagesDesc")).addToggle((toggle) => toggle.setValue(this.settings.downloadImages).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "downloadCoverImages")).setDesc(tn("settings", "downloadCoverImagesDesc")).addToggle((toggle) => toggle.setValue(this.settings.downloadImages).onChange(async (value) => {
       this.settings.downloadImages = value;
       await this.onSave();
     }));
     const imageQuality = t("settings");
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "imageQuality")).setDesc(tn("settings", "imageQualityDesc")).addDropdown((dropdown) => dropdown.addOption("small", imageQuality.imageQualitySmall).addOption("medium", imageQuality.imageQualityMedium).addOption("large", imageQuality.imageQualityLarge).setValue(this.settings.imageQuality || "large").onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "imageQuality")).setDesc(tn("settings", "imageQualityDesc")).addDropdown((dropdown) => dropdown.addOption("small", imageQuality.imageQualitySmall).addOption("medium", imageQuality.imageQualityMedium).addOption("large", imageQuality.imageQualityLarge).setValue(this.settings.imageQuality || "large").onChange(async (value) => {
       this.settings.imageQuality = value;
       await this.onSave();
     }));
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "updateExistingImages")).setDesc(tn("settings", "updateExistingImagesDesc")).addToggle((toggle) => toggle.setValue(this.settings.imageUpdateExisting || false).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "updateExistingImages")).setDesc(tn("settings", "updateExistingImagesDesc")).addToggle((toggle) => toggle.setValue(this.settings.imageUpdateExisting || false).onChange(async (value) => {
       this.settings.imageUpdateExisting = value;
       await this.onSave();
     }));
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "coverLinkType")).setDesc(tn("settings", "coverLinkTypeDesc")).addDropdown((dropdown) => dropdown.addOption("network", tn("settings", "coverLinkNetwork")).addOption("local", tn("settings", "coverLinkLocal")).setValue(this.settings.coverLinkType || "network").onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "coverLinkType")).setDesc(tn("settings", "coverLinkTypeDesc")).addDropdown((dropdown) => dropdown.addOption("network", tn("settings", "coverLinkNetwork")).addOption("local", tn("settings", "coverLinkLocal")).setValue(this.settings.coverLinkType || "network").onChange(async (value) => {
       this.settings.coverLinkType = value;
       await this.onSave();
     }));
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "imagePathTemplate")).setDesc(tn("settings", "imagePathTemplateDesc")).addText((text) => text.setPlaceholder("ACGN/assets/{{name_cn}}_{{typeLabel}}.jpg").setValue(this.settings.imagePathTemplate).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "imagePathTemplate")).setDesc(tn("settings", "imagePathTemplateDesc")).addText((text) => text.setPlaceholder("ACGN/assets/{{name_cn}}_{{typeLabel}}.jpg").setValue(this.settings.imagePathTemplate).onChange(async (value) => {
       this.settings.imagePathTemplate = value;
       await this.onSave();
     }));
@@ -5260,8 +5349,8 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
   }
   // ==================== 标签页：同步 ====================
   buildSyncTab(containerEl) {
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "syncOptions")).setHeading();
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "subjectTypesToSync")).setDesc(tn("settings", "subjectTypesToSyncDesc"));
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "syncOptions")).setHeading();
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "subjectTypesToSync")).setDesc(tn("settings", "subjectTypesToSyncDesc"));
     const subjectTypesDiv = containerEl.createDiv({ cls: "bangumi-checkbox-group" });
     const subjectTypes = [2 /* Anime */, 4 /* Game */, 1 /* Book */, 3 /* Music */, 6 /* Real */];
     subjectTypes.forEach((type) => {
@@ -5282,7 +5371,7 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
       });
       label2.createSpan({ text: getSubjectTypeName(type) });
     });
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "collectionTypesToSync")).setDesc(tn("settings", "collectionTypesToSyncDesc"));
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "collectionTypesToSync")).setDesc(tn("settings", "collectionTypesToSyncDesc"));
     const collectionTypesDiv = containerEl.createDiv({ cls: "bangumi-checkbox-group" });
     const collectionTypes = [1 /* Wish */, 3 /* Doing */, 2 /* Done */, 4 /* OnHold */, 5 /* Dropped */];
     collectionTypes.forEach((type) => {
@@ -5303,7 +5392,7 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
       });
       label2.createSpan({ text: getCollectionTypeName(type) });
     });
-    const syncLimitSetting = new import_obsidian5.Setting(containerEl).setName(tn("settings", "syncLimit")).setDesc(tn("settings", "syncLimitDesc")).addText((text) => text.setPlaceholder("50").setValue(this.settings.syncLimit === 0 ? "" : String(this.settings.syncLimit)).onChange(async (value) => {
+    const syncLimitSetting = new import_obsidian6.Setting(containerEl).setName(tn("settings", "syncLimit")).setDesc(tn("settings", "syncLimitDesc")).addText((text) => text.setPlaceholder("50").setValue(this.settings.syncLimit === 0 ? "" : String(this.settings.syncLimit)).onChange(async (value) => {
       const num = parseInt(value, 10);
       if (!isNaN(num) && num >= 0) {
         this.settings.syncLimit = num;
@@ -5317,16 +5406,16 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
       }
       await this.onSave();
     }));
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "syncConcurrency")).setDesc(tn("settings", "syncConcurrencyDesc")).addSlider((slider) => slider.setLimits(1, 5, 1).setValue(this.settings.syncConcurrency).setDynamicTooltip().onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "syncConcurrency")).setDesc(tn("settings", "syncConcurrencyDesc")).addSlider((slider) => slider.setLimits(1, 5, 1).setValue(this.settings.syncConcurrency).setDynamicTooltip().onChange(async (value) => {
       this.settings.syncConcurrency = value;
       await this.onSave();
     }));
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "autoSync")).setHeading();
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "enableAutoSync")).setDesc(tn("settings", "enableAutoSyncDesc")).addToggle((toggle) => toggle.setValue(this.settings.autoSync).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "autoSync")).setHeading();
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "enableAutoSync")).setDesc(tn("settings", "enableAutoSyncDesc")).addToggle((toggle) => toggle.setValue(this.settings.autoSync).onChange(async (value) => {
       this.settings.autoSync = value;
       await this.onSave();
     }));
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "syncInterval")).setDesc(tn("settings", "syncIntervalDesc")).addText((text) => text.setPlaceholder("60").setValue(String(this.settings.autoSyncInterval)).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "syncInterval")).setDesc(tn("settings", "syncIntervalDesc")).addText((text) => text.setPlaceholder("60").setValue(String(this.settings.autoSyncInterval)).onChange(async (value) => {
       const num = parseInt(value, 10);
       if (!isNaN(num) && num > 0) {
         this.settings.autoSyncInterval = num;
@@ -5336,18 +5425,18 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
   }
   // ==================== 标签页：高级 ====================
   buildAdvancedTab(containerEl) {
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "diagnosticLogging")).setDesc(tn("settings", "diagnosticLoggingDesc")).addToggle((toggle) => toggle.setTooltip(tn("settings", "diagnosticLogging")).setValue(this.settings.diagnosticLogging).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "diagnosticLogging")).setDesc(tn("settings", "diagnosticLoggingDesc")).addToggle((toggle) => toggle.setTooltip(tn("settings", "diagnosticLogging")).setValue(this.settings.diagnosticLogging).onChange(async (value) => {
       this.settings.diagnosticLogging = value;
       await this.onSave();
     }));
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "relatedLinks")).setHeading();
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "enableRelatedLinks")).setDesc(tn("settings", "enableRelatedLinksDesc")).addToggle((toggle) => toggle.setValue(this.settings.enableRelatedLinks).onChange(async (value) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "relatedLinks")).setHeading();
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "enableRelatedLinks")).setDesc(tn("settings", "enableRelatedLinksDesc")).addToggle((toggle) => toggle.setValue(this.settings.enableRelatedLinks).onChange(async (value) => {
       this.settings.enableRelatedLinks = value;
       await this.onSave();
     }));
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "dataProtection")).setHeading();
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "dataProtection")).setHeading();
     containerEl.createEl("p", { text: tn("settings", "dataProtectionDesc"), cls: "bangumi-setting-desc" });
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "preserveRatingDetails")).setDesc(tn("settings", "preserveRatingDetailsDesc")).addToggle((toggle) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "preserveRatingDetails")).setDesc(tn("settings", "preserveRatingDetailsDesc")).addToggle((toggle) => {
       var _a, _b;
       return toggle.setValue((_b = (_a = this.settings.dataProtection) == null ? void 0 : _a.preserveRatingDetails) != null ? _b : true).onChange(async (value) => {
         this.settings.dataProtection = {
@@ -5357,7 +5446,7 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
         await this.onSave();
       });
     });
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "preserveCustomProperties")).setDesc(tn("settings", "preserveCustomPropertiesDesc")).addToggle((toggle) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "preserveCustomProperties")).setDesc(tn("settings", "preserveCustomPropertiesDesc")).addToggle((toggle) => {
       var _a, _b;
       return toggle.setValue((_b = (_a = this.settings.dataProtection) == null ? void 0 : _a.preserveCustomProperties) != null ? _b : true).onChange(async (value) => {
         this.settings.dataProtection = {
@@ -5367,7 +5456,7 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
         await this.onSave();
       });
     });
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "preserveRecord")).setDesc(tn("settings", "preserveRecordDesc")).addToggle((toggle) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "preserveRecord")).setDesc(tn("settings", "preserveRecordDesc")).addToggle((toggle) => {
       var _a, _b;
       return toggle.setValue((_b = (_a = this.settings.dataProtection) == null ? void 0 : _a.preserveRecord) != null ? _b : true).onChange(async (value) => {
         this.settings.dataProtection = {
@@ -5377,7 +5466,7 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
         await this.onSave();
       });
     });
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "preserveThoughts")).setDesc(tn("settings", "preserveThoughtsDesc")).addToggle((toggle) => {
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "preserveThoughts")).setDesc(tn("settings", "preserveThoughtsDesc")).addToggle((toggle) => {
       var _a, _b;
       return toggle.setValue((_b = (_a = this.settings.dataProtection) == null ? void 0 : _a.preserveThoughts) != null ? _b : true).onChange(async (value) => {
         this.settings.dataProtection = {
@@ -5456,18 +5545,18 @@ var BangumiSettingTab = class extends import_obsidian5.PluginSettingTab {
       ["{{volumes_display}}", "\u5355\u884C\u672C\u663E\u793A\uFF08\u5C0F\u8BF4\uFF09", "`.ep-box` HTML"],
       ["{{progress}}", "\u8FDB\u5EA6\u4FE1\u606F", ""]
     ]);
-    new import_obsidian5.Setting(containerEl).setName(tn("settings", "templateSyntax")).setHeading();
+    new import_obsidian6.Setting(containerEl).setName(tn("settings", "templateSyntax")).setHeading();
     const syntaxTable = this.createFieldTable([
       ["{{\u53D8\u91CF\u540D}}", "\u666E\u901A\u53D8\u91CF\uFF0C\u503C\u4E3A\u7A7A\u65F6\u8F93\u51FA\u7A7A\u767D"],
       ["{{\u53D8\u91CF\u540D|\u9ED8\u8BA4\u503C}}", "\u5E26\u9ED8\u8BA4\u503C\u7684\u53D8\u91CF\uFF0C\u503C\u4E3A\u7A7A\u65F6\u8F93\u51FA\u9ED8\u8BA4\u503C", "{{rating|\u672A\u8BC4\u5206}}"],
       ["{{#if \u53D8\u91CF\u540D}}...{{/if}}", "\u6761\u4EF6\u6E32\u67D3\uFF0C\u53D8\u91CF\u975E\u7A7A\u65F6\u624D\u8F93\u51FA\u5185\u5BB9", "{{#if my_rate}}\u8BC4\u5206: {{my_rate}}{{/if}}"]
     ]);
-    new import_obsidian5.Setting(containerEl).setDesc(syntaxTable);
+    new import_obsidian6.Setting(containerEl).setDesc(syntaxTable);
   }
   addFieldTable(containerEl, title, rows) {
-    new import_obsidian5.Setting(containerEl).setName(title).setHeading();
+    new import_obsidian6.Setting(containerEl).setName(title).setHeading();
     const table = this.createFieldTable(rows);
-    new import_obsidian5.Setting(containerEl).setDesc(table);
+    new import_obsidian6.Setting(containerEl).setDesc(table);
   }
   createFieldTable(rows) {
     const frag = new DocumentFragment();
@@ -5551,10 +5640,10 @@ async function persistStableManagerSettings(update) {
 }
 
 // src/sync/syncManager.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 
 // common/file/fileManager.ts
-var import_obsidian7 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 
 // src/sync/statusSyncLogic.ts
 function supportsPlatformDataSync(subjectType) {
@@ -5613,7 +5702,7 @@ function normalizeTag(tag) {
 }
 
 // src/document/frontmatterAccess.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -5706,7 +5795,7 @@ function extractFrontmatterRecord(content) {
   if (!frontmatter) {
     return {};
   }
-  const parsed = (0, import_obsidian6.parseYaml)(frontmatter);
+  const parsed = (0, import_obsidian7.parseYaml)(frontmatter);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     return {};
   }
@@ -6349,7 +6438,7 @@ var FileManager = class {
    * 确保目录存在（递归创建）
    */
   async ensureDirectory(path) {
-    const normalizedPath = (0, import_obsidian7.normalizePath)(path);
+    const normalizedPath = (0, import_obsidian8.normalizePath)(path);
     const lastSlash = normalizedPath.lastIndexOf("/");
     const dirPath = lastSlash > 0 ? normalizedPath.substring(0, lastSlash) : "";
     if (dirPath) {
@@ -6371,23 +6460,23 @@ var FileManager = class {
    * 检查文件是否存在
    */
   async fileExists(path) {
-    const normalizedPath = (0, import_obsidian7.normalizePath)(path);
+    const normalizedPath = (0, import_obsidian8.normalizePath)(path);
     return this.app.vault.adapter.exists(normalizedPath);
   }
   /**
    * 获取文件
    */
   getFile(path) {
-    const normalizedPath = (0, import_obsidian7.normalizePath)(path);
+    const normalizedPath = (0, import_obsidian8.normalizePath)(path);
     const file = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (file instanceof import_obsidian7.TFile) {
+    if (file instanceof import_obsidian8.TFile) {
       return file;
     }
     return null;
   }
   async assertPathOwnership(path, subjectId) {
     var _a;
-    const normalizedPath = (0, import_obsidian7.normalizePath)(path);
+    const normalizedPath = (0, import_obsidian8.normalizePath)(path);
     const file = this.getFile(normalizedPath);
     if (!file) {
       return null;
@@ -6402,7 +6491,7 @@ var FileManager = class {
    * 创建文件
    */
   async createFile(path, content) {
-    const normalizedPath = (0, import_obsidian7.normalizePath)(path);
+    const normalizedPath = (0, import_obsidian8.normalizePath)(path);
     debugLog(() => `[Bangumi Sync] \u521B\u5EFA\u6587\u4EF6: ${normalizedPath}`);
     await this.ensureDirectory(normalizedPath);
     try {
@@ -6424,7 +6513,7 @@ var FileManager = class {
    * 创建或更新文件
    */
   async createOrUpdateFile(path, content, options) {
-    const normalizedPath = (0, import_obsidian7.normalizePath)(path);
+    const normalizedPath = (0, import_obsidian8.normalizePath)(path);
     const existingFile = this.getFile(normalizedPath);
     if (existingFile) {
       if ((options == null ? void 0 : options.subjectId) !== void 0) {
@@ -6448,9 +6537,9 @@ var FileManager = class {
    * 获取文件夹中的所有 Markdown 文件
    */
   getMarkdownFiles(folderPath) {
-    const normalizedPath = (0, import_obsidian7.normalizePath)(folderPath);
+    const normalizedPath = (0, import_obsidian8.normalizePath)(folderPath);
     const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (!(folder instanceof import_obsidian7.TFolder)) {
+    if (!(folder instanceof import_obsidian8.TFolder)) {
       return [];
     }
     const files = [];
@@ -6464,7 +6553,7 @@ var FileManager = class {
 };
 
 // common/file/imageHandler.ts
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 
 // common/utils/timing.ts
 function delay(ms, ownerWindow) {
@@ -6565,14 +6654,14 @@ var ImageHandler = class {
     if (!this.downloadEnabled) {
       return { path: imageUrl, status: "failed" };
     }
-    const normalizedPath = (0, import_obsidian8.normalizePath)(targetPath);
+    const normalizedPath = (0, import_obsidian9.normalizePath)(targetPath);
     const existingFile = this.fileManager.getFile(normalizedPath);
     if (existingFile && !this.imageSettings.updateExisting) {
       return { path: normalizedPath, status: "unchanged" };
     }
     let response;
     try {
-      response = await (0, import_obsidian8.requestUrl)({
+      response = await (0, import_obsidian9.requestUrl)({
         url: imageUrl,
         method: "GET"
       });
@@ -6633,7 +6722,7 @@ var ImageHandler = class {
     let targetPath = imagePathTemplate.replace(/\{\{id\}\}/g, String(subjectId)).replace(/\{\{type\}\}/g, "cover").replace(/\{\{name_cn\}\}/g, (extraVars == null ? void 0 : extraVars.name_cn) || "").replace(/\{\{name\}\}/g, (extraVars == null ? void 0 : extraVars.name) || "").replace(/\{\{typeLabel\}\}/g, (extraVars == null ? void 0 : extraVars.typeLabel) || "");
     targetPath = this.sanitizePath(targetPath);
     const ext = this.getImageExtension(imageUrl);
-    return (0, import_obsidian8.normalizePath)(targetPath.replace(/\.\w+$/, `.${ext}`));
+    return (0, import_obsidian9.normalizePath)(targetPath.replace(/\.\w+$/, `.${ext}`));
   }
   /**
    * 清理路径中的非法字符
@@ -6680,10 +6769,10 @@ var ImageHandler = class {
    */
   async clearImageCache(folderPath) {
     try {
-      const normalizedPath = (0, import_obsidian8.normalizePath)(folderPath);
+      const normalizedPath = (0, import_obsidian9.normalizePath)(folderPath);
       const exists = await this.app.vault.adapter.exists(normalizedPath);
       if (!exists) {
-        new import_obsidian8.Notice("\u56FE\u7247\u6587\u4EF6\u5939\u4E0D\u5B58\u5728");
+        new import_obsidian9.Notice("\u56FE\u7247\u6587\u4EF6\u5939\u4E0D\u5B58\u5728");
         return 0;
       }
       const files = await this.app.vault.adapter.list(normalizedPath);
@@ -6694,11 +6783,11 @@ var ImageHandler = class {
           count++;
         }
       }
-      new import_obsidian8.Notice(`\u5DF2\u6E05\u7406 ${count} \u4E2A\u56FE\u7247\u6587\u4EF6`);
+      new import_obsidian9.Notice(`\u5DF2\u6E05\u7406 ${count} \u4E2A\u56FE\u7247\u6587\u4EF6`);
       return count;
     } catch (error) {
       console.error("[ImageHandler] \u6E05\u7406\u56FE\u7247\u7F13\u5B58\u5931\u8D25:", error);
-      new import_obsidian8.Notice("\u6E05\u7406\u56FE\u7247\u7F13\u5B58\u5931\u8D25");
+      new import_obsidian9.Notice("\u6E05\u7406\u56FE\u7247\u7F13\u5B58\u5931\u8D25");
       return 0;
     }
   }
@@ -6708,7 +6797,7 @@ var ImageHandler = class {
    */
   async getImageCacheStats(folderPath) {
     try {
-      const normalizedPath = (0, import_obsidian8.normalizePath)(folderPath);
+      const normalizedPath = (0, import_obsidian9.normalizePath)(folderPath);
       const exists = await this.app.vault.adapter.exists(normalizedPath);
       if (!exists) {
         return { count: 0, size: 0 };
@@ -6743,10 +6832,10 @@ var ImageHandler = class {
 };
 
 // src/sync/incrementalSync.ts
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 
 // src/sync/localSubjectRegistry.ts
-var import_obsidian9 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 var LocalSubjectRegistry = class {
   constructor(app, documentService = new SubjectDocumentService(app)) {
     this.idToRecord = /* @__PURE__ */ new Map();
@@ -6766,9 +6855,9 @@ var LocalSubjectRegistry = class {
   }
   async scan(folderPath, onProgress) {
     this.clear();
-    const normalizedRoot = (0, import_obsidian9.normalizePath)(folderPath);
+    const normalizedRoot = (0, import_obsidian10.normalizePath)(folderPath);
     const folder = normalizedRoot ? this.app.vault.getAbstractFileByPath(normalizedRoot) : this.app.vault.getRoot();
-    if (!(folder instanceof import_obsidian9.TFolder)) {
+    if (!(folder instanceof import_obsidian10.TFolder)) {
       if (folder) throw new Error(tnFormat("settings", "scanRootUnavailable", { root: normalizedRoot }));
       for (const file of this.app.vault.getMarkdownFiles()) {
         const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(file));
@@ -6813,14 +6902,14 @@ var LocalSubjectRegistry = class {
     const nameValue = (_b = frontmatter["\u4E2D\u6587\u540D"]) != null ? _b : frontmatter.name_cn;
     this.register({
       subjectId: identity.subjectId,
-      path: (0, import_obsidian9.normalizePath)(file.path),
+      path: (0, import_obsidian10.normalizePath)(file.path),
       nameCn: typeof nameValue === "string" ? nameValue.trim() : file.basename,
       identitySource: identity.source,
       namingState
     });
   }
   register(record) {
-    const normalizedRecord = { ...record, path: (0, import_obsidian9.normalizePath)(record.path) };
+    const normalizedRecord = { ...record, path: (0, import_obsidian10.normalizePath)(record.path) };
     const collisionKey = normalizePathCollisionKey(normalizedRecord.path);
     const pathOwner = this.pathToId.get(collisionKey);
     if (pathOwner !== void 0 && pathOwner !== record.subjectId) {
@@ -6877,7 +6966,7 @@ var LocalSubjectRegistry = class {
   setPathPlanningMetadata(subjectId, basePreferredPath) {
     const record = this.getById(subjectId);
     if (!record) return;
-    const normalizedPath = (0, import_obsidian9.normalizePath)(basePreferredPath);
+    const normalizedPath = (0, import_obsidian10.normalizePath)(basePreferredPath);
     this.idToRecord.set(subjectId, {
       ...record,
       basePreferredPath: normalizedPath,
@@ -6892,7 +6981,7 @@ var LocalSubjectRegistry = class {
     }
     this.register(record);
     if (record.namingState === "managed" || record.namingState === "inferred-managed") {
-      this.lastManagedPaths.set(record.subjectId, (0, import_obsidian9.normalizePath)(record.path));
+      this.lastManagedPaths.set(record.subjectId, (0, import_obsidian10.normalizePath)(record.path));
     }
   }
   reconcilePathStates(states) {
@@ -6903,7 +6992,7 @@ var LocalSubjectRegistry = class {
         continue;
       }
       if (state.lastManagedPath) {
-        this.lastManagedPaths.set(subjectId, (0, import_obsidian9.normalizePath)(state.lastManagedPath));
+        this.lastManagedPaths.set(subjectId, (0, import_obsidian10.normalizePath)(state.lastManagedPath));
       }
       const currentKey = normalizePathCollisionKey(record.path);
       const savedCurrentKey = normalizePathCollisionKey(state.currentPath);
@@ -6912,7 +7001,7 @@ var LocalSubjectRegistry = class {
       this.idToRecord.set(subjectId, {
         ...record,
         namingState,
-        basePreferredPath: state.basePreferredPath ? (0, import_obsidian9.normalizePath)(state.basePreferredPath) : void 0,
+        basePreferredPath: state.basePreferredPath ? (0, import_obsidian10.normalizePath)(state.basePreferredPath) : void 0,
         collisionGroupKey: state.basePreferredPath ? normalizePathCollisionKey(state.basePreferredPath) : state.collisionGroupKey
       });
     }
@@ -7068,7 +7157,7 @@ var IncrementalSync = class {
       identitySource: "id",
       namingState: wasNewlyCreated ? "managed" : (_b = (_a = this.registry.getById(subjectId)) == null ? void 0 : _a.namingState) != null ? _b : "unknown",
       ...basePreferredPath ? {
-        basePreferredPath: (0, import_obsidian10.normalizePath)(basePreferredPath),
+        basePreferredPath: (0, import_obsidian11.normalizePath)(basePreferredPath),
         collisionGroupKey: normalizePathCollisionKey(basePreferredPath)
       } : {}
     });
@@ -7100,7 +7189,7 @@ var IncrementalSync = class {
       if (!info.wasNewlyCreated) continue;
       try {
         const file = this.app.vault.getAbstractFileByPath(info.path);
-        if (file instanceof import_obsidian10.TFile) {
+        if (file instanceof import_obsidian11.TFile) {
           await this.app.fileManager.trashFile(file);
           this.localSubjects.delete(subjectId);
           result.deleted++;
@@ -7142,7 +7231,7 @@ var IncrementalSync = class {
     const record = this.registry.getById(subjectId);
     if (!record) return void 0;
     if (scanRoot) {
-      const normalizedRoot = (0, import_obsidian10.normalizePath)(scanRoot);
+      const normalizedRoot = (0, import_obsidian11.normalizePath)(scanRoot);
       if (record.path !== normalizedRoot && !record.path.startsWith(`${normalizedRoot}/`)) {
         return void 0;
       }
@@ -7438,7 +7527,7 @@ function createCancellationSignal() {
 }
 
 // src/userData/userDataExtractor.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
 // common/utils/frontmatter.ts
 function getFrontmatterRecord(frontmatter) {
@@ -7539,9 +7628,9 @@ var UserDataExtractor = class {
   }
   async extractFromFolder(folderPath, onProgress) {
     const result = /* @__PURE__ */ new Map();
-    const normalizedPath = (0, import_obsidian11.normalizePath)(folderPath);
+    const normalizedPath = (0, import_obsidian12.normalizePath)(folderPath);
     const folder = normalizedPath ? this.app.vault.getAbstractFileByPath(normalizedPath) : this.app.vault.getRoot();
-    if (!(folder instanceof import_obsidian11.TFolder)) {
+    if (!(folder instanceof import_obsidian12.TFolder)) {
       debugLog(() => `[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return result;
     }
@@ -7564,9 +7653,9 @@ var UserDataExtractor = class {
   }
   async extractForExportFromFolder(folderPath, dataTypes = ["all" /* ALL */], onProgress) {
     const result = /* @__PURE__ */ new Map();
-    const normalizedPath = (0, import_obsidian11.normalizePath)(folderPath);
+    const normalizedPath = (0, import_obsidian12.normalizePath)(folderPath);
     const folder = normalizedPath ? this.app.vault.getAbstractFileByPath(normalizedPath) : this.app.vault.getRoot();
-    if (!(folder instanceof import_obsidian11.TFolder)) {
+    if (!(folder instanceof import_obsidian12.TFolder)) {
       debugLog(() => `[Bangumi Sync] \u6587\u4EF6\u5939\u4E0D\u5B58\u5728: ${folderPath}`);
       return result;
     }
@@ -8086,7 +8175,7 @@ var SubjectPathResolver = class {
 };
 
 // src/sync/syncTransaction.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 
 // src/sync/recoveryContent.ts
 var SHA256_INITIAL = [
@@ -8336,8 +8425,8 @@ var SyncTransaction = class {
     const sources = /* @__PURE__ */ new Map();
     const targets = /* @__PURE__ */ new Set();
     for (const rename of renames) {
-      const from = (0, import_obsidian12.normalizePath)(rename.from);
-      const to = (0, import_obsidian12.normalizePath)(rename.to);
+      const from = (0, import_obsidian13.normalizePath)(rename.from);
+      const to = (0, import_obsidian13.normalizePath)(rename.to);
       const targetKey = normalizePathCollisionKey(to);
       if (targets.has(targetKey)) throw new Error(`Duplicate rename target: ${to}`);
       const file = await this.fileManager.assertPathOwnership(from, rename.subjectId);
@@ -8380,7 +8469,7 @@ var SyncTransaction = class {
         path: existing.path
       });
     }
-    const planned = existing ? null : { subjectId: options.subjectId, createdPath: (0, import_obsidian12.normalizePath)(path), expectedToExistAfterRollback: false };
+    const planned = existing ? null : { subjectId: options.subjectId, createdPath: (0, import_obsidian13.normalizePath)(path), expectedToExistAfterRollback: false };
     if (planned) this.plannedCreatedFiles.push(planned);
     await ((_a = this.beforeVaultMutation) == null ? void 0 : _a.call(this, await this.getRecoveryExpectations()));
     let result;
@@ -8389,7 +8478,7 @@ var SyncTransaction = class {
     } finally {
       if (planned) this.plannedCreatedFiles.splice(this.plannedCreatedFiles.indexOf(planned), 1);
     }
-    if (result.status === "created") this.createdFiles.push({ file: result.file, subjectId: options.subjectId, createdPath: (0, import_obsidian12.normalizePath)(path) });
+    if (result.status === "created") this.createdFiles.push({ file: result.file, subjectId: options.subjectId, createdPath: (0, import_obsidian13.normalizePath)(path) });
     if (result.status !== "updated" && existing && !alreadyRecorded) this.updatedContents.delete(existing);
     return result;
   }
@@ -8465,7 +8554,7 @@ var SyncTransaction = class {
     const directory = slash >= 0 ? sourcePath.slice(0, slash + 1) : "";
     let attempt = 0;
     while (true) {
-      const path = (0, import_obsidian12.normalizePath)(`${directory}.bangumi-sync-${subjectId}-${index}-${attempt}.tmp.md`);
+      const path = (0, import_obsidian13.normalizePath)(`${directory}.bangumi-sync-${subjectId}-${index}-${attempt}.tmp.md`);
       if (!await this.fileManager.fileExists(path)) return path;
       attempt++;
     }
@@ -9479,7 +9568,7 @@ var SyncManager = class {
     const visit = async (directory) => {
       const listed = await this.app.vault.adapter.list(directory);
       for (const path of listed.files) {
-        if (/(^|\/)\.bangumi-sync-\d+-\d+-\d+\.tmp\.md$/u.test(path)) found.push((0, import_obsidian13.normalizePath)(path));
+        if (/(^|\/)\.bangumi-sync-\d+-\d+-\d+\.tmp\.md$/u.test(path)) found.push((0, import_obsidian14.normalizePath)(path));
       }
       for (const folder of listed.folders) {
         if (normalizePathCollisionKey(folder) === normalizePathCollisionKey(this.app.vault.configDir)) continue;
@@ -9838,7 +9927,7 @@ var SyncManager = class {
     }
     return {
       contentExpectations,
-      forbiddenPathsAfterRollback: Array.from(new Set(forbiddenPathsAfterRollback.map(import_obsidian13.normalizePath))),
+      forbiddenPathsAfterRollback: Array.from(new Set(forbiddenPathsAfterRollback.map(import_obsidian14.normalizePath))),
       resourcePathsAfterRollback: [...(_b = (_a = this.activeRecoveryJournal) == null ? void 0 : _a.createdResourcePaths) != null ? _b : []],
       updatedResourceExpectations: ((_d = (_c = this.activeRecoveryJournal) == null ? void 0 : _c.updatedResourceExpectations) != null ? _d : []).map((item) => ({ ...item })),
       orphanTemporaryPaths: [...(_f = (_e = this.activeRecoveryJournal) == null ? void 0 : _e.orphanTemporaryPaths) != null ? _f : []],
@@ -9863,7 +9952,7 @@ var SyncManager = class {
   }
   async persistCreatedResourcePath(path) {
     if (!this.activeRecoveryJournal) return;
-    const normalized = (0, import_obsidian13.normalizePath)(path);
+    const normalized = (0, import_obsidian14.normalizePath)(path);
     if (!this.activeRecoveryJournal.createdResourcePaths.some((item) => normalizePathCollisionKey(item) === normalizePathCollisionKey(normalized))) {
       this.activeRecoveryJournal.createdResourcePaths.push(normalized);
     }
@@ -9871,7 +9960,7 @@ var SyncManager = class {
   }
   async persistUpdatedResourceExpectation(path, originalContent) {
     if (!this.activeRecoveryJournal) throw new Error("Cannot update an existing binary without an active recovery journal.");
-    const normalized = (0, import_obsidian13.normalizePath)(path);
+    const normalized = (0, import_obsidian14.normalizePath)(path);
     if (this.activeRecoveryJournal.updatedResourceExpectations.some((item) => normalizePathCollisionKey(item.path) === normalizePathCollisionKey(normalized))) return;
     const bytes = new Uint8Array(originalContent);
     if (bytes.byteLength > MAX_BINARY_RECOVERY_BYTES) {
@@ -10537,10 +10626,10 @@ var SyncManager = class {
     }
   }
   findVaultFilesByAnyPath(path) {
-    const normalized = (0, import_obsidian13.normalizePath)(path);
+    const normalized = (0, import_obsidian14.normalizePath)(path);
     const exact = this.app.vault.getAbstractFileByPath(normalized);
     const matches = this.app.vault.getFiles().filter((file) => normalizePathCollisionKey(file.path) === normalizePathCollisionKey(normalized));
-    return exact instanceof import_obsidian13.TFile ? [exact, ...matches.filter((file) => file !== exact)] : matches;
+    return exact instanceof import_obsidian14.TFile ? [exact, ...matches.filter((file) => file !== exact)] : matches;
   }
   recordManagerRollbackFailure(result, operation, path, error) {
     var _a;
@@ -10577,10 +10666,10 @@ var SyncManager = class {
     return snapshot;
   }
   findVaultFilesByCollisionPath(path) {
-    const normalized = (0, import_obsidian13.normalizePath)(path);
+    const normalized = (0, import_obsidian14.normalizePath)(path);
     const exact = this.app.vault.getAbstractFileByPath(normalized);
     const matches = this.app.vault.getMarkdownFiles().filter((file) => normalizePathCollisionKey(file.path) === normalizePathCollisionKey(normalized));
-    if (exact instanceof import_obsidian13.TFile) {
+    if (exact instanceof import_obsidian14.TFile) {
       return [exact, ...matches.filter((file) => file !== exact)];
     }
     return matches;
@@ -11464,7 +11553,7 @@ var SyncManager = class {
       if (error instanceof PendingSyncTransactionError) throw error;
       console.error("[Bangumi Sync] \u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: error instanceof Error ? error.message : String(error) });
-      new import_obsidian13.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian14.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       this.endVaultOperation();
       releaseRequests == null ? void 0 : releaseRequests();
@@ -12071,7 +12160,7 @@ var SyncManager = class {
       if (error instanceof PendingSyncTransactionError) throw error;
       console.error("[Bangumi Sync] \u6267\u884C\u540C\u6B65\u5931\u8D25:", error);
       this.reportProgress({ status: "error", message: error instanceof Error ? error.message : String(error) });
-      new import_obsidian13.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian14.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       this.endVaultOperation();
       releaseRequests == null ? void 0 : releaseRequests();
@@ -12160,7 +12249,7 @@ var SyncManager = class {
     const linkFor = (path) => `[[${path}|${this.extractDisplayNameFromPath(path)}]]`;
     const addUpdate = (path, subjectId, link, operation) => {
       var _a;
-      path = (0, import_obsidian13.normalizePath)(path);
+      path = (0, import_obsidian14.normalizePath)(path);
       const update = (_a = updatesByFile.get(path)) != null ? _a : { subjectId, links: /* @__PURE__ */ new Set(), operation, identityConflict: false };
       if (update.subjectId !== subjectId) update.identityConflict = true;
       if (operation === "related-link-update") update.operation = operation;
@@ -12315,7 +12404,7 @@ var SyncManager = class {
         });
         try {
           const file = this.app.vault.getAbstractFileByPath(info.path);
-          if (!(file instanceof import_obsidian13.TFile)) {
+          if (!(file instanceof import_obsidian14.TFile)) {
             result.skipped++;
             continue;
           }
@@ -12518,7 +12607,7 @@ var SyncManager = class {
         try {
           const { subjectId, links } = update;
           const file = this.app.vault.getAbstractFileByPath(path);
-          if (!(file instanceof import_obsidian13.TFile)) {
+          if (!(file instanceof import_obsidian14.TFile)) {
             console.warn(`[Bangumi Sync] \u6587\u4EF6\u4E0D\u5B58\u5728\u6216\u975E TFile: ${path}`);
             result.failed++;
             continue;
@@ -12585,7 +12674,7 @@ var SyncManager = class {
 };
 
 // src/ui/syncModal.ts
-var import_obsidian14 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 
 // src/sync/syncCompletionPresentation.ts
 function pendingDecisionAllowsClose(decision) {
@@ -12615,7 +12704,7 @@ function getSyncCompletionPresentation(result) {
 }
 
 // src/ui/syncModal.ts
-var SyncModal = class extends import_obsidian14.Modal {
+var SyncModal = class extends import_obsidian15.Modal {
   constructor(app, cancellationSignal) {
     super(app);
     this.progressBar = null;
@@ -12647,7 +12736,7 @@ var SyncModal = class extends import_obsidian14.Modal {
   onOpen() {
     this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
-    new import_obsidian14.Setting(contentEl).setName(tn("syncModal", "title")).setHeading();
+    new import_obsidian15.Setting(contentEl).setName(tn("syncModal", "title")).setHeading();
     this.progressBar = contentEl.createDiv({ cls: "bangumi-progress-bar" });
     this.progressBar.setAttribute("role", "progressbar");
     this.progressBar.setAttribute("aria-label", tn("syncModal", "preparing"));
@@ -12987,7 +13076,7 @@ var SyncModal = class extends import_obsidian14.Modal {
     }
   }
 };
-var PendingSyncDecisionModal = class extends import_obsidian14.Modal {
+var PendingSyncDecisionModal = class extends import_obsidian15.Modal {
   constructor(app, decide, closed) {
     super(app);
     this.decide = decide;
@@ -12996,7 +13085,7 @@ var PendingSyncDecisionModal = class extends import_obsidian14.Modal {
   }
   onOpen() {
     this.modalEl.addClass("bangumi-modal");
-    new import_obsidian14.Setting(this.contentEl).setName(tn("syncModal", "pendingDecision")).setHeading();
+    new import_obsidian15.Setting(this.contentEl).setName(tn("syncModal", "pendingDecision")).setHeading();
     const actions = this.contentEl.createDiv({ cls: "bangumi-sync-actions" });
     for (const [decision, label2, cls] of [
       ["keep", tn("syncModal", "keepSuccessful"), "mod-cta"],
@@ -13023,8 +13112,8 @@ var PendingSyncDecisionModal = class extends import_obsidian14.Modal {
 };
 
 // src/ui/syncOptionsModal.ts
-var import_obsidian15 = require("obsidian");
-var SyncOptionsModal = class extends import_obsidian15.Modal {
+var import_obsidian16 = require("obsidian");
+var SyncOptionsModal = class extends import_obsidian16.Modal {
   constructor(app, defaultOptions, onSave) {
     super(app);
     this.options = defaultOptions;
@@ -13037,8 +13126,8 @@ var SyncOptionsModal = class extends import_obsidian15.Modal {
   onOpen() {
     this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
-    new import_obsidian15.Setting(contentEl).setName(tn("syncOptions", "title")).setHeading();
-    new import_obsidian15.Setting(contentEl).setName(tn("syncOptions", "subjectTypes")).setHeading();
+    new import_obsidian16.Setting(contentEl).setName(tn("syncOptions", "title")).setHeading();
+    new import_obsidian16.Setting(contentEl).setName(tn("syncOptions", "subjectTypes")).setHeading();
     const subjectTypesDiv = contentEl.createDiv({ cls: "bangumi-checkbox-group" });
     const subjectTypes = [
       2 /* Anime */,
@@ -13073,7 +13162,7 @@ var SyncOptionsModal = class extends import_obsidian15.Modal {
         this.redraw();
       });
     });
-    new import_obsidian15.Setting(contentEl).setName(tn("syncOptions", "collectionTypes")).setHeading();
+    new import_obsidian16.Setting(contentEl).setName(tn("syncOptions", "collectionTypes")).setHeading();
     const collectionTypesDiv = contentEl.createDiv({ cls: "bangumi-checkbox-group" });
     const collectionTypes = [
       1 /* Wish */,
@@ -13108,8 +13197,8 @@ var SyncOptionsModal = class extends import_obsidian15.Modal {
         this.redraw();
       });
     });
-    new import_obsidian15.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setHeading();
-    const limitSetting = new import_obsidian15.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setDesc(tn("syncOptions", "syncLimitDesc")).addText((text) => {
+    new import_obsidian16.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setHeading();
+    const limitSetting = new import_obsidian16.Setting(contentEl).setName(tn("syncOptions", "syncLimit")).setDesc(tn("syncOptions", "syncLimitDesc")).addText((text) => {
       text.setPlaceholder("50").setValue(this.limitValue === 0 ? "" : String(this.limitValue)).onChange((value) => {
         const num = parseInt(value, 10);
         if (!isNaN(num) && num >= 0) {
@@ -13123,7 +13212,7 @@ var SyncOptionsModal = class extends import_obsidian15.Modal {
         input.value = "";
       }
     }));
-    new import_obsidian15.Setting(contentEl).setName(tn("syncOptions", "forceSync")).setDesc(tn("syncOptions", "forceSyncDesc")).addToggle((toggle) => toggle.setValue(this.forceValue).onChange((value) => {
+    new import_obsidian16.Setting(contentEl).setName(tn("syncOptions", "forceSync")).setDesc(tn("syncOptions", "forceSyncDesc")).addToggle((toggle) => toggle.setValue(this.forceValue).onChange((value) => {
       this.forceValue = value;
     }));
     const buttonDiv = contentEl.createDiv({ cls: "bangumi-modal-buttons" });
@@ -13157,8 +13246,8 @@ var SyncOptionsModal = class extends import_obsidian15.Modal {
 };
 
 // src/ui/syncPreviewModal.ts
-var import_obsidian16 = require("obsidian");
-var SyncPreviewModal = class extends import_obsidian16.Modal {
+var import_obsidian17 = require("obsidian");
+var SyncPreviewModal = class extends import_obsidian17.Modal {
   constructor(app, items, onConfirm) {
     super(app);
     this.confirmed = false;
@@ -13169,7 +13258,7 @@ var SyncPreviewModal = class extends import_obsidian16.Modal {
   onOpen() {
     this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
-    new import_obsidian16.Setting(contentEl).setName(tn("syncPreview", "title")).setHeading();
+    new import_obsidian17.Setting(contentEl).setName(tn("syncPreview", "title")).setHeading();
     contentEl.createEl("p", {
       text: `${this.items.length} ${tn("syncPreview", "itemsToSync")}`,
       cls: "bangumi-preview-info"
@@ -13271,10 +13360,10 @@ var SyncPreviewModal = class extends import_obsidian16.Modal {
 };
 
 // src/ui/searchModal.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 
 // src/ui/addToCollectionModal.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 var COLLECTION_TYPE_OPTIONS = [
   { value: 1, labelKey: "wish" },
   { value: 2, labelKey: "done" },
@@ -13282,7 +13371,7 @@ var COLLECTION_TYPE_OPTIONS = [
   { value: 4, labelKey: "onHold" },
   { value: 5, labelKey: "dropped" }
 ];
-var AddToCollectionModal = class extends import_obsidian17.Modal {
+var AddToCollectionModal = class extends import_obsidian18.Modal {
   constructor(app, client, settings, syncManager, subject, onComplete, existingCollection) {
     super(app);
     // 输入状态
@@ -13318,7 +13407,7 @@ var AddToCollectionModal = class extends import_obsidian17.Modal {
     const { contentEl } = this;
     contentEl.addClass("bangumi-add-collection-modal");
     const title = `${tn("addToCollection", "title")} - ${this.subject.name_cn || this.subject.name}`;
-    new import_obsidian17.Setting(contentEl).setName(title).setHeading();
+    new import_obsidian18.Setting(contentEl).setName(title).setHeading();
     contentEl.createEl("h3", { text: tn("addToCollection", "bangumiProperties"), cls: "bangumi-add-collection-section" });
     const typeDiv = contentEl.createDiv({ cls: "bangumi-add-collection-type" });
     typeDiv.createSpan({ text: `${tn("addToCollection", "collectionType")}: ` });
@@ -13336,14 +13425,14 @@ var AddToCollectionModal = class extends import_obsidian17.Modal {
         btn.addClass("bangumi-add-collection-type-btn-active");
       });
     });
-    const rateSetting = new import_obsidian17.Setting(contentEl).setName(tn("addToCollection", "rating")).addSlider((slider) => {
+    const rateSetting = new import_obsidian18.Setting(contentEl).setName(tn("addToCollection", "rating")).addSlider((slider) => {
       slider.setLimits(0, 10, 1).setValue(this.rate).onChange((value) => {
         this.rate = value;
         rateValueEl.setText(String(value));
       });
     });
     const rateValueEl = rateSetting.controlEl.createSpan({ cls: "bangumi-add-collection-rate-value", text: String(this.rate) });
-    const tagsSetting = new import_obsidian17.Setting(contentEl).setName(tn("addToCollection", "tags")).addText((text) => {
+    const tagsSetting = new import_obsidian18.Setting(contentEl).setName(tn("addToCollection", "tags")).addText((text) => {
       text.setPlaceholder(tn("addToCollection", "tagsPlaceholder"));
       this.tagInputEl = text.inputEl;
       text.inputEl.addEventListener("keydown", (e) => {
@@ -13361,7 +13450,7 @@ var AddToCollectionModal = class extends import_obsidian17.Modal {
     if (this.tags.length > 0) {
       this.renderTags();
     }
-    new import_obsidian17.Setting(contentEl).setName(tn("addToCollection", "comment")).addTextArea((text) => {
+    new import_obsidian18.Setting(contentEl).setName(tn("addToCollection", "comment")).addTextArea((text) => {
       text.setPlaceholder(tn("addToCollection", "commentPlaceholder"));
       text.setValue(this.comment);
       text.onChange((value) => {
@@ -13377,12 +13466,12 @@ var AddToCollectionModal = class extends import_obsidian17.Modal {
       });
     }
     contentEl.createEl("h3", { text: tn("addToCollection", "syncOptions"), cls: "bangumi-add-collection-section" });
-    new import_obsidian17.Setting(contentEl).setName(tn("addToCollection", "syncToCloud")).addToggle((toggle) => {
+    new import_obsidian18.Setting(contentEl).setName(tn("addToCollection", "syncToCloud")).addToggle((toggle) => {
       toggle.setValue(this.syncToCloud).onChange((value) => {
         this.syncToCloud = value;
       });
     });
-    new import_obsidian17.Setting(contentEl).setName(tn("addToCollection", "createLocal")).addToggle((toggle) => {
+    new import_obsidian18.Setting(contentEl).setName(tn("addToCollection", "createLocal")).addToggle((toggle) => {
       toggle.setValue(this.createLocal).onChange((value) => {
         this.createLocal = value;
       });
@@ -13451,11 +13540,11 @@ var AddToCollectionModal = class extends import_obsidian17.Modal {
         this.onComplete(input);
         this.close();
       } else {
-        new import_obsidian17.Notice(`${tn("addToCollection", "addError")}: ${result.error}`);
+        new import_obsidian18.Notice(`${tn("addToCollection", "addError")}: ${result.error}`);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian17.Notice(`${tn("addToCollection", "addError")}: ${errorMsg}`);
+      new import_obsidian18.Notice(`${tn("addToCollection", "addError")}: ${errorMsg}`);
     } finally {
       this.submitting = false;
       this.contentEl.querySelectorAll("button").forEach((button) => {
@@ -13551,7 +13640,7 @@ var SEARCH_SHORT_LABELS = getLocale() === "zh-CN" ? {
   add: "Add",
   edit: "Edit"
 };
-var SearchModal = class extends import_obsidian18.Modal {
+var SearchModal = class extends import_obsidian19.Modal {
   constructor(app, client, settings, syncManager, onComplete) {
     super(app);
     // 搜索状态
@@ -13579,7 +13668,7 @@ var SearchModal = class extends import_obsidian18.Modal {
     this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-search-modal");
-    new import_obsidian18.Setting(contentEl).setName(tn("searchModal", "title")).setHeading();
+    new import_obsidian19.Setting(contentEl).setName(tn("searchModal", "title")).setHeading();
     const searchDiv = contentEl.createDiv({ cls: "bangumi-search-input-container" });
     const inputEl = searchDiv.createEl("input", {
       type: "text",
@@ -13755,7 +13844,7 @@ var SearchModal = class extends import_obsidian18.Modal {
         this.settings.pathNamingStrategy
       );
       const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (file instanceof import_obsidian18.TFile) {
+      if (file instanceof import_obsidian19.TFile) {
         return filePath;
       }
     } catch (e) {
@@ -13862,7 +13951,7 @@ var SearchModal = class extends import_obsidian18.Modal {
    * 处理添加完成
    */
   async handleAddComplete(input) {
-    new import_obsidian18.Notice(tnFormat("searchModal", "addedSuccess", { name: input.subjectName }));
+    new import_obsidian19.Notice(tnFormat("searchModal", "addedSuccess", { name: input.subjectName }));
     const subject = this.searchResults.find((subject2) => subject2.id === input.subjectId);
     if (subject && this.contentEl.isConnected) {
       if (this.checkLocalSyncStatus(subject)) this.syncedSubjectIds.add(subject.id);
@@ -13902,8 +13991,8 @@ var SearchModal = class extends import_obsidian18.Modal {
 };
 
 // src/ui/localPropertyModal.ts
-var import_obsidian19 = require("obsidian");
-var LocalPropertyModal = class extends import_obsidian19.Modal {
+var import_obsidian20 = require("obsidian");
+var LocalPropertyModal = class extends import_obsidian20.Modal {
   constructor(app, collections, subjectsById, customTemplates, onSubmit) {
     super(app);
     this.propertyValuesBySubjectId = /* @__PURE__ */ new Map();
@@ -13922,7 +14011,7 @@ var LocalPropertyModal = class extends import_obsidian19.Modal {
     this.modalEl.addClass("bangumi-modal");
     const { contentEl } = this;
     contentEl.addClass("bangumi-local-property-modal");
-    new import_obsidian19.Setting(contentEl).setName(tn("controlPanel", "localPropertyTitle")).setHeading();
+    new import_obsidian20.Setting(contentEl).setName(tn("controlPanel", "localPropertyTitle")).setHeading();
     contentEl.createEl("p", {
       text: tn("controlPanel", "localPropertyDesc"),
       cls: "bangumi-setting-desc"
@@ -14112,11 +14201,11 @@ function createFallbackSubject(collection) {
 }
 
 // src/panel/controlPanel.ts
-var import_obsidian26 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 
 // src/panel/batchEditorModal.ts
-var import_obsidian20 = require("obsidian");
-var BatchEditorModal = class extends import_obsidian20.Modal {
+var import_obsidian21 = require("obsidian");
+var BatchEditorModal = class extends import_obsidian21.Modal {
   constructor(app, items, onConfirm, documentService, getCachedSnapshot) {
     super(app);
     this.mode = "per_item";
@@ -14259,11 +14348,11 @@ var BatchEditorModal = class extends import_obsidian20.Modal {
         const property = propertyInput.value.trim();
         const value = valueInput.value.trim();
         if (!property) {
-          new import_obsidian20.Notice(tn("batchEditor", "noticeProperty"));
+          new import_obsidian21.Notice(tn("batchEditor", "noticeProperty"));
           return;
         }
         if ((type === "add" || type === "modify") && !value) {
-          new import_obsidian20.Notice(tn("batchEditor", "noticeValue"));
+          new import_obsidian21.Notice(tn("batchEditor", "noticeValue"));
           return;
         }
         this.operations.push({ type, property, value });
@@ -14305,7 +14394,7 @@ var BatchEditorModal = class extends import_obsidian20.Modal {
       btn.addEventListener("click", () => {
         const property = customPropertyInput.value.trim();
         if (!property) {
-          new import_obsidian20.Notice(tn("batchEditor", "noticeProperty"));
+          new import_obsidian21.Notice(tn("batchEditor", "noticeProperty"));
           return;
         }
         this.ensurePropertyExists(property);
@@ -14368,7 +14457,7 @@ var BatchEditorModal = class extends import_obsidian20.Modal {
       }
     } catch (error) {
       console.error("[Bangumi Sync] Failed to load batch editor properties", error);
-      new import_obsidian20.Notice(tn("batchEditor", "noticeLoadFailed"));
+      new import_obsidian21.Notice(tn("batchEditor", "noticeLoadFailed"));
     } finally {
       this.loadingProperties = false;
       this.renderPropertySelection();
@@ -14516,13 +14605,13 @@ var BatchEditorModal = class extends import_obsidian20.Modal {
     try {
       assertWriteOperationAllowed("batch-edit");
     } catch (e) {
-      new import_obsidian20.Notice(tn("recoveryCenter", "writeBlocked"));
+      new import_obsidian21.Notice(tn("recoveryCenter", "writeBlocked"));
       return;
     }
     try {
       if (this.mode === "uniform") {
         if (this.operations.length === 0) {
-          new import_obsidian20.Notice(tn("batchEditor", "noticeNoOp"));
+          new import_obsidian21.Notice(tn("batchEditor", "noticeNoOp"));
           return;
         }
         await this.onConfirm({ mode: "uniform", operations: this.operations });
@@ -14530,19 +14619,19 @@ var BatchEditorModal = class extends import_obsidian20.Modal {
         return;
       }
       if (this.selectedProperties.length === 0) {
-        new import_obsidian20.Notice(tn("batchEditor", "noticeSelectProperty"));
+        new import_obsidian21.Notice(tn("batchEditor", "noticeSelectProperty"));
         return;
       }
       const perItemUpdates = this.buildPerItemUpdates();
       if (perItemUpdates.length === 0) {
-        new import_obsidian20.Notice(tn("batchEditor", "noticeNothingChanged"));
+        new import_obsidian21.Notice(tn("batchEditor", "noticeNothingChanged"));
         return;
       }
       await this.onConfirm({ mode: "per_item", perItemUpdates });
       this.close();
     } catch (error) {
       console.error("[Bangumi Sync] Batch edit failed:", error);
-      new import_obsidian20.Notice(error instanceof Error ? error.message : String(error));
+      new import_obsidian21.Notice(error instanceof Error ? error.message : String(error));
     }
   }
   buildPerItemUpdates() {
@@ -14622,7 +14711,7 @@ var BatchEditorModal = class extends import_obsidian20.Modal {
       return this.documentService.extractFrontmatterRecord(cachedSnapshot.content);
     }
     const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof import_obsidian20.TFile)) {
+    if (!(file instanceof import_obsidian21.TFile)) {
       return null;
     }
     const content = await this.app.vault.read(file);
@@ -14695,14 +14784,14 @@ var FrontmatterEditor = class {
       }
       for (const path of lastOperation.affectedFiles) {
         const file = this.app.vault.getAbstractFileByPath(path);
-        if (!(file instanceof import_obsidian20.TFile) || await this.app.vault.read(file) !== lastOperation.updatedContent.get(path)) {
+        if (!(file instanceof import_obsidian21.TFile) || await this.app.vault.read(file) !== lastOperation.updatedContent.get(path)) {
           throw new Error(tn("controlPanel", "undoChanged"));
         }
       }
       for (const path of lastOperation.affectedFiles) {
         const content = lastOperation.originalContent.get(path);
         const file = this.app.vault.getAbstractFileByPath(path);
-        if (!(file instanceof import_obsidian20.TFile) || content === void 0) throw new Error(tn("controlPanel", "undoChanged"));
+        if (!(file instanceof import_obsidian21.TFile) || content === void 0) throw new Error(tn("controlPanel", "undoChanged"));
         const identity = this.documentService.getSubjectIdentityFromContent(content);
         if (identity.subjectId === null || ((_a = identity.conflicts) == null ? void 0 : _a.length)) throw new Error(tn("controlPanel", "undoChanged"));
         await this.documentService.processSubjectFile(file, identity.subjectId, (current) => {
@@ -14721,7 +14810,7 @@ var FrontmatterEditor = class {
   async applyUniformOperations(filePath, operations, expectedSubjectId) {
     var _a;
     const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof import_obsidian20.TFile)) {
+    if (!(file instanceof import_obsidian21.TFile)) {
       return null;
     }
     try {
@@ -14750,7 +14839,7 @@ var FrontmatterEditor = class {
   }
   async applyPerItemUpdate(update) {
     const file = this.app.vault.getAbstractFileByPath(update.filePath);
-    if (!(file instanceof import_obsidian20.TFile)) {
+    if (!(file instanceof import_obsidian21.TFile)) {
       return null;
     }
     try {
@@ -14793,7 +14882,7 @@ function coerceDraftValue(value, originalValue) {
 }
 
 // src/panel/statusSyncModal.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 
 // src/sync/statusSyncTypes.ts
 var USER_STATUS_SYNC_FIELD_KEYS = [
@@ -14869,7 +14958,7 @@ function hasSelectedStatusChanges(diff) {
 }
 
 // src/panel/statusSyncModal.ts
-var StatusSyncModal = class extends import_obsidian21.Modal {
+var StatusSyncModal = class extends import_obsidian22.Modal {
   constructor(app, statusSyncService, selection, diffs, onComplete, onReview) {
     super(app);
     this.onReview = onReview;
@@ -15252,7 +15341,7 @@ var StatusSyncModal = class extends import_obsidian21.Modal {
     try {
       assertWriteOperationAllowed("status-sync");
     } catch (e) {
-      new import_obsidian21.Notice(tn("recoveryCenter", "writeBlocked"));
+      new import_obsidian22.Notice(tn("recoveryCenter", "writeBlocked"));
       return;
     }
     try {
@@ -15262,16 +15351,16 @@ var StatusSyncModal = class extends import_obsidian21.Modal {
       const message = successCount > 0 && failCount > 0 ? `${tn("syncModal", "partialSuccess")}: ${summary}` : summary;
       this.statusEl.setText(message);
       if (successCount > 0 || failCount === 0) {
-        new import_obsidian21.Notice(message);
+        new import_obsidian22.Notice(message);
         this.onComplete();
         this.close();
         return;
       }
-      new import_obsidian21.Notice(tn("statusSyncModal", "syncFailed"));
+      new import_obsidian22.Notice(tn("statusSyncModal", "syncFailed"));
     } catch (error) {
       console.error("[Bangumi Sync] Status sync failed:", error);
       this.statusEl.setText(tn("statusSyncModal", "syncFailed"));
-      new import_obsidian21.Notice(`${tn("statusSyncModal", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian22.Notice(`${tn("statusSyncModal", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   scheduleRender() {
@@ -15397,8 +15486,8 @@ var StatusSyncModal = class extends import_obsidian21.Modal {
 };
 
 // src/panel/statusSyncScopeModal.ts
-var import_obsidian22 = require("obsidian");
-var StatusSyncScopeModal = class extends import_obsidian22.Modal {
+var import_obsidian23 = require("obsidian");
+var StatusSyncScopeModal = class extends import_obsidian23.Modal {
   constructor(app, initialSelection, onConfirm) {
     super(app);
     this.selection = normalizeStatusSyncFieldSelection(initialSelection);
@@ -15451,7 +15540,7 @@ var StatusSyncScopeModal = class extends import_obsidian22.Modal {
       button.type = "button";
       button.addEventListener("click", () => {
         if (!hasSelectedUserFields(this.selection) && !hasSelectedPlatformFields(this.selection)) {
-          new import_obsidian22.Notice(tn("statusSyncModal", "selectAtLeastOne"));
+          new import_obsidian23.Notice(tn("statusSyncModal", "selectAtLeastOne"));
           return;
         }
         this.onConfirm(cloneStatusSyncFieldSelection(this.selection));
@@ -15690,7 +15779,7 @@ function isMobile() {
 }
 
 // src/document/localSubjectSnapshotSession.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 var LocalSubjectSnapshotSession = class {
   constructor(app, documentService) {
     this.snapshotsById = /* @__PURE__ */ new Map();
@@ -15728,7 +15817,7 @@ var LocalSubjectSnapshotSession = class {
         return;
       }
       const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-      if (!(file instanceof import_obsidian23.TFile)) {
+      if (!(file instanceof import_obsidian24.TFile)) {
         return;
       }
       const snapshot = await this.documentService.readSnapshot(file, collection.subject_type);
@@ -15776,7 +15865,7 @@ var LocalSubjectSnapshotSession = class {
       return null;
     }
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian23.TFile) || snapshot.mtime !== file.stat.mtime) {
+    if (!(file instanceof import_obsidian24.TFile) || snapshot.mtime !== file.stat.mtime) {
       this.delete(subjectId);
       return null;
     }
@@ -16114,7 +16203,7 @@ var StatusSyncBackgroundLoader = class {
 };
 
 // src/sync/statusSyncExecutor.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 var StatusSyncExecutor = class {
   constructor(app, client, documentService, episodeStatusManager) {
     this.app = app;
@@ -16149,7 +16238,7 @@ var StatusSyncExecutor = class {
   async syncItem(diff, lease) {
     var _a, _b, _c;
     const file = this.app.vault.getAbstractFileByPath(diff.localPath);
-    if (!(file instanceof import_obsidian24.TFile)) {
+    if (!(file instanceof import_obsidian25.TFile)) {
       throw new Error("File not found");
     }
     const originalContent = await this.app.vault.read(file);
@@ -16316,7 +16405,7 @@ var StatusSyncExecutor = class {
 };
 
 // src/sync/statusSyncSnapshotBuilder.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 var StatusSyncSnapshotBuilder = class {
   constructor(app, documentService, episodeStatusManager) {
     this.app = app;
@@ -16351,7 +16440,7 @@ var StatusSyncSnapshotBuilder = class {
       return null;
     }
     const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-    if (!(file instanceof import_obsidian25.TFile)) {
+    if (!(file instanceof import_obsidian26.TFile)) {
       return null;
     }
     const cachedSnapshot = (_a = getCachedSnapshot == null ? void 0 : getCachedSnapshot(collection.subject_id, localInfo.path, file.stat.mtime)) != null ? _a : null;
@@ -16590,7 +16679,7 @@ function isControlPanelActionBlocked(managerState, action) {
 }
 
 // src/panel/controlPanel.ts
-var ControlPanel = class extends import_obsidian26.Modal {
+var ControlPanel = class extends import_obsidian27.Modal {
   constructor(app, settings, syncManager, onFiltersChange, cachedData, onCacheUpdate, onOpenSyncOptions, onBatchDownloadCovers, onScanAndLinkRelated, subjectNoteManager, episodeStatusManager, autoSyncSelection, actions = {}) {
     super(app);
     this.actions = actions;
@@ -16835,7 +16924,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
       this.decorateMobileButton(button, action.mobileLabel, action.label);
       button.addEventListener("click", (evt) => {
         if (this.isActionBlocked(action)) {
-          new import_obsidian26.Notice(tn("recoveryCenter", "writeBlocked"));
+          new import_obsidian27.Notice(tn("recoveryCenter", "writeBlocked"));
           return;
         }
         action.run(evt);
@@ -17030,7 +17119,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
       return;
     }
     const hasSelection = this.state.selectedIds.size > 0;
-    const menu = new import_obsidian26.Menu();
+    const menu = new import_obsidian27.Menu();
     const actions = this.getMoreMenuActions(hasSelection);
     const orderedSections = ["sync", "selection", "tools"];
     let hasRenderedAnyItem = false;
@@ -17346,12 +17435,12 @@ var ControlPanel = class extends import_obsidian26.Modal {
   }
   async openOrCreateNote(path) {
     if (!this.subjectNoteManager) {
-      new import_obsidian26.Notice(tn("notices", "noteManagerNotInit"));
+      new import_obsidian27.Notice(tn("notices", "noteManagerNotInit"));
       return;
     }
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof import_obsidian26.TFile)) {
-      new import_obsidian26.Notice(tn("controlPanel", "fileNotFound"));
+    if (!(file instanceof import_obsidian27.TFile)) {
+      new import_obsidian27.Notice(tn("controlPanel", "fileNotFound"));
       return;
     }
     await this.subjectNoteManager.createOrAppendForLocalFile(file);
@@ -17396,11 +17485,11 @@ var ControlPanel = class extends import_obsidian26.Modal {
    */
   openFile(path) {
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (file instanceof import_obsidian26.TFile) {
+    if (file instanceof import_obsidian27.TFile) {
       this.close();
       void this.app.workspace.openLinkText(file.path, "", true);
     } else {
-      new import_obsidian26.Notice(tn("controlPanel", "fileNotFound"));
+      new import_obsidian27.Notice(tn("controlPanel", "fileNotFound"));
     }
   }
   /**
@@ -17409,7 +17498,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
    */
   async syncSelected(overwrite = false) {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian26.Notice(tn("controlPanel", "selectToSync"));
+      new import_obsidian27.Notice(tn("controlPanel", "selectToSync"));
       return;
     }
     let selectedCollections;
@@ -17423,7 +17512,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
       );
     }
     if (selectedCollections.length === 0) {
-      new import_obsidian26.Notice(overwrite ? tn("controlPanel", "selectToSync") : tn("controlPanel", "alreadySynced"));
+      new import_obsidian27.Notice(overwrite ? tn("controlPanel", "selectToSync") : tn("controlPanel", "alreadySynced"));
       return;
     }
     const localPropertyResult = await this.collectLocalPropertyValues(selectedCollections);
@@ -17448,7 +17537,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
       this.state.loading = false;
       if (result.completion === "success" || result.completion === "partial-success") {
         const completionText = result.completion === "partial-success" ? tn("syncModal", "partialSuccess") : tn("controlPanel", "syncComplete");
-        new import_obsidian26.Notice(`${completionText}: ${result.added}, ${result.errors}`);
+        new import_obsidian27.Notice(`${completionText}: ${result.added}, ${result.errors}`);
         const scanPath = this.syncManager.getScanRoot();
         await this.incrementalSync.scanLocalFolder(scanPath);
         this.state.localSubjects = /* @__PURE__ */ new Map();
@@ -17465,13 +17554,13 @@ var ControlPanel = class extends import_obsidian26.Modal {
         this.renderActionBar();
         this.renderPagination();
       } else {
-        new import_obsidian26.Notice(tn("controlPanel", "syncFailed"));
+        new import_obsidian27.Notice(tn("controlPanel", "syncFailed"));
         this.renderStatus(tn("controlPanel", "syncFailed"));
       }
     } catch (error) {
       this.state.loading = false;
       const errorMsg = error instanceof Error ? error.message : String(error);
-      new import_obsidian26.Notice(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
+      new import_obsidian27.Notice(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
       this.renderStatus(`${tn("controlPanel", "syncError")}: ${errorMsg}`);
     }
   }
@@ -17487,7 +17576,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
       (message) => {
         if (!warned) {
           warned = true;
-          new import_obsidian26.Notice(message);
+          new import_obsidian27.Notice(message);
         }
       },
       void 0,
@@ -17526,14 +17615,14 @@ var ControlPanel = class extends import_obsidian26.Modal {
    */
   deleteSelected() {
     if (this.state.selectedIds.size === 0) {
-      new import_obsidian26.Notice(tn("controlPanel", "selectToDelete"));
+      new import_obsidian27.Notice(tn("controlPanel", "selectToDelete"));
       return;
     }
     const syncedCollections = this.state.collections.filter(
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (syncedCollections.length === 0) {
-      new import_obsidian26.Notice(tn("controlPanel", "selectSyncedToDelete"));
+      new import_obsidian27.Notice(tn("controlPanel", "selectSyncedToDelete"));
       return;
     }
     const modal = new ConfirmModal(
@@ -17548,7 +17637,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
             if (localInfo) {
               try {
                 const file = this.app.vault.getAbstractFileByPath(localInfo.path);
-                if (file instanceof import_obsidian26.TFile) {
+                if (file instanceof import_obsidian27.TFile) {
                   await this.app.fileManager.trashFile(file);
                   this.state.localSubjects.delete(collection.subject_id);
                   deleted++;
@@ -17559,7 +17648,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
               }
             }
           }
-          new import_obsidian26.Notice(`${tn("controlPanel", "deleteComplete")}: ${deleted}, ${failed}`);
+          new import_obsidian27.Notice(`${tn("controlPanel", "deleteComplete")}: ${deleted}, ${failed}`);
           this.state.selectedIds.clear();
           this.renderStatus(`${tn("controlPanel", "totalItems")} ${this.state.collections.length}, ${tn("controlPanel", "synced")} ${this.state.localSubjects.size}`);
           this.renderTable();
@@ -17577,7 +17666,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
       (c) => this.state.selectedIds.has(c.subject_id) && this.state.localSubjects.has(c.subject_id)
     );
     if (selectedCollections.length === 0) {
-      new import_obsidian26.Notice(tn("controlPanel", "selectSyncedToEdit"));
+      new import_obsidian27.Notice(tn("controlPanel", "selectSyncedToEdit"));
       return;
     }
     const targetItems = selectedCollections.map((collection) => {
@@ -17601,7 +17690,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
           (_a = submission.operations) != null ? _a : [],
           new Map(targetItems.flatMap((item) => item.subjectId === void 0 ? [] : [[item.filePath, item.subjectId]]))
         ) : await this.frontmatterEditor.batchApplyPerItemUpdates((_b = submission.perItemUpdates) != null ? _b : []);
-        new import_obsidian26.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
+        new import_obsidian27.Notice(`${tn("controlPanel", "batchEdit")}: ${result.success}, ${result.failed}`);
         for (const item of targetItems) {
           this.subjectSnapshotSession.invalidatePath(item.filePath);
         }
@@ -17632,21 +17721,21 @@ var ControlPanel = class extends import_obsidian26.Modal {
    */
   async undoLastEdit() {
     if (!this.frontmatterEditor.canUndo()) {
-      new import_obsidian26.Notice(tn("controlPanel", "noUndo"));
+      new import_obsidian27.Notice(tn("controlPanel", "noUndo"));
       return;
     }
     let success;
     try {
       success = await this.frontmatterEditor.undo();
     } catch (error) {
-      new import_obsidian26.Notice(`${tn("controlPanel", "undoFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian27.Notice(`${tn("controlPanel", "undoFailed")}: ${error instanceof Error ? error.message : String(error)}`);
       return;
     }
     if (success) {
-      new import_obsidian26.Notice(tn("controlPanel", "undoSuccess"));
+      new import_obsidian27.Notice(tn("controlPanel", "undoSuccess"));
       this.renderActionBar();
     } else {
-      new import_obsidian26.Notice(tn("controlPanel", "undoFailed"));
+      new import_obsidian27.Notice(tn("controlPanel", "undoFailed"));
     }
   }
   /**
@@ -17696,7 +17785,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
   async syncStatus(selection) {
     selection = normalizeStatusSyncFieldSelection(selection);
     if (!hasSelectedUserFields(selection) && !hasSelectedPlatformFields(selection)) {
-      new import_obsidian26.Notice(tn("statusSyncModal", "selectAtLeastOne"));
+      new import_obsidian27.Notice(tn("statusSyncModal", "selectAtLeastOne"));
       return;
     }
     const scope = getStatusSyncScope(selection);
@@ -17713,7 +17802,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
     );
     this.lastStatusSyncPerf.syncedCollections = syncedCollections.length;
     if (syncedCollections.length === 0) {
-      new import_obsidian26.Notice(tn("controlPanel", "noSyncedItemsStatus"));
+      new import_obsidian27.Notice(tn("controlPanel", "noSyncedItemsStatus"));
       return;
     }
     this.state.loading = true;
@@ -17753,7 +17842,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
       this.state.loading = false;
       if (diffs.length === 0) {
         const message = this.getNoDiffMessage(selection);
-        new import_obsidian26.Notice(message);
+        new import_obsidian27.Notice(message);
         this.renderStatus(message);
         return;
       }
@@ -17793,7 +17882,7 @@ var ControlPanel = class extends import_obsidian26.Modal {
       if (this.lastStatusSyncPerf) {
         this.lastStatusSyncPerf.lastError = errorMsg;
       }
-      new import_obsidian26.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
+      new import_obsidian27.Notice(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
       this.renderStatus(`${tn("controlPanel", "compareStatusFailed")}: ${errorMsg}`);
     }
   }
@@ -17953,7 +18042,7 @@ function parseDateTime(value) {
   const time = Date.parse(value);
   return Number.isFinite(time) ? time : 0;
 }
-var ConfirmModal = class extends import_obsidian26.Modal {
+var ConfirmModal = class extends import_obsidian27.Modal {
   constructor(app, message, onConfirm) {
     super(app);
     this.message = message;
@@ -17981,7 +18070,7 @@ var ConfirmModal = class extends import_obsidian26.Modal {
 };
 
 // src/userData/userDataExporter.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 var UserDataExporter = class {
   constructor(app) {
     this.app = app;
@@ -18005,7 +18094,7 @@ var UserDataExporter = class {
           totalCount: userDataMap.size,
           categories: groupedData
         };
-        const filePath = (0, import_obsidian27.normalizePath)(`${outputDir}/bangumi-user-data.json`);
+        const filePath = (0, import_obsidian28.normalizePath)(`${outputDir}/bangumi-user-data.json`);
         await this.saveFile(filePath, JSON.stringify(exportData, null, 2));
         return { success: true, files: [filePath] };
       } catch (error) {
@@ -18064,7 +18153,7 @@ var UserDataExporter = class {
    * 确保目录存在
    */
   async ensureDirectory(path) {
-    const normalizedPath = (0, import_obsidian27.normalizePath)(path);
+    const normalizedPath = (0, import_obsidian28.normalizePath)(path);
     const exists = await this.app.vault.adapter.exists(normalizedPath);
     if (!exists) {
       await this.app.vault.createFolder(normalizedPath);
@@ -18074,9 +18163,9 @@ var UserDataExporter = class {
    * 保存文件
    */
   async saveFile(path, content) {
-    const normalizedPath = (0, import_obsidian27.normalizePath)(path);
+    const normalizedPath = (0, import_obsidian28.normalizePath)(path);
     const existing = this.app.vault.getAbstractFileByPath(normalizedPath);
-    if (existing instanceof import_obsidian27.TFile) {
+    if (existing instanceof import_obsidian28.TFile) {
       await this.app.vault.process(existing, () => content);
     } else {
       await this.app.vault.create(normalizedPath, content);
@@ -18085,7 +18174,7 @@ var UserDataExporter = class {
 };
 
 // src/userData/userDataImporter.ts
-var import_obsidian28 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 
 // src/userData/importLogic.ts
 var LIST_LIKE_FIELDS = /* @__PURE__ */ new Set([
@@ -18322,7 +18411,7 @@ var UserDataImporter = class {
   async importFromFile(filePath, options, onProgress) {
     try {
       const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (!(file instanceof import_obsidian28.TFile)) {
+      if (!(file instanceof import_obsidian29.TFile)) {
         throw new Error("Import file not found");
       }
       const content = await this.app.vault.read(file);
@@ -18338,7 +18427,7 @@ var UserDataImporter = class {
     const files = [];
     for (const filePath of filePaths) {
       const file = this.app.vault.getAbstractFileByPath(filePath);
-      if (!(file instanceof import_obsidian28.TFile)) {
+      if (!(file instanceof import_obsidian29.TFile)) {
         throw new Error(`Import file not found: ${filePath}`);
       }
       files.push({
@@ -19015,7 +19104,7 @@ var UserDataImporter = class {
     const record = this.registry.getById(subjectId);
     if (!record) return null;
     const file = this.app.vault.getAbstractFileByPath(record.path);
-    return file instanceof import_obsidian28.TFile ? file : null;
+    return file instanceof import_obsidian29.TFile ? file : null;
   }
 };
 function asString(value) {
@@ -19055,13 +19144,13 @@ function sortObjectKeysDeep(value) {
 }
 
 // src/userData/userDataModal.ts
-var import_obsidian29 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 var DEFAULT_EXPORT_DATA_TYPES = [
   "userProperties" /* USER_PROPERTIES */,
   "customProperties" /* CUSTOM_PROPERTIES */,
   "bodySections" /* BODY_CONTENT */
 ];
-var UserDataExportModal = class extends import_obsidian29.Modal {
+var UserDataExportModal = class extends import_obsidian30.Modal {
   constructor(app, scanFolderPath, onExport) {
     super(app);
     this.exportDataTypes = [...DEFAULT_EXPORT_DATA_TYPES];
@@ -19079,12 +19168,12 @@ var UserDataExportModal = class extends import_obsidian29.Modal {
       text: tn("userData", "exportDesc"),
       cls: "bangumi-modal-desc"
     });
-    new import_obsidian29.Setting(contentEl).setName(tn("userData", "scanFolder")).setDesc(tn("userData", "scanFolderDesc")).addText((text) => {
+    new import_obsidian30.Setting(contentEl).setName(tn("userData", "scanFolder")).setDesc(tn("userData", "scanFolderDesc")).addText((text) => {
       text.setValue(this.scanFolderPath).onChange((value) => {
         this.scanFolderPath = value;
       });
     });
-    new import_obsidian29.Setting(contentEl).setName(tn("userData", "outputDir")).setDesc(tn("userData", "outputDirDesc")).addText((text) => {
+    new import_obsidian30.Setting(contentEl).setName(tn("userData", "outputDir")).setDesc(tn("userData", "outputDirDesc")).addText((text) => {
       text.setValue(this.outputDir).onChange((value) => {
         this.outputDir = value;
       });
@@ -19110,7 +19199,7 @@ var UserDataExportModal = class extends import_obsidian29.Modal {
   }
   async doExport() {
     if (this.exportDataTypes.length === 0) {
-      new import_obsidian29.Notice(tn("userData", "selectAtLeastOneDataType"));
+      new import_obsidian30.Notice(tn("userData", "selectAtLeastOneDataType"));
       return;
     }
     const result = await this.exporter.exportByCategory(
@@ -19119,11 +19208,11 @@ var UserDataExportModal = class extends import_obsidian29.Modal {
       this.exportDataTypes
     );
     if (result.success && result.files.length > 0) {
-      new import_obsidian29.Notice(tnFormat("userData", "exportSuccess", { count: result.files.length }));
+      new import_obsidian30.Notice(tnFormat("userData", "exportSuccess", { count: result.files.length }));
       this.onExport(result.files);
       this.close();
     } else {
-      new import_obsidian29.Notice(tnFormat("userData", "exportFailed", { error: result.error || "Unknown error" }));
+      new import_obsidian30.Notice(tnFormat("userData", "exportFailed", { error: result.error || "Unknown error" }));
     }
   }
   onClose() {
@@ -19131,14 +19220,14 @@ var UserDataExportModal = class extends import_obsidian29.Modal {
     contentEl.empty();
   }
   addDataTypeToggle(container, dataType, nameKey, descKey) {
-    new import_obsidian29.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
+    new import_obsidian30.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
       toggle.setValue(this.exportDataTypes.includes(dataType)).onChange((value) => {
         this.exportDataTypes = updateDataTypeSelection(this.exportDataTypes, dataType, value);
       });
     });
   }
 };
-var UserDataImportModal = class extends import_obsidian29.Modal {
+var UserDataImportModal = class extends import_obsidian30.Modal {
   constructor(app, importFiles, onImport, scanRoot = "ACGN") {
     super(app);
     this.mergeStrategy = "smart";
@@ -19161,12 +19250,12 @@ var UserDataImportModal = class extends import_obsidian29.Modal {
     for (const file of this.importFiles) {
       fileListEl.createEl("div", { text: file.name, cls: "bangumi-import-file-item" });
     }
-    new import_obsidian29.Setting(contentEl).setName(tn("userData", "mergeStrategy")).setDesc(tn("userData", "mergeStrategyDesc")).addDropdown((dropdown) => {
+    new import_obsidian30.Setting(contentEl).setName(tn("userData", "mergeStrategy")).setDesc(tn("userData", "mergeStrategyDesc")).addDropdown((dropdown) => {
       dropdown.addOption("prefer_local", tn("userData", "preferLocal")).addOption("prefer_import", tn("userData", "preferImport")).addOption("smart", tn("userData", "smartMerge")).setValue(this.mergeStrategy).onChange((value) => {
         this.mergeStrategy = value;
       });
     });
-    new import_obsidian29.Setting(contentEl).setName(tn("userData", "importMode")).setDesc(tn("userData", "importModeDesc")).addDropdown((dropdown) => {
+    new import_obsidian30.Setting(contentEl).setName(tn("userData", "importMode")).setDesc(tn("userData", "importModeDesc")).addDropdown((dropdown) => {
       dropdown.addOption("item", tn("userData", "itemImportMode")).addOption("property", tn("userData", "propertyImportMode")).setValue(this.importMode).onChange((value) => {
         this.importMode = value;
       });
@@ -19192,7 +19281,7 @@ var UserDataImportModal = class extends import_obsidian29.Modal {
   }
   async doImport() {
     if (this.importDataTypes.length === 0) {
-      new import_obsidian29.Notice(tn("userData", "selectAtLeastOneDataType"));
+      new import_obsidian30.Notice(tn("userData", "selectAtLeastOneDataType"));
       return;
     }
     const dataTypeOptions = { dataTypes: this.importDataTypes };
@@ -19292,14 +19381,14 @@ var UserDataImportModal = class extends import_obsidian29.Modal {
     contentEl.empty();
   }
   addDataTypeToggle(container, dataType, nameKey, descKey) {
-    new import_obsidian29.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
+    new import_obsidian30.Setting(container).setName(tn("userData", nameKey)).setDesc(tn("userData", descKey)).addToggle((toggle) => {
       toggle.setValue(this.importDataTypes.includes(dataType)).onChange((value) => {
         this.importDataTypes = updateDataTypeSelection(this.importDataTypes, dataType, value);
       });
     });
   }
 };
-var MissingFieldModal = class extends import_obsidian29.Modal {
+var MissingFieldModal = class extends import_obsidian30.Modal {
   constructor(app, missingFields, onResolve) {
     super(app);
     this.decisions = /* @__PURE__ */ new Map();
@@ -19404,7 +19493,7 @@ var MissingFieldModal = class extends import_obsidian29.Modal {
     contentEl.empty();
   }
 };
-var PropertyManageModal = class extends import_obsidian29.Modal {
+var PropertyManageModal = class extends import_obsidian30.Modal {
   constructor(app, propertyNames, suggestedAliases, onConfirm) {
     super(app);
     this.decisions = {};
@@ -19479,7 +19568,7 @@ var PropertyManageModal = class extends import_obsidian29.Modal {
     this.contentEl.empty();
   }
 };
-var ImportCompareModal = class extends import_obsidian29.Modal {
+var ImportCompareModal = class extends import_obsidian30.Modal {
   constructor(app, diffs, onConfirm) {
     super(app);
     this.diffs = diffs;
@@ -19597,7 +19686,7 @@ var ImportCompareModal = class extends import_obsidian29.Modal {
     this.contentEl.empty();
   }
 };
-var PropertyImportReviewModal = class extends import_obsidian29.Modal {
+var PropertyImportReviewModal = class extends import_obsidian30.Modal {
   constructor(app, propertyGroups, onConfirm) {
     super(app);
     this.currentIndex = 0;
@@ -19752,7 +19841,7 @@ var PropertyImportReviewModal = class extends import_obsidian29.Modal {
     this.contentEl.empty();
   }
 };
-var ImportResultModal = class extends import_obsidian29.Modal {
+var ImportResultModal = class extends import_obsidian30.Modal {
   constructor(app, result, scanRoot = "ACGN") {
     super(app);
     this.result = result;
@@ -19809,7 +19898,7 @@ var ImportResultModal = class extends import_obsidian29.Modal {
   }
   async applyDecisions(decisions) {
     await this.importer.applyMissingFieldDecisions(decisions);
-    new import_obsidian29.Notice(tnFormat("userData", "missingFieldsApplied", { count: decisions.filter((d) => d.decision === "add").length }));
+    new import_obsidian30.Notice(tnFormat("userData", "missingFieldsApplied", { count: decisions.filter((d) => d.decision === "add").length }));
   }
   onClose() {
     const { contentEl } = this;
@@ -19912,7 +20001,7 @@ function updateDataTypeSelection(selected, dataType, enabled) {
 }
 
 // src/episode/episodeContextMenu.ts
-var import_obsidian30 = require("obsidian");
+var import_obsidian31 = require("obsidian");
 
 // src/episode/types.ts
 var EPISODE_STATUS_TEXT = {
@@ -19961,9 +20050,9 @@ var EpisodeContextMenu = class {
     if (!episodeId || !epNumber) {
       return;
     }
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian30.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian31.MarkdownView);
     if (!view) {
-      new import_obsidian30.Notice(tn("episodeContextMenu", "openAnimeFileFirst"));
+      new import_obsidian31.Notice(tn("episodeContextMenu", "openAnimeFileFirst"));
       return;
     }
     const file = view.file;
@@ -19972,11 +20061,11 @@ var EpisodeContextMenu = class {
     }
     const subjectId = await this.getSubjectIdFromFile(file);
     if (!subjectId) {
-      new import_obsidian30.Notice(tn("episodeContextMenu", "cannotIdentifyId"));
+      new import_obsidian31.Notice(tn("episodeContextMenu", "cannotIdentifyId"));
       return;
     }
     const currentStatus = await this.statusManager.getEpisodeStatus(file, episodeId);
-    const menu = new import_obsidian30.Menu();
+    const menu = new import_obsidian31.Menu();
     menu.addItem((item) => {
       item.setTitle(tnFormat("episodeContextMenu", "watchedUpTo", { ep: epNumber })).onClick(() => void this.setWatchedUpTo(file, epNumber));
     });
@@ -20006,16 +20095,16 @@ var EpisodeContextMenu = class {
     try {
       assertWriteOperationAllowed("episode-status");
     } catch (e) {
-      new import_obsidian30.Notice(tn("recoveryCenter", "writeBlocked"));
+      new import_obsidian31.Notice(tn("recoveryCenter", "writeBlocked"));
       return;
     }
     try {
       await this.statusManager.updateLocalStatus(file, episodeId, epNumber, status);
       this.updateEpBoxStyle(epBox, status);
-      new import_obsidian30.Notice(tnFormat("episodeContextMenu", "episodeStatusSet", { ep: epNumber, status: getEpisodeStatusText(status) }));
+      new import_obsidian31.Notice(tnFormat("episodeContextMenu", "episodeStatusSet", { ep: epNumber, status: getEpisodeStatusText(status) }));
     } catch (error) {
       console.error("[Bangumi Sync] \u8BBE\u7F6E\u5355\u96C6\u72B6\u6001\u5931\u8D25:", error);
-      new import_obsidian30.Notice(tn("episodeContextMenu", "markFailed"));
+      new import_obsidian31.Notice(tn("episodeContextMenu", "markFailed"));
     }
   }
   /**
@@ -20025,11 +20114,11 @@ var EpisodeContextMenu = class {
     try {
       assertWriteOperationAllowed("episode-status");
     } catch (e) {
-      new import_obsidian30.Notice(tn("recoveryCenter", "writeBlocked"));
+      new import_obsidian31.Notice(tn("recoveryCenter", "writeBlocked"));
       return;
     }
     try {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian30.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian31.MarkdownView);
       if (!view) return;
       const contentEl = view.contentEl;
       const epBoxes = contentEl.querySelectorAll(".ep-box");
@@ -20050,10 +20139,10 @@ var EpisodeContextMenu = class {
       episodesToUpdate.forEach(({ epBox }) => {
         this.updateEpBoxStyle(epBox, 2);
       });
-      new import_obsidian30.Notice(tnFormat("episodeContextMenu", "markedEpisodes", { ep: targetEpNumber }));
+      new import_obsidian31.Notice(tnFormat("episodeContextMenu", "markedEpisodes", { ep: targetEpNumber }));
     } catch (error) {
       console.error('[Bangumi Sync] \u8BBE\u7F6E"\u770B\u5230"\u72B6\u6001\u5931\u8D25:', error);
-      new import_obsidian30.Notice(tn("episodeContextMenu", "markFailed"));
+      new import_obsidian31.Notice(tn("episodeContextMenu", "markFailed"));
     }
   }
   /**
@@ -20063,18 +20152,18 @@ var EpisodeContextMenu = class {
     try {
       assertWriteOperationAllowed("episode-comment");
     } catch (e) {
-      new import_obsidian30.Notice(tn("recoveryCenter", "writeBlocked"));
+      new import_obsidian31.Notice(tn("recoveryCenter", "writeBlocked"));
       return;
     }
     try {
       const result = await this.commentManager.insertEpisodeComment(file, epNumber);
       if (result.success) {
         await this.switchToEditModeAndFocus(result.insertLine, result.insertColumn);
-        new import_obsidian30.Notice(tnFormat("episodeContextMenu", "episodeCommentAdded", { ep: epNumber }));
+        new import_obsidian31.Notice(tnFormat("episodeContextMenu", "episodeCommentAdded", { ep: epNumber }));
       }
     } catch (error) {
       console.error("[Bangumi Sync] \u6DFB\u52A0\u5355\u96C6\u5410\u69FD\u5931\u8D25:", error);
-      new import_obsidian30.Notice(tn("episodeContextMenu", "addCommentFailed"));
+      new import_obsidian31.Notice(tn("episodeContextMenu", "addCommentFailed"));
     }
   }
   /**
@@ -20099,7 +20188,7 @@ var EpisodeContextMenu = class {
    * 切换到编辑模式并定位光标
    */
   async switchToEditModeAndFocus(line, column) {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian30.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian31.MarkdownView);
     if (!view) return;
     const ownerWindow = view.contentEl.ownerDocument.defaultView;
     const state = view.getState();
@@ -20599,7 +20688,7 @@ ${callout}
 };
 
 // src/note/subjectNoteManager.ts
-var import_obsidian31 = require("obsidian");
+var import_obsidian32 = require("obsidian");
 var SubjectNoteManager = class {
   constructor(app, client, settings) {
     this.app = app;
@@ -20609,8 +20698,8 @@ var SubjectNoteManager = class {
   }
   async createOrAppendForCurrentFile() {
     const file = this.app.workspace.getActiveFile();
-    if (!(file instanceof import_obsidian31.TFile)) {
-      new import_obsidian31.Notice(tn("subjectNote", "notSyncedFile"));
+    if (!(file instanceof import_obsidian32.TFile)) {
+      new import_obsidian32.Notice(tn("subjectNote", "notSyncedFile"));
       return;
     }
     await this.createOrAppendForLocalFile(file);
@@ -20618,12 +20707,12 @@ var SubjectNoteManager = class {
   async createOrAppendForLocalFile(localFile) {
     return withWriteOperation("subject-note", async () => {
       if (!this.settings.notePathTemplate.trim()) {
-        new import_obsidian31.Notice(tn("subjectNote", "configureNotePath"));
+        new import_obsidian32.Notice(tn("subjectNote", "configureNotePath"));
         return;
       }
       const context = await this.resolveContext(localFile);
       if (!context) {
-        new import_obsidian31.Notice(tn("subjectNote", "missingSubjectId"));
+        new import_obsidian32.Notice(tn("subjectNote", "missingSubjectId"));
         return;
       }
       const candidateIds = await this.buildCandidateIds(context.subject, localFile);
@@ -20635,7 +20724,7 @@ var SubjectNoteManager = class {
         localFile.path,
         true
       );
-      new import_obsidian31.Notice(tn("subjectNote", match ? "appendedToNote" : "createdNote"));
+      new import_obsidian32.Notice(tn("subjectNote", match ? "appendedToNote" : "createdNote"));
     });
   }
   async resolveContext(localFile) {
@@ -20657,7 +20746,7 @@ var SubjectNoteManager = class {
     const queue = [localFile];
     while (queue.length > 0 && visited.size < 100) {
       const file = queue.shift();
-      if (!(file instanceof import_obsidian31.TFile) || visited.has(file.path)) {
+      if (!(file instanceof import_obsidian32.TFile) || visited.has(file.path)) {
         continue;
       }
       visited.add(file.path);
@@ -20709,7 +20798,7 @@ var SubjectNoteManager = class {
         continue;
       }
       const target = this.app.metadataCache.getFirstLinkpathDest(linkPath, sourceFile.path);
-      if (target instanceof import_obsidian31.TFile) {
+      if (target instanceof import_obsidian32.TFile) {
         files.push(target);
       }
     }
@@ -20743,17 +20832,17 @@ var SubjectNoteManager = class {
   }
   async createNewNote(context, candidateIds) {
     var _a;
-    const preferredPath = (0, import_obsidian31.normalizePath)(generateFilePath(this.settings.notePathTemplate, context.subject));
+    const preferredPath = (0, import_obsidian32.normalizePath)(generateFilePath(this.settings.notePathTemplate, context.subject));
     let notePath = preferredPath;
     let existing = this.app.vault.getAbstractFileByPath(notePath);
-    if (existing instanceof import_obsidian31.TFile) {
+    if (existing instanceof import_obsidian32.TFile) {
       const ids = await this.readNoteIds(existing);
       if (ids.some((id) => candidateIds.includes(id))) {
         return this.updateExistingNote({ file: existing, ids }, candidateIds, context.heading);
       }
       notePath = this.appendNoteSuffix(preferredPath, (_a = this.extractYear(context.subject)) != null ? _a : `bgm-${context.subject.id}`);
       existing = this.app.vault.getAbstractFileByPath(notePath);
-      if (existing instanceof import_obsidian31.TFile) {
+      if (existing instanceof import_obsidian32.TFile) {
         const yearIds = await this.readNoteIds(existing);
         if (yearIds.some((id) => candidateIds.includes(id))) {
           return this.updateExistingNote({ file: existing, ids: yearIds }, candidateIds, context.heading);
@@ -20946,8 +21035,8 @@ ${nextBody}
 };
 
 // src/ui/pathToolsModal.ts
-var import_obsidian32 = require("obsidian");
-var PathDiagnosticModal = class extends import_obsidian32.Modal {
+var import_obsidian33 = require("obsidian");
+var PathDiagnosticModal = class extends import_obsidian33.Modal {
   constructor(app, report, onExport) {
     super(app);
     this.report = report;
@@ -20956,7 +21045,7 @@ var PathDiagnosticModal = class extends import_obsidian32.Modal {
   onOpen() {
     var _a;
     this.modalEl.addClass("bangumi-modal");
-    new import_obsidian32.Setting(this.contentEl).setName(tn("pathTools", "diagnosticTitle")).setHeading();
+    new import_obsidian33.Setting(this.contentEl).setName(tn("pathTools", "diagnosticTitle")).setHeading();
     this.contentEl.createEl("p", {
       text: tnFormat("pathTools", "diagnosticSummary", {
         valid: this.report.validSubjects,
@@ -20971,16 +21060,16 @@ var PathDiagnosticModal = class extends import_obsidian32.Modal {
         });
       }
     }
-    new import_obsidian32.Setting(this.contentEl).addButton((button) => button.setButtonText(tn("pathTools", "exportReport")).onClick(async () => {
+    new import_obsidian33.Setting(this.contentEl).addButton((button) => button.setButtonText(tn("pathTools", "exportReport")).onClick(async () => {
       const path = await this.onExport();
-      new import_obsidian32.Notice(tnFormat("pathTools", "reportExported", { path }));
+      new import_obsidian33.Notice(tnFormat("pathTools", "reportExported", { path }));
     })).addButton((button) => button.setButtonText(tn("pathTools", "close")).onClick(() => this.close()));
   }
   onClose() {
     this.contentEl.empty();
   }
 };
-var PathMigrationPreviewModal = class extends import_obsidian32.Modal {
+var PathMigrationPreviewModal = class extends import_obsidian33.Modal {
   constructor(app, preview, onApply, onRefresh) {
     super(app);
     this.onApply = onApply;
@@ -20995,12 +21084,12 @@ var PathMigrationPreviewModal = class extends import_obsidian32.Modal {
   }
   render() {
     this.contentEl.empty();
-    new import_obsidian32.Setting(this.contentEl).setName(tn("pathTools", "migrationTitle")).setHeading();
-    new import_obsidian32.Setting(this.contentEl).setName(tn("pathTools", "includeUnknown")).addToggle((toggle) => toggle.setValue(this.includeUnknown).onChange(async (value) => {
+    new import_obsidian33.Setting(this.contentEl).setName(tn("pathTools", "migrationTitle")).setHeading();
+    new import_obsidian33.Setting(this.contentEl).setName(tn("pathTools", "includeUnknown")).addToggle((toggle) => toggle.setValue(this.includeUnknown).onChange(async (value) => {
       this.includeUnknown = value;
       await this.refreshPreview();
     }));
-    new import_obsidian32.Setting(this.contentEl).setName(tn("pathTools", "includeUserRenamed")).addToggle((toggle) => toggle.setValue(this.includeUserRenamed).onChange(async (value) => {
+    new import_obsidian33.Setting(this.contentEl).setName(tn("pathTools", "includeUserRenamed")).addToggle((toggle) => toggle.setValue(this.includeUserRenamed).onChange(async (value) => {
       this.includeUserRenamed = value;
       await this.refreshPreview();
     }));
@@ -21023,11 +21112,11 @@ var PathMigrationPreviewModal = class extends import_obsidian32.Modal {
         text: entry.status === "rename" ? `#${entry.subjectId} ${entry.name}: ${entry.from} \u2192 ${entry.to}` : `#${entry.subjectId} ${entry.name}: ${entry.status}${entry.reason ? ` \u2014 ${entry.reason}` : ""}`
       });
     }
-    new import_obsidian32.Setting(this.contentEl).addButton((button) => {
+    new import_obsidian33.Setting(this.contentEl).addButton((button) => {
       button.setButtonText(tn("pathTools", "applyMigration")).setCta().setDisabled(renameCount === 0).onClick(async () => {
         button.setDisabled(true);
         const result = await this.onApply(this.preview);
-        new import_obsidian32.Notice(tnFormat("pathTools", "migrationComplete", result));
+        new import_obsidian33.Notice(tnFormat("pathTools", "migrationComplete", result));
         this.close();
       });
     }).addButton((button) => button.setButtonText(tn("pathTools", "close")).onClick(() => this.close()));
@@ -21045,8 +21134,8 @@ var PathMigrationPreviewModal = class extends import_obsidian32.Modal {
 };
 
 // src/ui/recoveryCenterModal.ts
-var import_obsidian33 = require("obsidian");
-var RecoveryCenterModal = class extends import_obsidian33.Modal {
+var import_obsidian34 = require("obsidian");
+var RecoveryCenterModal = class extends import_obsidian34.Modal {
   constructor(app, handlers) {
     super(app);
     this.handlers = handlers;
@@ -21069,7 +21158,7 @@ var RecoveryCenterModal = class extends import_obsidian33.Modal {
     var _a, _b, _c, _d, _e, _f, _g;
     this.contentEl.empty();
     this.contentEl.addClass("bangumi-recovery-center");
-    new import_obsidian33.Setting(this.contentEl).setName(tn("recoveryCenter", "title")).setHeading();
+    new import_obsidian34.Setting(this.contentEl).setName(tn("recoveryCenter", "title")).setHeading();
     const recovery = this.handlers.getRecovery();
     if (!recovery) {
       this.contentEl.createEl("p", { text: tn("recoveryCenter", "noRecovery"), cls: "bangumi-sync-stats" });
@@ -21192,7 +21281,7 @@ var RecoveryCenterModal = class extends import_obsidian33.Modal {
 };
 
 // src/ui/comprehensiveSyncModal.ts
-var import_obsidian34 = require("obsidian");
+var import_obsidian35 = require("obsidian");
 
 // src/sync/comprehensiveSyncService.ts
 var ComprehensiveSyncService = class {
@@ -21407,7 +21496,7 @@ var ComprehensiveSyncService = class {
 
 // src/ui/comprehensiveSyncModal.ts
 var PAGE_SIZE = 40;
-var ComprehensiveSyncModal = class extends import_obsidian34.Modal {
+var ComprehensiveSyncModal = class extends import_obsidian35.Modal {
   constructor(app, manager, episodes, concurrency, onComplete, openRecovery) {
     super(app);
     this.manager = manager;
@@ -21642,7 +21731,7 @@ var ComprehensiveSyncModal = class extends import_obsidian34.Modal {
     } catch (error) {
       this.previewExpired = !this.service.isPlanUsable(this.plan);
       this.error = error instanceof Error ? error.message : String(error);
-      new import_obsidian34.Notice(this.error);
+      new import_obsidian35.Notice(this.error);
     } finally {
       details.dispose();
       this.busy = false;
@@ -21699,7 +21788,7 @@ var ComprehensiveSyncModal = class extends import_obsidian34.Modal {
 };
 
 // main.ts
-var BangumiPlugin = class extends import_obsidian35.Plugin {
+var BangumiPlugin = class extends import_obsidian36.Plugin {
   constructor() {
     super(...arguments);
     this.syncManager = null;
@@ -21822,7 +21911,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
   async openPathDiagnostic() {
     try {
       if (!this.syncManager) {
-        new import_obsidian35.Notice(tn("notices", "syncManagerNotInit"));
+        new import_obsidian36.Notice(tn("notices", "syncManagerNotInit"));
         return;
       }
       const report = await this.syncManager.diagnoseLocalSubjects();
@@ -21835,13 +21924,13 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
         }
       ).open();
     } catch (error) {
-      new import_obsidian35.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian36.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   openRecoveryCenter() {
     const manager = this.syncManager;
     if (!manager) {
-      new import_obsidian35.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian36.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     new RecoveryCenterModal(this.app, {
@@ -21857,7 +21946,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
   async openPathMigrationPreview() {
     try {
       if (!this.syncManager) {
-        new import_obsidian35.Notice(tn("notices", "syncManagerNotInit"));
+        new import_obsidian36.Notice(tn("notices", "syncManagerNotInit"));
         return;
       }
       const preview = await this.syncManager.previewPathMigration();
@@ -21874,7 +21963,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
         }
       ).open();
     } catch (error) {
-      new import_obsidian35.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian36.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   onunload() {
@@ -21985,7 +22074,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
         var _a2;
         return ((_a2 = rule.content) == null ? void 0 : _a2.mode) === "file" && [path, oldPath].some((changedPath) => {
           var _a3, _b2;
-          return changedPath !== void 0 && ((0, import_obsidian35.normalizePath)((_a3 = rule.content.filePath) != null ? _a3 : "") === (0, import_obsidian35.normalizePath)(changedPath) || (0, import_obsidian35.normalizePath)((_b2 = rule.content.filePath) != null ? _b2 : "").startsWith((0, import_obsidian35.normalizePath)(changedPath) + "/"));
+          return changedPath !== void 0 && ((0, import_obsidian36.normalizePath)((_a3 = rule.content.filePath) != null ? _a3 : "") === (0, import_obsidian36.normalizePath)(changedPath) || (0, import_obsidian36.normalizePath)((_b2 = rule.content.filePath) != null ? _b2 : "").startsWith((0, import_obsidian36.normalizePath)(changedPath) + "/"));
         });
       })) return;
       this.templateRefreshRevision++;
@@ -21993,7 +22082,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
       (_a = this.syncManager) == null ? void 0 : _a.invalidateTemplateSources();
       (_b = this.previewDetails) == null ? void 0 : _b.dispose();
       this.previewDetails = null;
-      new import_obsidian35.Notice("\u6A21\u677F\u6587\u4EF6\u5DF2\u53D8\u66F4\uFF0C\u8BF7\u91CD\u65B0\u9884\u89C8 / template files changed; refresh the preview.");
+      new import_obsidian36.Notice("\u6A21\u677F\u6587\u4EF6\u5DF2\u53D8\u66F4\uFF0C\u8BF7\u91CD\u65B0\u9884\u89C8 / template files changed; refresh the preview.");
       void this.refreshTemplateFiles();
     };
     this.registerEvent(this.app.vault.on("modify", (file) => changed(file.path)));
@@ -22100,8 +22189,8 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
       this.lastSavedSettings = this.cloneSettings(this.settings);
       return { applied: true, settings: this.cloneSettings(this.settings) };
     }
-    if (outcome.error instanceof ConfigurationChangeBlockedError) new import_obsidian35.Notice(outcome.error.message);
-    else new import_obsidian35.Notice(`Failed to save settings: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`);
+    if (outcome.error instanceof ConfigurationChangeBlockedError) new import_obsidian36.Notice(outcome.error.message);
+    else new import_obsidian36.Notice(`Failed to save settings: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`);
     return { applied: false, settings: this.cloneSettings(this.settings) };
   }
   async reconcileConfigurationRecovery(facts) {
@@ -22141,7 +22230,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
     }
     this.syncManager = new SyncManager(this.app, config);
     await this.syncManager.initializeRecovery();
-    if (this.syncManager.getRecoveryRequired()) new import_obsidian35.Notice(tn("recoveryCenter", "writeBlocked"));
+    if (this.syncManager.getRecoveryRequired()) new import_obsidian36.Notice(tn("recoveryCenter", "writeBlocked"));
     this.appliedSyncConfig = cloneSyncManagerConfig(config);
     this.lastSavedSettings = this.cloneSettings(this.settings);
     const manager = this.syncManager;
@@ -22189,7 +22278,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
       this.app,
       scanRoot,
       (files) => {
-        new import_obsidian35.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
+        new import_obsidian36.Notice(tnFormat("userData", "exportSuccess", { count: files.length }));
       }
     );
     modal.open();
@@ -22216,7 +22305,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
             content: await file.text()
           });
         } catch (error) {
-          new import_obsidian35.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
+          new import_obsidian36.Notice(tnFormat("userData", "importFailed", { error: String(error) }));
           return;
         }
       }
@@ -22238,7 +22327,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
     try {
       return (_b = (_a = this.syncManager) == null ? void 0 : _a.getScanRoot()) != null ? _b : null;
     } catch (error) {
-      new import_obsidian35.Notice(error instanceof Error ? error.message : String(error));
+      new import_obsidian36.Notice(error instanceof Error ? error.message : String(error));
       return null;
     }
   }
@@ -22247,12 +22336,12 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
    */
   openSearchModal() {
     if (!this.syncManager) {
-      new import_obsidian35.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian36.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     if (!this.ensureSyncCanStart()) return;
     if (!this.settings.accessToken) {
-      new import_obsidian35.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian36.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     const modal = new SearchModal(
@@ -22273,7 +22362,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
     var _a;
     if (!this.ensureSyncCanStart()) return;
     if (!this.settings.accessToken) {
-      new import_obsidian35.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian36.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (this.controlPanel) {
@@ -22292,7 +22381,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
         this.settings.panelFilters = filters;
         void this.saveSettings().catch((error) => {
           console.error("[Bangumi Sync] Failed to persist panel filters:", error);
-          new import_obsidian35.Notice(`Failed to save settings: ${error instanceof Error ? error.message : String(error)}`);
+          new import_obsidian36.Notice(`Failed to save settings: ${error instanceof Error ? error.message : String(error)}`);
         });
       },
       cachedPanelData,
@@ -22323,7 +22412,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
   openComprehensiveSync() {
     if (!this.ensureWriteCanStart("comprehensive-sync") || !this.syncManager) return;
     if (!this.settings.accessToken) {
-      new import_obsidian35.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian36.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     new ComprehensiveSyncModal(
@@ -22340,7 +22429,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
   openSyncOptions() {
     if (!this.ensureSyncCanStart()) return;
     if (!this.settings.accessToken) {
-      new import_obsidian35.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian36.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     const modal = new SyncOptionsModal(
@@ -22374,11 +22463,11 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
   async batchDownloadCovers() {
     if (!this.ensureWriteCanStart("cover-download")) return;
     if (!this.settings.downloadImages) {
-      new import_obsidian35.Notice(tn("notices", "coverDownloadDisabled"));
+      new import_obsidian36.Notice(tn("notices", "coverDownloadDisabled"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian35.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian36.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -22412,21 +22501,21 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
         this.syncManager.getRecoveryRequired() !== null
       );
       if (noticeKind === "recovery") {
-        new import_obsidian35.Notice(tnFormat("notices", "coverDownloadRecoveryRequired", {
+        new import_obsidian36.Notice(tnFormat("notices", "coverDownloadRecoveryRequired", {
           downloaded: result.downloaded,
           skipped: result.skipped,
           failed: result.failed
         }));
       } else if (noticeKind === "failed") {
-        new import_obsidian35.Notice(tnFormat("notices", "coverDownloadFailed", {
+        new import_obsidian36.Notice(tnFormat("notices", "coverDownloadFailed", {
           downloaded: result.downloaded,
           skipped: result.skipped,
           failed: result.failed
         }));
       } else if (noticeKind === "empty") {
-        new import_obsidian35.Notice(tn("notices", "coverDownloadNoItems"));
+        new import_obsidian36.Notice(tn("notices", "coverDownloadNoItems"));
       } else {
-        new import_obsidian35.Notice(tnFormat("notices", "coverDownloadComplete", {
+        new import_obsidian36.Notice(tnFormat("notices", "coverDownloadComplete", {
           downloaded: result.downloaded,
           skipped: result.skipped,
           failed: result.failed
@@ -22441,7 +22530,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u6279\u91CF\u4E0B\u8F7D\u5C01\u9762\u5931\u8D25:", error);
-      new import_obsidian35.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian36.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
@@ -22450,7 +22539,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
   async scanAndLinkRelated() {
     if (!this.ensureWriteCanStart("related-link-scan")) return;
     if (!this.syncManager) {
-      new import_obsidian35.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian36.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -22481,7 +22570,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
       this.syncManager.setCancellationSignal(null);
       this.hideStatusBar(0);
       console.error("[Bangumi Sync] \u626B\u63CF\u5173\u8054\u5931\u8D25:", error);
-      new import_obsidian35.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+      new import_obsidian36.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   /**
@@ -22493,19 +22582,19 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
     (_a = this.previewDetails) == null ? void 0 : _a.dispose();
     this.previewDetails = null;
     if (!this.settings.accessToken) {
-      new import_obsidian35.Notice(tn("notices", "configureTokenFirst"));
+      new import_obsidian36.Notice(tn("notices", "configureTokenFirst"));
       return;
     }
     if (options.subjectTypes.length === 0) {
-      new import_obsidian35.Notice(tn("notices", "selectSubjectType"));
+      new import_obsidian36.Notice(tn("notices", "selectSubjectType"));
       return;
     }
     if (options.collectionTypes.length === 0) {
-      new import_obsidian35.Notice(tn("notices", "selectCollectionType"));
+      new import_obsidian36.Notice(tn("notices", "selectCollectionType"));
       return;
     }
     if (!this.syncManager) {
-      new import_obsidian35.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian36.Notice(tn("notices", "syncManagerNotInit"));
       return;
     }
     this.cancellationSignal = createCancellationSignal();
@@ -22549,12 +22638,12 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
           return;
         }
         if (!prepareResult.success) {
-          new import_obsidian35.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
+          new import_obsidian36.Notice(`${tn("notices", "syncFailed")}: ${prepareResult.error}`);
           this.cleanupSyncState(0);
           return;
         }
         if (!prepareResult.previewItems || prepareResult.previewItems.length === 0) {
-          new import_obsidian35.Notice(tn("notices", "noItemsToSync"));
+          new import_obsidian36.Notice(tn("notices", "noItemsToSync"));
           this.cleanupSyncState(0);
           return;
         }
@@ -22575,7 +22664,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
         }
         if (localPropertyResult === null) {
           debugLog(() => "[Bangumi Sync] User cancelled custom properties");
-          new import_obsidian35.Notice(tn("notices", "syncCancelled"));
+          new import_obsidian36.Notice(tn("notices", "syncCancelled"));
           this.cleanupSyncState(0);
           return;
         }
@@ -22590,12 +22679,12 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
               try {
                 if (this.previewDetails !== details) return;
                 if (result.action === "cancel") {
-                  new import_obsidian35.Notice(tn("notices", "syncCancelled"));
+                  new import_obsidian36.Notice(tn("notices", "syncCancelled"));
                   this.cleanupSyncState(0);
                   return;
                 }
                 if (!details.isValid || this.syncManager !== previewManager || JSON.stringify(this.appliedSyncConfig) !== previewConfig) {
-                  new import_obsidian35.Notice(tn("notices", "syncCancelled"));
+                  new import_obsidian36.Notice(tn("notices", "syncCancelled"));
                   this.cleanupSyncState(0);
                   return;
                 }
@@ -22634,7 +22723,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
                 this.hideStatusBar();
               } catch (error) {
                 console.error("[Bangumi Sync] Preview execution failed:", error);
-                new import_obsidian35.Notice(tn("notices", "syncFailed"));
+                new import_obsidian36.Notice(tn("notices", "syncFailed"));
                 this.cleanupSyncState(0);
               } finally {
                 disposeDetails();
@@ -22645,7 +22734,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
         previewModal.open();
       } catch (error) {
         console.error("[Bangumi Sync] Preview flow error:", error);
-        new import_obsidian35.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+        new import_obsidian36.Notice(`${tn("notices", "syncFailed")}: ${error instanceof Error ? error.message : String(error)}`);
         if (this.previewDetails === details) this.cleanupSyncState(0);
         disposeDetails();
       }
@@ -22669,7 +22758,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
   }
   ensureSyncCanStart() {
     if (!this.syncManager) {
-      new import_obsidian35.Notice(tn("notices", "syncManagerNotInit"));
+      new import_obsidian36.Notice(tn("notices", "syncManagerNotInit"));
       return false;
     }
     try {
@@ -22677,14 +22766,14 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
       return true;
     } catch (error) {
       if (error instanceof RecoveryRequiredError) {
-        new import_obsidian35.Notice(tn("recoveryCenter", "writeBlocked"));
+        new import_obsidian36.Notice(tn("recoveryCenter", "writeBlocked"));
         this.openRecoveryCenter();
       } else if (error instanceof PendingDecisionInProgressError) {
-        new import_obsidian35.Notice(tn("recoveryCenter", "decisionInProgress"));
+        new import_obsidian36.Notice(tn("recoveryCenter", "decisionInProgress"));
       } else if (error instanceof PendingSyncTransactionError) {
-        new import_obsidian35.Notice(tn("recoveryCenter", "pendingDecision"));
+        new import_obsidian36.Notice(tn("recoveryCenter", "pendingDecision"));
       } else {
-        new import_obsidian35.Notice(error instanceof Error ? error.message : String(error));
+        new import_obsidian36.Notice(error instanceof Error ? error.message : String(error));
       }
       return false;
     }
@@ -22695,14 +22784,14 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
       return true;
     } catch (error) {
       if (error instanceof RecoveryRequiredError) {
-        new import_obsidian35.Notice(tn("recoveryCenter", "writeBlocked"));
+        new import_obsidian36.Notice(tn("recoveryCenter", "writeBlocked"));
         this.openRecoveryCenter();
       } else if (error instanceof PendingDecisionInProgressError) {
-        new import_obsidian35.Notice(tn("recoveryCenter", "decisionInProgress"));
+        new import_obsidian36.Notice(tn("recoveryCenter", "decisionInProgress"));
       } else if (error instanceof PendingSyncTransactionError) {
-        new import_obsidian35.Notice(tn("recoveryCenter", "pendingDecision"));
+        new import_obsidian36.Notice(tn("recoveryCenter", "pendingDecision"));
       } else {
-        new import_obsidian35.Notice(error instanceof Error ? error.message : String(error));
+        new import_obsidian36.Notice(error instanceof Error ? error.message : String(error));
       }
       return false;
     }
@@ -22735,7 +22824,7 @@ var BangumiPlugin = class extends import_obsidian35.Plugin {
       (message) => {
         if (!warned) {
           warned = true;
-          new import_obsidian35.Notice(message);
+          new import_obsidian36.Notice(message);
         }
       },
       (current, total) => {
