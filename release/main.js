@@ -3523,7 +3523,7 @@ async function readTemplateFile(app, path) {
   return app.vault.read(file);
 }
 async function exportTemplateBundle(app, settings, parent) {
-  var _a, _b;
+  var _a, _b, _c;
   validateTemplateSettings(settings);
   settings = JSON.parse(JSON.stringify(settings));
   parent = parent.trim();
@@ -3535,18 +3535,21 @@ async function exportTemplateBundle(app, settings, parent) {
   const entries = [];
   const sources = {};
   const unavailable = [];
+  const fileSnapshots = {};
   for (const node of TEMPLATE_NODES) {
     const resolved = resolveTemplateRule(settings, node.id);
     sources[node.id] = { contentSource: resolved.contentSource, pathSource: resolved.pathSource };
     if (((_b = (_a = settings.rules[node.id]) == null ? void 0 : _a.content) == null ? void 0 : _b.mode) && settings.rules[node.id].content.mode !== "inherit") {
       try {
-        entries.push({ path: `${node.id.replace(/\//g, "--")}.md`, content: await resolveNodeContent(settings, node.id, (path) => readTemplateFile(app, path)) });
+        const content = await resolveNodeContent(settings, node.id, (path) => readTemplateFile(app, path));
+        entries.push({ path: `${node.id.replace(/\//g, "--")}.md`, content });
+        if (((_c = settings.rules[node.id].content) == null ? void 0 : _c.mode) === "file") fileSnapshots[node.id] = content;
       } catch (e) {
         unavailable.push(node.id);
       }
     }
   }
-  entries.push({ path: "manifest.json", content: JSON.stringify({ format: "bangumi-template-bundle", settings, sources, unavailable }, null, 2) });
+  entries.push({ path: "manifest.json", content: JSON.stringify({ format: "bangumi-template-bundle", settings, sources, unavailable, fileSnapshots }, null, 2) });
   return withWriteOperation("template-export", async () => {
     if (base && !app.vault.getAbstractFileByPath(base)) await app.vault.createFolder(base);
     await app.vault.createFolder(folder);
@@ -3559,6 +3562,41 @@ function parseTemplateBundle(text) {
   if (bundle.format !== "bangumi-template-bundle" || !bundle.settings) throw new Error("Invalid template bundle");
   validateTemplateSettings(bundle.settings);
   return bundle.settings;
+}
+function readTemplateBundleImport(text) {
+  var _a, _b, _c;
+  const settings = parseTemplateBundle(text);
+  const raw = JSON.parse(text);
+  const snapshots = (_a = raw.fileSnapshots) != null ? _a : {};
+  if (typeof snapshots !== "object" || snapshots === null || Array.isArray(snapshots)) throw new Error("Invalid file snapshots");
+  for (const [id, content] of Object.entries(snapshots)) {
+    if (((_c = (_b = settings.rules[id]) == null ? void 0 : _b.content) == null ? void 0 : _c.mode) !== "file" || typeof content !== "string") throw new Error("Invalid file snapshot: " + id);
+  }
+  return { settings, fileSnapshots: snapshots };
+}
+async function preflightTemplateImport(app, bundle, restoreFiles) {
+  var _a;
+  const errors = [];
+  for (const node of TEMPLATE_NODES) {
+    const rule = resolveTemplateRule(bundle.settings, node.id);
+    try {
+      if (restoreFiles && rule.content.mode === "file" && bundle.fileSnapshots[rule.contentSource] === void 0) throw new Error("\u5907\u4EFD\u6CA1\u6709\u6587\u4EF6\u5FEB\u7167 / No file snapshot");
+      await resolveNodeContent(bundle.settings, node.id, (path) => restoreFiles ? Promise.resolve(bundle.fileSnapshots[rule.contentSource]) : readTemplateFile(app, path));
+    } catch (e) {
+      errors.push(`${node.id} \u2190 ${rule.contentSource}: ${(_a = rule.content.filePath) != null ? _a : ""} \xB7 \u6A21\u677F\u7F3A\u5931\u3001\u7A7A\u767D\u6216\u6761\u4EF6\u7ED3\u6784\u65E0\u6548 / Missing, empty or invalid template`);
+    }
+  }
+  return errors;
+}
+async function restoreTemplateBundleFiles(app, bundle, parent) {
+  const errors = await preflightTemplateImport(app, bundle, true);
+  if (errors.length) throw new Error(errors.join("\n"));
+  const staged = JSON.parse(JSON.stringify(bundle.settings));
+  for (const [id, content] of Object.entries(bundle.fileSnapshots)) staged.rules[id].content = { mode: "custom", customContent: content };
+  const folder = await exportTemplateBundle(app, staged, parent);
+  const restored = JSON.parse(JSON.stringify(bundle.settings));
+  for (const id of Object.keys(bundle.fileSnapshots)) restored.rules[id].content.filePath = `${folder}/${id.replace(/\//g, "--")}.md`;
+  return restored;
 }
 
 // common/parser/characterParser.ts
@@ -4999,8 +5037,9 @@ ${resolved.pathTemplate}` });
       const errors = Object.entries(compiled.customTemplates).filter(([key]) => key.startsWith("__template_error__:")).map(([, value]) => value);
       this.showText(label("\u9A8C\u8BC1\u7ED3\u679C", "Validation results"), errors.length ? errors.join("\n") : label("\u5168\u90E8\u6A21\u677F\u53EF\u8BFB\u53D6\u3002", "All templates are readable."));
     })));
-    new import_obsidian5.Setting(container).setName(label("\u5BFC\u5165 manifest", "Import manifest")).setDesc(label("\u7C98\u8D34\u5BFC\u51FA\u7684 manifest\u3002\u786E\u8BA4\u524D\u663E\u793A\u53D8\u66F4\u8282\u70B9\uFF0C\u5E76\u81EA\u52A8\u5907\u4EFD\u5F53\u524D\u6A21\u677F\u3002", "Paste an exported manifest. Review changed nodes; current templates are backed up before import.")).addButton((button) => button.setButtonText(label("\u5BFC\u5165", "Import")).onClick(() => this.editText("", (text) => {
-      const next = parseTemplateBundle(text);
+    new import_obsidian5.Setting(container).setName(label("\u5BFC\u5165 manifest", "Import manifest")).setDesc(label("\u7C98\u8D34\u5BFC\u51FA\u7684 manifest\u3002\u786E\u8BA4\u524D\u663E\u793A\u53D8\u66F4\u8282\u70B9\uFF0C\u5E76\u81EA\u52A8\u5907\u4EFD\u5F53\u524D\u6A21\u677F\u3002", "Paste an exported manifest. Review changed nodes; current templates are backed up before import.")).addButton((button) => button.setButtonText(label("\u5BFC\u5165", "Import")).onClick(() => this.editText("", async (text) => {
+      const bundle = readTemplateBundleImport(text);
+      const next = bundle.settings;
       const current = this.system();
       const reviewed = JSON.stringify(current);
       const changed = TEMPLATE_NODES.filter((node) => JSON.stringify(current.rules[node.id]) !== JSON.stringify(next.rules[node.id])).map((node) => node.id);
@@ -5008,15 +5047,67 @@ ${resolved.pathTemplate}` });
       modal.titleEl.setText(label("\u786E\u8BA4\u6A21\u677F\u5BFC\u5165", "Confirm template import"));
       modal.contentEl.createEl("pre", { text: changed.join("\n") || label("\u5206\u7C7B\u89C4\u5219\u65E0\u53D8\u5316", "No category rule changes") });
       modal.contentEl.createEl("p", { text: label("\u5171\u4EAB\u7B14\u8BB0\u914D\u7F6E\u4E5F\u5C06\u66FF\u6362\u3002\u73B0\u6709\u7B14\u8BB0\u4E0D\u4F1A\u6539\u5199\u3002", "Shared note settings will also be replaced. Existing notes are unchanged.") });
-      new import_obsidian5.Setting(modal.contentEl).addButton((button2) => button2.setButtonText(label("\u5907\u4EFD\u5E76\u5BFC\u5165", "Back up and import")).onClick(() => this.run(async () => {
-        if (JSON.stringify(this.system()) !== reviewed) throw new Error(label("\u914D\u7F6E\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u5BFC\u5165\u5E76\u5BA1\u9605\u3002", "Settings changed. Import again to review the new changes."));
-        await exportTemplateBundle(this.app, current, folder);
-        if (JSON.stringify(this.system()) !== reviewed) throw new Error(label("\u914D\u7F6E\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u5BFC\u5165\u5E76\u5BA1\u9605\u3002", "Settings changed. Import again to review the new changes."));
-        this.getSettings().templateSettings = next;
-        await this.save();
-        modal.close();
-      })));
+      let restoreFiles = false;
+      let importing = false;
+      let checkRevision = 0;
+      const report2 = modal.contentEl.createDiv();
+      const refresh = async () => {
+        var _a, _b;
+        const revision = ++checkRevision;
+        apply.setDisabled(true);
+        const errors = await preflightTemplateImport(this.app, bundle, restoreFiles);
+        if (revision !== checkRevision) return;
+        report2.empty();
+        report2.createEl("pre", { text: errors.join("\n") || label("\u5168\u90E8\u6709\u6548\u6A21\u677F\u9884\u68C0\u901A\u8FC7\u3002", "All effective templates passed preflight.") });
+        for (const [id, rule] of Object.entries(next.rules)) if (((_a = rule.content) == null ? void 0 : _a.mode) === "file" && !restoreFiles) {
+          new import_obsidian5.Setting(report2).setName(nodeLabel(id)).setDesc((_b = rule.content.filePath) != null ? _b : "").addButton((button2) => button2.setButtonText(label("\u91CD\u65B0\u9009\u62E9\u6587\u4EF6", "Choose another file")).onClick(() => this.openModal(new TemplateFilePicker(this.app, (file) => {
+            rule.content.filePath = file.path;
+            void this.run(refresh);
+          }))));
+        }
+        apply.setDisabled(importing || errors.length > 0);
+      };
+      new import_obsidian5.Setting(modal.contentEl).setName(label("\u6062\u590D\u6A21\u5F0F", "Restore mode")).addDropdown((dropdown) => dropdown.addOption("rules", label("\u4EC5\u6062\u590D\u89C4\u5219", "Rules only")).addOption("files", label("\u6062\u590D\u89C4\u5219\u53CA\u6A21\u677F\u6587\u4EF6", "Rules and template files")).onChange((value) => {
+        restoreFiles = value === "files";
+        void this.run(refresh);
+      }));
+      modal.contentEl.createEl("p", { text: label("\u6062\u590D\u6587\u4EF6\u5C06\u521B\u5EFA\u65B0\u76EE\u5F55\u5E76\u91CD\u65B0\u7ED1\u5B9A\u5F15\u7528\u3002\u65E7\u7248 manifest \u6CA1\u6709\u5185\u5D4C\u5FEB\u7167\u65F6\uFF0C\u8BF7\u9009\u62E9\u968F\u5305\u7684 Markdown \u6587\u4EF6\u3002", "File restore creates a new folder and rebinds references. For older manifests without embedded snapshots, choose the exported Markdown files.") });
+      const snapshots = modal.contentEl.createEl("details");
+      snapshots.createEl("summary", { text: label("\u6587\u4EF6\u5FEB\u7167\u5185\u5BB9", "File snapshot contents") });
+      for (const [id, content] of Object.entries(bundle.fileSnapshots)) {
+        snapshots.createEl("p", { text: nodeLabel(id) });
+        snapshots.createEl("pre", { text: content });
+      }
+      let apply;
+      new import_obsidian5.Setting(modal.contentEl).addButton((button2) => {
+        apply = button2;
+        button2.setButtonText(label("\u5907\u4EFD\u5E76\u5BFC\u5165", "Back up and import")).setDisabled(true).onClick(() => this.run(async () => {
+          apply.setDisabled(true);
+          if (importing) return;
+          importing = true;
+          const importBundle = JSON.parse(JSON.stringify(bundle));
+          const useImportFiles = restoreFiles;
+          try {
+            if (JSON.stringify(this.system()) !== reviewed) throw new Error("Settings changed; review import again.");
+            const errors = await preflightTemplateImport(this.app, importBundle, useImportFiles);
+            if (errors.length) throw new Error(errors.join("\n"));
+            await exportTemplateBundle(this.app, current, folder);
+            if (JSON.stringify(this.system()) !== reviewed) throw new Error("Settings changed; review import again.");
+            const restored = useImportFiles ? await restoreTemplateBundleFiles(this.app, importBundle, folder) : importBundle.settings;
+            const finalErrors = await preflightTemplateImport(this.app, { settings: restored, fileSnapshots: {} }, false);
+            if (finalErrors.length) throw new Error(finalErrors.join("\n"));
+            if (JSON.stringify(this.system()) !== reviewed) throw new Error("Settings changed; review import again.");
+            this.getSettings().templateSettings = restored;
+            await this.save();
+            modal.close();
+          } finally {
+            importing = false;
+            await refresh();
+          }
+        }));
+      });
       this.openModal(modal);
+      await refresh();
       return Promise.resolve();
     })));
   }
@@ -5129,6 +5220,7 @@ var TemplatePreviewModal = class extends import_obsidian5.Modal {
       const sample = subjectId ? void 0 : createTemplatePreviewSample(this.sampleNode, this.scenario);
       const subject = (_a = full == null ? void 0 : full.subject) != null ? _a : sample.subject;
       const nodeId = subjectId ? classifySubject(subject).nodeId : this.nodeId;
+      if (subjectId && generation === this.generation) output.createEl("p", { text: label("\u771F\u5B9E\u4F5C\u54C1\u8D44\u6599\u9884\u89C8\uFF1A\u672A\u52A0\u8F7D\u4E2A\u4EBA\u6536\u85CF\u6570\u636E\u3001\u8BC4\u5206\u3001\u77ED\u8BC4\u3001\u6807\u7B7E\u6216\u4E2A\u4EBA\u7AE0\u8282\u8FDB\u5EA6\u3002", "Real subject metadata preview: personal collection, rating, comment, tags and episode progress are not loaded.") });
       let source = subjectId ? resolveTemplateForSubject(subject, compiled.customTemplates) : await resolveNodeContent(system, nodeId, (path2) => readTemplateFile(this.app, path2));
       const selectedRule = resolveTemplateRule(system, nodeId);
       if (sample && selectedRule.content.mode === "builtin" && ["default", "book", "builtin"].includes(selectedRule.contentSource)) {

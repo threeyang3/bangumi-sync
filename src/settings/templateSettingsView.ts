@@ -2,7 +2,7 @@ import { App, Component, FuzzySuggestModal, MarkdownRenderer, Modal, Notice, Plu
 import { ContentRule, TemplateSettingsV2, TEMPLATE_NODES, templateChain, templateNode, resolveTemplateRule, resolveNodeContent, migrateTemplateSettings, classifySubject, compileTemplateSettings } from '../../common/template/templateSystem';
 import { createTemplatePreviewSample, previewSampleNodes, PreviewScenario } from '../template/templatePreviewSamples';
 import { BangumiPluginSettings } from './settings';
-import { exportTemplateBundle, parseTemplateBundle, readTemplateFile } from '../template/templateFiles';
+import { exportTemplateBundle, readTemplateBundleImport, preflightTemplateImport, restoreTemplateBundleFiles, readTemplateFile } from '../template/templateFiles';
 import { extractTemplateVars, generateContentByType, resolveTemplateForSubject } from '../template/contentTemplate';
 import { generatePreferredFilePath } from '../../common/template/pathTemplate';
 import { BangumiClient } from '../api/client';
@@ -120,20 +120,61 @@ export class TemplateSettingsView {
 			this.showText(label('验证结果', 'Validation results'), errors.length ? errors.join('\n') : label('全部模板可读取。', 'All templates are readable.'));
 		})));
 		new Setting(container).setName(label('导入 manifest', 'Import manifest')).setDesc(label('粘贴导出的 manifest。确认前显示变更节点，并自动备份当前模板。', 'Paste an exported manifest. Review changed nodes; current templates are backed up before import.'))
-			.addButton(button => button.setButtonText(label('导入', 'Import')).onClick(() => this.editText('', text => {
-				const next = parseTemplateBundle(text);
+			.addButton(button => button.setButtonText(label('导入', 'Import')).onClick(() => this.editText('', async text => {
+				const bundle = readTemplateBundleImport(text);
+                const next = bundle.settings;
 				const current = this.system();
 				const reviewed = JSON.stringify(current);
 				const changed = TEMPLATE_NODES.filter(node => JSON.stringify(current.rules[node.id]) !== JSON.stringify(next.rules[node.id])).map(node => node.id);
 				const modal = new Modal(this.app); modal.titleEl.setText(label('确认模板导入', 'Confirm template import'));
 				modal.contentEl.createEl('pre', { text: changed.join('\n') || label('分类规则无变化', 'No category rule changes') });
 				modal.contentEl.createEl('p', { text: label('共享笔记配置也将替换。现有笔记不会改写。', 'Shared note settings will also be replaced. Existing notes are unchanged.') });
-				new Setting(modal.contentEl).addButton(button => button.setButtonText(label('备份并导入', 'Back up and import')).onClick(() => this.run(async () => {
-					if (JSON.stringify(this.system()) !== reviewed) throw new Error(label('配置已变化，请重新导入并审阅。', 'Settings changed. Import again to review the new changes.'));
-					await exportTemplateBundle(this.app, current, folder);
-					if (JSON.stringify(this.system()) !== reviewed) throw new Error(label('配置已变化，请重新导入并审阅。', 'Settings changed. Import again to review the new changes.'));
-					this.getSettings().templateSettings = next; await this.save(); modal.close();
-				}))); this.openModal(modal);
+				let restoreFiles = false; let importing = false;
+				let checkRevision = 0;
+				const report = modal.contentEl.createDiv();
+				const refresh = async () => {
+					const revision = ++checkRevision;
+					apply.setDisabled(true);
+					const errors = await preflightTemplateImport(this.app, bundle, restoreFiles);
+					if (revision !== checkRevision) return;
+					report.empty();
+					report.createEl('pre', { text: errors.join('\n') || label('全部有效模板预检通过。', 'All effective templates passed preflight.') });
+					for (const [id, rule] of Object.entries(next.rules)) if (rule.content?.mode === 'file' && !restoreFiles) {
+						new Setting(report).setName(nodeLabel(id)).setDesc(rule.content.filePath ?? '').addButton(button => button.setButtonText(label('重新选择文件', 'Choose another file')).onClick(() => this.openModal(new TemplateFilePicker(this.app, file => {
+							rule.content!.filePath = file.path; void this.run(refresh);
+						}))));
+					}
+					apply.setDisabled(importing || errors.length > 0);
+				};
+				new Setting(modal.contentEl).setName(label('恢复模式', 'Restore mode')).addDropdown(dropdown => dropdown
+					.addOption('rules', label('仅恢复规则', 'Rules only')).addOption('files', label('恢复规则及模板文件', 'Rules and template files'))
+					.onChange(value => { restoreFiles = value === 'files'; void this.run(refresh); }));
+				modal.contentEl.createEl('p', { text: label('恢复文件将创建新目录并重新绑定引用。旧版 manifest 没有内嵌快照时，请选择随包的 Markdown 文件。', 'File restore creates a new folder and rebinds references. For older manifests without embedded snapshots, choose the exported Markdown files.') });
+				const snapshots = modal.contentEl.createEl('details'); snapshots.createEl('summary', { text: label('文件快照内容', 'File snapshot contents') });
+				for (const [id, content] of Object.entries(bundle.fileSnapshots)) { snapshots.createEl('p', { text: nodeLabel(id) }); snapshots.createEl('pre', { text: content }); }
+				let apply!: import('obsidian').ButtonComponent;
+				new Setting(modal.contentEl).addButton(button => {
+					apply = button;
+					button.setButtonText(label('备份并导入', 'Back up and import')).setDisabled(true).onClick(() => this.run(async () => {
+						apply.setDisabled(true);
+						if (importing) return; importing = true;
+						const importBundle = JSON.parse(JSON.stringify(bundle)) as typeof bundle;
+						const useImportFiles = restoreFiles;
+						try {
+							if (JSON.stringify(this.system()) !== reviewed) throw new Error('Settings changed; review import again.');
+							const errors = await preflightTemplateImport(this.app, importBundle, useImportFiles);
+							if (errors.length) throw new Error(errors.join('\n'));
+							await exportTemplateBundle(this.app, current, folder);
+							if (JSON.stringify(this.system()) !== reviewed) throw new Error('Settings changed; review import again.');
+							const restored = useImportFiles ? await restoreTemplateBundleFiles(this.app, importBundle, folder) : importBundle.settings;
+							const finalErrors = await preflightTemplateImport(this.app, { settings: restored, fileSnapshots: {} }, false);
+							if (finalErrors.length) throw new Error(finalErrors.join('\n'));
+							if (JSON.stringify(this.system()) !== reviewed) throw new Error('Settings changed; review import again.');
+							this.getSettings().templateSettings = restored; await this.save(); modal.close();
+						} finally { importing = false; await refresh(); }
+					}));
+				});
+				this.openModal(modal); await refresh();
 				return Promise.resolve();
 			})));
 	}
@@ -204,6 +245,7 @@ class TemplatePreviewModal extends Modal {
 			const sample = subjectId ? undefined : createTemplatePreviewSample(this.sampleNode, this.scenario);
 			const subject = full?.subject ?? sample!.subject;
 			const nodeId = subjectId ? classifySubject(subject).nodeId : this.nodeId;
+			if (subjectId && generation === this.generation) output.createEl('p', { text: label('真实作品资料预览：未加载个人收藏数据、评分、短评、标签或个人章节进度。', 'Real subject metadata preview: personal collection, rating, comment, tags and episode progress are not loaded.') });
 			// Samples preview the selected node itself; real subjects use production classification.
 			let source = subjectId ? resolveTemplateForSubject(subject, compiled.customTemplates) : await resolveNodeContent(system, nodeId, path => readTemplateFile(this.app, path));
 			const selectedRule = resolveTemplateRule(system, nodeId);
