@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f7f9ff">
+  <meta name="description" content="Bangumi Sync：把 Bangumi 收藏、评分、短评与章节进度整理进 Obsidian。本地 Markdown、双向状态同步、统一模板系统和恢复中心。">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Bangumi Sync — 收藏热爱，自由整理">
+  <meta property="og:description" content="Bangumi × Obsidian。把动画、漫画、书籍、游戏、音乐与三次元收藏，变成真正属于自己的 Markdown 知识库。">
+  <meta property="og:image" content="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E6%9C%AC%E5%9C%B0%E6%9D%A1%E7%9B%AE%E5%AE%8C%E6%95%B4%E7%A4%BA%E6%84%8F.png">
+  <meta property="og:locale" content="zh_CN">
+  <title>Bangumi Sync — 收藏热爱，自由整理</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="./app.js"></script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Bangumi Sync","applicationCategory":"ProductivityApplication","operatingSystem":"Windows, macOS, Linux","description":"Synchronize Bangumi collections and episode progress to local Obsidian Markdown notes.","url":"https://github.com/threeyang3/bangumi-sync","downloadUrl":"https://github.com/threeyang3/bangumi-sync/releases/latest","softwareVersion":"6.15.1","license":"https://opensource.org/licenses/MIT","isAccessibleForFree":true}
+  </script>
+</head>
+<body>
+  <a class="skip" href="#main">跳转到正文</a>
+  <header class="site-header" id="top">
+    <div class="shell header-inner">
+      <a class="brand" href="#top" aria-label="Bangumi Sync 首页">
+        <span class="brand-symbol" aria-hidden="true"><span class="brand-dot"></span>B</span>
+        <span>Bangumi <strong>Sync</strong></span>
+      </a>
+      <nav class="desktop-nav" aria-label="主导航">
+        <a href="#features">核心能力</a>
+        <a href="#workflow">如何使用</a>
+        <a href="#templates">模板系统</a>
+        <a href="#showcase">界面预览</a>
+        <a href="#faq">常见问题</a>
+      </nav>
+      <div class="header-actions">
+        <a class="github-link" href="https://github.com/threeyang3/bangumi-sync" target="_blank" rel="noopener noreferrer" aria-label="查看 GitHub 仓库">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.55.1.76-.24.76-.54v-2.13c-3.08.67-3.73-1.31-3.73-1.31-.5-1.28-1.24-1.63-1.24-1.63-1.01-.69.08-.68.08-.68 1.12.08 1.71 1.15 1.71 1.15 1 .1.89 2.07 3.23 1.45.1-.72.39-1.21.71-1.49-2.46-.28-5.04-1.23-5.04-5.48 0-1.21.43-2.2 1.15-2.97-.12-.28-.5-1.4.11-2.92 0 0 .94-.3 3.05 1.13A10.6 10.6 0 0 1 12 6.73c.94 0 1.88.13 2.76.37 2.11-1.43 3.04-1.13 3.04-1.13.61 1.52.23 2.64.12 2.92.71.77 1.14 1.76 1.14 2.97 0 4.26-2.58 5.19-5.05 5.47.4.35.76 1.03.76 2.08v2.58c0 .3.2.65.77.54A11.1 11.1 0 0 0 12 .9Z"/></svg>
+          <span>GitHub</span>
+        </a>
+        <a class="button button-primary header-download" href="https://github.com/threeyang3/bangumi-sync/releases/latest" target="_blank" rel="noopener noreferrer">下载插件 <span aria-hidden="true">↗</span></a>
+        <button class="nav-toggle" type="button" aria-label="打开导航" aria-expanded="false" aria-controls="mobile-nav"><span></span><span></span><span></span></button>
+      </div>
+    </div>
+    <nav class="mobile-nav shell" id="mobile-nav" aria-label="移动端导航" hidden>
+      <a href="#features">核心能力</a><a href="#workflow">如何使用</a><a href="#templates">模板系统</a><a href="#showcase">界面预览</a><a href="#faq">常见问题</a>
+      <a href="https://github.com/threeyang3/bangumi-sync/releases/latest" target="_blank" rel="noopener noreferrer">下载插件 ↗</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero shell" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="eyebrow-dot"></span> OPEN SOURCE · OBSIDIAN PLUGIN <span class="eyebrow-version">v<span data-version>6.15.1</span></span></div>
+        <h1 id="hero-title">喜欢的作品，<br><span>值得好好收藏。</span></h1>
+        <p class="hero-lead">让 Bangumi 与 Obsidian 连接起来。把收藏、评分、短评与观看进度，整理为可编辑、可检索、真正存放在自己手中的 <strong>Markdown 笔记</strong>。</p>
+        <div class="hero-buttons">
+          <a class="button button-primary button-lg" href="#install">开始使用 <span aria-hidden="true">↗</span></a>
+          <a class="button button-outline button-lg" href="#showcase">看看效果 <span aria-hidden="true">↓</span></a>
+        </div>
+        <div class="hero-facts" aria-label="主要特点">
+          <span><i aria-hidden="true"></i> 本地 Markdown</span>
+          <span><i aria-hidden="true"></i> 可审阅的同步</span>
+          <span><i aria-hidden="true"></i> 自由模板</span>
+        </div>
+      </div>
+      <div class="hero-art">
+        <div class="hero-orbit hero-orbit-a"></div><div class="hero-orbit hero-orbit-b"></div>
+        <div class="screenshot-shell">
+          <div class="window-bar"><div class="window-dots"><b></b><b></b><b></b></div><span>OBSIDIAN / MY COLLECTION</span><span class="window-live"><span></span> LOCAL</span></div>
+          <img src="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E6%9C%AC%E5%9C%B0%E6%9D%A1%E7%9B%AE%E5%AE%8C%E6%95%B4%E7%A4%BA%E6%84%8F.png" alt="Bangumi Sync 生成的 Obsidian 本地条目笔记实际截图" fetchpriority="high" width="1200" height="800">
+        </div>
+        <div class="floating-card floating-card-top"><span class="floating-icon">✦</span><span><strong>记录不再散落</strong><small>收藏与笔记，归于一处</small></span></div>
+        <div class="floating-card floating-card-bottom"><span class="sync-arrows">⇄</span><span><strong>Bangumi × Obsidian</strong><small>你的作品，你的知识库</small></span></div>
+      </div>
+    </section>
+
+    <section class="trust-strip" aria-label="支持的作品类型">
+      <div class="shell trust-inner"><span class="trust-label">为每一种热爱而设计</span><div class="type-list"><span>✿ 动画</span><span>▤ 漫画与书籍</span><span>◈ 游戏</span><span>♫ 音乐</span><span>▣ 影视</span></div></div>
+    </section>
+
+    <section class="section shell" id="features" aria-labelledby="features-title">
+      <div class="section-top"><div><p class="section-kicker">WHAT IT DOES</p><h2 id="features-title">不只是同步。<br>让收藏成为自己的资料库。</h2></div><p class="section-aside">既能轻松导入第一批收藏，也能长期管理不断增长的作品笔记。</p></div>
+      <div class="feature-grid">
+        <article class="feature-card feature-card-highlight"><span class="feature-icon violet">⇄</span><span class="feature-index">01 / SYNC</span><h3>收藏与状态同步</h3><p>比较本地与 Bangumi 的评分、标签、短评、收藏状态和章节进度，按字段选择同步方向。</p><span class="feature-detail">支持全面同步与增量同步</span></article>
+        <article class="feature-card"><span class="feature-icon peach">▧</span><span class="feature-index">02 / MARKDOWN</span><h3>本地笔记，自由编辑</h3><p>收藏落地为普通 Markdown 文件。Frontmatter、正文和自定义属性都可以按自己的习惯整理。</p><span class="feature-detail">与 Obsidian 工作流衔接</span></article>
+        <article class="feature-card"><span class="feature-icon sky">✳</span><span class="feature-index">03 / TEMPLATE</span><h3>统一的模板系统</h3><p>作品分类树、内容模板与路径规则分别继承，支持内置预设、Markdown 文件和自定义内容。</p><span class="feature-detail">可预览、导入、备份模板</span></article>
+        <article class="feature-card"><span class="feature-icon green">⌘</span><span class="feature-index">04 / CONTROL</span><h3>集中管理收藏</h3><p>使用控制面板筛选、搜索、快速打开条目，或在确认后进行批量编辑与封面管理。</p><span class="feature-detail">搜索添加与批量处理</span></article>
+        <article class="feature-card"><span class="feature-icon blue">▣</span><span class="feature-index">05 / PROGRESS</span><h3>逐集记录进度</h3><p>在笔记中查看章节列表与标记状态，追踪动画、漫画及相关作品的观看或阅读进度。</p><span class="feature-detail">保留未选择的章节记录</span></article>
+        <article class="feature-card"><span class="feature-icon amber">◇</span><span class="feature-index">06 / RECOVERY</span><h3>重视本地文件安全</h3><p>写入前检查数据变化，遇到异常时提供本地事务恢复机制，尽可能避免意外覆盖。</p><span class="feature-detail">Recovery Center · 明确的恢复流程</span></article>
+      </div>
+    </section>
+
+    <section class="section-alt" id="workflow"><div class="shell section">
+      <div class="section-head-centered"><p class="section-kicker">A SIMPLE WORKFLOW</p><h2>从喜欢，到珍藏。<br>只需几步。</h2><p>无需放弃原来的 Bangumi 习惯，让 Obsidian 成为长期积累的地方。</p></div>
+      <div class="steps">
+        <article><span class="step-n">01</span><div class="step-line"></div><h3>连接 Bangumi</h3><p>在插件设置中填写个人 Access Token。</p></article>
+        <article><span class="step-n">02</span><div class="step-line"></div><h3>选择要同步的作品</h3><p>按作品类型、收藏状态筛选，在执行前审阅条目与差异。</p></article>
+        <article><span class="step-n">03</span><div class="step-line"></div><h3>生成本地笔记</h3><p>根据有效模板输出 Frontmatter、正文和文件路径。</p></article>
+        <article><span class="step-n">04</span><h3>继续记录生活</h3><p>自由编辑、补充想法，之后按需同步状态与进度。</p></article>
+      </div>
+    </div></section>
+
+    <section class="section shell template-section" id="templates">
+      <div class="template-copy"><p class="section-kicker">BUILT AROUND YOU</p><h2>你的笔记，<br>当然由你定义。</h2><p>同一棵作品分类树，统一管理内容和文件路径；小说、漫画、动画都能有自己的规则。需要特殊设计时，也可以直接引用你写好的 Markdown 模板。</p>
+        <ul class="check-list"><li>内容模板与路径规则独立继承</li><li>切换来源保留自定义草稿</li><li>支持只读预览与模板包备份</li><li>路径变更不自动移动现有笔记</li></ul>
+        <a class="text-link" href="https://github.com/threeyang3/bangumi-sync/blob/main/docs/user/TEMPLATE_GUIDE.md" target="_blank" rel="noopener noreferrer">阅读完整模板指南 <span aria-hidden="true">↗</span></a>
+      </div>
+      <div class="template-console" aria-label="Markdown 模板示意">
+        <div class="console-top"><span class="console-file"><span aria-hidden="true">▣</span> book / comic / template.md</span><span class="console-label">MARKDOWN</span></div>
+        <div class="code-lines">
+          <div><span class="num">01</span> <span class="code-dim">---</span></div>
+          <div><span class="num">02</span> <span class="code-key">中文名</span>: <span class="code-value">"{{name_cn}}"</span></div>
+          <div><span class="num">03</span> <span class="code-key">作品分类</span>: <span class="code-value">"{{category}}"</span></div>
+          <div><span class="num">04</span> <span class="code-key">个人评分</span>: <span class="code-value">{{my_rate}}</span></div>
+          <div><span class="num">05</span> <span class="code-key">阅读状态</span>: <span class="code-value">"{{my_status}}"</span></div>
+          <div><span class="num">06</span> <span class="code-dim">---</span></div>
+          <div><span class="num">07</span></div>
+          <div><span class="num">08</span> <span class="code-purple">#</span> <span class="code-value">{{name_cn}}</span></div>
+          <div><span class="num">09</span> <span class="code-purple">##</span> 阅读记录</div>
+          <div><span class="num">10</span> <span class="code-dim">{{#if episodes}}</span></div>
+          <div><span class="num">11</span> <span class="code-value">{{episodes}}</span></div>
+          <div><span class="num">12</span> <span class="code-dim">{{/if}}</span></div>
+          <div><span class="num">13</span> <span class="code-purple">##</span> 感想</div>
+        </div>
+        <div class="console-path"><span class="path-icon">↳</span><span><small>输出路径 · 自由配置</small><code>ACGN/漫画/作品名称.md</code></span><span class="path-ready">LOCAL</span></div>
+      </div>
+    </section>
+
+    <section class="section-alt showcase-zone" id="showcase"><div class="shell section">
+      <div class="section-top"><div><p class="section-kicker">SEE IT IN ACTION</p><h2>看看它实际工作的样子。</h2></div><p class="section-aside">以下来自项目仓库中的真实截图。点击图片可放大查看。</p></div>
+      <div class="gallery">
+        <button type="button" class="gallery-item gallery-main" data-image="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E6%9C%AC%E5%9C%B0%E6%9D%A1%E7%9B%AE%E5%AE%8C%E6%95%B4%E7%A4%BA%E6%84%8F.png" data-alt="生成的本地条目笔记">
+          <span class="gallery-media"><img loading="lazy" src="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E6%9C%AC%E5%9C%B0%E6%9D%A1%E7%9B%AE%E5%AE%8C%E6%95%B4%E7%A4%BA%E6%84%8F.png" alt="本地条目笔记截图"></span><span class="gallery-caption"><strong>本地条目笔记</strong><span>Markdown + Frontmatter <span aria-hidden="true">↗</span></span></span>
+        </button>
+        <button type="button" class="gallery-item" data-image="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E6%A8%A1%E6%9D%BF%E8%AE%BE%E7%BD%AE.png" data-alt="模板设置界面">
+          <span class="gallery-media"><img loading="lazy" src="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E6%A8%A1%E6%9D%BF%E8%AE%BE%E7%BD%AE.png" alt="模板设置截图"></span><span class="gallery-caption"><strong>模板管理</strong><span>自定义内容 <span aria-hidden="true">↗</span></span></span>
+        </button>
+        <button type="button" class="gallery-item" data-image="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E8%B7%AF%E5%BE%84%E8%AE%BE%E7%BD%AE.png" data-alt="路径设置界面">
+          <span class="gallery-media"><img loading="lazy" src="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E8%B7%AF%E5%BE%84%E8%AE%BE%E7%BD%AE.png" alt="路径设置截图"></span><span class="gallery-caption"><strong>输出与命名</strong><span>自由组织文件 <span aria-hidden="true">↗</span></span></span>
+        </button>
+      </div>
+      <p class="gallery-note">提示：部分仓库截图可能来自较早的界面版本；当前功能以最新发布说明和文档为准。</p>
+    </div></section>
+
+    <section class="section shell safety-section" id="safety">
+      <div class="safety-panel"><div class="safety-symbol" aria-hidden="true">✳</div><div><p class="section-kicker safety-kicker">DESIGNED WITH CARE</p><h2>收藏很重要。<br>你写下的文字更重要。</h2><p>保留原生 Markdown，区分同步方向；写入时检查预览与文件变化。本地事务发生异常时，可以通过 Recovery Center 查看和处理恢复操作。</p><p class="safety-note">透明的边界：Bangumi 云端与本地文件不是一个原子事务。部分成功时，请根据结果页检查已发生的云端更新。</p><a class="text-link safety-link" href="https://github.com/threeyang3/bangumi-sync/blob/main/docs/user/RECOVERY_GUIDE.md" target="_blank" rel="noopener noreferrer">了解恢复机制 <span aria-hidden="true">↗</span></a></div></div>
+    </section>
+
+    <section class="section shell install-section" id="install">
+      <div class="section-head-centered"><p class="section-kicker">GET STARTED</p><h2>让收藏进入 Obsidian。</h2><p>安装并启用插件，几分钟内完成基本配置。</p></div>
+      <div class="install-layout">
+        <div class="install-main">
+          <div class="install-heading"><span class="install-pill">推荐</span><h3>通过 GitHub Release 安装</h3></div>
+          <ol class="install-list">
+            <li><b>下载文件</b><span>从同一版本的 Release 下载 <code>main.js</code>、<code>manifest.json</code> 和 <code>styles.css</code>。</span></li>
+            <li><b>放入插件目录</b><span>将三个文件放到 Vault 中的以下目录。</span><code class="install-folder">.obsidian/plugins/bangumi-sync/</code></li>
+            <li><b>启用插件</b><span>进入 Obsidian「设置 → 社区插件」，启用 Bangumi Sync。</span></li>
+            <li><b>连接 Bangumi</b><span>获取并填入 Access Token，选择同步方式，即可开始使用。</span></li>
+          </ol>
+          <a class="button button-primary" href="https://github.com/threeyang3/bangumi-sync/releases/latest" target="_blank" rel="noopener noreferrer">获取最新稳定版 <span aria-hidden="true">↗</span></a>
+        </div>
+        <aside class="install-side">
+          <span class="side-symbol">⚡</span><h3>也可以用 BRAT</h3><p>如果你已经安装 Obsidian BRAT，可以使用仓库名称添加插件。</p>
+          <div class="copy-field"><code id="repo-name">threeyang3/bangumi-sync</code><button type="button" class="copy-button" data-copy="threeyang3/bangumi-sync" aria-label="复制 BRAT 仓库地址">复制</button></div>
+          <a href="https://next.bgm.tv/demo/access-token" target="_blank" rel="noopener noreferrer">获取 Bangumi Access Token ↗</a>
+          <a href="https://github.com/threeyang3/bangumi-sync/blob/main/docs/user/MIGRATION_GUIDE.md" target="_blank" rel="noopener noreferrer">升级与迁移说明 ↗</a>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section-alt" id="faq"><div class="shell section faq-section">
+      <div class="faq-intro"><p class="section-kicker">GOOD TO KNOW</p><h2>你可能还想了解。</h2><p>有关存储方式、插件依赖和同步保护的几个常见问题。</p><a class="text-link" href="https://github.com/threeyang3/bangumi-sync/issues" target="_blank" rel="noopener noreferrer">在 GitHub 提问 ↗</a></div>
+      <div class="faq-list">
+        <details><summary>我的收藏会存在哪里？</summary><p>插件将条目保存为 Obsidian Vault 内的普通 Markdown 文件。你可以用 Obsidian 或其他文本编辑器继续整理，不依赖专有数据库才能读取正文。</p></details>
+        <details><summary>需要安装 Dataview 吗？</summary><p>默认模板包含 Dataview 内联查询。建议安装并启用 Dataview 以正确显示这些动态字段；即使未安装，Markdown 源文件仍然存在。</p></details>
+        <details><summary>修改模板会自动更名或覆盖旧笔记吗？</summary><p>不会因为修改模板就自动迁移已有文件。路径变化请使用插件提供的诊断与路径迁移预览；同步时仍以 Bangumi Subject ID 识别条目。</p></details>
+        <details><summary>可以从 Obsidian 同步回 Bangumi 吗？</summary><p>可以针对评分、短评、标签、收藏状态及章节进度等支持的字段选择同步方向。插件会在执行前复核相关数据；云端与本地跨系统更新不能保证完全原子化。</p></details>
+        <details><summary>这个插件免费且开源吗？</summary><p>是的。项目以 MIT 许可证开源，源码、版本说明、问题反馈和安装文件均可在 GitHub 查看。</p></details>
+      </div>
+    </div></section>
+
+    <section class="closing shell"><div class="closing-inner"><div><p class="section-kicker">KEEP WHAT YOU LOVE</p><h2>你的热爱，<br>值得长久保存。</h2><p>开始将 Bangumi 收藏整理成属于自己的 Obsidian 笔记。</p></div><a class="button button-white button-lg" href="https://github.com/threeyang3/bangumi-sync/releases/latest" target="_blank" rel="noopener noreferrer">开始使用 Bangumi Sync <span aria-hidden="true">↗</span></a></div></section>
+  </main>
+
+  <footer class="footer shell">
+    <div class="footer-top"><a class="brand" href="#top"><span class="brand-symbol" aria-hidden="true"><span class="brand-dot"></span>B</span><span>Bangumi <strong>Sync</strong></span></a><p>让喜欢的作品，成为可以自由书写的收藏。</p></div>
+    <div class="footer-bottom"><span>© <span id="year">2026</span> Bangumi Sync · MIT License</span><nav aria-label="页脚导航"><a href="https://github.com/threeyang3/bangumi-sync" target="_blank" rel="noopener noreferrer">GitHub</a><a href="https://github.com/threeyang3/bangumi-sync/releases" target="_blank" rel="noopener noreferrer">版本更新</a><a href="https://github.com/threeyang3/bangumi-sync/tree/main/docs/user" target="_blank" rel="noopener noreferrer">使用文档</a><a href="https://github.com/threeyang3/bangumi-sync/issues" target="_blank" rel="noopener noreferrer">反馈问题</a></nav></div>
+    <p class="disclaimer">Bangumi Sync 为独立开源社区插件，与 Bangumi、Obsidian 官方不存在隶属关系。各商标归其所有者。</p>
+  </footer>
+
+  <dialog class="lightbox" id="lightbox" aria-label="放大查看插件截图"><form method="dialog"><button class="lightbox-close" aria-label="关闭图片">×</button></form><img alt=""><p></p></dialog>
+  <div class="sr-only" role="status" aria-live="polite" id="announce"></div>
+</body>
+</html>
