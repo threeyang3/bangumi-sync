@@ -37,3 +37,13 @@ Node 22.23.4 下 npm ci、lint、65 个文件／599 项测试、TypeScript 与�
 标签依据：[官方校验](https://github.com/bangumi/server/blob/8f5a4daeeca26d90afd461b2fbbd44f1676d2f33/internal/pkg/dam/dam.go)、[空数组删除语义](https://github.com/bangumi/server/blob/8f5a4daeeca26d90afd461b2fbbd44f1676d2f33/openapi/components/user_subject_collection_modify_payload.yaml)。
 
 最终 production 包复验：Obsidian 1.14.4；上述 19 项断言再次通过。dev:errors 为 0，error-level console 只有主动注入的删除身份冲突。UI 通过 DOM 与真实按钮回调检查。main.js SHA-256：225f4bef31c29b73f749cccf0107372f3ed00430b99066b1161b3531dc7a4157，部署副本一致。
+
+## F01 复审补齐：表单默认值与显式输入
+
+复审确认 5fece54 的合并器修复未覆盖未触碰的真实属性表单：构造时预填的默认值被误当成显式覆盖。本轮仅修改 LocalPropertyModal 的值来源语义，不扩展至搜索展示 P2。模板默认值保留显示，但不初始化提交 map；只有输入／切换事件提交覆盖，保留 false、空文本和空列表。
+
+新增三个真实表单控制器→确认回调→SyncManager 回归：旧笔记直接确认保留原值、主动编辑生效、新笔记获得模板默认值。原实现运行新增测试失败；修复后通过。测试仅模拟 DOM 外壳和 API 数据，不替换属性解析、提交控制器、合并器或同步管理器。
+
+Obsidian 1.14.4 production Sandbox 通过控制面板实际选择条目、点击“更多 → 强制同步”、操作真实表单并确认；三种场景共 9 个断言通过，均核对最终 YAML 和实际写入的模板正文。dev:errors 与 error-level console 均为空。驱动：E:/Develop/bangumi-audit-profile/f01-qa.js；使用独立 Sandbox 合成数据，未执行真实账号写入。
+
+F01 最终闸门：Node 22.23.4 下 npm ci、lint、66 个测试文件／602 项测试、TypeScript 与 production build、72 份 Markdown 链接检查及 diff 空白检查通过。最终包重载后上述 9 项 Sandbox 断言再次通过；main.js SHA-256：b0d50a7772c10ab91e781cd2b07464e7fadfe8a67436aaf7361a87121632e046，部署副本一致。尚未发布，后续仍需正常 PR／main CI。

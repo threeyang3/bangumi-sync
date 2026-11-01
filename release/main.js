@@ -14142,6 +14142,7 @@ var import_obsidian20 = require("obsidian");
 var LocalPropertyModal = class extends import_obsidian20.Modal {
   constructor(app, collections, subjectsById, customTemplates, onSubmit) {
     super(app);
+    // Template defaults are display-only; only input/change events add overrides.
     this.propertyValuesBySubjectId = /* @__PURE__ */ new Map();
     this.items = collections.map((collection) => {
       const subject = subjectsById.get(collection.subject_id);
@@ -14152,7 +14153,6 @@ var LocalPropertyModal = class extends import_obsidian20.Modal {
       };
     }).filter((item) => Boolean(item.subject) && item.fields.length > 0);
     this.onSubmit = onSubmit;
-    this.initializeDefaultValues();
   }
   onOpen() {
     this.modalEl.addClass("bangumi-modal");
@@ -14186,15 +14186,6 @@ var LocalPropertyModal = class extends import_obsidian20.Modal {
   onClose() {
     this.contentEl.empty();
   }
-  initializeDefaultValues() {
-    for (const item of this.items) {
-      for (const field of item.fields) {
-        if (field.initialValue !== void 0) {
-          this.updatePropertyValue(item.collection.subject_id, field.name, field.initialValue);
-        }
-      }
-    }
-  }
   renderSubjectSection(container, item) {
     const subject = item.subject;
     const sectionEl = container.createDiv({ cls: "bangumi-local-property-section" });
@@ -14218,7 +14209,7 @@ var LocalPropertyModal = class extends import_obsidian20.Modal {
         input.value = initialValue2;
       }
       input.addEventListener("input", () => {
-        this.updatePropertyValue(subjectId, field.name, input.value.trim() || void 0);
+        this.updatePropertyValue(subjectId, field.name, input.value.trim());
       });
       return;
     }
@@ -14244,7 +14235,7 @@ var LocalPropertyModal = class extends import_obsidian20.Modal {
   }
   updatePropertyValue(subjectId, propertyName, value) {
     const current = { ...this.propertyValuesBySubjectId.get(subjectId) || {} };
-    if (value === void 0 || value === "" || Array.isArray(value) && value.length === 0) {
+    if (value === void 0) {
       delete current[propertyName];
     } else {
       current[propertyName] = value;
@@ -14275,7 +14266,7 @@ function hasLocalPropertyFieldsForCollections(collections, subjectsById, customT
 }
 function parseListInput2(value) {
   const items = value.split(",").map((item) => item.trim()).filter(Boolean);
-  return items.length > 0 ? items : void 0;
+  return items;
 }
 async function loadSubjectsForCollections(collections, client, onWarning, onProgress, options = {}) {
   var _a;
