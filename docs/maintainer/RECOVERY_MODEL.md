@@ -160,3 +160,9 @@ Migration staging 必须完整写入、重读、结构校验和 secret scan 后�
 - `src/ui/recoveryCenterModal.ts`：用户界面，不拥有独立策略。
 - `common/file/imageHandler.ts`：binary mutation 分类。
 - `tests/sync/recoveryJournal.test.ts`、`configurationRecovery.test.ts`、`restartRecovery.test.ts`、`syncManagerPathTransaction.test.ts`：核心回归覆盖。
+
+## 回滚写后版本核验
+
+Markdown create/update facts 在首次 mutation 前持久化拟写出内容的 SHA-256（expectedWrittenHash）。同会话事务保存对应原文与写后内容，回滚核对文件对象、路径、身份和内容；正文恢复在 Vault.process 回调中再次核对。重载恢复在任何文档 mutation 前预检持久化写后摘要；已恢复到原文的文件可继续，后续编辑或换身份的文件保持原状并进入恢复阻断。旧日志缺少写后摘要时，不能自动覆盖非原文或删除已有文件，需人工核验。
+
+普通同步的同会话回滚也恢复 journal 中的旧封面二进制，并验证恢复字节。控制面板同步所选与普通同步共用完成窗口，部分成功提供保留／回滚及恢复中心入口。

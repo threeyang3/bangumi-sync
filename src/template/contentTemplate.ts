@@ -13,6 +13,7 @@ import { getTemplateFallbackLookupKey, resolveTemplateTarget } from '../../commo
 import { classifySubject, templateLookupKey, templateErrorKey } from '../../common/template/templateSystem';
 import { getTypeSuffixForName } from '../../common/template/pathTemplate';
 import { parseEpisodes, createUserStatusMap } from '../../common/parser/episodeParser';
+import { upsertFrontmatterField } from '../document/frontmatterAccess';
 import { CoverLinkType } from '../settings/settings';
 import { normalizeShortComment, renderShortCommentCalloutContinuation } from '../comment/shortComment';
 
@@ -393,33 +394,9 @@ export function applyNamedPropertyValuesToContent(
 ): string {
 	let nextContent = content;
 	for (const [propertyName, value] of Object.entries(propertyValues)) {
-		nextContent = replacePropertyValue(nextContent, `${propertyName}:`, value);
+		nextContent = upsertFrontmatterField(nextContent, propertyName, value);
 	}
 	return nextContent;
-}
-
-/**
- * 替换属性值
- */
-function replacePropertyValue(content: string, propertyName: string, value: string | boolean | string[]): string {
-	const escapedName = propertyName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	const regex = new RegExp(`^${escapedName}\\s*.*(?:\\n  - .*?)*$`, 'm');
-	return content.replace(regex, `${propertyName} ${formatPropertyValue(value)}`);
-}
-
-function formatPropertyValue(value: string | boolean | string[]): string {
-	if (Array.isArray(value)) {
-		if (value.length === 0) {
-			return '[]';
-		}
-		return `\n${value.map(item => `  - ${item}`).join('\n')}`;
-	}
-
-	if (typeof value === 'boolean') {
-		return value ? 'true' : 'false';
-	}
-
-	return value;
 }
 
 // 兼容旧版本的类型别名

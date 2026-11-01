@@ -2,6 +2,12 @@
 
 [GitHub Releases](https://github.com/threeyang3/bangumi-sync/releases) 是已发布版本的最终对外事实；`docs/history/release-notes/{version}.md` 是 Release notes 源文件。本文只提供简洁索引，不复制完整变更日志。
 
+## 6.15.3
+
+重点：自定义属性与表单提交保护、标签请求完整性、写入／回滚快照复核、同会话封面恢复、控制面板决策与设置生命周期修复。602 项测试和隔离 production Sandbox 验证通过。
+
+[GitHub Release](https://github.com/threeyang3/bangumi-sync/releases/tag/6.15.3) · [Release notes source](history/release-notes/6.15.3.md) · [发布验证](history/releases/6.15.3-validation.md)
+
 ## 6.15.0
 
 重点：统一模板分类树、内容／路径独立继承、保留草稿与旧配置备份、模板文件刷新、只读预览及安全导入导出。556 项测试与生产隔离 Sandbox 验证通过。

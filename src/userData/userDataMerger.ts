@@ -55,10 +55,7 @@ export class UserDataMerger {
 		let result = content;
 
 		for (const [key, value] of Object.entries(customProperties)) {
-			if (this.hasFrontmatterField(result, key)) {
-				continue;
-			}
-			result = this.addFrontmatterField(result, key, value);
+			result = this.updateFrontmatterField(result, key, value);
 		}
 
 		return result;

@@ -114,3 +114,7 @@ Manual Confirm 会重新读取磁盘设置、对齐 previous settings、正式�
 ## Advanced details
 
 Journal candidates、terminal markers、binary facts、configuration recovery、secret redaction、重启行为和状态不变量统一记录在[恢复模型](../maintainer/RECOVERY_MODEL.md)。
+
+## 回滚期间发现后续编辑
+
+如果同步完成后又编辑了笔记或改变了 Subject ID，回滚会保留当前文件并报告冲突。请先单独备份需要保留的新内容，再根据恢复中心诊断核对原文件与路径；不要删除 recovery journal 来解除阻断。缺少可核验写后版本的旧日志也需要人工核验。控制面板“同步所选”部分成功后，可在结果窗口选择保留或回滚；恢复失败时进入恢复中心继续处理。

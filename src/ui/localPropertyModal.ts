@@ -30,6 +30,7 @@ interface SubjectLocalPropertyItem {
 export class LocalPropertyModal extends Modal {
 	private items: SubjectLocalPropertyItem[];
 	private onSubmit: (result: LocalPropertyModalResult, mode: 'confirm' | 'skip') => void;
+	// Template defaults are display-only; only input/change events add overrides.
 	private propertyValuesBySubjectId: Map<number, LocalPropertyValueMap> = new Map();
 
 	constructor(
@@ -51,7 +52,6 @@ export class LocalPropertyModal extends Modal {
 			})
 			.filter((item): item is SubjectLocalPropertyItem => Boolean(item.subject) && item.fields.length > 0);
 		this.onSubmit = onSubmit;
-		this.initializeDefaultValues();
 	}
 
 	onOpen(): void {
@@ -96,16 +96,6 @@ export class LocalPropertyModal extends Modal {
 		this.contentEl.empty();
 	}
 
-	private initializeDefaultValues(): void {
-		for (const item of this.items) {
-			for (const field of item.fields) {
-					if (field.initialValue !== undefined) {
-						this.updatePropertyValue(item.collection.subject_id, field.name, field.initialValue);
-					}
-				}
-		}
-	}
-
 	private renderSubjectSection(container: HTMLElement, item: SubjectLocalPropertyItem): void {
 		const subject = item.subject;
 		const sectionEl = container.createDiv({ cls: 'bangumi-local-property-section' });
@@ -130,7 +120,7 @@ export class LocalPropertyModal extends Modal {
 				input.value = initialValue;
 			}
 			input.addEventListener('input', () => {
-				this.updatePropertyValue(subjectId, field.name, input.value.trim() || undefined);
+				this.updatePropertyValue(subjectId, field.name, input.value.trim());
 			});
 			return;
 		}
@@ -163,11 +153,7 @@ export class LocalPropertyModal extends Modal {
 		value: string | boolean | string[] | undefined
 	): void {
 		const current = { ...(this.propertyValuesBySubjectId.get(subjectId) || {}) };
-		if (
-			value === undefined ||
-			value === '' ||
-			(Array.isArray(value) && value.length === 0)
-		) {
+		if (value === undefined) {
 			delete current[propertyName];
 		} else {
 			current[propertyName] = value;
@@ -202,12 +188,12 @@ export function hasLocalPropertyFieldsForCollections(
 	return result;
 }
 
-function parseListInput(value: string): string[] | undefined {
+function parseListInput(value: string): string[] {
 	const items = value
 		.split(',')
 		.map(item => item.trim())
 		.filter(Boolean);
-	return items.length > 0 ? items : undefined;
+	return items;
 }
 
 export async function loadSubjectsForCollections(

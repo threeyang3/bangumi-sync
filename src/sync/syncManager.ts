@@ -94,6 +94,7 @@ interface PreparedCollectionBatch {
 }
 
 interface RenderedCollection {
+	expectedContent: string | null;
 	prepared: PreparedCollection;
 	subject: Subject;
 	filePath: string;
@@ -1274,6 +1275,7 @@ export class SyncManager {
 			}
 		}
 		if (pending.transactions.length === 0) await this.rollbackPersistentFacts(pending, result);
+		else await this.rollbackBinaryResources(pending, result);
 		for (const path of [...pending.resourcePathsAfterRollback].reverse()) {
 			try {
 				if (!await this.app.vault.adapter.exists(path)) continue;
@@ -1364,6 +1366,28 @@ export class SyncManager {
 	}
 
 	private async rollbackPersistentFacts(pending: PendingSyncTransaction, result: SyncRollbackResult): Promise<void> {
+		// Validate every document before moving, deleting or restoring any of them.
+		for (const expectation of pending.contentExpectations) {
+			try {
+				const rename = pending.renameExpectations.find(item => item.subjectId === expectation.subjectId);
+				const file = [expectation.path, rename?.temporaryPath, rename?.finalPath].filter((path): path is string => Boolean(path)).flatMap(path => this.findVaultFilesByCollisionPath(path))[0];
+				if (!file) throw new Error('Original content file is missing.');
+				const current = await this.app.vault.read(file);
+				this.documentService.assertContentSubjectId(current, expectation.subjectId, file.path);
+				if (current !== expectation.originalContent && (!expectation.expectedWrittenHash || await hashRecoveryContent(current) !== expectation.expectedWrittenHash)) throw new Error('File changed after the transaction or has no verifiable written snapshot.');
+			} catch (error) { this.recordManagerRollbackFailure(result, 'restore-content', expectation.path, error); }
+		}
+		for (const path of pending.forbiddenPathsAfterRollback) {
+			try {
+				const file = this.findVaultFilesByCollisionPath(path)[0];
+				if (!file) continue;
+				const expectation = this.activeRecoveryJournal?.createdPathExpectations.find(item => item.createdPath === path);
+				const current = await this.app.vault.read(file);
+				if (!expectation?.expectedWrittenHash || await hashRecoveryContent(current) !== expectation.expectedWrittenHash) throw new Error('Created file changed or has no verifiable written snapshot.');
+				this.documentService.assertContentSubjectId(current, expectation.subjectId, path);
+			} catch (error) { this.recordManagerRollbackFailure(result, 'delete-created', path, error); }
+		}
+		if (result.failed > 0) return;
 		for (const rename of [...pending.renameExpectations].reverse()) {
 			const existingOriginal = this.findVaultFilesByCollisionPath(rename.originalPath)[0];
 			if (existingOriginal) {
@@ -1402,6 +1426,11 @@ export class SyncManager {
 			const file = this.findVaultFilesByCollisionPath(path)[0];
 			if (!file) continue;
 			try {
+				const expectation = this.activeRecoveryJournal?.createdPathExpectations.find(item => item.createdPath === path);
+				const current = await this.app.vault.read(file);
+				if (!expectation?.expectedWrittenHash || await hashRecoveryContent(current) !== expectation.expectedWrittenHash) throw new Error('Created file changed during recovery.');
+				this.documentService.assertContentSubjectId(current, expectation.subjectId, path);
+				if (this.app.vault.getAbstractFileByPath(file.path) !== file) throw new Error('Created file was replaced during recovery.');
 				await this.app.fileManager.trashFile(file);
 				result.attempted = true;
 				result.changed = true;
@@ -1422,7 +1451,12 @@ export class SyncManager {
 			try {
 				const identity = this.documentService.getSubjectIdentityFromContent(await this.app.vault.read(file));
 				if (identity.subjectId !== expectation.subjectId) throw new Error(`File belongs to subject ${String(identity.subjectId)}, expected ${expectation.subjectId}.`);
-				await this.app.vault.process(file, () => expectation.originalContent);
+				const baseline = await this.app.vault.read(file);
+				if (baseline !== expectation.originalContent && (!expectation.expectedWrittenHash || await hashRecoveryContent(baseline) !== expectation.expectedWrittenHash)) throw new Error('File changed during recovery.');
+				await this.documentService.processSubjectFile(file, expectation.subjectId, current => {
+					if (current !== baseline) throw new Error('File changed during recovery.');
+					return expectation.originalContent;
+				});
 				result.attempted = true;
 				result.changed = true;
 				result.restoredContents++;
@@ -1430,6 +1464,10 @@ export class SyncManager {
 				this.recordManagerRollbackFailure(result, 'restore-content', expectation.path, error);
 			}
 		}
+		await this.rollbackBinaryResources(pending, result);
+	}
+
+	private async rollbackBinaryResources(pending: PendingSyncTransaction, result: SyncRollbackResult): Promise<void> {
 		for (const expectation of pending.updatedResourceExpectations) {
 			try {
 				const file = this.findVaultFilesByAnyPath(expectation.path)[0];
@@ -2351,7 +2389,7 @@ export class SyncManager {
 				batch,
 				concurrency,
 				result,
-				() => ({ overwrite: false, preserveUserDataOnOverwrite: false }),
+				() => ({ overwrite: options.force, preserveUserDataOnOverwrite: options.force }),
 			);
 			wasCancelled = execution.wasCancelled;
 			if (execution.relations.length > 0) {
@@ -3047,6 +3085,7 @@ export class SyncManager {
 		localPropertyResult?: LocalPropertyModalResult,
 		concurrency: number = 3,
 		subjectDetails?: SubjectDetailSession,
+		force: boolean = false,
 	): Promise<SyncResultWithRollback> {
 		this.ensureCanStartSync();
 		const startTime = Date.now();
@@ -3082,8 +3121,8 @@ export class SyncManager {
 				concurrency,
 				result,
 				prepared => ({
-					overwrite: false,
-					preserveUserDataOnOverwrite: false,
+					overwrite: force,
+					preserveUserDataOnOverwrite: force,
 					localPropertyValues: localPropertyResult?.propertyValuesBySubjectId?.get(prepared.collection.subject_id),
 				}),
 			);
@@ -3124,6 +3163,9 @@ export class SyncManager {
 		prepared: PreparedCollection,
 	): Promise<RenderedCollection> {
 		debugLog(() => `[Bangumi Sync] 处理条目: ${collection.subject.name_cn || collection.subject.name}`);
+
+		const existingFile = await this.fileManager.assertPathOwnership(prepared.allocation.renameFrom ?? prepared.allocation.finalPath, collection.subject_id);
+		const expectedContent = existingFile ? await this.app.vault.read(existingFile) : null;
 
 		// 获取完整条目信息
 		const { subject, characters: relatedCharacters, relations, persons } = prepared.fullInfo;
@@ -3184,10 +3226,8 @@ export class SyncManager {
 
 		// 文件已存在时保护用户数据（记录、感想等）
 		if (options.preserveUserDataOnOverwrite) {
-			const existingPath = prepared.allocation.renameFrom ?? filePath;
-			const existingFile = await this.fileManager.assertPathOwnership(existingPath, subject.id);
-			if (existingFile) {
-				const localUserData = await this.userDataExtractor.extractFromFileAsync(existingFile);
+			if (existingFile && expectedContent !== null) {
+				const localUserData = this.userDataExtractor.extractFromContent(existingFile, expectedContent);
 				if (localUserData) {
 					const dataProtection = this.config.dataProtection || DEFAULT_DATA_PROTECTION_SETTINGS;
 					content = this.userDataMerger.mergeUserData(existingFile, content, localUserData, dataProtection);
@@ -3205,7 +3245,7 @@ export class SyncManager {
 		// 创建或更新文件
 		// 当 preserveUserDataOnOverwrite 为 true 且文件已存在时，使用 overwrite 确保 API 数据（如具体类型）更新
 		const shouldOverwrite = options.overwrite || (options.preserveUserDataOnOverwrite && fileExisted);
-		return { prepared, subject, filePath, content, fileExisted, shouldOverwrite, relations };
+		return { prepared, subject, filePath, content, fileExisted, shouldOverwrite, relations, expectedContent };
 	}
 
 	private async writeRenderedCollection(
@@ -3213,7 +3253,7 @@ export class SyncManager {
 		transaction: SyncTransaction,
 	): Promise<{ subjectId: number; filePath: string; relations: RelatedSubject[]; writeStatus: FileWriteStatus }> {
 		const { subject, filePath, content, shouldOverwrite, relations } = rendered;
-		const writeOptions = { overwrite: shouldOverwrite, subjectId: subject.id };
+		const writeOptions = { overwrite: shouldOverwrite, subjectId: subject.id, expectedContent: rendered.expectedContent };
 		const writeResult = await transaction.createOrUpdateFile(filePath, content, writeOptions);
 		debugLog(() => `[Bangumi Sync] 文件创建完成: ${filePath}`);
 
@@ -3478,7 +3518,13 @@ export class SyncManager {
 				let updatedContent = this.replaceCoverInFrontmatter(content, localPath);
 				updatedContent = this.replaceCoverInBody(updatedContent, localPath);
 
-				await this.documentService.processSubjectFile(file, subjectId, () => updatedContent);
+				if (!this.activeRecoveryJournal) throw new Error('Missing recovery journal before cover note update.');
+				this.activeRecoveryJournal.contentExpectations[0].expectedWrittenHash = await hashRecoveryContent(updatedContent);
+				await this.recoveryJournalStore.write(this.activeRecoveryJournal);
+				await this.documentService.processSubjectFile(file, subjectId, latest => {
+					if (latest !== content) throw new Error('Note changed during cover download.');
+					return updatedContent;
+				});
 				const pending = this.pendingFromActiveJournal('committed');
 				this.pendingTransaction = pending;
 				await this.persistPendingJournal(pending, 'committed-cleanup-pending');

@@ -585,12 +585,11 @@ export class BangumiClient {
 		}
 
 		if (data.tags !== undefined) {
-			const tags = Array.from(new Set(
-				data.tags
-					.map(tag => this.sanitizeTag(tag))
-					.filter((tag): tag is string => tag !== null)
-			)).slice(0, 20);
-			payload.tags = tags;
+			if (data.tags.length > 20) throw new Error('Too many tags; no tags were sent.');
+			if (data.tags.some(tag => tag.length === 0 || /[ \u3000]/u.test(tag) || /[^\t\r\n\p{L}\p{M}\p{N}\p{P}\p{S}\p{Z}]/u.test(tag))) {
+				throw new Error('Invalid tags; no tags were sent.');
+			}
+			payload.tags = [...data.tags];
 		}
 
 		if (data.private !== undefined) {
@@ -600,27 +599,6 @@ export class BangumiClient {
 		return payload;
 	}
 
-	private sanitizeTag(tag: string): string | null {
-		const normalized = tag
-			.trim()
-			.replace(/\s+/g, ' ')
-			.replace(/^[#\-*]+/, '');
-
-		if (normalized.length === 0 || normalized.length > 24) {
-			return null;
-		}
-
-		// 过滤掉更像本地管理标签/Markdown 结构的值，避免触发 Bangumi 服务端校验错误。
-		if (/[\\[\]{}()<>`"'|]/.test(normalized)) {
-			return null;
-		}
-
-		if (/[:/]/.test(normalized)) {
-			return null;
-		}
-
-		return normalized;
-	}
 
 	/**
 	 * 获取条目的所有章节

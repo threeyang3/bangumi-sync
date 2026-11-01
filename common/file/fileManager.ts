@@ -133,12 +133,14 @@ export class FileManager {
 		options?: {
 			overwrite?: boolean;
 			subjectId?: number;
+			expectedContent?: string | null;
 		}
 	): Promise<FileWriteResult> {
 		const normalizedPath = normalizePath(path);
 		const existingFile = this.getFile(normalizedPath);
 
 		if (existingFile) {
+			if (options?.expectedContent === null) throw new Error(`File appeared during sync: ${normalizedPath}`);
 			if (options?.subjectId !== undefined) {
 				await this.assertPathOwnership(normalizedPath, options.subjectId);
 			}
@@ -146,10 +148,21 @@ export class FileManager {
 			if (options?.overwrite) {
 				// 强制覆盖
 				const currentContent = await this.app.vault.read(existingFile);
+				const expectedContent = options.expectedContent ?? currentContent;
+				const update = (latest: string): string => {
+					if (existingFile.path !== normalizedPath || this.getFile(normalizedPath) !== existingFile || latest !== expectedContent) {
+						throw new Error(`File changed during sync: ${normalizedPath}`);
+					}
+					return content;
+				};
 				if (currentContent === content) {
 					return { file: existingFile, status: 'unchanged' };
 				}
-				await this.updateFile(existingFile, content);
+				if (options.subjectId !== undefined) {
+					await this.documentService.processSubjectFile(existingFile, options.subjectId, update);
+				} else {
+					await this.app.vault.process(existingFile, update);
+				}
 				return { file: existingFile, status: 'updated' };
 			}
 
@@ -159,6 +172,7 @@ export class FileManager {
 		}
 
 		// 创建新文件
+		if (typeof options?.expectedContent === 'string') throw new Error(`File disappeared during sync: ${normalizedPath}`);
 		const file = await this.createFile(normalizedPath, content);
 		return { file, status: 'created' };
 	}
