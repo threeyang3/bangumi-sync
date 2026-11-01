@@ -377,10 +377,6 @@ export class SubjectDocumentService {
 			return false;
 		}
 
-		if (/^[^,[\]]+:\s*.+$/.test(normalized)) {
-			return false;
-		}
-
 		return true;
 	}
 

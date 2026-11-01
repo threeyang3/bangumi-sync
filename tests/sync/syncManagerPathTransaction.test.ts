@@ -1727,3 +1727,67 @@ it('blocks another manager operation for the duration of a cloud-only write', as
  expect(()=>manager.ensureCanStartSync()).toThrow('in progress');
  gate.release();expect((await running).success).toBe(true);expect(()=>manager.ensureCanStartSync()).not.toThrow();
 });
+
+
+describe('audit data protection regressions', () => {
+ it.each([undefined, { '剧情评分': '8' }])('keeps declared local fields unless explicitly supplied: %j', async values => {
+  const vault = new InMemoryVault(); const subject = makeSubject(1, '2024-01-01', 'audit');
+  const path = 'ACGN/music/audit.md';
+  vault.addFile(path, '---\nid: 1\n剧情评分: 9\n已购: true\n资源属性:\n  - 收藏版\n---\n## 感想\n保留正文');
+  const manager = createManager(vault, [subject]);
+  manager.updateConfig({ customTemplates: { '__node__:music': '---\nid: {{id}}\n剧情评分:\n资源属性: []\n已购: false\n---\n## 感想\n' } }, ['customTemplates']);
+  const result = await manager.syncByCollections([makeCollection(subject)], { overwrite: true, localPropertyValuesBySubjectId: values ? new Map([[1, values]]) : undefined });
+  expect(result.updated).toBe(1);
+  const content = vault.contents.get(path)!;
+  expect(content).toContain(values ? '剧情评分: "8"' : '剧情评分: 9');
+  expect(content).toContain('已购: true'); expect(content).toContain('收藏版'); expect(content).toContain('保留正文');
+ });
+ it.each(['same-id', 'different-id'])('preserves edits injected at the final write: %s', async mode => {
+  const vault = new InMemoryVault(); const subject = makeSubject(1, '2024-01-01', 'audit'); const path = 'ACGN/music/audit.md';
+  vault.addFile(path, '---\nid: 1\n---\nold'); const manager = createManager(vault, [subject]);
+  const later = '---\nid: ' + (mode === 'same-id' ? 1 : 999) + '\n---\nlater user edit';
+  const process = vault.app.vault.process.bind(vault.app.vault); let injected = false;
+  vault.app.vault.process = (file, update) => { if (!injected) { injected = true; vault.contents.set(path, later); } return process(file, update); };
+  const result = await manager.syncByCollections([makeCollection(subject)], { overwrite: true });
+  expect(result.failed).toBeGreaterThan(0); expect(vault.contents.get(path)).toBe(later);
+ });
+ it.each([false, true])('preserves later edits on rollback, reloaded=%s', async reload => {
+  const vault = new InMemoryVault(); const a = makeSubject(1, '2024-01-01', 'audit'); const b = makeSubject(2, '2024-01-01', 'failure');
+  const path = 'ACGN/music/audit.md'; vault.addFile(path, '---\nid: 1\n---\nold');
+  const manager = createManager(vault, [a, b], { failures: new Set([2]) });
+  expect((await manager.syncByCollections([makeCollection(a), makeCollection(b)], { overwrite: true })).canRollback).toBe(true);
+  const later = vault.contents.get(path)! + '\nlater edit'; vault.contents.set(path, later);
+  if (reload) { const next = createManager(vault, [a, b]); await next.initializeRecovery(); expect((await next.retryRecovery()).status).toBe('rollback-failed'); }
+  else expect((await manager.rollbackBatch()).status).toBe('rollback-failed');
+  expect(vault.contents.get(path)).toBe(later); expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(true);
+ });
+ it.each([false, true])('never deletes a repurposed created note, reloaded=%s', async reload => {
+  const vault = new InMemoryVault(); const a = makeSubject(1, '2024-01-01', 'audit'); const b = makeSubject(2, '2024-01-01', 'failure');
+  const manager = createManager(vault, [a, b], { failures: new Set([2]) });
+  await manager.syncByCollections([makeCollection(a), makeCollection(b)]);
+  const path = 'ACGN/music/audit.md'; const later = '---\nid: 999\n---\nnew owner'; vault.contents.set(path, later);
+  if (reload) { const next = createManager(vault, [a, b]); await next.initializeRecovery(); expect((await next.retryRecovery()).status).toBe('rollback-failed'); }
+  else expect((await manager.rollbackBatch()).status).toBe('rollback-failed');
+  expect(vault.contents.get(path)).toBe(later); expect(vault.trashed).not.toContain(path);
+ });
+ it.each(['direct', 'preview'])('honors force through the %s entry', async entry => {
+  const vault = new InMemoryVault(); const subject = makeSubject(1, '2024-01-01', 'audit'); const path = 'ACGN/music/audit.md';
+  vault.addFile(path, '---\nid: 1\n---\nold'); const manager = createManager(vault, [subject]);
+  const options = { subjectTypes: [SubjectType.Music], collectionTypes: [CollectionType.Done], limit: 0, force: true };
+  const result = entry === 'direct' ? await manager.sync(options) : await manager.executeSync((await manager.prepareSync(options)).previewItems!, 'all', undefined, 1, undefined, true);
+  expect(result).toMatchObject({ updated: 1, unchanged: 0 }); expect(vault.contents.get(path)).toContain('audit summary');
+ });
+ it('restores an overwritten cover during same-session pending rollback', async () => {
+  const vault = new InMemoryVault(); const a = makeSubject(1, '2024-01-01', 'audit'); const b = makeSubject(2, '2024-01-01', 'failure');
+  a.images = { large: 'https://example.com/cover.jpg' }; const path = 'ACGN/music/audit.md';
+  const original = '---\nid: 1\n---\nold'; vault.addFile(path, original); vault.addBinaryFile('assets/1.jpg', new Uint8Array([1,2,3]));
+  const manager = createManager(vault, [a,b], { failures: new Set([2]) });
+  manager.updateConfig({ downloadImages: true, imageUpdateExisting: true, imagePathTemplate: 'assets/{{id}}.jpg' }, ['downloadImages','imageUpdateExisting','imagePathTemplate']);
+  setRequestUrlHandler(() => Promise.resolve({ status: 200, arrayBuffer: new Uint8Array([9,9,9]).buffer }));
+  expect((await manager.syncByCollections([makeCollection(a),makeCollection(b)], { overwrite: true })).canRollback).toBe(true);
+  expect(Array.from(vault.binaryContents.get('assets/1.jpg')!)).toEqual([9,9,9]);
+  expect((await manager.rollbackBatch()).status).toBe('rolled-back');
+  expect(vault.contents.get(path)).toBe(original); expect(Array.from(vault.binaryContents.get('assets/1.jpg')!)).toEqual([1,2,3]);
+  expect(manager.getRecoveryRequired()).toBeNull();
+ });
+});

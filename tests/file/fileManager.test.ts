@@ -29,3 +29,12 @@ describe('FileManager identity-safe writes', () => {
 		expect([first.status, unchanged.status, updated.status]).toEqual(['created', 'unchanged', 'updated']);
 	});
 });
+
+it('rejects a file that appeared after rendering and a file that disappeared', async () => {
+ const vault=new InMemoryVault(); const manager=new FileManager(vault.app); const original='---\nid: 1\n---\nuser-created';
+ vault.addFile('one.md',original);
+ await expect(manager.createOrUpdateFile('one.md','---\nid: 1\n---\nrendered',{subjectId:1,overwrite:true,expectedContent:null})).rejects.toThrow('appeared');
+ expect(vault.contents.get('one.md')).toBe(original);
+ await expect(manager.createOrUpdateFile('missing.md','---\nid: 1\n---\nrendered',{subjectId:1,overwrite:true,expectedContent:original})).rejects.toThrow('disappeared');
+ expect(vault.files.has('missing.md')).toBe(false);
+});

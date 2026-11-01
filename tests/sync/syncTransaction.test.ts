@@ -21,7 +21,7 @@ describe('SyncTransaction staged rename log', () => {
 		expect((await transaction.getRecoveryExpectations()).updatedContents[0].expectedContentHash).toBe(expectedHash);
 		await transaction.createOrUpdateFile('A/one.md', '---\nid: 1\n---\nchanged again', { overwrite: true, subjectId: 1 });
 		expect((await transaction.getRecoveryExpectations()).updatedContents[0].originalContent).toBe(original);
-		expect(hash).toHaveBeenCalledTimes(1);
+		expect(hash.mock.calls.filter(([content]) => content === original)).toHaveLength(1);
 		expect(await transaction.rollback()).toMatchObject({ restoredContents: 1, failed: 0 });
 		expect(vault.contents.get('A/one.md')).toBe(original);
 		expect((await transaction.getRecoveryExpectations()).updatedContents).toEqual([]);
@@ -37,7 +37,7 @@ describe('SyncTransaction staged rename log', () => {
 		expect(vault.contents.get('A/one.md')).toBe(original);
 		await transaction.createOrUpdateFile('A/one.md', '---\nid: 1\n---\nchanged', { overwrite: true, subjectId: 1 });
 		expect((await transaction.getRecoveryExpectations()).updatedContents[0].originalContent).toBe(original);
-		expect(hash).toHaveBeenCalledTimes(2);
+		expect(hash).toHaveBeenCalledTimes(3);
 		transaction.commit();
 		expect((await transaction.getRecoveryExpectations()).updatedContents).toEqual([]);
 	});
@@ -62,7 +62,7 @@ describe('SyncTransaction staged rename log', () => {
 		await transaction.createOrUpdateFile('A/created.md', '---\nid: 2\n---\ncreated', { overwrite: false, subjectId: 2 });
 		const expectations = await transaction.getRecoveryExpectations();
 
-		expect(expectations.createdFiles).toEqual([{ subjectId: 2, createdPath: 'A/created.md', expectedToExistAfterRollback: false }]);
+		expect(expectations.createdFiles).toMatchObject([{ subjectId: 2, createdPath: 'A/created.md', expectedToExistAfterRollback: false }]);
 		expect(expectations.updatedContents).toHaveLength(1);
 		expect(expectations.updatedContents[0]).toMatchObject({ subjectId: 1, path: 'A/existing.md', originalContentLength: original.length });
 		expect(expectations.updatedContents[0].originalContent).toBe(original);

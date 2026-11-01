@@ -9,6 +9,9 @@ import { App, Menu, Modal, Notice, TFile } from 'obsidian';
 import { UserCollection, SubjectType, CollectionType, getSubjectTypeName, getCollectionTypeName, getCollectionStatusLabel } from '../../common/api/types';
 import { BangumiPluginSettings, PanelFilters, DEFAULT_PANEL_FILTERS } from '../settings/settings';
 import { ManagerState, SyncManager } from '../sync/syncManager';
+import { SyncModal } from '../ui/syncModal';
+import { createCancellationSignal } from '../sync/syncStatus';
+import { withWriteOperation, assertWriteOperationAllowed } from '../sync/writeOperationGate';
 import { IncrementalSync } from '../sync/incrementalSync';
 import { BangumiClient } from '../api/client';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
@@ -1177,6 +1180,13 @@ export class ControlPanel extends Modal {
 			);
 
 			this.state.loading = false;
+			const completion = new SyncModal(this.app, createCancellationSignal());
+			completion.setRollbackHandler(async () => { const decision = await this.syncManager.rollbackBatch(); await this.loadData(); return decision; });
+			completion.setCommitHandler(async () => { const decision = await this.syncManager.commitPendingBatch(); await this.loadData(); return decision; });
+			completion.setRecoveryStateSubscriber(listener => this.syncManager.subscribeRecoveryState(listener));
+			if (this.actions.openRecoveryCenter) completion.setRecoveryCenterHandler(this.actions.openRecoveryCenter);
+			completion.open();
+			completion.showCompleted(result);
 
 			if (result.completion === 'success' || result.completion === 'partial-success') {
 				const completionText = result.completion === 'partial-success'
@@ -1309,7 +1319,12 @@ export class ControlPanel extends Modal {
 							try {
 								const file = this.app.vault.getAbstractFileByPath(localInfo.path);
 								if (file instanceof TFile) {
-									await this.app.fileManager.trashFile(file);
+									await withWriteOperation('batch-edit', async lease => {
+										await this.documentService.assertFileSubjectId(file, collection.subject_id);
+										assertWriteOperationAllowed('batch-edit', lease);
+										if (file.path !== localInfo.path || this.app.vault.getAbstractFileByPath(localInfo.path) !== file) throw new Error('File changed before deletion.');
+										await this.app.fileManager.trashFile(file);
+									});
 									this.state.localSubjects.delete(collection.subject_id);
 									deleted++;
 								}
