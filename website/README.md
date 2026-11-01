@@ -25,7 +25,8 @@ Then open http://localhost:4173/ . No npm or build step is required.
 
 ## Content boundaries
 
-- Images are retrieved from this public repository's demo_pic directory; some may show earlier UI versions.
+- Current screenshots live in `assets/screenshots/` and are shared with the root README and user guides. They show the real plugin in an isolated Obsidian vault with fictional collection data. The local note uses a custom template.
+- Capture states, image review and refresh instructions are recorded in [the visual closeout record](../docs/history/releases/6.15.3-visual-closeout.md). Keep image files and captions aligned when refreshing them; do not replace real screenshots with mockups.
 - The release button uses GitHub's latest stable release link; the small version label uses a read-only public API call with offline fallback.
 - No analytics, ads, tokens or user-specific data are collected.
 - The site does not claim cross-system atomic rollback or affiliation with Bangumi or Obsidian.

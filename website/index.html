@@ -9,14 +9,14 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="Bangumi Sync — 收藏热爱，自由整理">
   <meta property="og:description" content="Bangumi × Obsidian。把动画、漫画、书籍、游戏、音乐与三次元收藏，变成真正属于自己的 Markdown 知识库。">
-  <meta property="og:image" content="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E6%9C%AC%E5%9C%B0%E6%9D%A1%E7%9B%AE%E5%AE%8C%E6%95%B4%E7%A4%BA%E6%84%8F.png">
+  <meta property="og:image" content="https://threeyang3.github.io/bangumi-sync/assets/screenshots/local-note.png">
   <meta property="og:locale" content="zh_CN">
   <title>Bangumi Sync — 收藏热爱，自由整理</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
   <script defer src="./app.js"></script>
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Bangumi Sync","applicationCategory":"ProductivityApplication","operatingSystem":"Windows, macOS, Linux","description":"Synchronize Bangumi collections and episode progress to local Obsidian Markdown notes.","url":"https://github.com/threeyang3/bangumi-sync","downloadUrl":"https://github.com/threeyang3/bangumi-sync/releases/latest","softwareVersion":"6.15.1","license":"https://opensource.org/licenses/MIT","isAccessibleForFree":true}
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Bangumi Sync","applicationCategory":"ProductivityApplication","operatingSystem":"Windows, macOS, Linux","description":"Synchronize Bangumi collections and episode progress to local Obsidian Markdown notes.","url":"https://github.com/threeyang3/bangumi-sync","downloadUrl":"https://github.com/threeyang3/bangumi-sync/releases/latest","softwareVersion":"6.15.3","license":"https://opensource.org/licenses/MIT","isAccessibleForFree":true}
   </script>
 </head>
 <body>
@@ -52,7 +52,7 @@
   <main id="main">
     <section class="hero shell" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <div class="eyebrow"><span class="eyebrow-dot"></span> OPEN SOURCE · OBSIDIAN PLUGIN <span class="eyebrow-version">v<span data-version>6.15.1</span></span></div>
+        <div class="eyebrow"><span class="eyebrow-dot"></span> OPEN SOURCE · OBSIDIAN PLUGIN <span class="eyebrow-version">v<span data-version>6.15.3</span></span></div>
         <h1 id="hero-title">喜欢的作品，<br><span>值得好好收藏。</span></h1>
         <p class="hero-lead">让 Bangumi 与 Obsidian 连接起来。把收藏、评分、短评与观看进度，整理为可编辑、可检索、真正存放在自己手中的 <strong>Markdown 笔记</strong>。</p>
         <div class="hero-buttons">
@@ -69,7 +69,7 @@
         <div class="hero-orbit hero-orbit-a"></div><div class="hero-orbit hero-orbit-b"></div>
         <div class="screenshot-shell">
           <div class="window-bar"><div class="window-dots"><b></b><b></b><b></b></div><span>OBSIDIAN / MY COLLECTION</span><span class="window-live"><span></span> LOCAL</span></div>
-          <img src="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E6%9C%AC%E5%9C%B0%E6%9D%A1%E7%9B%AE%E5%AE%8C%E6%95%B4%E7%A4%BA%E6%84%8F.png" alt="Bangumi Sync 生成的 Obsidian 本地条目笔记实际截图" fetchpriority="high" width="1200" height="800">
+          <img src="assets/screenshots/local-note.png" alt="Bangumi Sync 生成的 Obsidian 本地条目笔记实际截图" fetchpriority="high" width="856" height="680">
         </div>
         <div class="floating-card floating-card-top"><span class="floating-icon">✦</span><span><strong>记录不再散落</strong><small>收藏与笔记，归于一处</small></span></div>
         <div class="floating-card floating-card-bottom"><span class="sync-arrows">⇄</span><span><strong>Bangumi × Obsidian</strong><small>你的作品，你的知识库</small></span></div>
@@ -129,19 +129,19 @@
     </section>
 
     <section class="section-alt showcase-zone" id="showcase"><div class="shell section">
-      <div class="section-top"><div><p class="section-kicker">SEE IT IN ACTION</p><h2>看看它实际工作的样子。</h2></div><p class="section-aside">以下来自项目仓库中的真实截图。点击图片可放大查看。</p></div>
+      <div class="section-top"><div><p class="section-kicker">SEE IT IN ACTION</p><h2>看看它实际工作的样子。</h2></div><p class="section-aside">以下为隔离测试库中的真实界面截图，作品与收藏均为演示数据。点击图片可放大查看。</p></div>
       <div class="gallery">
-        <button type="button" class="gallery-item gallery-main" data-image="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E6%9C%AC%E5%9C%B0%E6%9D%A1%E7%9B%AE%E5%AE%8C%E6%95%B4%E7%A4%BA%E6%84%8F.png" data-alt="生成的本地条目笔记">
-          <span class="gallery-media"><img loading="lazy" src="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E6%9C%AC%E5%9C%B0%E6%9D%A1%E7%9B%AE%E5%AE%8C%E6%95%B4%E7%A4%BA%E6%84%8F.png" alt="本地条目笔记截图"></span><span class="gallery-caption"><strong>本地条目笔记</strong><span>Markdown + Frontmatter <span aria-hidden="true">↗</span></span></span>
+        <button type="button" class="gallery-item gallery-main" data-image="assets/screenshots/local-note.png" data-alt="生成的本地条目笔记">
+          <span class="gallery-media"><img loading="lazy" src="assets/screenshots/local-note.png" alt="本地条目笔记截图"></span><span class="gallery-caption"><strong>本地条目笔记</strong><span>Markdown + Frontmatter <span aria-hidden="true">↗</span></span></span>
         </button>
-        <button type="button" class="gallery-item" data-image="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E6%A8%A1%E6%9D%BF%E8%AE%BE%E7%BD%AE.png" data-alt="模板设置界面">
-          <span class="gallery-media"><img loading="lazy" src="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E6%A8%A1%E6%9D%BF%E8%AE%BE%E7%BD%AE.png" alt="模板设置截图"></span><span class="gallery-caption"><strong>模板管理</strong><span>自定义内容 <span aria-hidden="true">↗</span></span></span>
+        <button type="button" class="gallery-item" data-image="assets/screenshots/work-templates.png" data-alt="模板设置界面">
+          <span class="gallery-media"><img loading="lazy" src="assets/screenshots/work-templates.png" alt="模板设置截图"></span><span class="gallery-caption"><strong>作品模板</strong><span>自定义内容 <span aria-hidden="true">↗</span></span></span>
         </button>
-        <button type="button" class="gallery-item" data-image="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E8%B7%AF%E5%BE%84%E8%AE%BE%E7%BD%AE.png" data-alt="路径设置界面">
-          <span class="gallery-media"><img loading="lazy" src="https://raw.githubusercontent.com/threeyang3/bangumi-sync/main/demo_pic/%E8%B7%AF%E5%BE%84%E8%AE%BE%E7%BD%AE.png" alt="路径设置截图"></span><span class="gallery-caption"><strong>输出与命名</strong><span>自由组织文件 <span aria-hidden="true">↗</span></span></span>
+        <button type="button" class="gallery-item" data-image="assets/screenshots/output-naming.png" data-alt="路径设置界面">
+          <span class="gallery-media"><img loading="lazy" src="assets/screenshots/output-naming.png" alt="路径设置截图"></span><span class="gallery-caption"><strong>输出与命名</strong><span>自由组织文件 <span aria-hidden="true">↗</span></span></span>
         </button>
       </div>
-      <p class="gallery-note">提示：部分仓库截图可能来自较早的界面版本；当前功能以最新发布说明和文档为准。</p>
+      <p class="gallery-note">本地笔记展示自定义模板效果；未修改属性表单直接确认后，已有的“已购”和“渠道”值仍被保留。</p>
     </div></section>
 
     <section class="section shell safety-section" id="safety">

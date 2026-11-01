@@ -1,5 +1,11 @@
 # Agent Instructions - Bangumi Sync
 
+## Browser and CI usage
+
+- 网页预览、交互与截图使用 ChatGPT 内置浏览器（`cua_repl`），默认后台运行；禁止启动或控制外部 Chrome／Chromium 可执行程序。硬编码 Chrome 的测试步骤应跳过并说明限制，不修改用户安装的软件。
+- 先本地验证，再批量提交相关修改；推送或手动触发 CI 前检查工作流触发条件，避免空提交、重复派发和使用 CI 调试中间版本。
+- 文档修改优先检查链接、图片及实际呈现；保留现有必需的安全、合并和发布检查。失败先调查，有依据时仅重试必要的失败任务，不绕过配额或提高预算。
+
 ## Branch and release safety
 
 - 日常开发从 `adv` 创建独立 feature、fix 或 docs 分支。
