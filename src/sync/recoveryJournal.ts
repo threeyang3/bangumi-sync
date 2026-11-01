@@ -342,6 +342,7 @@ export function validatePersistentRecoveryJournal(value: unknown): PersistentRec
 	if (validateArray(value.contentExpectations, 'contentExpectations', errors)) value.contentExpectations.forEach((item, index) => {
 		const path = `contentExpectations[${index}]`;
 		if (!isRecord(item)) { errors.push(`${path} must be a plain object.`); return; }
+		if (item.expectedWrittenHash !== undefined && (typeof item.expectedWrittenHash !== 'string' || !/^[a-f0-9]{64}$/iu.test(item.expectedWrittenHash))) errors.push(`${path}.expectedWrittenHash must be a SHA-256 hash.`);
 		if (!positiveSubjectId(item.subjectId)) errors.push(`${path}.subjectId must be a positive integer.`);
 		validateString(item.path, `${path}.path`, errors);
 		if (typeof item.expectedContentHash !== 'string' || !/^[a-f0-9]{64}$/iu.test(item.expectedContentHash)) errors.push(`${path}.expectedContentHash must be a 64-character SHA-256 hex string.`);
@@ -355,6 +356,7 @@ export function validatePersistentRecoveryJournal(value: unknown): PersistentRec
 	if (validateArray(value.createdPathExpectations, 'createdPathExpectations', errors)) value.createdPathExpectations.forEach((item, index) => {
 		const path = `createdPathExpectations[${index}]`;
 		if (!isRecord(item)) { errors.push(`${path} must be a plain object.`); return; }
+		if (item.expectedWrittenHash !== undefined && (typeof item.expectedWrittenHash !== 'string' || !/^[a-f0-9]{64}$/iu.test(item.expectedWrittenHash))) errors.push(`${path}.expectedWrittenHash must be a SHA-256 hash.`);
 		if (!(positiveSubjectId(item.subjectId) || item.subjectId === -1)) errors.push(`${path}.subjectId must be positive or the internal -1 sentinel.`);
 		validateString(item.createdPath, `${path}.createdPath`, errors);
 		if (item.expectedToExistAfterRollback !== false) errors.push(`${path}.expectedToExistAfterRollback must be false.`);

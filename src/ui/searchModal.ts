@@ -3,7 +3,7 @@
  * 搜索 Bangumi 条目并添加到收藏
  */
 
-import { App, Modal, Notice, Setting, TFile } from 'obsidian';
+import { App, Modal, Notice, Setting } from 'obsidian';
 import { Subject, SubjectType, PagedResult, UserCollection, getCollectionStatusLabel } from '../../common/api/types';
 import { BangumiClient } from '../api/client';
 import { BangumiPluginSettings } from '../settings/settings';
@@ -11,8 +11,7 @@ import { SyncManager } from '../sync/syncManager';
 import { AddToCollectionModal, AddToCollectionInput } from './addToCollectionModal';
 import { getLocale, tn, tnFormat } from '../i18n';
 import { getTypeLabel } from '../../common/template/defaultTemplates';
-import { generatePreferredFilePath } from '../../common/template/pathTemplate';
-import { classifySubject, migrateTemplateSettings, resolveTemplateRule } from '../../common/template/templateSystem';
+import { IncrementalSync } from '../sync/incrementalSync';
 
 /**
  * 条目类型选项
@@ -75,6 +74,7 @@ export class SearchModal extends Modal {
 
 	// 状态缓存
 	private syncedSubjectIds: Set<number> = new Set();
+	private localStatusScan: Promise<IncrementalSync> | null = null;
 	private collectionStatuses: Map<number, UserCollection> = new Map();
 
 	// UI 元素
@@ -255,9 +255,9 @@ export class SearchModal extends Modal {
 			this.searchResults.push(...newSubjects);
 
 			// 检查同步状态和收藏状态
-			for (const subject of newSubjects) {
-				if (this.checkLocalSyncStatus(subject)) this.syncedSubjectIds.add(subject.id);
-			}
+			const localPaths = await Promise.all(newSubjects.map(subject => this.checkLocalSyncStatus(subject)));
+			if (generation !== this.requestGeneration) return;
+			newSubjects.forEach((subject, index) => { if (localPaths[index]) this.syncedSubjectIds.add(subject.id); });
 
 			// 更新状态
 			this.statusEl.setText(
@@ -315,23 +315,14 @@ export class SearchModal extends Modal {
 	/**
 	 * 检查条目是否已同步到本地
 	 */
-	private checkLocalSyncStatus(subject: Subject): string | null {
-		try {
-			const template = resolveTemplateRule(migrateTemplateSettings(this.settings), classifySubject(subject).nodeId).pathTemplate;
-			const filePath = generatePreferredFilePath(
-				template,
-				subject,
-				this.settings.pathNamingStrategy
-			);
-
-			const file = this.app.vault.getAbstractFileByPath(filePath);
-			if (file instanceof TFile) {
-				return filePath;
-			}
-		} catch {
-			// 忽略错误
+	private async checkLocalSyncStatus(subject: Subject): Promise<string | null> {
+		if (!this.localStatusScan) {
+			const registry = new IncrementalSync(this.app);
+			this.localStatusScan = registry.scanLocalFolder(this.syncManager.getScanRoot()).then(() => registry);
 		}
-		return null;
+		const scan = this.localStatusScan;
+		try { return (await scan).getLocalSubject(subject.id)?.path ?? null; }
+		finally { if (this.localStatusScan === scan) this.localStatusScan = null; }
 	}
 
 	/**
@@ -449,7 +440,6 @@ export class SearchModal extends Modal {
 		new Notice(tnFormat('searchModal', 'addedSuccess', { name: input.subjectName }));
 		const subject = this.searchResults.find(subject => subject.id === input.subjectId);
 		if (subject && this.contentEl.isConnected) {
-			if (this.checkLocalSyncStatus(subject)) this.syncedSubjectIds.add(subject.id);
 			if (input.syncToCloud) {
 				// A successful write invalidates the old edit snapshot. Do not allow
 				// another edit until the saved server state is known.
@@ -462,6 +452,8 @@ export class SearchModal extends Modal {
 				this.renderResultItem(subject);
 			}
 		}
+		if (subject && await this.checkLocalSyncStatus(subject)) this.syncedSubjectIds.add(subject.id);
+		if (subject && this.contentEl.isConnected) this.renderResultItem(subject);
 		this.onComplete();
 	}
 

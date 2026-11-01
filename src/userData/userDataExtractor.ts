@@ -32,6 +32,10 @@ export class UserDataExtractor {
 
 	async extractFromFileAsync(file: TFile): Promise<SubjectUserData | null> {
 		const content = await this.app.vault.read(file);
+		return this.extractFromContent(file, content);
+	}
+
+	extractFromContent(file: TFile, content: string): SubjectUserData | null {
 		const identity = this.documentService.getSubjectIdentityFromContent(content);
 		if (identity.subjectId === null || identity.conflicts?.length) return null;
 		const frontmatter = this.documentService.extractFrontmatterRecord(content);
@@ -178,7 +182,7 @@ export class UserDataExtractor {
 
 		for (const [key, value] of Object.entries(frontmatter)) {
 			if (!isCustomPropertyField(key)) continue;
-			if (value === undefined || value === '' || value === null) continue;
+			if (value === undefined) continue;
 			result[key] = value;
 		}
 

@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	resolve: {
+		extensions: ['.ts', '.mts', '.js', '.mjs', '.json'],
 		alias: {
 			obsidian: resolve(import.meta.dirname, 'tests/mocks/obsidian.ts'),
 		},

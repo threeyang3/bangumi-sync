@@ -334,9 +334,11 @@ export default class BangumiPlugin extends Plugin {
 	 * 保存设置
 	 */
 	async saveSettings() {
-		const snapshot = this.cloneSettings(this.settings);
-		await this.settingsPersistence.enqueue(() => this.saveData(snapshot));
-		this.lastSavedSettings = snapshot;
+		await this.settingsPersistence.enqueue(async () => {
+			const snapshot = this.cloneSettings(this.settings);
+			await this.saveData(snapshot);
+			this.lastSavedSettings = snapshot;
+		});
 	}
 
 	/**
@@ -469,6 +471,7 @@ export default class BangumiPlugin extends Plugin {
 			},
 		});
 		if (outcome.applied) {
+			this.setupAutoSync();
 			this.appliedSyncConfig = cloneSyncManagerConfig(nextConfig);
 			this.lastSavedSettings = this.cloneSettings(this.settings);
 			return { applied: true, settings: this.cloneSettings(this.settings) };
@@ -678,8 +681,12 @@ export default class BangumiPlugin extends Plugin {
                         this.syncManager!,
 			(filters: PanelFilters) => {
 				// 保存筛选条件
-				this.settings.panelFilters = filters;
-				void this.saveSettings().catch(error => {
+				void this.settingsPersistence.enqueue(async () => {
+					this.settings.panelFilters = filters;
+					const snapshot = this.cloneSettings(this.settings);
+					await this.saveData(snapshot);
+					this.lastSavedSettings = snapshot;
+				}).catch(error => {
 					console.error('[Bangumi Sync] Failed to persist panel filters:', error);
 					new Notice(`Failed to save settings: ${error instanceof Error ? error.message : String(error)}`);
 				});
@@ -1017,7 +1024,7 @@ export default class BangumiPlugin extends Plugin {
 							result.items,
 							result.action,
 							localPropertyResult,
-							this.settings.syncConcurrency, details,
+							this.settings.syncConcurrency, details, options.force,
 						);
 
 						this.settings.lastSyncTime = new Date().toISOString();

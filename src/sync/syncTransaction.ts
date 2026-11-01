@@ -1,6 +1,7 @@
 import { App, TFile, normalizePath } from 'obsidian';
 import { FileManager, FileWriteResult } from '../../common/file/fileManager';
 import { normalizePathCollisionKey } from '../../common/file/pathUtils';
+import { SubjectDocumentService } from '../document/subjectDocumentService';
 import { hashRecoveryContent } from './recoveryContent';
 
 export interface TransactionRename {
@@ -26,12 +27,14 @@ export interface SyncRollbackResult {
 }
 
 export interface RecoveryCreatedFileExpectation {
+	expectedWrittenHash?: string;
 	subjectId: number;
 	createdPath: string;
 	expectedToExistAfterRollback: false;
 }
 
 export interface RecoveryContentExpectation {
+	expectedWrittenHash?: string;
 	subjectId: number;
 	path: string;
 	expectedContentHash: string;
@@ -58,6 +61,7 @@ export type BeforeVaultMutation = (expectations: TransactionRecoveryExpectations
 type RenamePhase = 'original' | 'temporary' | 'final';
 
 interface StagedRename extends TransactionRename {
+	content: string;
 	file: TFile;
 	temporaryPath?: string;
 	phase: RenamePhase;
@@ -66,8 +70,8 @@ interface StagedRename extends TransactionRename {
 export type SyncTransactionState = 'active' | 'committed' | 'rolled-back' | 'rollback-failed';
 
 export class SyncTransaction {
-	private readonly createdFiles: Array<{ file: TFile; subjectId: number; createdPath: string }> = [];
-	private readonly updatedContents = new Map<TFile, { content: string; subjectId: number; path: string }>();
+	private readonly createdFiles: Array<{ file: TFile; subjectId: number; createdPath: string; content: string; expectedWrittenHash: string }> = [];
+	private readonly updatedContents = new Map<TFile, { content: string; subjectId: number; path: string; writtenContent: string; expectedWrittenHash: string }>();
 	private readonly originalContentHashes = new WeakMap<{ content: string }, Promise<string>>();
 	private readonly renames: StagedRename[] = [];
 	private readonly plannedCreatedFiles: RecoveryCreatedFileExpectation[] = [];
@@ -113,6 +117,7 @@ export class SyncTransaction {
 		const createdFiles = [...this.createdFiles.map(item => ({
 			subjectId: item.subjectId,
 			createdPath: item.createdPath,
+			expectedWrittenHash: item.expectedWrittenHash,
 			expectedToExistAfterRollback: false as const,
 		})), ...this.plannedCreatedFiles.map(item => ({ ...item }))];
 		const firstRenameByFile = new Map<TFile, StagedRename>();
@@ -127,6 +132,7 @@ export class SyncTransaction {
 				expectedContentHash: await this.getOriginalContentHash(original),
 				originalContentLength: original.content.length,
 				originalContent: original.content,
+				expectedWrittenHash: original.expectedWrittenHash,
 			};
 		}));
 		const renames = this.renames.map(rename => ({
@@ -167,7 +173,7 @@ export class SyncTransaction {
 			if (targets.has(targetKey)) throw new Error(`Duplicate rename target: ${to}`);
 			const file = await this.fileManager.assertPathOwnership(from, rename.subjectId);
 			if (!file) throw new Error(`Rename source does not exist: ${from}`);
-			const entry: StagedRename = { ...rename, from, to, file, phase: 'original' };
+			const entry: StagedRename = { ...rename, from, to, file, content: await this.app.vault.read(file), phase: 'original' };
 			sources.set(normalizePathCollisionKey(from), entry);
 			targets.add(targetKey);
 			this.renames.push(entry);
@@ -199,19 +205,24 @@ export class SyncTransaction {
 	async createOrUpdateFile(
 		path: string,
 		content: string,
-		options: { overwrite?: boolean; subjectId: number },
+		options: { overwrite?: boolean; subjectId: number; expectedContent?: string | null },
 	): Promise<FileWriteResult> {
 		this.assertActive();
 		const existing = await this.fileManager.assertPathOwnership(path, options.subjectId);
+		const expectedWrittenHash = await hashRecoveryContent(content);
 		const alreadyRecorded = existing !== null && this.updatedContents.has(existing);
 		if (existing && !this.updatedContents.has(existing)) {
 			this.updatedContents.set(existing, {
 				content: await this.app.vault.read(existing),
 				subjectId: options.subjectId,
 				path: existing.path,
+				writtenContent: content,
+				expectedWrittenHash,
 			});
 		}
-		const planned = existing ? null : { subjectId: options.subjectId, createdPath: normalizePath(path), expectedToExistAfterRollback: false as const };
+		const recorded = existing ? this.updatedContents.get(existing) : undefined;
+		if (recorded) { recorded.writtenContent = content; recorded.expectedWrittenHash = expectedWrittenHash; }
+		const planned = existing ? null : { subjectId: options.subjectId, createdPath: normalizePath(path), expectedWrittenHash, expectedToExistAfterRollback: false as const };
 		if (planned) this.plannedCreatedFiles.push(planned);
 		await this.beforeVaultMutation?.(await this.getRecoveryExpectations());
 		let result: FileWriteResult;
@@ -220,7 +231,7 @@ export class SyncTransaction {
 		} finally {
 			if (planned) this.plannedCreatedFiles.splice(this.plannedCreatedFiles.indexOf(planned), 1);
 		}
-		if (result.status === 'created') this.createdFiles.push({ file: result.file, subjectId: options.subjectId, createdPath: normalizePath(path) });
+		if (result.status === 'created') this.createdFiles.push({ file: result.file, subjectId: options.subjectId, createdPath: normalizePath(path), content, expectedWrittenHash });
 		if (result.status !== 'updated' && existing && !alreadyRecorded) this.updatedContents.delete(existing);
 		return result;
 	}
@@ -235,6 +246,8 @@ export class SyncTransaction {
 
 		for (const created of [...this.createdFiles].reverse()) {
 			try {
+				const latest = await this.app.vault.read(created.file);
+				this.assertUnchanged(created.file, created.createdPath, latest, created.content, created.subjectId);
 				await this.app.fileManager.trashFile(created.file);
 				result.deletedCreatedFiles++;
 				this.createdFiles.splice(this.createdFiles.indexOf(created), 1);
@@ -244,7 +257,10 @@ export class SyncTransaction {
 		}
 		for (const [file, original] of this.updatedContents) {
 			try {
-				await this.app.vault.process(file, () => original.content);
+				await this.app.vault.process(file, latest => {
+					this.assertUnchanged(file, original.path, latest, latest === original.content ? original.content : original.writtenContent, original.subjectId);
+					return original.content;
+				});
 				result.restoredContents++;
 				this.updatedContents.delete(file);
 			} catch (error) {
@@ -252,10 +268,12 @@ export class SyncTransaction {
 			}
 		}
 
+		if (result.failed > 0) { this.state = 'rollback-failed'; result.changed = result.deletedCreatedFiles + result.restoredContents > 0; return result; }
 		let index = 0;
 		for (const rename of this.renames) {
 			if (rename.phase !== 'final') continue;
 			try {
+				this.assertUnchanged(rename.file, rename.to, await this.app.vault.read(rename.file), rename.content, rename.subjectId);
 				rename.temporaryPath = await this.findTemporaryPath(rename.to, rename.subjectId, index++);
 				await this.app.fileManager.renameFile(rename.file, rename.temporaryPath);
 				rename.phase = 'temporary';
@@ -266,6 +284,7 @@ export class SyncTransaction {
 		for (const rename of [...this.renames].reverse()) {
 			if (rename.phase !== 'temporary') continue;
 			try {
+				this.assertUnchanged(rename.file, rename.temporaryPath!, await this.app.vault.read(rename.file), rename.content, rename.subjectId);
 				await this.fileManager.ensureDirectory(rename.from);
 				await this.app.fileManager.renameFile(rename.file, rename.from);
 				rename.phase = 'original';
@@ -277,6 +296,11 @@ export class SyncTransaction {
 		result.changed = result.deletedCreatedFiles + result.restoredContents + result.restoredPaths > 0;
 		this.state = result.failed > 0 ? 'rollback-failed' : 'rolled-back';
 		return result;
+	}
+
+	private assertUnchanged(file: TFile, path: string, latest: string, expected: string, subjectId: number): void {
+		if (file.path !== path || this.fileManager.getFile(path) !== file || latest !== expected) throw new Error('File changed after the transaction; preserve it for conflict resolution.');
+		new SubjectDocumentService(this.app).assertContentSubjectId(latest, subjectId, path);
 	}
 
 	private recordRollbackFailure(

@@ -26,7 +26,7 @@ async function renamedJournal(options: { temporary?: boolean; originalContent?: 
 		schemaVersion: 1, journalId: 'restart', pluginVersion: '6.11.1', state: 'rollback-failed', createdAt: 1, updatedAt: 1,
 		scanRoot: 'ACGN', affectedSubjectIds: [1], originalPathStates: {},
 		subjectExpectations: [{ subjectId: 1, expectedToExist: true, expectedPath: 'ACGN/A.md', expectedSubjectId: 1 }],
-		contentExpectations: [{ subjectId: 1, path: 'ACGN/A.md', expectedContentHash: await hashRecoveryContent(originalContent), originalContentLength: originalContent.length, originalContent }],
+		contentExpectations: [{ expectedWrittenHash: await hashRecoveryContent('---\nid: 1\n---\nupdated'), subjectId: 1, path: 'ACGN/A.md', expectedContentHash: await hashRecoveryContent(originalContent), originalContentLength: originalContent.length, originalContent }],
 		createdPathExpectations: [], renameExpectations: [{ subjectId: 1, originalPath: 'ACGN/A.md', temporaryPath: options.temporary ? 'ACGN/.bangumi-sync-1-0-0.tmp.md' : undefined, finalPath: 'ACGN/B.md', expectedTerminalPath: 'ACGN/A.md' }],
 		createdResourcePaths: [], updatedResourceExpectations: [], orphanTemporaryPaths: [], attempts: [], resultSnapshot: resultSnapshot(),
 	};
@@ -146,3 +146,11 @@ describe('restart recovery ordering', () => {
 		expect(await vault.app.vault.adapter.exists(RECOVERY_JOURNAL_PATH)).toBe(true);
 	});
 });
+
+ it('preserves later same-ID edits when a legacy journal lacks a written digest', async () => {
+  const vault=new InMemoryVault(); const content='---\nid: 1\n---\nlater edit'; vault.addFile('ACGN/B.md',content);
+  const journal=await renamedJournal(); delete journal.contentExpectations[0].expectedWrittenHash;
+  await new RecoveryJournalStore(vault.app).write(journal);
+  const manager=new SyncManager(vault.app,config()); await manager.initializeRecovery();
+  expect((await manager.retryRecovery()).status).toBe('rollback-failed'); expect(vault.contents.get('ACGN/B.md')).toBe(content);
+ });

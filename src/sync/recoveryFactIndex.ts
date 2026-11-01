@@ -54,10 +54,10 @@ export class RecoveryFactIndex {
 
 	constructor(journal: PersistentRecoveryJournal) {
 		this.created = new IndexedFacts(journal.createdPathExpectations, item => this.pathKey(item.createdPath), (left, right) =>
-			left.subjectId === right.subjectId && left.createdPath === right.createdPath
+			left.expectedWrittenHash === right.expectedWrittenHash && left.subjectId === right.subjectId && left.createdPath === right.createdPath
 			&& left.expectedToExistAfterRollback === right.expectedToExistAfterRollback);
 		this.contents = new IndexedFacts(journal.contentExpectations, item => this.pathKey(item.path), (left, right) =>
-			left.subjectId === right.subjectId && left.path === right.path && left.expectedContentHash === right.expectedContentHash
+			left.expectedWrittenHash === right.expectedWrittenHash && left.subjectId === right.subjectId && left.path === right.path && left.expectedContentHash === right.expectedContentHash
 			&& left.originalContentLength === right.originalContentLength && left.originalContent === right.originalContent);
 		this.renames = new IndexedFacts(journal.renameExpectations, item => item.subjectId, (left, right) =>
 			left.subjectId === right.subjectId && left.originalPath === right.originalPath && left.finalPath === right.finalPath

@@ -102,7 +102,7 @@ export class StatusSyncExecutor {
 
 		if (diff.tags.hasDiff && diff.tags.decision !== 'skip') {
 			if (diff.tags.decision === 'local') {
-				cloudUpdates.tags = this.documentService.normalizeTags(diff.tags.localValue);
+				cloudUpdates.tags = [...(diff.tags.localValue ?? [])];
 			} else if (diff.tags.decision === 'cloud') {
 				content = diff.tags.cloudValue && diff.tags.cloudValue.length > 0
 					? this.documentService.updateTags(content, this.documentService.normalizeTags(diff.tags.cloudValue))
@@ -111,7 +111,7 @@ export class StatusSyncExecutor {
 				const mergedTags = new Set<string>();
 				diff.tags.localValue?.forEach(tag => mergedTags.add(tag));
 				diff.tags.cloudValue?.forEach(tag => mergedTags.add(tag));
-				const mergedArray = this.documentService.normalizeTags(Array.from(mergedTags));
+				const mergedArray = Array.from(mergedTags);
 				content = this.documentService.updateTags(content, mergedArray);
 				cloudUpdates.tags = mergedArray;
 			}

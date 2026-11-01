@@ -26,7 +26,7 @@ afterEach(() => vi.restoreAllMocks());
 describe('recovery fact indexing', () => {
 	it('detects changes to every persisted content and rename field', () => {
 		const content = { subjectId: 1, path: 'ACGN/A.md', expectedContentHash: 'hash', originalContentLength: 3, originalContent: 'old' };
-		for (const [field, value] of Object.entries({ subjectId: 2, path: 'acgn/a.md', expectedContentHash: 'new-hash', originalContentLength: 4, originalContent: 'new' })) {
+		for (const [field, value] of Object.entries({ subjectId: 2, path: 'acgn/a.md', expectedContentHash: 'new-hash', expectedWrittenHash: 'written-hash', originalContentLength: 4, originalContent: 'new' })) {
 			const target = journal();
 			const index = new RecoveryFactIndex(target);
 			index.mergeInto(target, { createdFiles: [], updatedContents: [content], renames: [] });
